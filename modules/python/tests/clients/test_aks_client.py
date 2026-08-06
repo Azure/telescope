@@ -7,6 +7,7 @@ import os
 import unittest
 from unittest import mock
 
+from azure.core.exceptions import HttpResponseError
 from clients.aks_client import AKSClient
 
 class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-attributes
@@ -166,15 +167,21 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
             agent_pool_name="test-pool",
         )
 
+    @mock.patch("utils.provisioning_instrumentation.time")
     @mock.patch("clients.aks_client.time")
-    def test_create_node_pool_success(self, mock_time):
+    def test_create_node_pool_success(self, _mock_time, mock_instr_time):
         """Test successful node pool creation"""
         # Setup
         node_pool_name = "test-pool"
         vm_size = "Standard_DS2_v2"
         node_count = 2
 
-        mock_time.time.side_effect = [100, 150]  # Start and end times
+        # Define timestamps for clarity
+        start_time = 100
+        arm_done_time = 150
+        nodes_ready_time = 130
+        mock_instr_time.time.side_effect = [start_time, arm_done_time, nodes_ready_time]
+        mock_instr_time.sleep = mock.MagicMock()
 
         mock_operation = mock.MagicMock()
         self.mock_agent_pools.begin_create_or_update.return_value = mock_operation
@@ -219,6 +226,61 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
             label_selector=f"agentpool={node_pool_name}",
         )
 
+        # Verify timing measurements are calculated and stored correctly
+        # node_readiness_time = nodes_ready_time - start_time = 130 - 100 = 30
+        # command_execution_time = arm_done_time - start_time = 150 - 100 = 50
+        self.mock_operation.add_metadata.assert_any_call("node_readiness_time", 30)
+        self.mock_operation.add_metadata.assert_any_call("command_execution_time", 50)
+
+    @mock.patch("utils.provisioning_instrumentation.time")
+    @mock.patch("clients.aks_client.time")
+    def test_create_node_pool_retry_occurred_metadata(self, _mock_time, mock_instr_time):
+        """Test that retry_occurred metadata is set when ARM operation retries"""
+
+
+        node_pool_name = "test-pool"
+        vm_size = "Standard_DS2_v2"
+        node_count = 2
+
+        start_time = 100
+        arm_done_time = 180
+        nodes_ready_time = 160
+        mock_instr_time.time.side_effect = [start_time, arm_done_time, nodes_ready_time]
+        mock_instr_time.sleep = mock.MagicMock()
+
+        # First call raises OperationNotAllowed, second succeeds
+        error = HttpResponseError(message="OperationNotAllowed")
+        error.error = mock.MagicMock()
+        error.error.code = "OperationNotAllowed"
+        mock_poller = mock.MagicMock()
+        mock_poller.done.return_value = True
+        self.mock_agent_pools.begin_create_or_update.side_effect = [
+            error,
+            mock_poller,
+        ]
+
+        ready_nodes = [mock.MagicMock(), mock.MagicMock()]
+        self.mock_k8s.wait_for_nodes_ready.return_value = ready_nodes
+
+        mock_created_node_pool = mock.MagicMock()
+        mock_created_node_pool.as_dict.return_value = {
+            "name": node_pool_name,
+            "vm_size": vm_size,
+            "count": node_count,
+        }
+        self.aks_client.get_node_pool = mock.MagicMock(return_value=mock_created_node_pool)
+
+        result = self.aks_client.create_node_pool(
+            node_pool_name=node_pool_name,
+            vm_size=vm_size,
+            node_count=node_count,
+            gpu_node_pool=False,
+        )
+
+        self.assertTrue(result)
+        self.assertEqual(self.mock_agent_pools.begin_create_or_update.call_count, 2)
+        self.mock_operation.add_metadata.assert_any_call("retry_occurred", True)
+
     @mock.patch("clients.aks_client.time")
     def test_create_node_pool_gpu(self, mock_time):
         """Test creating a GPU node pool with driver verification"""
@@ -227,7 +289,11 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         vm_size = "Standard_NC6s_v3"  # GPU VM size
         node_count = 1
 
-        mock_time.time.side_effect = [100, 150]  # Start and end times
+        # Define timestamps for clarity
+        start_time = 100
+        arm_done_time = 150
+        nodes_ready_time = 130
+        mock_time.time.side_effect = [start_time, arm_done_time, nodes_ready_time]
 
         mock_operation = mock.MagicMock()
         self.mock_agent_pools.begin_create_or_update.return_value = mock_operation
@@ -280,14 +346,63 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         # Check that NVIDIA verification was performed
         self.mock_k8s.verify_nvidia_smi_on_node.assert_called_once_with(ready_nodes)
 
+    @mock.patch("clients.aks_client.subprocess.run")
     @mock.patch("clients.aks_client.time")
-    def test_scale_node_pool_up(self, mock_time):
+    def test_create_node_pool_fully_managed_gpu(self, mock_time, mock_subprocess_run):
+        """Test creating a fully managed GPU node pool uses az CLI, verifies systemd services and nvidia-smi"""
+        node_pool_name = "gpu-fullmgd"
+        vm_size = "Standard_NC40ads_H100_v5"
+        node_count = 1
+
+        mock_time.time.side_effect = [100, 150]
+        mock_subprocess_run.return_value = mock.MagicMock(returncode=0, stderr="")
+
+        ready_nodes = [mock.MagicMock()]
+        self.mock_k8s.wait_for_nodes_ready.return_value = ready_nodes
+        self.mock_k8s.verify_managed_gpu_systemd_services = mock.MagicMock(return_value={})
+        self.mock_k8s.verify_nvidia_smi_on_node = mock.MagicMock()
+
+        mock_created_node_pool = mock.MagicMock()
+        mock_created_node_pool.as_dict.return_value = {"name": node_pool_name}
+        self.aks_client.get_node_pool = mock.MagicMock(return_value=mock_created_node_pool)
+
+        result = self.aks_client.create_node_pool(
+            node_pool_name=node_pool_name,
+            vm_size=vm_size,
+            node_count=node_count,
+            gpu_node_pool=True,
+            enable_managed_gpu=True,
+        )
+
+        self.assertTrue(result)
+        # SDK should NOT be called — az CLI handles creation
+        self.mock_agent_pools.begin_create_or_update.assert_not_called()
+        # Two subprocess calls: extension install + nodepool add
+        self.assertEqual(mock_subprocess_run.call_count, 2)
+        ext_cmd = mock_subprocess_run.call_args_list[0][0][0]
+        self.assertIn("aks-preview", ext_cmd)
+        nodepool_cmd = mock_subprocess_run.call_args_list[1][0][0]
+        self.assertIn("--enable-managed-gpu", nodepool_cmd)
+        self.assertIn("true", nodepool_cmd)
+        # systemd check and nvidia-smi should both run for fully managed GPU
+        self.mock_k8s.verify_managed_gpu_systemd_services.assert_called_once_with(ready_nodes)
+        self.mock_k8s.verify_nvidia_smi_on_node.assert_called_once_with(ready_nodes)
+
+    @mock.patch("utils.provisioning_instrumentation.time")
+    @mock.patch("clients.aks_client.time")
+    def test_scale_node_pool_up(self, mock_time, mock_instr_time):
         """Test scaling a node pool up"""
         # Setup
         node_pool_name = "test-pool"
         node_count = 3
 
-        mock_time.time.side_effect = [100, 150]  # Start and end times
+        # Define timestamps for clarity
+        start_time = 100
+        arm_done_time = 150
+        nodes_ready_time = 130
+        mock_instr_time.time.side_effect = [start_time, arm_done_time, nodes_ready_time]
+        mock_instr_time.sleep = mock.MagicMock()
+        mock_time.sleep = mock.MagicMock()
 
         mock_node_pool = mock.MagicMock()
         mock_node_pool.count = 1  # Current count
@@ -324,6 +439,12 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         )
         self.assertEqual(mock_node_pool.count, node_count)
 
+        # Verify timing measurements are calculated and stored correctly
+        # node_readiness_time = nodes_ready_time - start_time = 130 - 100 = 30
+        # command_execution_time = arm_done_time - start_time = 150 - 100 = 50
+        self.mock_operation.add_metadata.assert_any_call("node_readiness_time", 30)
+        self.mock_operation.add_metadata.assert_any_call("command_execution_time", 50)
+
     @mock.patch("clients.aks_client.time")
     def test_scale_node_pool_down(self, mock_time):
         """Test scaling a node pool down"""
@@ -331,7 +452,12 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         node_pool_name = "test-pool"
         node_count = 1
 
-        mock_time.time.side_effect = [100, 150]  # Start and end times
+        # Define timestamps for clarity
+        start_time = 100
+        arm_done_time = 150
+        nodes_ready_time = 130
+        mock_time.time.side_effect = [start_time, arm_done_time, nodes_ready_time]
+        mock_time.sleep = mock.MagicMock()
 
         mock_node_pool = mock.MagicMock()
         mock_node_pool.count = 3  # Current count
@@ -412,7 +538,12 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         # Set VM size that triggers NVIDIA verification
         self.aks_client.vm_size = "Standard_NC40ads_H100_v5"
 
-        mock_time.time.side_effect = [100, 150]  # Start and end times
+        # Define timestamps for clarity
+        start_time = 100
+        arm_done_time = 150
+        nodes_ready_time = 130
+        mock_time.time.side_effect = [start_time, arm_done_time, nodes_ready_time]
+        mock_time.sleep = mock.MagicMock()
 
         mock_node_pool = mock.MagicMock()
         mock_node_pool.count = 1  # Current count
@@ -472,12 +603,10 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         # Set VM size that triggers NVIDIA verification
         self.aks_client.vm_size = "Standard_NC40ads_H100_v5"
 
-        mock_time.time.side_effect = [
-            100,
-            150,
-            200,
-            250,
-        ]  # Start and end times including progressive scaling
+        # Define timestamps for clarity (progressive has multiple steps)
+        # Each step calls time.time() 3x: start, arm_done, nodes_ready
+        mock_time.time.side_effect = [100, 150, 130, 200, 250, 230]
+        mock_time.sleep = mock.MagicMock()
 
         mock_node_pool = mock.MagicMock()
         mock_node_pool.count = 1  # Current count
@@ -506,7 +635,10 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
             mock.MagicMock(),
             mock.MagicMock(),
         ]  # Second step to 3 nodes
-        self.mock_k8s.wait_for_nodes_ready.side_effect = [ready_nodes1, ready_nodes2]
+        self.mock_k8s.wait_for_nodes_ready.side_effect = [
+            ready_nodes1,
+            ready_nodes2,
+        ]
 
         # Add nvidia-smi verification mock
         self.mock_k8s.verify_nvidia_smi_on_node = mock.MagicMock(
@@ -542,7 +674,12 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         node_pool_name = "gpu-pool"
         node_count = 1
 
-        mock_time.time.side_effect = [100, 150]  # Start and end times
+        # Define timestamps for clarity
+        start_time = 100
+        arm_done_time = 150
+        nodes_ready_time = 130
+        mock_time.time.side_effect = [start_time, arm_done_time, nodes_ready_time]
+        mock_time.sleep = mock.MagicMock()
 
         mock_node_pool = mock.MagicMock()
         mock_node_pool.count = 3  # Current count
@@ -586,6 +723,110 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
 
         # Check that NVIDIA verification was NOT performed for scale-down
         self.mock_k8s.verify_nvidia_smi_on_node.assert_not_called()
+
+    def test_gpu_mode_metadata_variants(self):
+        """_gpu_mode_metadata normalizes managed/fully-managed and MIG single/mixed."""
+        gpu_meta = AKSClient._gpu_mode_metadata  # pylint: disable=protected-access
+        # Non-GPU pool
+        self.assertEqual(
+            gpu_meta(False, False),
+            {
+                "gpu_mode": "none",
+                "enable_managed_gpu": False,
+                "mig_enabled": False,
+                "gpu_instance_profile": None,
+                "gpu_mig_strategy": None,
+            },
+        )
+        # Managed (driver bootstrap only)
+        managed = gpu_meta(True, False)
+        self.assertEqual(managed["gpu_mode"], "managed")
+        self.assertFalse(managed["enable_managed_gpu"])
+        self.assertFalse(managed["mig_enabled"])
+        # Fully managed
+        fully = gpu_meta(True, True)
+        self.assertEqual(fully["gpu_mode"], "fully_managed")
+        self.assertTrue(fully["enable_managed_gpu"])
+        # Fully managed + MIG mixed
+        mixed = gpu_meta(True, True, "MIG1g", "mixed")
+        self.assertEqual(mixed["gpu_mode"], "fully_managed")
+        self.assertTrue(mixed["mig_enabled"])
+        self.assertEqual(mixed["gpu_instance_profile"], "MIG1g")
+        self.assertEqual(mixed["gpu_mig_strategy"], "mixed")
+        # Fully managed + MIG single
+        single = gpu_meta(True, True, "MIG1g", "single")
+        self.assertEqual(single["gpu_mig_strategy"], "single")
+        self.assertTrue(single["mig_enabled"])
+        # Normalization: MIG inputs are dropped for non-fully-managed pools
+        managed_with_mig = gpu_meta(True, False, "MIG1g", "single")
+        self.assertEqual(managed_with_mig["gpu_mode"], "managed")
+        self.assertFalse(managed_with_mig["mig_enabled"])
+        self.assertIsNone(managed_with_mig["gpu_instance_profile"])
+        self.assertIsNone(managed_with_mig["gpu_mig_strategy"])
+        # Normalization: managed flag is meaningless without a GPU pool
+        not_gpu = gpu_meta(False, True)
+        self.assertEqual(not_gpu["gpu_mode"], "none")
+        self.assertFalse(not_gpu["enable_managed_gpu"])
+        # Invalid MIG strategy is rejected
+        with self.assertRaises(ValueError):
+            gpu_meta(True, True, "MIG1g", "bogus")
+
+    def test_log_gpu_mode_console_echo(self):
+        """_log_gpu_mode echoes GPU metadata to the console for GPU pools only."""
+        log_gpu_mode = AKSClient._log_gpu_mode  # pylint: disable=protected-access
+        with self.assertLogs("clients.aks_client", level="INFO") as cm:
+            log_gpu_mode(
+                {
+                    "gpu_mode": "fully_managed",
+                    "enable_managed_gpu": True,
+                    "mig_enabled": True,
+                    "gpu_instance_profile": "MIG1g",
+                    "gpu_mig_strategy": "mixed",
+                }
+            )
+        self.assertTrue(any("gpu_mode=fully_managed" in m for m in cm.output))
+        self.assertTrue(any("gpu_mig_strategy=mixed" in m for m in cm.output))
+        # Non-GPU operations must not emit the GPU metadata line.
+        with self.assertNoLogs("clients.aks_client", level="INFO"):
+            log_gpu_mode({"gpu_mode": "none"})
+
+    @mock.patch("clients.aks_client.time")
+    def test_scale_node_pool_records_gpu_mode_metadata(self, mock_time):
+        """Scale ops persist gpu_mode + MIG fields even though the SDK read-back drops them."""
+        node_pool_name = "h100fullmgd"
+        node_count = 3
+
+        mock_time.time.side_effect = [100, 150, 130]
+        mock_time.sleep = mock.MagicMock()
+
+        mock_node_pool = mock.MagicMock()
+        mock_node_pool.count = 1
+        mock_node_pool.vm_size = "Standard_NC40ads_H100_v5"
+        mock_node_pool.as_dict.return_value = {"count": 1}
+        self.mock_agent_pools.get.return_value = mock_node_pool
+        self.aks_client.get_node_pool = mock.MagicMock(return_value=mock_node_pool)
+        self.mock_k8s.wait_for_nodes_ready.return_value = [mock.MagicMock()] * node_count
+        self.mock_k8s.verify_managed_gpu_systemd_services = mock.MagicMock(return_value={})
+        self.mock_k8s.verify_nvidia_smi_on_node = mock.MagicMock()
+        self.mock_k8s.verify_mig_allocatable = mock.MagicMock(return_value={})
+
+        result = self.aks_client.scale_node_pool(
+            node_pool_name=node_pool_name,
+            node_count=node_count,
+            gpu_node_pool=True,
+            enable_managed_gpu=True,
+            gpu_instance_profile="MIG1g",
+            gpu_mig_strategy="mixed",
+        )
+
+        self.assertTrue(result)
+        # The metadata dict is the 3rd positional arg to OperationContext(...)
+        metadata = self.mock_operation_context.call_args[0][2]
+        self.assertEqual(metadata["gpu_mode"], "fully_managed")
+        self.assertTrue(metadata["enable_managed_gpu"])
+        self.assertTrue(metadata["mig_enabled"])
+        self.assertEqual(metadata["gpu_instance_profile"], "MIG1g")
+        self.assertEqual(metadata["gpu_mig_strategy"], "mixed")
 
 
 if __name__ == "__main__":

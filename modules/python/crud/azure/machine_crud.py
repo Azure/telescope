@@ -45,21 +45,21 @@ class MachineCRUD:
         self.result_dir = result_dir
         self.step_timeout = step_timeout
 
-    def create_machine_agentpool(self, agentpool_name, vm_size):
+    def create_machine_agentpool(self, agent_pool_name, vm_size):
         """Create a machine-mode agent pool. Returns True on success, False on failure."""
         try:
             self.aks_client.create_machine_agentpool(
-                agentpool_name=agentpool_name,
+                agent_pool_name=agent_pool_name,
                 vm_size=vm_size,
                 cluster_name=self.cluster_name,
                 timeout=self.step_timeout,
             )
             return True
         except Exception as e:
-            logger.error(f"create_machine_agentpool failed for {agentpool_name}: {e}")
+            logger.error(f"create_machine_agentpool failed for {agent_pool_name}: {e}")
             return False
 
-    def scale_machine(self, agentpool_name, vm_size, scale_machine_count,
+    def scale_machine(self, agent_pool_name, vm_size, scale_machine_count,
                       use_batch_api=False, machine_workers=1,
                       readiness_wait_timeout=1200, tags=None):
         """Scale a machine-mode agent pool by ``scale_machine_count`` machines.
@@ -70,7 +70,7 @@ class MachineCRUD:
         """
         try:
             self.aks_client.scale_machine(
-                agentpool_name=agentpool_name,
+                agent_pool_name=agent_pool_name,
                 vm_size=vm_size,
                 scale_machine_count=scale_machine_count,
                 cluster_name=self.cluster_name,
@@ -82,5 +82,5 @@ class MachineCRUD:
             )
             return True
         except Exception as e:
-            logger.error(f"scale_machine failed for {agentpool_name}: {e}")
+            logger.error(f"scale_machine failed for {agent_pool_name}: {e}")
             return False

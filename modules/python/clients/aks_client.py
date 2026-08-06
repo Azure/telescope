@@ -14,6 +14,7 @@ and troubleshooting.
 
 import logging
 import os
+import subprocess
 import time
 from typing import Dict, Optional, Any
 
@@ -27,6 +28,10 @@ from azure.mgmt.containerservice import ContainerServiceClient
 # Local imports
 from utils.logger_config import get_logger, setup_logging
 from utils.common import get_env_vars
+from utils.provisioning_instrumentation import (
+    begin_create_or_update_with_retry,
+    instrument_nodepool_provisioning,
+)
 from .kubernetes_client import KubernetesClient
 
 # Configure logging
@@ -59,6 +64,40 @@ class AKSClient:
         from crud.operation import OperationContext # pylint: disable=import-outside-toplevel
 
         return OperationContext
+
+    def _instrument_nodepool_provisioning(
+        self,
+        node_pool_name: str,
+        cluster_name: str,
+        parameters: Any,
+        node_count: int,
+        op,
+        label: str = "",
+    ) -> list:
+        """
+        Run ARM operation and K8s node readiness check concurrently using threads.
+        Delegates to provisioning_instrumentation.instrument_nodepool_provisioning.
+        """
+        def arm_callable():
+            return begin_create_or_update_with_retry(
+                self.aks_client, self.resource_group,
+                cluster_name, node_pool_name, parameters, label=label,
+            )
+
+        def k8s_wait_callable():
+            return self.k8s_client.wait_for_nodes_ready(
+                node_count=node_count,
+                operation_timeout_in_minutes=self.operation_timeout_minutes,
+                label_selector=f"agentpool={node_pool_name}",
+            )
+
+        return instrument_nodepool_provisioning(
+            node_pool_name=node_pool_name,
+            op=op,
+            arm_callable=arm_callable,
+            k8s_wait_callable=k8s_wait_callable,
+            label=label,
+        )
 
     def __init__(
         self,
@@ -270,6 +309,127 @@ class AKSClient:
             logger.error(f"Error getting node pool {node_pool_name}: {str(e)}")
             raise
 
+    def add_managed_gpu_node_pool(
+        self,
+        node_pool_name: str,
+        cluster_name: str,
+        vm_size: str,
+        node_count: int,
+        gpu_instance_profile: Optional[str] = None,
+        gpu_mig_strategy: Optional[str] = None,
+    ) -> None:
+        """
+        Create a fully managed GPU node pool via az CLI (aks-preview extension).
+        Used because the stable Python SDK doesn't expose gpuProfile.nvidia.managementMode.
+        """
+        # Ensure aks-preview extension is installed/upgraded (required for --enable-managed-gpu)
+        subprocess.run(
+            ["az", "extension", "add", "--name", "aks-preview", "--upgrade",
+             "--allow-preview", "true", "--yes"],
+            capture_output=True, text=True, check=False,
+        )
+
+        cmd = [
+            "az", "aks", "nodepool", "add",
+            "--resource-group", self.resource_group,
+            "--cluster-name", cluster_name,
+            "--name", node_pool_name,
+            "--node-count", str(node_count),
+            "--node-vm-size", vm_size,
+            "--mode", "User",
+            "--node-osdisk-type", "Managed",
+            "--labels", "gpu=true",
+            "--enable-managed-gpu", "true",
+        ]
+        if gpu_instance_profile:
+            cmd += ["--gpu-instance-profile", gpu_instance_profile]
+        if gpu_mig_strategy:
+            cmd += ["--gpu-mig-strategy", gpu_mig_strategy]
+        logger.info(f"Running: {' '.join(cmd)}")
+        retries = 10
+        retry_wait = 30
+        for attempt in range(retries):
+            result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+            if result.returncode == 0:
+                break
+            detail = " | ".join(
+                line for line in (result.stdout + result.stderr).splitlines() if line.strip()
+            )
+            if "OperationNotAllowed" in detail and attempt < retries - 1:
+                logger.warning(
+                    f"Cluster has an in-progress operation, retrying in {retry_wait}s (attempt {attempt + 1}/{retries})"
+                )
+                time.sleep(retry_wait)
+            else:
+                raise RuntimeError(
+                    f"az aks nodepool add failed (rc={result.returncode}): {detail}"
+                )
+        logger.info(f"az aks nodepool add succeeded for '{node_pool_name}'")
+
+    @staticmethod
+    def _gpu_mode_metadata(
+        gpu_node_pool: bool,
+        enable_managed_gpu: bool,
+        gpu_instance_profile: Optional[str] = None,
+        gpu_mig_strategy: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Build normalized GPU-mode metadata distinguishing managed vs fully-managed
+        GPU and MIG single vs mixed.
+
+        Derived from the operation INPUT flags rather than the AKS read-back: the
+        stable SDK does not model gpuProfile.nvidia.managementMode, so a
+        fully-managed pool's mode is dropped from nodepool_info. Flag combinations
+        are normalized for consistency: enable_managed_gpu / MIG only apply to a
+        GPU pool, and MIG only to fully-managed pools (dropped otherwise).
+
+        Returns a dict with gpu_mode ("none"|"managed"|"fully_managed"),
+        enable_managed_gpu, mig_enabled, gpu_instance_profile, gpu_mig_strategy.
+        Raises ValueError if gpu_mig_strategy is not None / "single" / "mixed".
+        """
+        strategy = (gpu_mig_strategy or None) and str(gpu_mig_strategy).lower()
+        if strategy not in (None, "single", "mixed"):
+            raise ValueError(
+                f"invalid gpu_mig_strategy {gpu_mig_strategy!r} (want single/mixed/None)"
+            )
+
+        is_gpu = bool(gpu_node_pool)
+        fully_managed = is_gpu and bool(enable_managed_gpu)
+
+        if not is_gpu:
+            gpu_mode = "none"
+        elif fully_managed:
+            gpu_mode = "fully_managed"
+        else:
+            gpu_mode = "managed"
+
+        # MIG only applies to fully-managed pools; drop it otherwise.
+        profile = gpu_instance_profile if fully_managed else None
+        strategy = strategy if fully_managed else None
+
+        return {
+            "gpu_mode": gpu_mode,
+            "enable_managed_gpu": fully_managed,
+            "mig_enabled": bool(profile or strategy),
+            "gpu_instance_profile": profile,
+            "gpu_mig_strategy": strategy,
+        }
+
+    @staticmethod
+    def _log_gpu_mode(metadata: Dict[str, Any]) -> None:
+        """Echo the normalized GPU-mode metadata to the console for traceability."""
+        if metadata.get("gpu_mode") in (None, "none"):
+            return
+        logger.info(
+            "GPU pool metadata: gpu_mode=%s enable_managed_gpu=%s mig_enabled=%s "
+            "gpu_instance_profile=%s gpu_mig_strategy=%s",
+            metadata.get("gpu_mode"),
+            metadata.get("enable_managed_gpu"),
+            metadata.get("mig_enabled"),
+            metadata.get("gpu_instance_profile"),
+            metadata.get("gpu_mig_strategy"),
+        )
+
     def create_node_pool(
         self,
         node_pool_name: str,
@@ -277,6 +437,9 @@ class AKSClient:
         node_count: int = 0,
         cluster_name: Optional[str] = None,
         gpu_node_pool: bool = False,
+        enable_managed_gpu: bool = False,
+        gpu_instance_profile: Optional[str] = None,
+        gpu_mig_strategy: Optional[str] = None,
     ) -> Any:
         """
         Create a new node pool in the AKS cluster.
@@ -288,6 +451,10 @@ class AKSClient:
             cluster_name: The name of the AKS cluster. If not provided,
                          will use the one from initialization or try to find one.
             gpu_node_pool: Whether this is a GPU-enabled node pool (default: False)
+            enable_managed_gpu: Whether to enable fully managed GPU mode with
+                                 gpuProfile.nvidia.managementMode=Managed (default: False).
+                                 When False with gpu_node_pool=True, driver bootstrap only
+                                 (gpuProfile.driver=Install, gpuProfile.nvidia=null).
 
         Returns:
             The created node pool object or operation result
@@ -309,7 +476,14 @@ class AKSClient:
             "vm_size": vm_size,
             "node_count": node_count,
             "gpu_node_pool": gpu_node_pool,
+            **self._gpu_mode_metadata(
+                gpu_node_pool,
+                enable_managed_gpu,
+                gpu_instance_profile,
+                gpu_mig_strategy,
+            ),
         }
+        self._log_gpu_mode(metadata)
 
         # Create operation context to track the operation
         with self._get_operation_context()(
@@ -317,7 +491,6 @@ class AKSClient:
         ) as op:
             try:
                 # Build parameters for node pool creation
-                # Todo: Remove VM_SIZE check after we get ND H100 quota
                 parameters = {
                     "count": node_count,
                     "vm_size": vm_size,
@@ -327,41 +500,61 @@ class AKSClient:
                     "nodeLabels": {"gpu": "true"} if gpu_node_pool else {},
                 }
 
-                if gpu_node_pool:
+                if gpu_node_pool and not enable_managed_gpu:
+                    # Managed GPU (driver bootstrap only): driver install, no NVIDIA management
                     parameters["gpu_profile"] = {
-                        "driver": "None" if vm_size == "Standard_ND96asr_v4" else "Install",
+                        "driver": "Install",
                     }
 
                 logger.info(
                     f"Creating node pool {node_pool_name} in cluster {cluster_name}"
                 )
 
-                # Create the node pool
-                self.aks_client.agent_pools.begin_create_or_update(
-                    resource_group_name=self.resource_group,
-                    resource_name=cluster_name,
-                    agent_pool_name=node_pool_name,
-                    parameters=parameters,
-                ).result()
-
-                label_selector = f"agentpool={node_pool_name}"
-
-                # Wait for nodes to be ready
-                ready_nodes = self.k8s_client.wait_for_nodes_ready(
-                    node_count=node_count,
-                    operation_timeout_in_minutes=self.operation_timeout_minutes,
-                    label_selector=label_selector,
-                )
+                if enable_managed_gpu:
+                    # Fully managed GPU: use az CLI (aks-preview) since the stable SDK
+                    # doesn't expose gpuProfile.nvidia.managementMode
+                    self.add_managed_gpu_node_pool(
+                        node_pool_name=node_pool_name,
+                        cluster_name=cluster_name,
+                        vm_size=vm_size,
+                        node_count=node_count,
+                        gpu_instance_profile=gpu_instance_profile,
+                        gpu_mig_strategy=gpu_mig_strategy,
+                    )
+                    label_selector = f"agentpool={node_pool_name}"
+                    ready_nodes = self.k8s_client.wait_for_nodes_ready(
+                        node_count=node_count,
+                        operation_timeout_in_minutes=self.operation_timeout_minutes,
+                        label_selector=label_selector,
+                    )
+                else:
+                    # Run ARM and K8s readiness concurrently to capture both timings
+                    ready_nodes = self._instrument_nodepool_provisioning(
+                        node_pool_name, cluster_name, parameters, node_count, op
+                    )
 
                 logger.info(
                     f"All {node_count} nodes in pool {node_pool_name} are ready"
                 )
 
-                # Verify NVIDIA drivers if this is a GPU node pool
+                # Verify NVIDIA drivers for managed GPU only (fully managed uses systemd)
                 pod_logs = None
-                if gpu_node_pool and node_count > 0:
+                if gpu_node_pool and not enable_managed_gpu and node_count > 0:
                     logger.info(
                         f"Verifying NVIDIA drivers for GPU node pool '{node_pool_name}'"
+                    )
+                    pod_logs = self.k8s_client.verify_nvidia_smi_on_node(ready_nodes)
+                    op.add_metadata("nvidia_driver_logs", pod_logs)
+
+                # For fully managed GPU, verify systemd services are active then confirm GPU access
+                if enable_managed_gpu and node_count > 0:
+                    logger.info(
+                        f"Verifying managed GPU systemd services for '{node_pool_name}'"
+                    )
+                    service_status = self.k8s_client.verify_managed_gpu_systemd_services(ready_nodes)
+                    op.add_metadata("managed_gpu_service_status", service_status)
+                    logger.info(
+                        f"Verifying nvidia-smi for managed GPU node pool '{node_pool_name}'"
                     )
                     pod_logs = self.k8s_client.verify_nvidia_smi_on_node(ready_nodes)
                     op.add_metadata("nvidia_driver_logs", pod_logs)
@@ -392,8 +585,11 @@ class AKSClient:
         node_count: int,
         cluster_name: Optional[str] = None,
         gpu_node_pool: bool = False,
+        enable_managed_gpu: bool = False,
         progressive: bool = False,
         scale_step_size: int = 1,
+        gpu_instance_profile: Optional[str] = None,
+        gpu_mig_strategy: Optional[str] = None,
     ) -> Any:
         """
         Scale a node pool to the specified node count.
@@ -427,7 +623,14 @@ class AKSClient:
             "gpu_node_pool": gpu_node_pool,
             "progressive_scaling": progressive,
             "scale_step_size": scale_step_size,
+            **self._gpu_mode_metadata(
+                gpu_node_pool,
+                enable_managed_gpu,
+                gpu_instance_profile,
+                gpu_mig_strategy,
+            ),
         }
+        self._log_gpu_mode(metadata)
         node_pool = self.get_node_pool(node_pool_name, cluster_name)
 
         current_count = node_pool.count
@@ -452,7 +655,10 @@ class AKSClient:
                 operation_type=operation_type,
                 cluster_name=cluster_name,
                 gpu_node_pool=gpu_node_pool,
+                enable_managed_gpu=enable_managed_gpu,
                 node_pool=node_pool,
+                gpu_instance_profile=gpu_instance_profile,
+                gpu_mig_strategy=gpu_mig_strategy,
             )
 
         # Create operation context to track the operation
@@ -478,40 +684,46 @@ class AKSClient:
                 node_pool.count = node_count
 
                 logger.info(f"Scaling node pool {node_pool_name} to {node_count} nodes")
-                self.aks_client.agent_pools.begin_create_or_update(
-                    resource_group_name=self.resource_group,
-                    resource_name=cluster_name,
-                    agent_pool_name=node_pool_name,
-                    parameters=node_pool,
-                ).result()
 
                 logger.info(
                     f"Waiting for {node_count} nodes in pool {node_pool_name} to be ready..."
                 )
 
-                # Use agentpool=node_pool_name as default label if not specified
-                label_selector = f"agentpool={node_pool_name}"
-
-                ready_nodes = self.k8s_client.wait_for_nodes_ready(
-                    node_count=node_count,
-                    operation_timeout_in_minutes=self.operation_timeout_minutes,
-                    label_selector=label_selector,
+                # Run ARM and K8s readiness concurrently to capture both timings
+                ready_nodes = self._instrument_nodepool_provisioning(
+                    node_pool_name, cluster_name, node_pool, node_count, op,
                 )
+
                 logger.info(
                     f"All {node_count} nodes in pool {node_pool_name} are ready"
                 )
 
                 pod_logs = None
-                # Verify NVIDIA drivers only for GPU node pools during scale-up operations
-                # and only when reaching the final target (not intermediate steps)
-                # TODO: Remove VM_SIZE check after we get ND H100 quota
-                if gpu_node_pool and operation_type == "scale_up" and node_count > 0 and self.vm_size == "Standard_NC40ads_H100_v5":
+                if gpu_node_pool and not enable_managed_gpu and operation_type == "scale_up" and node_count > 0:
                     logger.info(
-                        f"Verifying NVIDIA drivers for GPU node pool '{node_pool_name}' after reaching final target"
+                        f"Verifying NVIDIA drivers for GPU node pool '{node_pool_name}'"
                     )
                     pod_logs = self.k8s_client.verify_nvidia_smi_on_node(ready_nodes)
                     op.add_metadata("nvidia_driver_logs", pod_logs)
-                # Record node readiness info
+
+                if enable_managed_gpu and operation_type == "scale_up" and node_count > 0:
+                    logger.info(
+                        f"Verifying managed GPU systemd services for '{node_pool_name}'"
+                    )
+                    service_status = self.k8s_client.verify_managed_gpu_systemd_services(ready_nodes)
+                    op.add_metadata("managed_gpu_service_status", service_status)
+                    logger.info(
+                        f"Verifying nvidia-smi for managed GPU node pool '{node_pool_name}'"
+                    )
+                    pod_logs = self.k8s_client.verify_nvidia_smi_on_node(ready_nodes)
+                    op.add_metadata("nvidia_driver_logs", pod_logs)
+                    if gpu_instance_profile:
+                        logger.info(
+                            f"Verifying MIG allocatable resources for profile {gpu_instance_profile}"
+                        )
+                        mig_status = self.k8s_client.verify_mig_allocatable(ready_nodes, gpu_instance_profile)
+                        op.add_metadata("mig_allocatable", mig_status)
+
                 op.add_metadata("ready_nodes", len(ready_nodes))
 
                 return True
@@ -604,7 +816,10 @@ class AKSClient:
         operation_type: str = "scale",
         cluster_name: Optional[str] = None,
         gpu_node_pool: bool = False,
+        enable_managed_gpu: bool = False,
         node_pool: Optional[Any] = None,
+        gpu_instance_profile: Optional[str] = None,
+        gpu_mig_strategy: Optional[str] = None,
     ) -> Any:
         """
         Scale a node pool progressively with specified step size
@@ -655,7 +870,6 @@ class AKSClient:
 
         logger.info(f"Planned scaling steps: {list(steps)}")
 
-        result = None
         completed_steps = []
 
         # Execute scaling operation for each step
@@ -670,7 +884,14 @@ class AKSClient:
                 "scale_step_size": scale_step_size,
                 "cluster_name": cluster_name or self.get_cluster_name(),
                 "gpu_node_pool": gpu_node_pool,
+                **self._gpu_mode_metadata(
+                    gpu_node_pool,
+                    enable_managed_gpu,
+                    gpu_instance_profile,
+                    gpu_mig_strategy,
+                ),
             }
+            self._log_gpu_mode(step_metadata)
 
             # Create operation context for this specific step
             with self._get_operation_context()(
@@ -690,27 +911,14 @@ class AKSClient:
                         "cluster_info", self.get_cluster_data(cluster_name)
                     )
                     node_pool.count = step  # Update node count in the node pool object
-                    result = self.aks_client.agent_pools.begin_create_or_update(
-                        resource_group_name=self.resource_group,
-                        resource_name=cluster_name,
-                        agent_pool_name=node_pool_name,
-                        parameters=node_pool,
-                    ).result()
 
-                    # Use agentpool=node_pool_name as default label if not specified
-                    label_selector = f"agentpool={node_pool_name}"
-
-                    ready_nodes = self.k8s_client.wait_for_nodes_ready(
-                        node_count=step,
-                        operation_timeout_in_minutes=self.operation_timeout_minutes,
-                        label_selector=label_selector,
+                    # Run ARM and K8s readiness concurrently to capture both timings
+                    ready_nodes = self._instrument_nodepool_provisioning(
+                        node_pool_name, cluster_name, node_pool, step, op,
+                        label=f"step {step} ",
                     )
-                    logger.info(f"All {step} nodes in pool {node_pool_name} are ready")
 
-                    if result is None:
-                        logger.error(f"Progressive scaling failed at step {step}")
-                        op.add_metadata("error", "Scaling operation returned None")
-                        return None
+                    logger.info(f"All {step} nodes in pool {node_pool_name} are ready")
 
                     op.add_metadata(
                         "ready_nodes", len(ready_nodes) if ready_nodes else 0
@@ -729,19 +937,26 @@ class AKSClient:
                             f"Waiting {wait_time}s before next scaling operation..."
                         )
                         time.sleep(wait_time)
-                    # TODO: Remove VM_SIZE check after we get ND H100 quota
-                    if step == target_count and self.vm_size == "Standard_NC40ads_H100_v5":
-                        # Verify NVIDIA drivers only for GPU node pools during scale-up operations
-                        # and only when reaching the final target (not intermediate steps)
-                        if gpu_node_pool and operation_type == "scale_up" and step > 0:
-                            pod_logs = None
-                            logger.info(
-                                f"Verifying NVIDIA drivers for GPU node pool '{node_pool_name}' after reaching final target"
-                            )
-                            pod_logs = self.k8s_client.verify_nvidia_smi_on_node(
-                                ready_nodes
-                            )
-                            op.add_metadata("nvidia_driver_logs", pod_logs)
+                    if step == target_count and gpu_node_pool and operation_type == "scale_up" and step > 0:
+                        logger.info(
+                            f"Verifying NVIDIA drivers for GPU node pool '{node_pool_name}' after reaching final target"
+                        )
+                        pod_logs = self.k8s_client.verify_nvidia_smi_on_node(ready_nodes)
+                        op.add_metadata("nvidia_driver_logs", pod_logs)
+
+                    if step == target_count and enable_managed_gpu and operation_type == "scale_up" and step > 0:
+                        logger.info(
+                            f"Verifying managed GPU systemd services for '{node_pool_name}' after reaching final target"
+                        )
+                        service_status = self.k8s_client.verify_managed_gpu_systemd_services(ready_nodes)
+                        op.add_metadata("managed_gpu_service_status", service_status)
+
+                    if step == target_count and gpu_instance_profile and operation_type == "scale_up" and step > 0:
+                        logger.info(
+                            f"Verifying MIG allocatable resources for profile {gpu_instance_profile}"
+                        )
+                        mig_status = self.k8s_client.verify_mig_allocatable(ready_nodes, gpu_instance_profile)
+                        op.add_metadata("mig_allocatable", mig_status)
 
 
                 except Exception as e:

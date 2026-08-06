@@ -68,10 +68,12 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         # Setup
         mock_args = mock.MagicMock()
         mock_args.command = "create"
+        mock_args.cloud = "azure"
         mock_args.node_pool_name = "test-np"
         mock_args.vm_size = "Standard_D2s_v3"
         mock_args.node_count = 3
         mock_args.gpu_node_pool = False
+        mock_args.enable_managed_gpu = False
 
         # Configure mock to return success
         mock_azure_crud.create_node_pool.return_value = True
@@ -86,6 +88,9 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
             vm_size="Standard_D2s_v3",
             node_count=3,
             gpu_node_pool=False,
+            enable_managed_gpu=False,
+            gpu_instance_profile=mock_args.gpu_instance_profile,
+            gpu_mig_strategy=mock_args.gpu_mig_strategy,
         )
 
     @mock.patch("crud.main.AzureNodePoolCRUD")
@@ -94,12 +99,14 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         # Setup
         mock_args = mock.MagicMock()
         mock_args.command = "scale"
+        mock_args.cloud = "azure"
         mock_args.node_pool_name = "test-np"
         mock_args.target_count = 5
         mock_args.scale_step_size = (
             1  # scale_step_size != target_count, so progressive=True
         )
         mock_args.gpu_node_pool = False
+        mock_args.enable_managed_gpu = False
 
         # Configure mock to return success
         mock_azure_crud.scale_node_pool.return_value = True
@@ -115,6 +122,9 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
             progressive=True,  # Should be True because scale_step_size != target_count
             scale_step_size=1,
             gpu_node_pool=False,
+            enable_managed_gpu=False,
+            gpu_instance_profile=mock_args.gpu_instance_profile,
+            gpu_mig_strategy=mock_args.gpu_mig_strategy,
         )
 
     @mock.patch("crud.main.AzureNodePoolCRUD")
@@ -123,12 +133,14 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         # Setup - when scale_step_size equals target_count, progressive should be False
         mock_args = mock.MagicMock()
         mock_args.command = "scale"
+        mock_args.cloud = "azure"
         mock_args.node_pool_name = "test-np"
         mock_args.target_count = 3
         mock_args.scale_step_size = (
             3  # scale_step_size == target_count, so progressive=False
         )
         mock_args.gpu_node_pool = False
+        mock_args.enable_managed_gpu = False
 
         # Configure mock to return success
         mock_azure_crud.scale_node_pool.return_value = True
@@ -144,6 +156,9 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
             progressive=False,  # Should be False because scale_step_size == target_count
             scale_step_size=3,
             gpu_node_pool=False,
+            enable_managed_gpu=False,
+            gpu_instance_profile=mock_args.gpu_instance_profile,
+            gpu_mig_strategy=mock_args.gpu_mig_strategy,
         )
 
     @mock.patch("crud.main.logger")
@@ -160,10 +175,12 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         # Setup - progressive scaling where operation fails
         mock_args = mock.MagicMock()
         mock_args.command = "scale"
+        mock_args.cloud = "azure"
         mock_args.node_pool_name = "test-np"
         mock_args.target_count = 10
         mock_args.scale_step_size = 2  # Progressive scaling
         mock_args.gpu_node_pool = False
+        mock_args.enable_managed_gpu = False
 
         # Configure mock to return False (scale failed but didn't raise exception)
         mock_azure_crud.scale_node_pool.return_value = False
@@ -179,6 +196,9 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
             progressive=True,
             scale_step_size=2,
             gpu_node_pool=False,
+            enable_managed_gpu=False,
+            gpu_instance_profile=mock_args.gpu_instance_profile,
+            gpu_mig_strategy=mock_args.gpu_mig_strategy,
         )
         mock_logger.error.assert_called_with("Operation 'scale' failed")
 
@@ -244,12 +264,14 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         # Setup
         mock_args = mock.MagicMock()
         mock_args.command = "all"
+        mock_args.cloud = "azure"
         mock_args.node_pool_name = "test-np"
         mock_args.vm_size = "Standard_D2s_v3"
         mock_args.node_count = 1
         mock_args.target_count = 3
         mock_args.scale_step_size = 1
         mock_args.gpu_node_pool = True
+        mock_args.enable_managed_gpu = False
         mock_args.step_wait_time = 30
 
         # Configure mock to return success
@@ -268,8 +290,32 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
             progressive=True,  # Should be True because scale_step_size != target_count
             scale_step_size=1,
             gpu_node_pool=True,
+            enable_managed_gpu=False,
             step_wait_time=30,
+            gpu_instance_profile=mock_args.gpu_instance_profile,
+            gpu_mig_strategy=mock_args.gpu_mig_strategy,
         )
+
+    def test_handle_node_pool_operation_scale_aws_omits_mig_kwargs(self):
+        """AWS scale must not receive Azure-only MIG kwargs (the AWS CRUD rejects them)."""
+        mock_args = mock.MagicMock()
+        mock_args.command = "scale"
+        mock_args.cloud = "aws"
+        mock_args.node_pool_name = "test-np"
+        mock_args.target_count = 5
+        mock_args.scale_step_size = 1
+        mock_args.gpu_node_pool = False
+        mock_args.enable_managed_gpu = False
+
+        mock_crud = mock.MagicMock()
+        mock_crud.scale_node_pool.return_value = True
+
+        result = handle_node_pool_operation(mock_crud, mock_args)
+
+        self.assertEqual(result, 0)
+        call_kwargs = mock_crud.scale_node_pool.call_args.kwargs
+        self.assertNotIn("gpu_instance_profile", call_kwargs)
+        self.assertNotIn("gpu_mig_strategy", call_kwargs)
 
     @mock.patch("crud.main.AzureNodePoolCRUD")
     def test_handle_node_pool_operation_failure(self, mock_azure_crud):
@@ -277,6 +323,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         # Setup
         mock_args = mock.MagicMock()
         mock_args.command = "create"
+        mock_args.cloud = "azure"
         mock_args.node_pool_name = "test-np"
         mock_args.vm_size = "Standard_D2s_v3"
         mock_args.node_count = 1
@@ -338,6 +385,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         # Setup
         mock_args = mock.MagicMock()
         mock_args.command = "create"
+        mock_args.cloud = "azure"
         mock_args.node_pool_name = "test-np"
         mock_args.vm_size = "Standard_D2s_v3"
         mock_args.node_count = 1

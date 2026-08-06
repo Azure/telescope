@@ -1,5 +1,8 @@
 trigger: none
 
+pool:
+  name: 'AKS-Telescope-Airlock'
+
 stages:
   - stage: aws_capacity_reservation
     displayName: "AWS Capacity Reservation"

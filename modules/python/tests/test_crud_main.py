@@ -51,7 +51,7 @@ class TestHandleMachineOperation(unittest.TestCase):
         crud.create_machine_agentpool.return_value = True
         self.assertEqual(handle_machine_operation(crud, self._make_args()), 0)
         crud.create_machine_agentpool.assert_called_once_with(
-            agentpool_name="apool", vm_size="Standard_D2_v3",
+            agent_pool_name="apool", vm_size="Standard_D2_v3",
         )
 
     def test_create_machine_false_returns_one(self):
@@ -69,7 +69,7 @@ class TestHandleMachineOperation(unittest.TestCase):
         )
         crud.scale_machine.assert_called_once()
         kwargs = crud.scale_machine.call_args.kwargs
-        self.assertEqual(kwargs["agentpool_name"], "apool")
+        self.assertEqual(kwargs["agent_pool_name"], "apool")
         self.assertEqual(kwargs["scale_machine_count"], 2)
 
     def test_scale_machine_unknown_command_returns_one(self):

@@ -12,7 +12,7 @@ aks_cli_config_list = [
       "AKSHTTPCustomFeatures=Microsoft.ContainerService/VMsAgentPoolAutoscalePreview"
     ]
     subnet_name        = "aks-network"
-    kubernetes_version = "1.33"
+    kubernetes_version = "1.36"
     optional_parameters = [
       {
         name  = "dns-name-prefix"

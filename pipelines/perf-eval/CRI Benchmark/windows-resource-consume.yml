@@ -1,4 +1,7 @@
 trigger: none
+
+pool:
+  name: 'AKS-Telescope-Airlock'
 schedules:
   - cron: "45 1-23/4 * * *"
     displayName: "Every 4 Hour"
