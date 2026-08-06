@@ -1,0 +1,93 @@
+name: Build ClusterLoader2 Image
+
+on:
+  push:
+    branches:
+      - main
+      - vitto/cl2_image
+  schedule:
+    # Every 2 weeks at 03:00 UTC (Sunday).
+    - cron: "0 3 */14 * 0"
+  workflow_dispatch:
+    inputs:
+      upstream_ref:
+        description: "Upstream kubernetes/perf-tests ref (branch/tag/SHA)"
+        required: false
+        default: "master"
+      push_target:
+        description: "Where to push the built image"
+        required: false
+        default: "telescope"
+        type: choice
+        options:
+          - telescope
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  # GitHub Packages target for Azure/telescope.
+  TELESCOPE_IMAGE: ghcr.io/azure/clusterloader2-upstream
+
+jobs:
+  build:
+    name: Build and Push
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.image_tag }}
+      upstream_ref: ${{ steps.meta.outputs.upstream_ref }}
+      push_target: ${{ steps.meta.outputs.push_target }}
+      telescope_image: ${{ steps.meta.outputs.telescope_image }}
+    steps:
+      - name: Set workflow metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          IMAGE_TAG="v$(date -u +%Y%m%d)"
+          UPSTREAM_REF="${{ github.event_name == 'workflow_dispatch' && inputs.upstream_ref || 'master' }}"
+          PUSH_TARGET="${{ github.event_name == 'workflow_dispatch' && inputs.push_target || 'telescope' }}"
+          TELESCOPE_IMAGE="${TELESCOPE_IMAGE}"
+
+          echo "image_tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
+          echo "upstream_ref=${UPSTREAM_REF}" >> "$GITHUB_OUTPUT"
+          echo "push_target=${PUSH_TARGET}" >> "$GITHUB_OUTPUT"
+          echo "telescope_image=${TELESCOPE_IMAGE}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout upstream perf-tests
+        uses: actions/checkout@v4
+        with:
+          repository: kubernetes/perf-tests
+          ref: ${{ steps.meta.outputs.upstream_ref }}
+          path: perf-tests
+          fetch-depth: 1
+      - name: Build local clusterloader2 image
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build \
+            -f perf-tests/clusterloader2/Dockerfile \
+            -t local/clusterloader2:${{ steps.meta.outputs.image_tag }} \
+            perf-tests
+          docker image inspect local/clusterloader2:${{ steps.meta.outputs.image_tag }} > /dev/null
+
+      - name: Log in to GHCR for Telescope image
+        if: ${{ steps.meta.outputs.push_target == 'telescope' }}
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push image to Telescope (date + latest)
+        if: ${{ steps.meta.outputs.push_target == 'telescope' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker tag local/clusterloader2:${{ steps.meta.outputs.image_tag }} ${{ steps.meta.outputs.telescope_image }}:${{ steps.meta.outputs.image_tag }}
+          docker tag local/clusterloader2:${{ steps.meta.outputs.image_tag }} ${{ steps.meta.outputs.telescope_image }}:latest
+          docker push ${{ steps.meta.outputs.telescope_image }}:${{ steps.meta.outputs.image_tag }}
+          docker push ${{ steps.meta.outputs.telescope_image }}:latest
+
