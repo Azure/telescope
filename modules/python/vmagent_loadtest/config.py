@@ -203,6 +203,46 @@ def konnectivity_agent_replicas_for_node_count(node_count: int) -> int:
             return replicas
     return KONN_AGENT_MIN_REPLICAS_BY_NODE_COUNT[-1][1]
 
+
+# CP cluster node sizing. Unlike the DP nodepool (scaled purely off node
+# count), the CP cluster hosts konn-server/vmagent/vmsingle whose CPU
+# *requests* grow with tier (see TIER_RESOURCE_BUCKETS) -- terraform's fixed
+# 7-node baseline (2 default + 5 controlplane, see terraform-inputs/azure.tfvars)
+# runs out of schedulable CPU at higher tiers (observed: FailedScheduling
+# "Insufficient cpu" at tier 1500, server_count=10 @ 2 cores each). Compute
+# how many CP nodes are actually needed instead of relying on the fixed
+# terraform default for every tier.
+DEFAULT_CP_CLUSTER_NAME = "vmagent-cp"
+DEFAULT_CP_NODEPOOL = "controlplane"
+CP_NODE_ALLOCATABLE_CPU_MILLI = 3860  # Standard_D4_v3 allocatable (kubectl get nodes)
+CP_SYSTEM_RESERVED_MILLI = 500        # headroom for kube-system/vmsingle/monitoring
+CP_SURGE_FACTOR = 1.5                 # rolling-update surge + burst headroom
+CP_MIN_NODES = 7                      # never scale below the terraform baseline
+
+
+def compute_server_count(tier: int) -> int:
+    """Return the konnectivity-server replica count for `tier`."""
+    proxied_targets = tier * len(FAKE_EXPORTER_ROLES) + tier + 50
+    return max(3, (proxied_targets + 1999) // 2000)
+
+
+def compute_cp_nodes_needed(tier: int) -> int:
+    """Return the CP cluster node count needed to schedule konn-server +
+    vmagent/vmagent-proxy at `tier`, with headroom for a rolling update.
+    """
+    def _cpu_millicores(v: str) -> int:
+        return int(v[:-1]) if v.endswith("m") else int(v) * 1000
+
+    resources = compute_resources_for_tier(tier)
+    konn_cpu = compute_server_count(tier) * _cpu_millicores(resources["konn_server"]["cpu_req"])
+    vmagent_cpu = compute_shard_count(tier) * (_cpu_millicores(resources["vmagent"]["cpu_req"])
+                                               + _cpu_millicores(resources["vmagent_proxy"]["cpu_req"]))
+    total_milli = (konn_cpu + vmagent_cpu) * CP_SURGE_FACTOR
+    usable_per_node = CP_NODE_ALLOCATABLE_CPU_MILLI - CP_SYSTEM_RESERVED_MILLI
+    import math
+    return max(CP_MIN_NODES, math.ceil(total_milli / usable_per_node))
+
+
 # ---------------- Azure Data Explorer (ADX) export ----------------
 # Defaults for vmsingle time-series export. Env vars (ADX_CLUSTER_URI,
 # ADX_INGEST_URI, ADX_DATABASE, ADX_AUTH) override these at runtime.

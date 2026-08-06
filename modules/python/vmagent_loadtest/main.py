@@ -31,7 +31,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from vmagent_loadtest.cluster import az_login, create_clusters, delete_resource_group
 from vmagent_loadtest.compare import compare_real_vs_fake, compare_cross_tier
 from vmagent_loadtest.config import (
-    DEFAULT_NODEPOOL, KONN_AGENT_IMAGE, KONN_SERVER_IMAGE, VMAGENT_RATE_LIMIT, log,
+    DEFAULT_CP_CLUSTER_NAME, DEFAULT_CP_NODEPOOL, DEFAULT_NODEPOOL,
+    KONN_AGENT_IMAGE, KONN_SERVER_IMAGE, VMAGENT_RATE_LIMIT, log,
 )
 from vmagent_loadtest.runner import (
     cleanup, cleanup_ramp, cleanup_tier, compute_fake_nodes_needed,
@@ -88,6 +89,14 @@ def main() -> None:
                         help="AKS cluster name for DP cluster (enables node scaling)")
     parser.add_argument("--nodepool-name", default=DEFAULT_NODEPOOL,
                         help=f"DP cluster nodepool name (default: {DEFAULT_NODEPOOL})")
+    parser.add_argument("--cp-cluster-name", default=DEFAULT_CP_CLUSTER_NAME,
+                        help=f"CP cluster name, for load-based CP nodepool scaling "
+                             f"(default: {DEFAULT_CP_CLUSTER_NAME})")
+    parser.add_argument("--cp-nodepool-name", default=DEFAULT_CP_NODEPOOL,
+                        help=f"CP cluster nodepool name (default: {DEFAULT_CP_NODEPOOL}); "
+                             f"scaled per-tier to the CPU konn-server/vmagent need "
+                             f"(see config.compute_cp_nodes_needed) instead of relying "
+                             f"on the fixed terraform node count")
     parser.add_argument("--max-retries", type=int, default=2,
                         help="Max retries per tier on failure (default: 2)")
     parser.add_argument("--rate-limit", type=int, default=VMAGENT_RATE_LIMIT,
@@ -411,18 +420,37 @@ def main() -> None:
     elif args.real_targets:
         # Real targets ramp through every tier as DP node counts inside ONE
         # continuous deployment (see run_real_targets_ramp) instead of
-        # tearing down and redeploying per tier.
+        # tearing down and redeploying per tier. On failure, retry starting
+        # AT the failed tier (resume=True) instead of re-ramping from tier
+        # 500 -- avoids redoing already-passed tiers (wasted time + nodes)
+        # and double-counting their data in ADX. Only falls back to a full
+        # cleanup+restart-from-scratch if the failure happened outside the
+        # per-tier loop (no .failed_tier to resume from).
+        remaining_tiers = list(tiers)
+        last_exc = None
         for attempt in range(1, args.max_retries + 2):
+            resume = False
             try:
                 if attempt > 1:
-                    log.info("RETRY %d/%d for ramp — cleaning up previous attempt...",
-                             attempt - 1, args.max_retries)
-                    cleanup_ramp(args.cp_kubeconfig, args.dp_kubeconfig,
-                                run_label=args.run_label, mode="real")
+                    failed_tier = getattr(last_exc, "failed_tier", None)
+                    if failed_tier is not None and failed_tier in remaining_tiers:
+                        completed = [t for t in tiers if t < failed_tier]
+                        remaining_tiers = remaining_tiers[remaining_tiers.index(failed_tier):]
+                        resume = True
+                        log.info("RETRY %d/%d for ramp — resuming at tier %d (tiers %s "
+                                "already completed, not re-run)...",
+                                attempt - 1, args.max_retries, failed_tier, completed)
+                    else:
+                        log.info("RETRY %d/%d for ramp — cleaning up previous attempt "
+                                "(no tier checkpoint to resume from)...",
+                                attempt - 1, args.max_retries)
+                        cleanup_ramp(args.cp_kubeconfig, args.dp_kubeconfig,
+                                    run_label=args.run_label, mode="real")
+                        remaining_tiers = list(tiers)
                 result = run_real_targets_ramp(
                     cp_kubeconfig=args.cp_kubeconfig,
                     dp_kubeconfig=args.dp_kubeconfig,
-                    tiers=tiers,
+                    tiers=remaining_tiers,
                     warm_up_minutes=args.warm_up_minutes,
                     work_dir=work_dir,
                     results_dir=results_dir,
@@ -430,6 +458,8 @@ def main() -> None:
                     resource_group=args.resource_group,
                     dp_cluster_name=args.dp_cluster_name,
                     nodepool=args.nodepool_name,
+                    cp_cluster_name=args.cp_cluster_name,
+                    cp_nodepool=args.cp_nodepool_name,
                     run_label=args.run_label,
                     skip_diagnostics=not args.collect_diagnostics,
                     rate_limit=args.rate_limit,
@@ -438,11 +468,14 @@ def main() -> None:
                     max_rows_per_block=args.max_rows_per_block,
                     konn_server_image=args.konn_server_image,
                     konn_agent_image=args.konn_agent_image,
+                    resume=resume,
                 )
                 all_results.append(result)
                 break
             except Exception as e:
-                log.error("Ramp attempt %d FAILED: %s", attempt, e)
+                last_exc = e
+                log.error("Ramp attempt %d FAILED (tier=%s): %s",
+                         attempt, getattr(e, "failed_tier", "unknown"), e)
                 if attempt == args.max_retries + 1:
                     log.error("Ramp FAILED after %d attempts — saving error", attempt)
                     result = {
@@ -461,18 +494,34 @@ def main() -> None:
     else:
         # Fake targets ramp through every tier as exporter replica counts
         # inside ONE continuous deployment (see run_fake_targets_ramp)
-        # instead of tearing down and redeploying per tier.
+        # instead of tearing down and redeploying per tier. On failure,
+        # retry starting AT the failed tier (see real-targets branch above
+        # for the rationale).
+        remaining_tiers = list(tiers)
+        last_exc = None
         for attempt in range(1, args.max_retries + 2):
+            resume = False
             try:
                 if attempt > 1:
-                    log.info("RETRY %d/%d for ramp — cleaning up previous attempt...",
-                             attempt - 1, args.max_retries)
-                    cleanup_ramp(args.cp_kubeconfig, args.dp_kubeconfig,
-                                run_label=args.run_label, mode="fake")
+                    failed_tier = getattr(last_exc, "failed_tier", None)
+                    if failed_tier is not None and failed_tier in remaining_tiers:
+                        completed = [t for t in tiers if t < failed_tier]
+                        remaining_tiers = remaining_tiers[remaining_tiers.index(failed_tier):]
+                        resume = True
+                        log.info("RETRY %d/%d for ramp — resuming at tier %d (tiers %s "
+                                "already completed, not re-run)...",
+                                attempt - 1, args.max_retries, failed_tier, completed)
+                    else:
+                        log.info("RETRY %d/%d for ramp — cleaning up previous attempt "
+                                "(no tier checkpoint to resume from)...",
+                                attempt - 1, args.max_retries)
+                        cleanup_ramp(args.cp_kubeconfig, args.dp_kubeconfig,
+                                    run_label=args.run_label, mode="fake")
+                        remaining_tiers = list(tiers)
                 result = run_fake_targets_ramp(
                     cp_kubeconfig=args.cp_kubeconfig,
                     dp_kubeconfig=args.dp_kubeconfig,
-                    tiers=tiers,
+                    tiers=remaining_tiers,
                     warm_up_minutes=args.warm_up_minutes,
                     work_dir=work_dir,
                     results_dir=results_dir,
@@ -480,6 +529,8 @@ def main() -> None:
                     resource_group=args.resource_group,
                     dp_cluster_name=args.dp_cluster_name,
                     nodepool=args.nodepool_name,
+                    cp_cluster_name=args.cp_cluster_name,
+                    cp_nodepool=args.cp_nodepool_name,
                     run_label=args.run_label,
                     skip_diagnostics=not args.collect_diagnostics,
                     rate_limit=args.rate_limit,
@@ -490,11 +541,14 @@ def main() -> None:
                     drain_observe_seconds=args.drain_observe_seconds,
                     konn_server_image=args.konn_server_image,
                     konn_agent_image=args.konn_agent_image,
+                    resume=resume,
                 )
                 all_results.append(result)
                 break
             except Exception as e:
-                log.error("Ramp attempt %d FAILED: %s", attempt, e)
+                last_exc = e
+                log.error("Ramp attempt %d FAILED (tier=%s): %s",
+                         attempt, getattr(e, "failed_tier", "unknown"), e)
                 if attempt == args.max_retries + 1:
                     log.error("Ramp FAILED after %d attempts — saving error", attempt)
                     result = {

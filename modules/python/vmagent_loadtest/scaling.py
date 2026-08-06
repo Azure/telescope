@@ -107,7 +107,7 @@ def _scale_single_pool(resource_group: str, cluster_name: str, nodepool: str,
     if spec is not None and spec.get("count", -1) == node_count:
         log.info("Nodepool '%s' already at %d nodes, skipping scale.", nodepool, node_count)
         return
-    log.info("Scaling DP nodepool '%s' to %d nodes...", nodepool, node_count)
+    log.info("Scaling nodepool '%s' to %d nodes...", nodepool, node_count)
     run([
         "az", "aks", "nodepool", "scale",
         "--resource-group", resource_group,
@@ -116,6 +116,16 @@ def _scale_single_pool(resource_group: str, cluster_name: str, nodepool: str,
         "--node-count", str(node_count),
         "--no-wait",
     ])
+
+
+def scale_cp_nodepool(resource_group: str, cp_cluster_name: str, nodepool: str,
+                      node_count: int) -> None:
+    """Scale the CP cluster's node pool to `node_count` (single pool, no
+    fan-out -- CP node counts stay small, well under the AKS per-pool cap
+    even at the largest tiers). Load-based sizing lives in
+    config.compute_cp_nodes_needed(); this just applies it.
+    """
+    _scale_single_pool(resource_group, cp_cluster_name, nodepool, node_count)
 
 
 def scale_dp_nodepool(resource_group: str, cluster_name: str, nodepool: str,
