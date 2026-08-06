@@ -1,0 +1,232 @@
+name: Terraform Integration
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+env:
+  TERRAFORM_AZURE_MODULES_DIR: modules/terraform/azure
+  TERRAFORM_AWS_MODULES_DIR: modules/terraform/aws
+
+jobs:
+  gate:
+    if: |
+      github.event.issue.pull_request != null &&
+      github.event.comment.body == '/run-tf-integration'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check sender is authorized
+        env:
+          SENDER: ${{ github.event.comment.user.login }}
+        run: |
+          set -eu
+          curl -sf "https://raw.githubusercontent.com/${{ github.repository }}/main/CODEOWNERS" \
+            | grep -v '^\s*#' | grep -v '^\s*$' | head -1 \
+            | grep -oE '@[A-Za-z0-9_-]+' | tr -d '@' > /tmp/owners
+          echo "Authorized users:"
+          cat /tmp/owners
+          if grep -Fxq "$SENDER" /tmp/owners; then
+            echo "$SENDER is authorized"
+          else
+            echo "$SENDER is not authorized"
+            exit 1
+          fi
+
+  terraform-test:
+    needs: gate
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          ref: refs/pull/${{ github.event.issue.number }}/head
+          persist-credentials: false
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.10.0
+
+      - name: Terraform AWS Test
+        working-directory: ${{ env.TERRAFORM_AWS_MODULES_DIR }}
+        run: |
+          terraform init
+          terraform test
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_MI }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Terraform Azure Test
+        working-directory: ${{ env.TERRAFORM_AZURE_MODULES_DIR }}
+        run: |
+          terraform init
+          terraform test
+        env:
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+  setup-matrix:
+    needs: gate
+    runs-on: ubuntu-latest
+    name: Setup terraform plan matrix for test scenarios
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          ref: refs/pull/${{ github.event.issue.number }}/head
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup test matrix scenarios
+        id: setup-matrix-scenarios
+        run: |
+          set -eux
+          matrix=$(find $GITHUB_WORKSPACE/scenarios/ -name "*.tfvars" | grep 'azure' | awk -F'/' '{split($11, file_name, "."); split(file_name[1], cloud_region, "-");region= (length(cloud_region) > 1) ? substr($11, index($11, "-") + 1) : ""; cloud=cloud_region[1]; gsub(".json", "", region); print "{\"cloud\": \"" cloud "\", \"file_name\": \"" file_name[1] "\", " (region != "" ? "\"region\": \"" region "\", " : "") "\"scenario_type\": \"" $8 "\", \"scenario_name\": \"" $9 "\"},"}' | sort | uniq | sed 's/,$/,/')
+          matrix_array="[${matrix%,}]"
+
+          file_changes=$(git diff --name-only -r origin/main HEAD)
+          echo "PR file changes: $file_changes"
+
+          if [ -z "$file_changes" ]; then
+            matrix_combinations=null
+            echo "matrix_combinations=$matrix_combinations" >> "$GITHUB_OUTPUT"
+          else
+            cloud_changes=$(echo "$file_changes" | grep -E '\.tf$' | awk -F'/' '{print $3}' | uniq)
+            echo "File changes related to cloud: $cloud_changes"
+
+            run_all_tests=false
+            module_matrix='[]'
+            scenario_matrix='[]'
+            if [ $(echo "$cloud_changes" | wc -w) -eq 1 ]; then
+              cloud=$(echo "$cloud_changes" | cut -d' ' -f1)
+              module_matrix=$(echo "$matrix_array" | jq --arg cloud_value "$cloud" '. | map(select(.cloud == $cloud_value))')
+            elif [ $(echo "$cloud_changes" | wc -w) -eq 0 ]; then
+              run_all_tests=false
+            else
+              run_all_tests=true
+              module_matrix=$(echo "$matrix_array")
+            fi
+            echo "module_matrix: $module_matrix"
+            if [ "$run_all_tests" = false ]; then
+              changed_scenario_names=$(echo "$file_changes" | grep -E '^scenarios/' | awk -F'/' '{print $3}' | tr ' ' '\n' | sort -u)
+              echo "Test scenarios changed: $changed_scenario_names"
+              for scenario_name in $changed_scenario_names; do
+                filtered_objects=$(echo "$matrix_array" | jq --arg scenario_value "$scenario_name" '. | map(select(.scenario_name == $scenario_value))')
+                scenario_matrix=$(echo "$scenario_matrix $filtered_objects" | jq -s 'flatten | unique')
+              done
+            fi
+            updated_matrix=$(echo "$module_matrix $scenario_matrix" | jq -s 'flatten | unique')
+            echo "Test scenarios to run: $updated_matrix"
+            updated_matrix="${updated_matrix//$'\n'/''}"
+            matrix_combinations="{\"include\": ${updated_matrix}}"
+            echo "matrix_combinations=$matrix_combinations" >> "$GITHUB_OUTPUT"
+          fi
+          echo "matrix_combinations: $matrix_combinations"
+    outputs:
+      matrix-combinations: ${{ steps.setup-matrix-scenarios.outputs.matrix_combinations }}
+
+  terraform-plan:
+    needs: setup-matrix
+    permissions:
+      id-token: write
+      contents: read
+    if: ${{ needs.setup-matrix.result == 'success' && needs.setup-matrix.outputs.matrix-combinations != '' && needs.setup-matrix.outputs.matrix-combinations != 'null' }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.setup-matrix.outputs.matrix-combinations) }}
+    runs-on: ubuntu-latest
+    name: ${{ matrix.cloud }}-${{ matrix.scenario_type }}-${{ matrix.scenario_name }} ${{ matrix.region }}
+
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          ref: refs/pull/${{ github.event.issue.number }}/head
+          persist-credentials: false
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.10.0
+
+      - name: Get job id and set env
+        run: |
+          echo "TERRAFORM_INPUT_FILE=$GITHUB_WORKSPACE/scenarios/${{ matrix.scenario_type }}/${{ matrix.scenario_name }}/terraform-inputs/${{ matrix.file_name }}.tfvars" >> "$GITHUB_ENV"
+          echo "TERRAFORM_TEST_INPUT_FILE=$GITHUB_WORKSPACE/scenarios/${{ matrix.scenario_type }}/${{ matrix.scenario_name }}/terraform-test-inputs/${{ matrix.file_name }}.json" >> "$GITHUB_ENV"
+          echo "TERRAFORM_MODULES_DIR=modules/terraform/${{ matrix.cloud }}" >> "$GITHUB_ENV"
+
+      - name: Create JSON Input
+        run: |
+          INPUT_JSON_STRING=$(jq -c '. + {creation_time: (now | todateiso8601)}' "${{ env.TERRAFORM_TEST_INPUT_FILE }}")
+          echo "INPUT_JSON=$INPUT_JSON_STRING" >> "$GITHUB_ENV"
+
+      - name: Azure login
+        if: ${{ matrix.cloud == 'azure' }}
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_MI }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Terraform Init
+        working-directory: ${{ env.TERRAFORM_MODULES_DIR }}
+        run: terraform init
+
+      - name: Terraform Plan
+        working-directory: ${{ env.TERRAFORM_MODULES_DIR }}
+        run: |
+          terraform plan -var-file "$TERRAFORM_INPUT_FILE" -var="json_input=$INPUT_JSON"
+        env:
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          CLOUD: ${{ matrix.cloud }}
+
+  report-status:
+    needs: [gate, terraform-test, setup-matrix, terraform-plan]
+    if: always() && needs.gate.result == 'success'
+    runs-on: ubuntu-latest
+    name: Terraform Integration Result
+    permissions:
+      statuses: write
+      pull-requests: read
+    steps:
+      - name: Post status back to PR head sha
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.issue.number }}
+          TEST_RESULT: ${{ needs.terraform-test.result }}
+          SETUP_RESULT: ${{ needs.setup-matrix.result }}
+          PLAN_RESULT: ${{ needs.terraform-plan.result }}
+        run: |
+          set -eu
+          SHA=$(gh api "/repos/${{ github.repository }}/pulls/$PR" --jq '.head.sha')
+          echo "PR #$PR head sha: $SHA"
+          echo "terraform-test: $TEST_RESULT"
+          echo "setup-matrix : $SETUP_RESULT"
+          echo "terraform-plan: $PLAN_RESULT"
+
+          state=success
+          for r in "$TEST_RESULT" "$SETUP_RESULT" "$PLAN_RESULT"; do
+            case "$r" in
+              success|skipped|"") ;;
+              *) state=failure ;;
+            esac
+          done
+
+          gh api -X POST "/repos/${{ github.repository }}/statuses/$SHA" \
+            -f state="$state" \
+            -f context="Terraform Integration Result" \
+            -f description="test=$TEST_RESULT setup=$SETUP_RESULT plan=$PLAN_RESULT" \
+            -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          if [ "$state" != "success" ]; then
+            exit 1
+          fi

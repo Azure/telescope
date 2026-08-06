@@ -55,16 +55,32 @@ steps:
 
   - script: |
       set -e
+
       echo "Install Python dependencies"
       # Constrain pip to versions below 24 due to compatibility issues with some packages and breaking changes introduced in pip 24.
       pip3 install --upgrade "pip<24"
       pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
 
       echo "Install Ubuntu packages"
+      # Retry apt-get to tolerate transient failures such as the apt/dpkg lock being held by a
+      # background package upgrade, or temporary network errors.
+      retry() {
+        local i=1
+        until "$@"; do
+          if [ "$i" -gt 10 ]; then
+            echo "Command failed after 10 attempts: $*"
+            return 1
+          fi
+          echo "Attempt ${i} failed: $*. Retrying in 30s..."
+          sleep 30
+          i=$((i + 1))
+        done
+      }
+
       # Recover from interrupted or broken package installations. The '|| true' ensures the script continues even if dpkg returns a non-zero exit code.
       sudo dpkg --configure -a || true
-      sudo apt-get update
-      sudo apt-get -y install bc netcat
+      retry sudo apt-get update
+      retry sudo apt-get -y install bc netcat
     displayName: "Install Dependencies"
 
   - template: /steps/cloud/${{ parameters.cloud }}/login.yml
