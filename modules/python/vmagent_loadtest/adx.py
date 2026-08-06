@@ -225,6 +225,7 @@ def _kusto_clients(cluster_uri: str):
     from azure.kusto.ingest import QueuedIngestClient
 
     auth = os.environ.get("ADX_AUTH", _config.ADX_AUTH).lower()
+    log.info("  authenticating to Kusto (%s auth)...", auth)
     ingest_uri = os.environ.get("ADX_INGEST_URI", "").strip() \
         or _config.ADX_INGEST_URI \
         or cluster_uri.replace("https://", "https://ingest-")

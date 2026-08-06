@@ -249,6 +249,31 @@ def sample_resource_usage(cp_kubeconfig: str, dp_kubeconfig: str,
     return sample
 
 
+def sample_step(cp_kubeconfig: str, dp_kubeconfig: str, namespace: str,
+                node_count: int) -> dict:
+    """Take one tagged resource+scrape-health sample (see sample_resource_usage).
+
+    Shared by dwell_and_sample (post-scale dwell) and scale_and_sample
+    (continuous sampling while the nodepool itself is still scaling up), so
+    both cover the same fields in the same shape.
+    """
+    sample = sample_resource_usage(cp_kubeconfig, dp_kubeconfig, namespace)
+    sample["node_count"] = node_count
+    try:
+        active = _fetch_targets_all_replicas(cp_kubeconfig, namespace)
+        load_targets, _infra = _classify_targets(active)
+        sample["targets_up"] = sum(1 for t in load_targets if t.get("health") == "up")
+        sample["targets_total"] = len(load_targets)
+    except Exception as e:
+        log.debug("Target poll failed during sample: %s", e)
+        sample["targets_up"] = 0
+        sample["targets_total"] = 0
+    log.info("  [node_count=%d] targets %d/%d up, sampled %d component groups",
+             node_count, sample["targets_up"], sample["targets_total"],
+             sum(1 for k in ("vmagent", "konnectivity_server", "konnectivity_agent") if sample.get(k)))
+    return sample
+
+
 def dwell_and_sample(cp_kubeconfig: str, dp_kubeconfig: str, namespace: str,
                      node_count: int, duration_minutes: int,
                      poll_interval: int = 30) -> list[dict]:
@@ -263,21 +288,7 @@ def dwell_and_sample(cp_kubeconfig: str, dp_kubeconfig: str, namespace: str,
     samples: list[dict] = []
     deadline = time.time() + duration_minutes * 60
     while True:
-        sample = sample_resource_usage(cp_kubeconfig, dp_kubeconfig, namespace)
-        sample["node_count"] = node_count
-        try:
-            active = _fetch_targets_all_replicas(cp_kubeconfig, namespace)
-            load_targets, _infra = _classify_targets(active)
-            sample["targets_up"] = sum(1 for t in load_targets if t.get("health") == "up")
-            sample["targets_total"] = len(load_targets)
-        except Exception as e:
-            log.debug("Target poll failed during dwell: %s", e)
-            sample["targets_up"] = 0
-            sample["targets_total"] = 0
-        samples.append(sample)
-        log.info("  [node_count=%d] targets %d/%d up, sampled %d component groups",
-                 node_count, sample["targets_up"], sample["targets_total"],
-                 sum(1 for k in ("vmagent", "konnectivity_server", "konnectivity_agent") if sample.get(k)))
+        samples.append(sample_step(cp_kubeconfig, dp_kubeconfig, namespace, node_count))
         remaining = deadline - time.time()
         if remaining <= 0:
             break
@@ -496,6 +507,7 @@ def collect_metrics(cp_kubeconfig: str, dp_kubeconfig: str,
     )
 
     # --- VMAgent self-metrics ---
+    log.info("  querying vmagent-0 self-metrics...")
     try:
         with PortForward(cp_kubeconfig, namespace, "vmagent-0", 8429, 18429) as pf:
             metrics_resp = retry_request(f"{pf.url}/metrics")
@@ -559,6 +571,7 @@ def collect_metrics(cp_kubeconfig: str, dp_kubeconfig: str,
             measurements.setdefault(key, 0)
 
     # --- Konnectivity server metrics (port 8096) ---
+    log.info("  querying konnectivity-server metrics...")
     try:
         with PortForward(cp_kubeconfig, namespace, "deployment/konnectivity-server", 8096, 18096) as pf:
             konn_resp = retry_request(f"{pf.url}/metrics")
@@ -680,6 +693,7 @@ def collect_metrics(cp_kubeconfig: str, dp_kubeconfig: str,
             measurements.setdefault(key, 0)
 
     # --- Konnectivity agent metrics (via vmsingle — DP port-forward unreliable) ---
+    log.info("  querying konnectivity-agent metrics via vmsingle...")
     try:
         with PortForward(cp_kubeconfig, namespace, "deployment/vmsingle", 8428, 18428) as pf:
             # Quick health check — fail fast if vmsingle is down
@@ -767,6 +781,7 @@ def collect_metrics(cp_kubeconfig: str, dp_kubeconfig: str,
     measurements["oom_events"] = oom_events
 
     # --- Container CPU/memory from vmsingle (cadvisor data for DP pods) ---
+    log.info("  querying container cpu/memory from vmsingle...")
     try:
         with PortForward(cp_kubeconfig, namespace, "deployment/vmsingle", 8428, 18428) as pf:
             retry_request(f"{pf.url}/health", retries=1, backoff=1)
@@ -792,6 +807,7 @@ def collect_metrics(cp_kubeconfig: str, dp_kubeconfig: str,
         measurements["dp_container_metrics"] = {}
 
     # --- vmsingle write-path metrics ---
+    log.info("  querying vmsingle write-path metrics...")
     try:
         with PortForward(cp_kubeconfig, namespace, "deployment/vmsingle", 8428, 18428) as pf:
             retry_request(f"{pf.url}/health", retries=1, backoff=1)
@@ -832,6 +848,7 @@ def collect_metrics(cp_kubeconfig: str, dp_kubeconfig: str,
             measurements.setdefault(key, 0)
 
     # --- Infrastructure time-series from vmsingle (from self-monitoring scrape jobs) ---
+    log.info("  querying infra time-series rates from vmsingle...")
     try:
         with PortForward(cp_kubeconfig, namespace, "deployment/vmsingle", 8428, 18428) as pf:
             retry_request(f"{pf.url}/health", retries=1, backoff=1)

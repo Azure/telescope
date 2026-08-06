@@ -2,6 +2,7 @@
 
 import json
 import math
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
@@ -34,7 +35,7 @@ from .adx import (
 )
 from .metrics import (
     collect_diagnostics, collect_metrics, collect_pprof, dwell_and_sample,
-    evaluate_pass_fail, observe_remotewrite_drain, wait_for_targets,
+    evaluate_pass_fail, observe_remotewrite_drain, sample_step, wait_for_targets,
 )
 from .scaling import scale_dp_nodepool, wait_for_nodes_ready
 from .utils import kubectl
@@ -404,6 +405,75 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
     return result
 
 
+def scale_and_sample(cp_kubeconfig: str, dp_kubeconfig: str, namespace: str,
+                     resource_group: str, dp_cluster_name: str, nodepool: str,
+                     target_nodes: int, poll_interval: int = 60,
+                     timeout_minutes: int = 30) -> tuple[int, list[dict]]:
+    """Scale the DP nodepool to `target_nodes` while continuously sampling
+    resource usage + scrape health every `poll_interval` seconds for the
+    WHOLE scale-up window, instead of blocking silently on node-readiness
+    and only sampling afterward. Node provisioning itself can take many
+    minutes; this makes that climb visible instead of a black box before
+    the first post-ready sample.
+
+    Returns (ready_node_count, samples).
+    """
+    samples: list[dict] = []
+    stop_event = threading.Event()
+
+    def _sampler() -> None:
+        while not stop_event.is_set():
+            try:
+                samples.append(sample_step(cp_kubeconfig, dp_kubeconfig, namespace, target_nodes))
+            except Exception as e:
+                log.debug("Sample failed during scale-up: %s", e)
+            stop_event.wait(poll_interval)
+
+    sampler_thread = threading.Thread(target=_sampler, daemon=True)
+    sampler_thread.start()
+    try:
+        scale_dp_nodepool(resource_group, dp_cluster_name, nodepool, target_nodes)
+        ready = wait_for_nodes_ready(dp_kubeconfig, expected=target_nodes,
+                                     timeout_minutes=timeout_minutes)
+    finally:
+        stop_event.set()
+        sampler_thread.join(timeout=poll_interval + 10)
+    return ready, samples
+
+
+def scale_fake_and_sample(cp_kubeconfig: str, dp_kubeconfig: str, namespace: str,
+                          resource_group: str, dp_cluster_name: str, nodepool: str,
+                          tier: int, poll_interval: int = 60,
+                          timeout_minutes: int = 30) -> list[dict]:
+    """Scale the DP nodepool (to host `tier` fake-exporter replicas) and the
+    exporters themselves, while continuously sampling every `poll_interval`
+    seconds for the whole window -- same rationale as scale_and_sample.
+    """
+    nodes_needed = compute_fake_nodes_needed(tier)
+    samples: list[dict] = []
+    stop_event = threading.Event()
+
+    def _sampler() -> None:
+        while not stop_event.is_set():
+            try:
+                samples.append(sample_step(cp_kubeconfig, dp_kubeconfig, namespace, tier))
+            except Exception as e:
+                log.debug("Sample failed during scale-up: %s", e)
+            stop_event.wait(poll_interval)
+
+    sampler_thread = threading.Thread(target=_sampler, daemon=True)
+    sampler_thread.start()
+    try:
+        if resource_group and dp_cluster_name:
+            scale_dp_nodepool(resource_group, dp_cluster_name, nodepool, nodes_needed)
+            wait_for_nodes_ready(dp_kubeconfig, expected=nodes_needed, timeout_minutes=timeout_minutes)
+        scale_fake_exporters(dp_kubeconfig, tier)
+    finally:
+        stop_event.set()
+        sampler_thread.join(timeout=poll_interval + 10)
+    return samples
+
+
 def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[int],
                           warm_up_minutes: int,
                           work_dir: Path, results_dir: Path, run_id: str,
@@ -421,11 +491,13 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
     inside ONE continuous namespace/deployment, mirroring how a real prod
     cluster is actually scaled up (e.g. 0->400->800->...->2000) and watched
     the whole way -- instead of tearing down and redeploying a fresh stack
-    per checkpoint. At each step: scale the nodepool, reconcile
-    konnectivity-server/vmagent sizing for the new node count (idempotent
-    applies), then dwell for `warm_up_minutes` sampling CPU/memory/
-    restarts/OOMs/scrape health every 30s so the climb toward the target is
-    visible the whole way, not just in a final snapshot.
+    per checkpoint. At each step: scale the nodepool via scale_and_sample
+    (samples CPU/memory/restarts/OOMs/scrape health every 60s for the whole
+    scale-up window, not just after), reconcile konnectivity-server/vmagent
+    sizing for the new node count (skipped for the first tier -- already
+    deployed identically pre-loop), then take one confirmation sample --
+    no separate multi-minute post-scale dwell needed since the climb itself
+    was already sampled continuously.
     """
     steps = sorted(set(tiers))
     namespace = f"loadtest-{run_label}-ramp" if run_label else "loadtest-ramp"
@@ -487,25 +559,33 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
         log.info("-" * 60)
         step_start_ts = time.time()
 
-        scale_dp_nodepool(resource_group, dp_cluster_name, nodepool, tier)
-        wait_for_nodes_ready(dp_kubeconfig, expected=tier, timeout_minutes=30)
+        # Scale while continuously sampling every 60s -- covers the whole
+        # climb instead of blocking silently on node-readiness.
+        _, scaling_samples = scale_and_sample(cp_kubeconfig, dp_kubeconfig, namespace,
+                                              resource_group, dp_cluster_name, nodepool, tier,
+                                              poll_interval=60, timeout_minutes=30)
+        all_samples.extend(scaling_samples)
 
-        # Reconcile CP-side sizing for the new node count (idempotent applies)
+        # Reconcile CP-side sizing for the new node count (idempotent
+        # applies). Skipped for the first tier: it's already deployed with
+        # identical sizing pre-loop, so re-applying here is a redundant
+        # rollout-wait that adds nothing.
         server_count, shard_count, tier_resources = _reconcile_cp_stack(tier)
-        deploy_konnectivity_server(cp_kubeconfig, namespace, server_count=server_count,
-                                    resources=tier_resources["konn_server"], wait=True,
-                                    server_image=konn_server_image)
         agent_replica_count = konnectivity_agent_replicas_for_node_count(tier)
-        deploy_konnectivity_agents(dp_kubeconfig, namespace, server_ip, agent_replica_count,
-                                    agent_image=konn_agent_image)
-        deploy_vmagent(cp_kubeconfig, namespace, dp_api_server,
-                       vmagent_resources=tier_resources["vmagent"],
-                       proxy_resources=tier_resources["vmagent_proxy"],
-                       replicas=shard_count,
-                       rate_limit=rate_limit,
-                       max_block_size=max_block_size,
-                       queues=queues,
-                       max_rows_per_block=max_rows_per_block)
+        if tier != first_tier:
+            deploy_konnectivity_server(cp_kubeconfig, namespace, server_count=server_count,
+                                        resources=tier_resources["konn_server"], wait=True,
+                                        server_image=konn_server_image)
+            deploy_konnectivity_agents(dp_kubeconfig, namespace, server_ip, agent_replica_count,
+                                        agent_image=konn_agent_image)
+            deploy_vmagent(cp_kubeconfig, namespace, dp_api_server,
+                           vmagent_resources=tier_resources["vmagent"],
+                           proxy_resources=tier_resources["vmagent_proxy"],
+                           replicas=shard_count,
+                           rate_limit=rate_limit,
+                           max_block_size=max_block_size,
+                           queues=queues,
+                           max_rows_per_block=max_rows_per_block)
 
         node_ips = get_node_ips(dp_kubeconfig)
         dp_nodes = len(node_ips)
@@ -515,19 +595,21 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
         singleton_roles = len(SINGLETON_POD_TARGET_ROLES)
         min_targets = dp_nodes * per_node_roles + singleton_roles
 
-        log.info("Dwelling %dm at %d nodes (sampling every 30s)...", warm_up_minutes, tier)
-        step_samples = dwell_and_sample(cp_kubeconfig, dp_kubeconfig, namespace,
-                                        node_count=tier, duration_minutes=warm_up_minutes)
-        all_samples.extend(step_samples)
-        last_sample = step_samples[-1] if step_samples else {}
+        log.info("Nodes ready at %d; taking final confirmation sample "
+                "(no extra post-scale dwell -- scale-up was already sampled continuously)...", tier)
+        last_sample = sample_step(cp_kubeconfig, dp_kubeconfig, namespace, tier)
+        all_samples.append(last_sample)
 
         step_measurements = collect_metrics(cp_kubeconfig, dp_kubeconfig, namespace, tier, work_dir)
         step_pass_fail = evaluate_pass_fail(step_measurements, expected_targets=min_targets)
         # Push this step's time series to ADX (no-op unless ADX_CLUSTER_URI/ADX_DATABASE set)
+        log.info("Pushing time-series to ADX...")
         adx_export_if_configured(cp_kubeconfig, namespace, run_id, tier,
                                   mode="real-targets", start_ts=step_start_ts)
+        log.info("Collecting peak resource usage for summary row...")
         step_measurements.update(adx_collect_resource_peaks(cp_kubeconfig, namespace, ramp_start_ts))
 
+        log.info("Pushing run summary row to ADX...")
         adx_export_summary_if_configured(
             run_id=run_id,
             tier=tier,
@@ -657,12 +739,11 @@ def run_fake_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
                           konn_agent_image: str = KONN_AGENT_IMAGE) -> dict:
     """Ramp fake-exporter replicas through every tier in `tiers` (ascending)
     inside ONE continuous namespace/deployment, mirroring
-    run_real_targets_ramp but scaling `scale_fake_exporters` (and the
-    underlying DP nodepool via compute_fake_nodes_needed) instead of real
-    DP nodes. At each step: scale exporters + DP nodepool, reconcile
-    konnectivity-server/vmagent sizing for the new tier (idempotent
-    applies), then dwell for `warm_up_minutes` sampling CPU/memory/
-    restarts/OOMs/scrape health every 30s.
+    run_real_targets_ramp but scaling via scale_fake_and_sample (DP nodepool
+    + fake exporters together, sampled continuously every 60s throughout).
+    Reconciles konnectivity-server/vmagent sizing for the new tier (skipped
+    for the first tier -- already deployed identically pre-loop), then
+    takes one confirmation sample -- no separate post-scale dwell needed.
     """
     steps = sorted(set(tiers))
     namespace = f"loadtest-{run_label}-fake-ramp" if run_label else "loadtest-fake-ramp"
@@ -730,46 +811,51 @@ def run_fake_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
         log.info("-" * 60)
         step_start_ts = time.time()
 
+        # Scale while continuously sampling every 60s -- covers the whole
+        # climb instead of blocking silently on node/exporter readiness.
+        scaling_samples = scale_fake_and_sample(cp_kubeconfig, dp_kubeconfig, namespace,
+                                                resource_group, dp_cluster_name, nodepool, tier,
+                                                poll_interval=60, timeout_minutes=30)
+        all_samples.extend(scaling_samples)
         nodes_needed = compute_fake_nodes_needed(tier)
-        if resource_group and dp_cluster_name:
-            scale_dp_nodepool(resource_group, dp_cluster_name, nodepool, nodes_needed)
-            wait_for_nodes_ready(dp_kubeconfig, expected=nodes_needed, timeout_minutes=30)
 
-        scale_fake_exporters(dp_kubeconfig, tier)
-
-        # Reconcile CP-side sizing for the new tier (idempotent applies)
+        # Reconcile CP-side sizing for the new tier (idempotent applies).
+        # Skipped for the first tier: already deployed identically pre-loop.
         server_count, shard_count, tier_resources = _reconcile_cp_stack(tier)
         last_tier_resources = tier_resources
-        deploy_konnectivity_server(cp_kubeconfig, namespace, server_count=server_count,
-                                    resources=tier_resources["konn_server"], wait=True,
-                                    server_image=konn_server_image)
         agent_replica_count = konnectivity_agent_replicas_for_node_count(nodes_needed)
-        deploy_konnectivity_agents(dp_kubeconfig, namespace, server_ip, agent_replica_count,
-                                    agent_image=konn_agent_image)
-        deploy_vmagent(cp_kubeconfig, namespace, dp_api_server,
-                       vmagent_resources=tier_resources["vmagent"],
-                       proxy_resources=tier_resources["vmagent_proxy"],
-                       replicas=shard_count,
-                       rate_limit=rate_limit,
-                       max_block_size=max_block_size,
-                       queues=queues,
-                       max_rows_per_block=max_rows_per_block)
+        if tier != first_tier:
+            deploy_konnectivity_server(cp_kubeconfig, namespace, server_count=server_count,
+                                        resources=tier_resources["konn_server"], wait=True,
+                                        server_image=konn_server_image)
+            deploy_konnectivity_agents(dp_kubeconfig, namespace, server_ip, agent_replica_count,
+                                        agent_image=konn_agent_image)
+            deploy_vmagent(cp_kubeconfig, namespace, dp_api_server,
+                           vmagent_resources=tier_resources["vmagent"],
+                           proxy_resources=tier_resources["vmagent_proxy"],
+                           replicas=shard_count,
+                           rate_limit=rate_limit,
+                           max_block_size=max_block_size,
+                           queues=queues,
+                           max_rows_per_block=max_rows_per_block)
 
         min_targets = int(tier * len(FAKE_EXPORTER_ROLES) * 0.95)
 
-        log.info("Dwelling %dm at %d replicas (sampling every 30s)...", warm_up_minutes, tier)
-        step_samples = dwell_and_sample(cp_kubeconfig, dp_kubeconfig, namespace,
-                                        node_count=tier, duration_minutes=warm_up_minutes)
-        all_samples.extend(step_samples)
-        last_sample = step_samples[-1] if step_samples else {}
+        log.info("Replicas at %d; taking final confirmation sample "
+                "(no extra post-scale dwell -- scale-up was already sampled continuously)...", tier)
+        last_sample = sample_step(cp_kubeconfig, dp_kubeconfig, namespace, tier)
+        all_samples.append(last_sample)
 
         step_measurements = collect_metrics(cp_kubeconfig, dp_kubeconfig, namespace, tier, work_dir)
         step_pass_fail = evaluate_pass_fail(step_measurements, expected_targets=min_targets)
         # Push this step's time series to ADX (no-op unless ADX_CLUSTER_URI/ADX_DATABASE set)
+        log.info("Pushing time-series to ADX...")
         adx_export_if_configured(cp_kubeconfig, namespace, run_id, tier,
                                   mode="fake-targets", start_ts=step_start_ts)
+        log.info("Collecting peak resource usage for summary row...")
         step_measurements.update(adx_collect_resource_peaks(cp_kubeconfig, namespace, ramp_start_ts))
 
+        log.info("Pushing run summary row to ADX...")
         adx_export_summary_if_configured(
             run_id=run_id,
             tier=tier,
