@@ -807,6 +807,14 @@ steps:
 
       clusters=$(cat "$HOME/.kube/clustermesh-clusters.json")
       expected_remote=$(( $(echo "$clusters" | jq 'length') - 1 ))
+      node_readiness_required="${CLUSTERMESH_NODE_READINESS_REQUIRED:-true}"
+      node_readiness_required="${node_readiness_required,,}"
+      if [ "$node_readiness_required" != "true" ] &&
+        [ "$node_readiness_required" != "false" ]; then
+        echo "##vso[task.logissue type=error;] CLUSTERMESH_NODE_READINESS_REQUIRED must be true or false, got '$node_readiness_required'"
+        exit 1
+      fi
+      node_readiness_warnings=0
 
       # Fleet-side peer-list dump (N>=10 only — at smaller N Fleet always
       # converges cleanly so the noise isn't worth it). Build 67525 evidence:
@@ -1074,7 +1082,11 @@ steps:
             break
           fi
           if [ "$(date +%s)" -ge "$node_ready_deadline" ]; then
-            echo "##vso[task.logissue type=error;] $role: node readiness timeout after 15 min"
+            if [ "$node_readiness_required" = "true" ]; then
+              echo "##vso[task.logissue type=error;] $role: node readiness timeout after 15 min"
+            else
+              echo "##vso[task.logissue type=warning;] $role: node readiness timeout after 15 min; continuing because node readiness is warning-only for this Fleet threshold stage"
+            fi
             # Best-effort, apiserver-flakiness-resilient diagnostics. The previous
             # dump did ONE `get nodes`/`describe` with no request-timeout and no
             # cilium data — build 72011 hit a transient apiserver i/o timeout HERE
@@ -1121,7 +1133,13 @@ steps:
             kdiag -n kube-system get pods -o wide | grep -iE 'NAME|cilium' | awk 'NR==1 || $3!="Running"'
             echo "--- recent kube-system Warning events ---"
             kdiag -n kube-system get events --field-selector type=Warning --sort-by=.lastTimestamp | tail -25
-            exit 1
+            if [ "$node_readiness_required" = "true" ]; then
+              exit 1
+            fi
+            set -e
+            node_readiness_warnings=$((node_readiness_warnings + 1))
+            echo "$role: continuing to authoritative Cilium peer validation with degraded AKS node readiness"
+            break
           fi
           not_ready=$(kubectl get nodes --no-headers 2>/dev/null | awk '$2 != "Ready"' | wc -l)
           echo "$(date -u +%H:%M:%S): ${not_ready} node(s) NotReady, waiting (deadline at $(date -u -d @${node_ready_deadline} +%H:%M:%S))"
@@ -1237,11 +1255,21 @@ steps:
         echo "##vso[task.logissue type=error;] $failures cluster(s) failed mesh validation"
         exit 1
       fi
+      if [ "$node_readiness_warnings" -gt 0 ]; then
+        echo "##vso[task.logissue type=warning;] Fleet peer validation passed with $node_readiness_warnings cluster(s) reporting degraded AKS node readiness"
+        echo "##vso[task.complete result=SucceededWithIssues;]"
+      fi
     displayName: "Validate Cilium + ClusterMesh on every cluster"
 
   - script: |
       set -euo pipefail
       set -x
+
+      cross_cluster_smoke_enabled="${CLUSTERMESH_CROSS_CLUSTER_SMOKE_ENABLED:-true}"
+      if [ "${cross_cluster_smoke_enabled,,}" != "true" ]; then
+        echo "Cross-cluster data-path smoke disabled by CLUSTERMESH_CROSS_CLUSTER_SMOKE_ENABLED=$cross_cluster_smoke_enabled"
+        exit 0
+      fi
 
       # Cross-cluster data-path smoke: deploy a `global` service backed by an
       # echo pod in the first cluster, deploy a curl client in the second
