@@ -242,10 +242,10 @@ class KubernetesClient:
         Waits for a specific number of nodes with a given label to be ready within a specified timeout.
         Raises an exception if the expected number of nodes are not ready within the timeout.
 
-        :param node_label: The label to filter nodes.
         :param node_count: The expected number of nodes to be ready.
         :param operation_timeout_in_minutes: The timeout in minutes to wait for the nodes to be ready.
-        :return: None
+        :param label_selector: The label to filter nodes.
+        :return: List of ready nodes.
         """
         ready_nodes = []
         ready_node_count = 0
