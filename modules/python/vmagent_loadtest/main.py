@@ -55,8 +55,8 @@ def main() -> None:
                                help="MSI client ID for Azure login")
     cluster_group.add_argument("--subscription-id", default="",
                                help="Azure subscription ID")
-    cluster_group.add_argument("--cp-cluster-name", default="",
-                               help="Control plane AKS cluster name")
+    cluster_group.add_argument("--cp-cluster-name", default=DEFAULT_CP_CLUSTER_NAME,
+                               help=f"Control plane AKS cluster name (default: {DEFAULT_CP_CLUSTER_NAME})")
     cluster_group.add_argument("--cp-node-count", type=int, default=5,
                                help="CP cluster node count (default: 5)")
     cluster_group.add_argument("--dp-node-count", type=int, default=10,
@@ -89,9 +89,6 @@ def main() -> None:
                         help="AKS cluster name for DP cluster (enables node scaling)")
     parser.add_argument("--nodepool-name", default=DEFAULT_NODEPOOL,
                         help=f"DP cluster nodepool name (default: {DEFAULT_NODEPOOL})")
-    parser.add_argument("--cp-cluster-name", default=DEFAULT_CP_CLUSTER_NAME,
-                        help=f"CP cluster name, for load-based CP nodepool scaling "
-                             f"(default: {DEFAULT_CP_CLUSTER_NAME})")
     parser.add_argument("--cp-nodepool-name", default=DEFAULT_CP_NODEPOOL,
                         help=f"CP cluster nodepool name (default: {DEFAULT_CP_NODEPOOL}); "
                              f"scaled per-tier to the CPU konn-server/vmagent need "
