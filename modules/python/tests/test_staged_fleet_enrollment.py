@@ -27,6 +27,7 @@ VALIDATE_RESOURCES_PATH = (
     / "clustermesh-scale"
     / "validate-resources.yml"
 )
+STATE_CAPTURE_PATH = SCRIPT_PATH.with_name("capture-fleet-profile-state.sh")
 N2_TFVARS_PATH = (
     REPOSITORY_ROOT
     / "scenarios"
@@ -99,6 +100,18 @@ if [[ " $* " == *" fleet member update "* ]]; then
   exit 0
 fi
 if [[ " $* " == *" clustermeshprofile list-members "* ]]; then
+  if [[ " $* " == *" --output json "* ]]; then
+    printf '['
+    separator=""
+    while IFS= read -r role; do
+      [ -n "$role" ] || continue
+      printf '%s{\"name\":\"%s\",\"meshProperties\":{\"status\":{\"state\":\"Connecting\"}}}' \
+        "$separator" "$role"
+      separator=","
+    done < <(sort -u "$SELECTED_FILE" | sed '/^$/d')
+    printf ']\\n'
+    exit 0
+  fi
   apply_count=$(wc -l < "$APPLY_FILE" 2>/dev/null || printf '0')
   if [[ " $* " == *"length([?meshProperties.status.state=='Failed'])"* ]]; then
     printf '0\\n'
@@ -124,6 +137,10 @@ if [[ " $* " == *" clustermeshprofile list-members "* ]]; then
   exit 0
 fi
 if [[ " $* " == *" clustermeshprofile show "* ]]; then
+  if [[ " $* " == *" --output json "* ]]; then
+    printf '{\"id\":\"/test/profile\",\"name\":\"test-profile\",\"properties\":{\"provisioningState\":\"Succeeded\"}}\\n'
+    exit 0
+  fi
   printf 'Succeeded\\n'
   exit 0
 fi
@@ -297,6 +314,33 @@ def test_staged_join_caps_profile_recovery_applies(tmp_path):
     assert summary["status"] == "failed"
 
 
+def test_staged_join_captures_raw_member_states_on_failure(tmp_path):
+    result, _, summary, _ = _run_staged_join(
+        tmp_path,
+        ["mesh-1", "mesh-2"],
+        required_apply_count=99,
+        batch_wait_seconds=2,
+        recovery_apply_after_seconds=1,
+    )
+
+    members_file = (
+        tmp_path / "clustermeshprofile-members-batch-1-failure.json"
+    )
+    profile_file = tmp_path / "clustermeshprofile-batch-1-failure.json"
+
+    assert result.returncode != 0
+    assert summary["status"] == "failed"
+    assert members_file.exists()
+    assert profile_file.exists()
+    members = json.loads(members_file.read_text(encoding="utf-8"))
+    assert {
+        member["meshProperties"]["status"]["state"] for member in members
+    } == {"Connecting"}
+    assert "[fleet-state] member-state state=Connecting count=2" in result.stdout
+    assert '"state":"Connecting"' in result.stdout
+    assert f"##vso[task.uploadfile]{members_file}" in result.stdout
+
+
 def test_staged_join_skips_recovery_without_post_apply_runway(tmp_path):
     result, _, summary, command_log = _run_staged_join(
         tmp_path,
@@ -320,6 +364,7 @@ def test_terraform_separates_initial_member_label_from_profile_selector():
     azure_variables = AZURE_VARIABLES_PATH.read_text(encoding="utf-8")
     validation = VALIDATE_RESOURCES_PATH.read_text(encoding="utf-8")
     staged_script = SCRIPT_PATH.read_text(encoding="utf-8")
+    state_capture = STATE_CAPTURE_PATH.read_text(encoding="utf-8")
     n2_tfvars = N2_TFVARS_PATH.read_text(encoding="utf-8")
 
     assert 'variable "member_initial_label_value"' in module_variables
@@ -347,6 +392,11 @@ def test_terraform_separates_initial_member_label_from_profile_selector():
     assert "legacy periodic profile re-applier is disabled" in validation
     assert "applied_high_water" in staged_script
     assert "connected_high_water" in staged_script
+    assert "capture-fleet-profile-state.sh" in staged_script
+    assert "meshProperties.status.state" in validation
+    assert "capture-fleet-profile-state.sh" in validation
+    assert "##vso[task.uploadfile]" in state_capture
+    assert "raw-member=" in state_capture
     assert "next_reapply" not in staged_script
     assert "${var.member_label_key}=detaching" in module
     assert "values(local.member_relabel_command)" in module

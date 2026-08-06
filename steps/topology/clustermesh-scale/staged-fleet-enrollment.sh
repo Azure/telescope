@@ -28,6 +28,8 @@ recovery_apply_after_seconds="${CMP_STAGED_JOIN_RECOVERY_APPLY_AFTER_SECONDS:-27
 max_recovery_applies="${CMP_STAGED_JOIN_MAX_RECOVERY_APPLIES:-1}"
 recovery_min_post_seconds="${CMP_STAGED_JOIN_RECOVERY_MIN_POST_SECONDS:-1800}"
 summary_file="${CMP_STAGED_JOIN_SUMMARY_FILE:-$(pwd)/clustermeshprofile-staged-join.json}"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+state_capture_script="${FLEET_STATE_CAPTURE_SCRIPT:-$script_dir/capture-fleet-profile-state.sh}"
 
 require_positive_integer() {
   local name="$1"
@@ -514,6 +516,10 @@ run_batch() {
   batch_finished_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   update_summary "failed" "$batch_number" "${#joined[@]}" \
     "$batch_started_at" "$batch_finished_at" "${batch[@]}"
+  FLEET_STATE_CAPTURE_DIR="$(dirname "$summary_file")" \
+  FLEET_STATE_CAPTURE_REASON="batch-${batch_number}-failure" \
+  FLEET_QUERY_TIMEOUT_SECONDS="$query_timeout_seconds" \
+    bash "$state_capture_script" || true
   echo "##vso[task.logissue type=error;] [staged-join] batch #$batch_number did not converge before its bounded deadline (batch_limit=${batch_wait_seconds}s total_limit=${total_wait_seconds}s)"
   return 1
 }

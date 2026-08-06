@@ -649,7 +649,7 @@ steps:
                 --resource-group "$FLEET_RG" \
                 --fleet-name "$FLEET_NAME" \
                 --name "$FLEET_PROFILE" \
-                --query "[].{name:name, provisioningState:provisioningState}" \
+                --query "[].{name:name, provisioningState:provisioningState, meshState:meshProperties.status.state}" \
                 -o table --only-show-errors 2>&1 | head -25 || true
               # AKS-side: is the cluster being updated by ACNS?
               echo "[$role] DIAG: AKS provisioningState (is ACNS reconciling?):"
@@ -696,6 +696,12 @@ steps:
       kill "$RECOVERY_PID" 2>/dev/null || true
 
       if [ "$failed" -gt 0 ]; then
+        FLEET_RG="$FLEET_RG" \
+        FLEET_NAME="$FLEET_NAME" \
+        FLEET_PROFILE="$FLEET_PROFILE" \
+        FLEET_STATE_CAPTURE_DIR="${BUILD_ARTIFACTSTAGINGDIRECTORY:-$(pwd)}/clustermeshprofile-state" \
+        FLEET_STATE_CAPTURE_REASON="apiserver-wait-failure" \
+          bash "$BUILD_SOURCESDIRECTORY/steps/topology/clustermesh-scale/capture-fleet-profile-state.sh" || true
         echo "##vso[task.logissue type=error;] $failed of $cluster_count clustermesh-apiserver(s) not ready; peering will not converge"
         exit 1
       fi
