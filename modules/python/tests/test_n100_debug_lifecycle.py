@@ -159,6 +159,11 @@ def test_fleet_reset_and_resume_do_not_mutate_aks_lifecycle():
     assert "--argjson expected_count" in reset
     assert "issuing bounded apply nudge" in reset
     assert "deferring apply nudge" in reset
+    assert "Removing residual ClusterMesh Kubernetes resources" in reset
+    assert "cilium-ca" in reset
+    assert "cilium-clustermesh" in reset
+    assert "clustermesh-apiserver-server-cert" in reset
+    assert "Cluster-side overlay reset complete" in reset
 
     assert "az aks create" not in create
     assert "az group create" not in create

@@ -141,6 +141,65 @@ if az fleet show --resource-group "$target_run_id" --name "$fleet_name" \
   exit 1
 fi
 
+kube_dir=$(mktemp -d "${TMPDIR:-/tmp}/clustermesh-reset-kube.XXXXXX")
+cleanup_kube_dir() {
+  rm -rf "$kube_dir"
+}
+trap cleanup_kube_dir EXIT
+
+echo "Removing residual ClusterMesh Kubernetes resources from preserved clusters."
+while IFS=$'\t' read -r role cluster_name; do
+  kubeconfig="$kube_dir/$role.config"
+  az aks get-credentials \
+    --resource-group "$target_run_id" \
+    --name "$cluster_name" \
+    --file "$kubeconfig" \
+    --overwrite-existing \
+    --only-show-errors >/dev/null
+
+  KUBECONFIG="$kubeconfig" kubectl -n kube-system delete \
+    deployment clustermesh-apiserver \
+    service clustermesh-apiserver \
+    configmap clustermesh-remote-users \
+    --ignore-not-found --wait=false
+  KUBECONFIG="$kubeconfig" kubectl -n kube-system delete secret \
+    cilium-ca \
+    cilium-clustermesh \
+    clustermesh-apiserver-admin-cert \
+    clustermesh-apiserver-local-cert \
+    clustermesh-apiserver-remote-cert \
+    clustermesh-apiserver-server-cert \
+    --ignore-not-found --wait=false
+
+  residual_deadline=$(( $(date +%s) + 300 ))
+  while [ "$(date +%s)" -lt "$residual_deadline" ]; do
+    residual=$(KUBECONFIG="$kubeconfig" kubectl -n kube-system get \
+      deployment,service,configmap,secret \
+      --ignore-not-found -o name 2>/dev/null |
+      grep -E '(^|/)(clustermesh-apiserver|clustermesh-remote-users|cilium-clustermesh)' ||
+      true)
+    if [ -z "$residual" ]; then
+      break
+    fi
+    sleep 5
+  done
+  if [ -n "${residual:-}" ]; then
+    echo "Residual ClusterMesh resources remain on $role: $residual" >&2
+    exit 1
+  fi
+  echo "Cluster-side overlay reset complete for $role."
+done < <(
+  jq -r '
+    sort_by(.name | ltrimstr("mesh-") | tonumber)
+    | .[]
+    | [
+        .name,
+        (.clusterResourceId | split("/")[-1])
+      ]
+    | @tsv
+  ' <<<"$cluster_json"
+)
+
 az group update --name "$target_run_id" \
   --set tags.clustermesh_debug_overlay_state=reset \
         tags.clustermesh_debug_reset_build="${BUILD_BUILDID:-manual}" \
