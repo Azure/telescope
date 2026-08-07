@@ -105,6 +105,12 @@ def test_reset_script_accepts_guarded_expected_count():
 def test_n2_reuse_smoke_pipeline_parses():
     pipeline = PIPELINE_PATH.read_text(encoding="utf-8")
     yaml.safe_load(pipeline)
+    assert "- name: reuseSmokeMode" in pipeline
+    assert (
+        "CLUSTERMESH_REUSE_SMOKE_MODE: "
+        "${{ parameters.reuseSmokeMode }}"
+        in pipeline
+    )
     assert "clustermesh_lifecycle_mode_conflict" in pipeline
     assert (
         "CLUSTERMESH_DEBUG_MODE and CLUSTERMESH_REUSE_SMOKE_MODE "

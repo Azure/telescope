@@ -56,7 +56,12 @@ def test_debug_stages_are_explicitly_mode_gated():
 
     assert "eq(variables['CLUSTERMESH_DEBUG_MODE'], '')" in active
     pipeline = PIPELINE_PATH.read_text(encoding="utf-8")
-    assert 'CLUSTERMESH_DEBUG_MODE: ""' in pipeline
+    assert "CLUSTERMESH_DEBUG_MODE: ${{ parameters.debugMode }}" in pipeline
+    assert "- name: debugMode" in pipeline
+    assert "- name: debugTargetRunId" in pipeline
+    assert "- name: debugConfirmReset" in pipeline
+    assert "- name: debugConfirmResume" in pipeline
+    assert "- name: debugConfirmDelete" in pipeline
     assert "- name: scaleDebugClusterCount" in pipeline
     assert "- name: scaleDebugTfvarsPath" in pipeline
     assert "- name: scaleDebugTopology" in pipeline

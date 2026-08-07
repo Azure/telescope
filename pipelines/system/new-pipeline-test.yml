@@ -1,6 +1,30 @@
 trigger: none
 
 parameters:
+  - name: debugMode
+    type: string
+    default: ""
+  - name: debugTargetRunId
+    type: string
+    default: ""
+  - name: debugConfirmReset
+    type: string
+    default: ""
+  - name: debugConfirmResume
+    type: string
+    default: ""
+  - name: debugConfirmDelete
+    type: string
+    default: ""
+  - name: reuseSmokeMode
+    type: string
+    default: ""
+    values:
+      - ""
+      - preserve
+      - reset
+      - resume
+      - cleanup
   - name: scaleDebugClusterCount
     type: number
     default: 100
@@ -34,12 +58,12 @@ variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: clustermesh-scale
   OWNER: aks
-  CLUSTERMESH_DEBUG_MODE: ""
-  CLUSTERMESH_DEBUG_TARGET_RUN_ID: ""
-  CLUSTERMESH_DEBUG_CONFIRM_RESET: ""
-  CLUSTERMESH_DEBUG_CONFIRM_RESUME: ""
-  CLUSTERMESH_DEBUG_CONFIRM_DELETE: ""
-  CLUSTERMESH_REUSE_SMOKE_MODE: ""
+  CLUSTERMESH_DEBUG_MODE: ${{ parameters.debugMode }}
+  CLUSTERMESH_DEBUG_TARGET_RUN_ID: ${{ parameters.debugTargetRunId }}
+  CLUSTERMESH_DEBUG_CONFIRM_RESET: ${{ parameters.debugConfirmReset }}
+  CLUSTERMESH_DEBUG_CONFIRM_RESUME: ${{ parameters.debugConfirmResume }}
+  CLUSTERMESH_DEBUG_CONFIRM_DELETE: ${{ parameters.debugConfirmDelete }}
+  CLUSTERMESH_REUSE_SMOKE_MODE: ${{ parameters.reuseSmokeMode }}
 
 stages:
   # 2026-05-13: Phase 4b smoke at n=2 to validate Option B++ fix
