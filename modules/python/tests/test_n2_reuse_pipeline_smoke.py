@@ -89,8 +89,9 @@ def test_resume_smoke_reuses_same_aks_ids_and_staged_fleet():
     assert "clustermesh_debug_aks_ids_sha256" in script
     assert "AKS resource IDs changed before resume" in script
     assert "create-staged-fleet-overlay.sh" in script
-    assert "CMP_STAGED_JOIN_BATCH_SIZE=1" in script
+    assert "CMP_STAGED_JOIN_BATCH_SIZE=2" in script
     assert "CMP_STAGED_JOIN_RECOVERY_APPLY_AFTER_SECONDS=1500" in script
+    assert "CMP_STAGED_JOIN_RESTART_APISERVER_AFTER_APPLY=true" in script
     assert "resume_connected:2" in script
     assert "az group delete" not in script
     assert "az aks create" not in script

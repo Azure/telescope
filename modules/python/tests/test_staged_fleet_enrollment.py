@@ -400,6 +400,8 @@ def test_terraform_separates_initial_member_label_from_profile_selector():
     ]
     assert "applied_high_water" in staged_script
     assert "connected_high_water" in staged_script
+    assert "restart_joined_apiservers" in staged_script
+    assert "CMP_STAGED_JOIN_RESTART_APISERVER_AFTER_APPLY" in staged_script
     assert "capture-fleet-profile-state.sh" in staged_script
     assert "meshProperties.status.state" in validation
     assert "capture-fleet-profile-state.sh" in validation

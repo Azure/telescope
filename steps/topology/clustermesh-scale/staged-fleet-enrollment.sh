@@ -27,6 +27,7 @@ query_timeout_seconds="${CMP_STAGED_JOIN_QUERY_TIMEOUT_SECONDS:-60}"
 recovery_apply_after_seconds="${CMP_STAGED_JOIN_RECOVERY_APPLY_AFTER_SECONDS:-2700}"
 max_recovery_applies="${CMP_STAGED_JOIN_MAX_RECOVERY_APPLIES:-1}"
 recovery_min_post_seconds="${CMP_STAGED_JOIN_RECOVERY_MIN_POST_SECONDS:-1800}"
+restart_apiserver_after_apply="${CMP_STAGED_JOIN_RESTART_APISERVER_AFTER_APPLY:-false}"
 summary_file="${CMP_STAGED_JOIN_SUMMARY_FILE:-$(pwd)/clustermeshprofile-staged-join.json}"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 state_capture_script="${FLEET_STATE_CAPTURE_SCRIPT:-$script_dir/capture-fleet-profile-state.sh}"
@@ -56,6 +57,11 @@ for setting in \
   "CMP_STAGED_JOIN_RECOVERY_MIN_POST_SECONDS:$recovery_min_post_seconds"; do
   require_positive_integer "${setting%%:*}" "${setting#*:}"
 done
+if [ "$restart_apiserver_after_apply" != "true" ] &&
+  [ "$restart_apiserver_after_apply" != "false" ]; then
+  echo "##vso[task.logissue type=error;] [staged-join] CMP_STAGED_JOIN_RESTART_APISERVER_AFTER_APPLY must be true or false"
+  exit 1
+fi
 
 if [ ! -s "$clusters_file" ]; then
   echo "##vso[task.logissue type=error;] [staged-join] cluster inventory is missing or empty: $clusters_file"
@@ -393,6 +399,38 @@ check_joined_members() {
   [ "$failures" -eq 0 ]
 }
 
+restart_joined_apiservers() {
+  local role kubeconfig deadline
+
+  for role in "${joined[@]}"; do
+    kubeconfig="$kubeconfig_dir/$role.config"
+    deadline=$(( $(date +%s) + 600 ))
+    while [ "$(date +%s)" -lt "$deadline" ]; do
+      if KUBECONFIG="$kubeconfig" kubectl -n kube-system get \
+          deployment clustermesh-apiserver \
+          secret cilium-root-ca.crt \
+          secret clustermesh-apiserver-server-cert \
+          secret clustermesh-apiserver-admin-cert \
+          >/dev/null 2>&1; then
+        break
+      fi
+      sleep 10
+    done
+    if ! KUBECONFIG="$kubeconfig" kubectl -n kube-system get \
+        deployment clustermesh-apiserver \
+        secret cilium-root-ca.crt \
+        secret clustermesh-apiserver-server-cert \
+        secret clustermesh-apiserver-admin-cert \
+        >/dev/null 2>&1; then
+      echo "$role did not receive complete ClusterMesh certificate material before restart." >&2
+      return 1
+    fi
+    echo "[staged-join] restarting $role clustermesh-apiserver after certificate rotation"
+    KUBECONFIG="$kubeconfig" kubectl -n kube-system rollout restart \
+      deployment/clustermesh-apiserver
+  done
+}
+
 echo "[staged-join] enrolling $total_members Fleet members in batches of $batch_size"
 joined=()
 batch=()
@@ -438,6 +476,9 @@ run_batch() {
       "$batch_started_at" "$batch_finished_at" "${batch[@]}"
     echo "##vso[task.logissue type=error;] [staged-join] profile apply failed for batch #$batch_number"
     return 1
+  fi
+  if [ "$restart_apiserver_after_apply" = "true" ]; then
+    restart_joined_apiservers
   fi
 
   last_progress_at=$(date +%s)
