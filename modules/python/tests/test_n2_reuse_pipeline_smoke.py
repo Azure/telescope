@@ -77,6 +77,9 @@ def test_preserve_smoke_intentionally_fails_without_cleanup():
     assert "az aks delete" not in script
     assert "private_kube_dir" in script
     assert '$artifact_dir/kube' not in script
+    assert "wait_for_stable_cluster" in script
+    assert "sustained Succeeded across 3 checks" in script
+    assert "aks_stability_timeout" in script
 
 
 def test_resume_smoke_reuses_same_aks_ids_and_staged_fleet():

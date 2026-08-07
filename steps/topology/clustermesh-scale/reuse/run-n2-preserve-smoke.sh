@@ -30,6 +30,43 @@ log() {
   printf '%s %s\n' "$(date -u +%FT%TZ)" "$*" | tee -a "$artifact_dir/preserve.log"
 }
 
+wait_for_stable_cluster() {
+  local cluster="$1"
+  local deadline state stable_reads=0
+
+  deadline=$(( $(date +%s) + 2700 ))
+  while [ "$(date +%s)" -lt "$deadline" ]; do
+    state=$(az aks show \
+      --resource-group "$run_id" \
+      --name "$cluster" \
+      --query provisioningState \
+      -o tsv --only-show-errors 2>/dev/null || echo unknown)
+    case "$state" in
+      Succeeded)
+        stable_reads=$((stable_reads + 1))
+        if [ "$stable_reads" -ge 3 ]; then
+          log "$cluster sustained Succeeded across 3 checks"
+          return 0
+        fi
+        ;;
+      Failed|Canceled)
+        reason="aks_terminal_${state,,}"
+        echo "$cluster entered terminal provisioningState=$state." >&2
+        return 1
+        ;;
+      *)
+        stable_reads=0
+        ;;
+    esac
+    log "$cluster provisioningState=$state stable_reads=$stable_reads/3"
+    sleep 20
+  done
+
+  reason=aks_stability_timeout
+  echo "$cluster did not reach sustained Succeeded within 2700s." >&2
+  return 1
+}
+
 write_summary() {
   jq -n \
     --arg run_id "$run_id" \
@@ -112,6 +149,10 @@ for index in 0 1; do
     --tags "run_id=$run_id" "role=${roles[$index]}" \
            "scenario=perf-eval-clustermesh-scale" "owner=aks" \
     --only-show-errors -o none
+done
+
+for cluster in "${clusters[@]}"; do
+  wait_for_stable_cluster "$cluster"
 done
 
 vnet_id=$(az network vnet show \
