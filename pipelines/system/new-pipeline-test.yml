@@ -19,6 +19,9 @@ parameters:
   - name: reuseSmokeMode
     type: string
     default: ""
+  - name: lifecycleSubscriptionId
+    type: string
+    default: 37deca37-c375-4a14-b90a-043849bd2bf1
   - name: scaleDebugClusterCount
     type: number
     default: 100
@@ -1469,6 +1472,8 @@ stages:
     dependsOn: []
     condition: and(always(), eq(variables['Build.Reason'], 'Manual'), eq(variables['CLUSTERMESH_DEBUG_MODE'], ''), eq(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], 'preserve'))
     displayName: "SMOKE n=2 preserve with intentional failure (37deca)"
+    variables:
+      AZURE_SUBSCRIPTION_ID: ${{ parameters.lifecycleSubscriptionId }}
     jobs:
       - job: preserve_n2
         timeoutInMinutes: 120
@@ -1481,6 +1486,7 @@ stages:
               scriptLocation: inlineScript
               inlineScript: |
                 set -euo pipefail
+                az account set --subscription "$(AZURE_SUBSCRIPTION_ID)"
                 whl="$(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/vendor/fleet-2.0.4-py3-none-any.whl"
                 az extension remove --name fleet --only-show-errors 2>/dev/null || true
                 az extension add --source "$whl" --yes --only-show-errors
@@ -1590,6 +1596,7 @@ stages:
               scriptLocation: inlineScript
               inlineScript: |
                 set -euo pipefail
+                az account set --subscription "$(AZURE_SUBSCRIPTION_ID)"
                 export CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256
                 CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256=$(sha256sum "$CLUSTERMESH_DEBUG_DESIRED_STATE_PATH" | awk '{print $1}')
                 bash "$(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/delete-preserved-rg.sh"
@@ -1649,6 +1656,7 @@ stages:
       eq(variables['CLUSTERMESH_DEBUG_MODE'], ''))
     displayName: "n=99 East US 2 EUAP MOCK pagination boundary (37deca Dv3)"
     variables:
+      AZURE_SUBSCRIPTION_ID: ${{ parameters.lifecycleSubscriptionId }}
       CLUSTERMESH_REQUIRED_SUBSCRIPTION_ID: "37deca37-c375-4a14-b90a-043849bd2bf1"
       MOCK_ACR_HOST: mockmeshshared11225.azurecr.io
       MOCK_ACR_SUBSCRIPTION_ID: "37deca37-c375-4a14-b90a-043849bd2bf1"
@@ -2637,6 +2645,7 @@ stages:
     condition: and(always(), eq(variables['Build.Reason'], 'Manual'), eq(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], ''), eq(variables['CLUSTERMESH_DEBUG_MODE'], 'reset-fleet'))
     displayName: "DEBUG EUAP scale reset Fleet overlay only (37deca)"
     variables:
+      AZURE_SUBSCRIPTION_ID: ${{ parameters.lifecycleSubscriptionId }}
       CLUSTERMESH_REQUIRED_SUBSCRIPTION_ID: "37deca37-c375-4a14-b90a-043849bd2bf1"
       CLUSTERMESH_QUOTA_PREFLIGHT_ENABLED: "false"
       AKS_CONTROL_PLANE_METRICS_ENABLED: "false"
@@ -2683,6 +2692,7 @@ stages:
     condition: and(always(), eq(variables['Build.Reason'], 'Manual'), eq(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], ''), eq(variables['CLUSTERMESH_DEBUG_MODE'], 'resume'))
     displayName: "DEBUG EUAP scale resume preserved AKS clusters (37deca)"
     variables:
+      AZURE_SUBSCRIPTION_ID: ${{ parameters.lifecycleSubscriptionId }}
       CLUSTERMESH_REQUIRED_SUBSCRIPTION_ID: "37deca37-c375-4a14-b90a-043849bd2bf1"
       MOCK_ACR_HOST: mockmeshshared11225.azurecr.io
       MOCK_ACR_SUBSCRIPTION_ID: "37deca37-c375-4a14-b90a-043849bd2bf1"

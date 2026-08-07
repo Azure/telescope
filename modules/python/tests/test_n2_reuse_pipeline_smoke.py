@@ -106,11 +106,19 @@ def test_n2_reuse_smoke_pipeline_parses():
     pipeline = PIPELINE_PATH.read_text(encoding="utf-8")
     yaml.safe_load(pipeline)
     assert "- name: reuseSmokeMode" in pipeline
+    assert "- name: lifecycleSubscriptionId" in pipeline
     assert (
         "CLUSTERMESH_REUSE_SMOKE_MODE: "
         "${{ parameters.reuseSmokeMode }}"
         in pipeline
     )
+    assert pipeline.count(
+        "AZURE_SUBSCRIPTION_ID: "
+        "${{ parameters.lifecycleSubscriptionId }}"
+    ) >= 4
+    assert pipeline.count(
+        'az account set --subscription "$(AZURE_SUBSCRIPTION_ID)"'
+    ) >= 2
     assert "clustermesh_lifecycle_mode_conflict" in pipeline
     assert (
         "CLUSTERMESH_DEBUG_MODE and CLUSTERMESH_REUSE_SMOKE_MODE "
