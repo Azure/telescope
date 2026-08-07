@@ -12,6 +12,32 @@ parameters:
   default: 3
 
 steps:
+- script: |
+    set -euo pipefail
+
+    if [ "${SKIP_RESOURCE_DELETION:-false}" = "true" ] &&
+      [ "${BUILD_REASON:-}" = "Manual" ]; then
+      echo "Cancellation cleanup: SKIP_RESOURCE_DELETION=true; preserving $RUN_ID."
+      exit 0
+    fi
+
+    if ! az group show --name "$RUN_ID" --only-show-errors >/dev/null 2>&1; then
+      echo "Cancellation cleanup: resource group $RUN_ID is already absent."
+      exit 0
+    fi
+
+    echo "Cancellation cleanup: initiating direct deletion of resource group $RUN_ID."
+    timeout 120s az group delete \
+      --name "$RUN_ID" \
+      --yes \
+      --no-wait \
+      --only-show-errors
+    echo "Cancellation cleanup: delete request accepted; Azure will continue asynchronously."
+  displayName: "Begin Resource Group Deletion on Cancellation"
+  condition: and(canceled(), ${{ eq(parameters.cloud, 'azure') }}, ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true'))
+  env:
+    BUILD_REASON: $(Build.Reason)
+
 - template: /steps/terraform/run-command.yml
   parameters:
     command: destroy
@@ -50,7 +76,7 @@ steps:
     echo "##vso[task.logissue type=error;] Resource group $RUN_ID was not deleted within $TIMEOUT seconds."
     exit 1
   displayName: "Destroy Resource Group"
-  condition: and(${{ eq(parameters.cloud, 'azure') }}, ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true'))
+  condition: and(not(canceled()), ${{ eq(parameters.cloud, 'azure') }}, ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true'))
   env:
     BUILD_REASON: $(Build.Reason)
 

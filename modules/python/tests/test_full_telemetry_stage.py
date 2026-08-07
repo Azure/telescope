@@ -17,6 +17,7 @@ COMPETITIVE_JOB_PATH = REPOSITORY_ROOT / "jobs" / "competitive-test.yml"
 TERRAFORM_RUN_COMMAND_PATH = (
     REPOSITORY_ROOT / "steps" / "terraform" / "run-command.yml"
 )
+CLEANUP_RESOURCES_PATH = REPOSITORY_ROOT / "steps" / "cleanup-resources.yml"
 FAILED_AKS_CLEANUP_PATH = (
     REPOSITORY_ROOT / "steps" / "terraform" / "cleanup-failed-aks.sh"
 )
@@ -375,6 +376,27 @@ def test_terraform_destroy_treats_missing_aks_and_fleet_as_success():
     assert "drain_deadline=$((SECONDS + 1800))" in profile_resource
     assert "delete_deadline=$((SECONDS + 600))" in profile_resource
     assert profile_resource.count("ResourceGroupNotFound") >= 2
+
+
+def test_cancellation_starts_direct_rg_delete_without_slow_destroy():
+    cleanup = CLEANUP_RESOURCES_PATH.read_text(encoding="utf-8")
+    run_command = TERRAFORM_RUN_COMMAND_PATH.read_text(encoding="utf-8")
+    competitive = COMPETITIVE_JOB_PATH.read_text(encoding="utf-8")
+
+    cancel_delete = 'displayName: "Begin Resource Group Deletion on Cancellation"'
+    terraform_destroy = "- template: /steps/terraform/run-command.yml"
+    assert cancel_delete in cleanup
+    assert cleanup.index(cancel_delete) < cleanup.index(terraform_destroy)
+    assert "and(canceled()," in cleanup
+    assert "az group delete \\" in cleanup
+    assert "--no-wait" in cleanup
+    assert "condition: and(not(canceled())," in cleanup
+    assert "and(eq('${{ parameters.command }}', 'destroy'), not(canceled()))" in (
+        run_command
+    )
+    assert "- name: cancel_timeout_in_minutes\n  type: number\n  default: 30" in (
+        competitive
+    )
 
 
 def test_fleet_apply_waits_for_stable_profile_and_recovery_requires_delete():

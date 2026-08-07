@@ -38,7 +38,7 @@ parameters:
   default: 60 # default when not specified is 60 minutes
 - name: cancel_timeout_in_minutes
   type: number
-  default: 5
+  default: 30
 - name: retry_attempt_count
   type: number
   default: 3

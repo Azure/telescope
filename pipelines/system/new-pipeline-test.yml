@@ -1415,6 +1415,7 @@ stages:
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
           timeout_in_minutes: 1200
+          cancel_timeout_in_minutes: 60
           credential_type: service_connection
           ssh_key_enabled: false
           skip_execute: true
