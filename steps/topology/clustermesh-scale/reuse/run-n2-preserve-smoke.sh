@@ -72,7 +72,14 @@ write_summary() {
     --arg run_id "$run_id" \
     --arg result "$result" \
     --arg reason "$reason" \
-    '{run_id:$run_id,result:$result,reason:$reason,preserved:true}' \
+    --arg desired_state_sha "${desired_state_sha:-}" \
+    '{
+      run_id:$run_id,
+      result:$result,
+      reason:$reason,
+      preserved:true,
+      desired_state_sha:$desired_state_sha
+    }' \
     > "$artifact_dir/summary.json"
 }
 cleanup_local() {

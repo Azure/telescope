@@ -22,6 +22,9 @@ parameters:
   - name: lifecycleSubscriptionId
     type: string
     default: 37deca37-c375-4a14-b90a-043849bd2bf1
+  - name: lifecycleDesiredStateSha
+    type: string
+    default: ""
   - name: scaleDebugClusterCount
     type: number
     default: 100
@@ -1528,7 +1531,9 @@ stages:
                 az extension remove --name fleet --only-show-errors 2>/dev/null || true
                 az extension add --source "$whl" --yes --only-show-errors
                 export CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256
-                CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256=$(sha256sum "$CLUSTERMESH_DEBUG_DESIRED_STATE_PATH" | awk '{print $1}')
+                if [ -z "${CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256:-}" ]; then
+                  CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256=$(sha256sum "$CLUSTERMESH_DEBUG_DESIRED_STATE_PATH" | awk '{print $1}')
+                fi
                 bash "$(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/validate-existing-n100.sh"
                 bash "$(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/reset-fleet-overlay.sh"
             env:
@@ -1541,6 +1546,7 @@ stages:
               CLUSTERMESH_DEBUG_REQUIRE_OVERLAY_RESET: "false"
               CLUSTERMESH_DEBUG_MANIFEST_PATH: $(Build.ArtifactStagingDirectory)/n2-reuse-smoke/reset-validation.json
               CLUSTERMESH_DEBUG_DESIRED_STATE_PATH: $(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/run-n2-preserve-smoke.sh
+              CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256: ${{ parameters.lifecycleDesiredStateSha }}
           - task: PublishPipelineArtifact@1
             displayName: "Publish n=2 reset evidence"
             condition: always()
@@ -1578,6 +1584,7 @@ stages:
               CLUSTERMESH_DEBUG_EXPECTED_REGION: eastus2euap
               CLUSTERMESH_SMOKE_ARTIFACT_DIR: $(Build.ArtifactStagingDirectory)/n2-reuse-smoke
               CLUSTERMESH_DEBUG_DESIRED_STATE_PATH: $(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/run-n2-preserve-smoke.sh
+              CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256: ${{ parameters.lifecycleDesiredStateSha }}
               REPOSITORY_ROOT: $(Pipeline.Workspace)/s
           - task: PublishPipelineArtifact@1
             displayName: "Publish n=2 resume evidence"
@@ -1606,7 +1613,9 @@ stages:
                 set -euo pipefail
                 az account set --subscription "${{ parameters.lifecycleSubscriptionId }}"
                 export CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256
-                CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256=$(sha256sum "$CLUSTERMESH_DEBUG_DESIRED_STATE_PATH" | awk '{print $1}')
+                if [ -z "${CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256:-}" ]; then
+                  CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256=$(sha256sum "$CLUSTERMESH_DEBUG_DESIRED_STATE_PATH" | awk '{print $1}')
+                fi
                 bash "$(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/delete-preserved-rg.sh"
             env:
               CLUSTERMESH_DEBUG_TARGET_RUN_ID: $(CLUSTERMESH_DEBUG_TARGET_RUN_ID)
@@ -1615,6 +1624,7 @@ stages:
               CLUSTERMESH_DEBUG_EXPECTED_REGION: eastus2euap
               CLUSTERMESH_DEBUG_EXPECTED_CLUSTER_COUNT: "2"
               CLUSTERMESH_DEBUG_DESIRED_STATE_PATH: $(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/run-n2-preserve-smoke.sh
+              CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256: ${{ parameters.lifecycleDesiredStateSha }}
 
   - stage: n2_reuse_smoke_mode_invalid
     dependsOn: []
