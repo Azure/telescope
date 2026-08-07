@@ -1593,6 +1593,45 @@ stages:
               targetPath: $(Build.ArtifactStagingDirectory)/n2-reuse-smoke
               artifact: n2-reuse-resume-$(Build.BuildId)
 
+  - stage: azure_eastus2euap_n2_reuse_smoke_resume_existing_37deca
+    dependsOn: []
+    condition: and(always(), eq(variables['Build.Reason'], 'Manual'), eq(variables['CLUSTERMESH_DEBUG_MODE'], ''), eq(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], 'resume-existing'))
+    displayName: "SMOKE n=2 resume existing Fleet (37deca)"
+    variables:
+      AZURE_SUBSCRIPTION_ID: ${{ parameters.lifecycleSubscriptionId }}
+    jobs:
+      - job: resume_existing_n2
+        timeoutInMinutes: 120
+        steps:
+          - task: AzureCLI@2
+            displayName: "Verify preserved AKS and existing Fleet"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -euo pipefail
+                az account set --subscription "${{ parameters.lifecycleSubscriptionId }}"
+                whl="$(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/vendor/fleet-2.0.4-py3-none-any.whl"
+                az extension remove --name fleet --only-show-errors 2>/dev/null || true
+                az extension add --source "$whl" --yes --only-show-errors
+                bash "$(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/resume-n2-existing-smoke.sh"
+            env:
+              CLUSTERMESH_DEBUG_TARGET_RUN_ID: $(CLUSTERMESH_DEBUG_TARGET_RUN_ID)
+              CLUSTERMESH_DEBUG_CONFIRM_RESUME: $(CLUSTERMESH_DEBUG_CONFIRM_RESUME)
+              CLUSTERMESH_DEBUG_EXPECTED_SUBSCRIPTION_ID: "37deca37-c375-4a14-b90a-043849bd2bf1"
+              CLUSTERMESH_DEBUG_EXPECTED_REGION: eastus2euap
+              CLUSTERMESH_SMOKE_ARTIFACT_DIR: $(Build.ArtifactStagingDirectory)/n2-reuse-smoke
+              CLUSTERMESH_DEBUG_DESIRED_STATE_PATH: $(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/run-n2-preserve-smoke.sh
+              CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256: ${{ parameters.lifecycleDesiredStateSha }}
+              REPOSITORY_ROOT: $(Pipeline.Workspace)/s
+          - task: PublishPipelineArtifact@1
+            displayName: "Publish existing-Fleet resume evidence"
+            condition: always()
+            inputs:
+              targetPath: $(Build.ArtifactStagingDirectory)/n2-reuse-smoke
+              artifact: n2-reuse-resume-existing-$(Build.BuildId)
+
   - stage: azure_eastus2euap_n2_reuse_smoke_cleanup_37deca
     dependsOn: []
     condition: and(always(), eq(variables['Build.Reason'], 'Manual'), eq(variables['CLUSTERMESH_DEBUG_MODE'], ''), eq(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], 'cleanup'))
@@ -1634,6 +1673,7 @@ stages:
       ne(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], 'preserve'),
       ne(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], 'reset'),
       ne(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], 'resume'),
+      ne(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], 'resume-existing'),
       ne(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], 'cleanup'))
     displayName: "INVALID n=2 reuse smoke mode"
     jobs:

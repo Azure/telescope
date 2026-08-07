@@ -16,6 +16,7 @@ REUSE_DIR = (
 )
 PRESERVE_SCRIPT = REUSE_DIR / "run-n2-preserve-smoke.sh"
 RESUME_SCRIPT = REUSE_DIR / "resume-n2-preserved-smoke.sh"
+RESUME_EXISTING_SCRIPT = REUSE_DIR / "resume-n2-existing-smoke.sh"
 RESET_SCRIPT = REUSE_DIR / "reset-fleet-overlay.sh"
 
 
@@ -43,11 +44,16 @@ def test_n2_reuse_smoke_stages_are_manual_and_mode_gated():
         "azure_eastus2euap_n2_reuse_smoke_cleanup_37deca",
         "n2_reuse_smoke_mode_invalid",
     )
+    resume_existing = _stage_block(
+        "azure_eastus2euap_n2_reuse_smoke_resume_existing_37deca",
+        "azure_eastus2euap_n2_reuse_smoke_cleanup_37deca",
+    )
 
     for block, mode in (
         (preserve, "preserve"),
         (reset, "reset"),
         (resume, "resume"),
+        (resume_existing, "resume-existing"),
         (cleanup, "cleanup"),
     ):
         assert "eq(variables['Build.Reason'], 'Manual')" in block
@@ -62,6 +68,7 @@ def test_n2_reuse_smoke_stages_are_manual_and_mode_gated():
     assert "run-n2-preserve-smoke.sh" in preserve
     assert "reset-fleet-overlay.sh" in reset
     assert "resume-n2-preserved-smoke.sh" in resume
+    assert "resume-n2-existing-smoke.sh" in resume_existing
     assert "delete-preserved-rg.sh" in cleanup
 
 
@@ -98,6 +105,24 @@ def test_resume_smoke_reuses_same_aks_ids_and_staged_fleet():
     assert "az aks delete" not in script
     assert "private_home" in script
     assert '$artifact_dir/home' not in script
+
+
+def test_existing_fleet_resume_is_read_only():
+    script = RESUME_EXISTING_SCRIPT.read_text(encoding="utf-8")
+
+    assert "existing_fleet_preserved:true" in script
+    assert "AKS resource IDs changed" in script
+    assert "Expected preserved Fleet to remain 2/2 Connected" in script
+    assert "cilium-dbg status" in script
+    for forbidden in (
+        "az fleet create",
+        "az fleet delete",
+        "clustermeshprofile apply",
+        "az aks create",
+        "az aks delete",
+        "az group delete",
+    ):
+        assert forbidden not in script
     assert 'if [ -z "${CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256:-}" ]' in script
 
 
