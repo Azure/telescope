@@ -8,31 +8,26 @@ ValidateCloudNodeManager = lambda serviceConnection: str, displayName: str = "",
     title = displayName if displayName else "Validate cloud-node-manager"
     script = """
 set +e
-failures=0
-fail() { echo "FAILED CLOUD-NODE-MANAGER CHECK: $*"; failures=$((failures + 1)); }
 
 # cloud-node-manager's job is to stamp each Node with a providerID; verify that
 # in a single list call so no node is missed and large clusters stay fast.
 node_table=$(kubectl get nodes --no-headers -o custom-columns='NAME:.metadata.name,PROVIDER:.spec.providerID' 2>/dev/null)
 if [ -z "$node_table" ]; then
-  fail "no nodes found"
-else
-  report=$(printf '%s\\n' "$node_table" | awk '
+  echo "FAILED CLOUD-NODE-MANAGER CHECK: no nodes found"; exit 1
+fi
+
+report=$(printf '%s\\n' "$node_table" | awk '
 {
   total++
   if ($2 == "<none>" || $2 == "") { print "node " $1 " missing providerID"; bad++ }
 }
 END { print "checked " total " nodes, " bad+0 " problem(s)"; exit (bad > 0) }')
-  rc=$?
-  echo "$report"
-  if [ "$rc" -ne 0 ]; then
-    fail "cloud-node-manager: some nodes are missing providerID"
-  fi
+rc=$?
+echo "$report"
+if [ "$rc" -ne 0 ]; then
+  echo "FAILED CLOUD-NODE-MANAGER CHECK: some nodes are missing providerID"; exit 1
 fi
 
-if [ "$failures" -gt 0 ]; then
-  echo "cloud-node-manager validation failed with $failures error(s)"; exit 1
-fi
 echo "cloud-node-manager validation passed"
 """
     AzCli(serviceConnection, title, script, continueOnError=continueOnError)
