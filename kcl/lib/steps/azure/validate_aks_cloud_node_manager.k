@@ -1,34 +1,15 @@
 import azure_pipelines.ap.steps
 
-# cloud-node-manager: the DaemonSet is fully rolled out on every node and each
-# node carries a providerID (set by the cloud provider integration).
+# cloud-node-manager: verify the cloud provider integration by checking that
+# every Node carries a providerID. For generic controller/pod health, pair this
+# with ValidateWorkloadHealth(kind="daemonset", name="cloud-node-manager",
+# namespace="kube-system") from k8s/validate_workload.k.
 ValidateCloudNodeManager = lambda serviceConnection: str, displayName: str = "", continueOnError: bool = Undefined -> steps.Step {
     title = displayName if displayName else "Validate cloud-node-manager"
     script = """
 set +e
 failures=0
 fail() { echo "FAILED CLOUD-NODE-MANAGER CHECK: $*"; failures=$((failures + 1)); }
-
-# Use the DaemonSet status for whole-node coverage in one call.
-ds_status=$(kubectl -n kube-system get ds cloud-node-manager \
-  -o jsonpath='{.status.desiredNumberScheduled}/{.status.numberReady}/{.status.numberAvailable}/{.status.updatedNumberScheduled}/{.status.numberMisscheduled}' 2>/dev/null)
-if [ -z "$ds_status" ]; then
-  fail "cloud-node-manager daemonset not found"
-else
-  echo "cloud-node-manager ds desired/ready/available/updated/misscheduled: $ds_status"
-  desired=$(echo "$ds_status" | cut -d/ -f1)
-  ready=$(echo "$ds_status" | cut -d/ -f2)
-  available=$(echo "$ds_status" | cut -d/ -f3)
-  updated=$(echo "$ds_status" | cut -d/ -f4)
-  misscheduled=$(echo "$ds_status" | cut -d/ -f5)
-  if [ -z "$desired" ] || [ "$desired" = "0" ]; then
-    fail "cloud-node-manager desiredNumberScheduled is '${desired:-empty}'"
-  fi
-  [ "$ready" = "$desired" ]      || fail "cloud-node-manager numberReady ($ready) != desired ($desired)"
-  [ "$available" = "$desired" ]  || fail "cloud-node-manager numberAvailable ($available) != desired ($desired)"
-  [ "$updated" = "$desired" ]    || fail "cloud-node-manager updatedNumberScheduled ($updated) != desired ($desired)"
-  [ "${misscheduled:-0}" = "0" ] || fail "cloud-node-manager numberMisscheduled = $misscheduled"
-fi
 
 # cloud-node-manager's job is to stamp each Node with a providerID; verify that
 # in a single list call so no node is missed and large clusters stay fast.
