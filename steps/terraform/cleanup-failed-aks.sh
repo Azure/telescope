@@ -58,22 +58,22 @@ expected_rows_output=$(printf '%s' "$state_json" | jq -r '
   | @tsv
 ')
 
-cluster_inventory_output=""
+cluster_inventory_json=""
 inventory_ok=false
 inventory_error_file=$(mktemp "${TMPDIR:-/tmp}/aks-inventory-XXXXXX.err")
 for inventory_attempt in $(seq 1 5); do
   : >"$inventory_error_file"
   list_rc=0
-  cluster_inventory_output=$(timeout 120s az aks list \
+  cluster_inventory_json=$(timeout 120s az aks list \
     --subscription "$ARM_SUBSCRIPTION_ID" \
     --resource-group "$RUN_ID" \
-    --query "[?location=='$REGION' && tags.telescope_provisioner=='aks-cli'].[name,tags.role,provisioningState]" \
-    --output tsv \
+    --query "[?location=='$REGION' && tags.telescope_provisioner=='aks-cli'].{name:name,role:tags.role,state:provisioningState,poolStates:agentPoolProfiles[].provisioningState}" \
+    --output json \
     --only-show-errors 2>"$inventory_error_file") || list_rc=$?
   inventory_error=$(cat "$inventory_error_file")
   inventory_failure_output="$inventory_error"
   if [ -z "$inventory_failure_output" ]; then
-    inventory_failure_output="$cluster_inventory_output"
+    inventory_failure_output="$cluster_inventory_json"
   fi
   if [ "$list_rc" -eq 0 ]; then
     inventory_ok=true
@@ -97,20 +97,36 @@ if [ "$inventory_ok" != "true" ]; then
 fi
 
 cluster_rows=()
-if [ -n "$cluster_inventory_output" ]; then
-  while IFS=$'\t' read -r cluster role state; do
+if [ -n "$cluster_inventory_json" ]; then
+  while IFS=$'\t' read -r cluster role state pool_states; do
     if [ -z "$cluster" ] || [ "$cluster" = "None" ] ||
       [ -z "$role" ] || [ "$role" = "None" ]; then
-      echo "AKS inventory row is missing cluster name or role tag: $cluster $role $state" >&2
+      echo "AKS inventory row is missing cluster name or role tag: $cluster $role $state $pool_states" >&2
       exit 1
     fi
     actual_clusters["$cluster"]="$state"
     case "$state" in
       Failed|Canceled|Updating|Creating)
-        cluster_rows+=("$cluster"$'\t'"$role"$'\t'"$state")
+        cluster_rows+=("$cluster"$'\t'"$role"$'\t'"$state"$'\t'"cluster:$state")
+        ;;
+      Succeeded)
+        if [[ ",$pool_states," =~ ,(Failed|Canceled|Deleting), ]]; then
+          cluster_rows+=("$cluster"$'\t'"$role"$'\t'"$state"$'\t'"agent-pools:$pool_states")
+        fi
         ;;
     esac
-  done < <(printf '%s\n' "$cluster_inventory_output")
+  done < <(
+    jq -r '
+      .[]
+      | [
+          .name,
+          .role,
+          .state,
+          ((.poolStates // []) | join(","))
+        ]
+      | @tsv
+    ' <<<"$cluster_inventory_json"
+  )
 fi
 
 if [ -n "$expected_rows_output" ]; then
@@ -131,8 +147,9 @@ fi
 
 cleanup_clusters=()
 declare -A cluster_states=()
+declare -A cluster_reasons=()
 for row in "${cluster_rows[@]}"; do
-  IFS=$'\t' read -r cluster role state <<<"$row"
+  IFS=$'\t' read -r cluster role state reason <<<"$row"
   if [ -z "$cluster" ] || [ "$cluster" = "None" ] ||
     [ -z "$role" ] || [ "$role" = "None" ]; then
     echo "Unhealthy AKS row is missing cluster name or role tag: $row" >&2
@@ -149,6 +166,7 @@ for row in "${cluster_rows[@]}"; do
   cleanup_clusters+=("$cluster")
   cluster_roles["$cluster"]="$role"
   cluster_states["$cluster"]="$state"
+  cluster_reasons["$cluster"]="$reason"
 done
 
 if [ "${#cleanup_clusters[@]}" -eq 0 ] &&
@@ -159,6 +177,9 @@ fi
 
 if [ "${#cleanup_clusters[@]}" -gt 0 ]; then
   echo "Pre-apply cleanup found ${#cleanup_clusters[@]} unhealthy AKS cluster(s): ${cleanup_clusters[*]}"
+  for cluster in "${cleanup_clusters[@]}"; do
+    echo "[$cluster] cleanup reason: ${cluster_reasons[$cluster]}"
+  done
 fi
 
 cleanup_cluster() {

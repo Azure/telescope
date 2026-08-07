@@ -273,8 +273,9 @@ def test_preserved_apply_cleans_failed_aks_before_terraform_refresh():
 
     assert (
         "[?location=='$REGION' && "
-        "tags.telescope_provisioner=='aks-cli'].[name,tags.role,"
-        "provisioningState]"
+        "tags.telescope_provisioner=='aks-cli'].{name:name,role:tags.role,"
+        "state:provisioningState,poolStates:"
+        "agentPoolProfiles[].provisioningState}"
     ) in cleanup
     assert '--subscription "$ARM_SUBSCRIPTION_ID"' in cleanup
     assert "--no-wait" in cleanup
@@ -290,6 +291,8 @@ def test_preserved_apply_cleans_failed_aks_before_terraform_refresh():
     assert "Azure resource is absent but Terraform create state remains" in cleanup
     assert "terraform show -json" in cleanup
     assert "AKS inventory attempt $inventory_attempt/5" in cleanup
+    assert "agent-pools:$pool_states" in cleanup
+    assert "Failed|Canceled|Deleting" in cleanup
 
     aks_module = AKS_CLI_MODULE_PATH.read_text(encoding="utf-8")
     assert '"telescope_provisioner" = "aks-cli"' in aks_module
@@ -300,6 +303,9 @@ def test_preserved_apply_cleans_failed_aks_before_terraform_refresh():
     assert "AKSCapacityHeavyUsage" in aks_module
     assert "capacity_delay=$((240 + capacity_hash % 121))" in aks_module
     assert "sleep \"$capacity_delay\"" in aks_module
+    assert "parent cluster $cluster is Deleting" in aks_module
+    assert "deletion has been initiated on the cluster" in aks_module
+    assert "request limit has been exceeded" in aks_module
 
 
 def test_preserved_apply_recovers_and_imports_orphaned_vnets():

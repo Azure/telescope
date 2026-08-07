@@ -745,6 +745,23 @@ resource "terraform_data" "aks_nodepool_cli" {
       while [ "$SECONDS" -lt "$operation_deadline" ]; do
         i=$((i + 1))
 
+        cluster_out=$(az aks show -g "$rg" -n "$cluster" \
+          --query provisioningState -o tsv --only-show-errors 2>&1)
+        cluster_rc=$?
+        if [ "$cluster_rc" -ne 0 ]; then
+          if echo "$cluster_out" | grep -qiE "NotFound|could not be found|ResourceNotFound"; then
+            echo "[retry $i] parent cluster $cluster is absent; aborting nodepool $pool so pre-apply recovery can recreate the cluster." >&2
+            exit 1
+          fi
+          echo "[retry $i] parent cluster $cluster state query failed transiently: $cluster_out — sleeping 30s"
+          sleep 30
+          continue
+        fi
+        if [ "$cluster_out" = "Deleting" ]; then
+          echo "[retry $i] parent cluster $cluster is Deleting; aborting nodepool $pool immediately." >&2
+          exit 1
+        fi
+
         # Precheck — classify show failures so transient throttle/auth
         # errors don't get silently treated as "absent" (which would
         # cause a spurious add attempt that hides the real error).
@@ -852,6 +869,20 @@ resource "terraform_data" "aks_nodepool_cli" {
         out=$(eval "$cmd" 2>&1) && { echo "$out"; exit 0; }
         rc=$?
         echo "$out"
+        if echo "$out" |
+          grep -qiE "deletion has been initiated on the cluster|only customer action allowed now is to retry cluster deletion"; then
+          echo "[retry $i] parent cluster $cluster has entered irreversible deletion; aborting nodepool $pool immediately." >&2
+          exit "$rc"
+        fi
+        if echo "$out" | grep -qiE "Throttled|request limit has been exceeded"; then
+          retry_after=$(echo "$out" |
+            sed -nE 's/.*retry again in ([0-9]+) seconds.*/\1/p' |
+            head -1)
+          retry_after=$${retry_after:-30}
+          echo "[retry $i] $cluster nodepool $pool throttled; sleeping $${retry_after}s"
+          sleep "$retry_after"
+          continue
+        fi
         # Retryable Azure RP errors:
         #   - OperationNotAllowed / AnotherOperationInProgress: AKS RP busy
         #     with another op on the cluster (e.g. lazy ACNS addon PUT
