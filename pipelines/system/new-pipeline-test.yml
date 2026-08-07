@@ -1486,7 +1486,7 @@ stages:
               scriptLocation: inlineScript
               inlineScript: |
                 set -euo pipefail
-                az account set --subscription "$(AZURE_SUBSCRIPTION_ID)"
+                az account set --subscription "${{ parameters.lifecycleSubscriptionId }}"
                 whl="$(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/vendor/fleet-2.0.4-py3-none-any.whl"
                 az extension remove --name fleet --only-show-errors 2>/dev/null || true
                 az extension add --source "$whl" --yes --only-show-errors
@@ -1509,6 +1509,8 @@ stages:
     dependsOn: []
     condition: and(always(), eq(variables['Build.Reason'], 'Manual'), eq(variables['CLUSTERMESH_DEBUG_MODE'], ''), eq(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], 'reset'))
     displayName: "SMOKE n=2 reset Fleet overlay (37deca)"
+    variables:
+      AZURE_SUBSCRIPTION_ID: ${{ parameters.lifecycleSubscriptionId }}
     jobs:
       - job: reset_n2
         timeoutInMinutes: 120
@@ -1521,6 +1523,7 @@ stages:
               scriptLocation: inlineScript
               inlineScript: |
                 set -euo pipefail
+                az account set --subscription "${{ parameters.lifecycleSubscriptionId }}"
                 whl="$(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/vendor/fleet-2.0.4-py3-none-any.whl"
                 az extension remove --name fleet --only-show-errors 2>/dev/null || true
                 az extension add --source "$whl" --yes --only-show-errors
@@ -1549,6 +1552,8 @@ stages:
     dependsOn: []
     condition: and(always(), eq(variables['Build.Reason'], 'Manual'), eq(variables['CLUSTERMESH_DEBUG_MODE'], ''), eq(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], 'resume'))
     displayName: "SMOKE n=2 resume preserved clusters (37deca)"
+    variables:
+      AZURE_SUBSCRIPTION_ID: ${{ parameters.lifecycleSubscriptionId }}
     jobs:
       - job: resume_n2
         timeoutInMinutes: 120
@@ -1561,6 +1566,7 @@ stages:
               scriptLocation: inlineScript
               inlineScript: |
                 set -euo pipefail
+                az account set --subscription "${{ parameters.lifecycleSubscriptionId }}"
                 whl="$(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/vendor/fleet-2.0.4-py3-none-any.whl"
                 az extension remove --name fleet --only-show-errors 2>/dev/null || true
                 az extension add --source "$whl" --yes --only-show-errors
@@ -1584,6 +1590,8 @@ stages:
     dependsOn: []
     condition: and(always(), eq(variables['Build.Reason'], 'Manual'), eq(variables['CLUSTERMESH_DEBUG_MODE'], ''), eq(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], 'cleanup'))
     displayName: "SMOKE n=2 guarded cleanup (37deca)"
+    variables:
+      AZURE_SUBSCRIPTION_ID: ${{ parameters.lifecycleSubscriptionId }}
     jobs:
       - job: cleanup_n2
         timeoutInMinutes: 150
@@ -1596,7 +1604,7 @@ stages:
               scriptLocation: inlineScript
               inlineScript: |
                 set -euo pipefail
-                az account set --subscription "$(AZURE_SUBSCRIPTION_ID)"
+                az account set --subscription "${{ parameters.lifecycleSubscriptionId }}"
                 export CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256
                 CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256=$(sha256sum "$CLUSTERMESH_DEBUG_DESIRED_STATE_PATH" | awk '{print $1}')
                 bash "$(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/delete-preserved-rg.sh"
