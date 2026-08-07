@@ -16,6 +16,16 @@ parameters:
 - name: skip_resource_deletion
   type: string
   default: "false"
+# Azure control-plane operations on a managed cluster are serialized. When another
+# operation is still running, ARM rejects apply/destroy with a transient conflict
+# (409 EtagMismatch / OperationNotAllowed). These are retried in-script with backoff
+# so they do not depend on retryCountOnTaskFailure, which some pipelines set to 0.
+- name: transient_conflict_retry_count
+  type: number
+  default: 3
+- name: transient_conflict_retry_delay_seconds
+  type: number
+  default: 60
 
 steps:
 - script: |
@@ -41,8 +51,32 @@ steps:
         fi
 
         set +e
-        terraform ${{ parameters.command }} --auto-approve ${{ parameters.arguments }} -var-file $terraform_input_file -var json_input="$terraform_input_variables" 2>&1 | tee terraform_${{ parameters.command }}.log
-        exit_code=${PIPESTATUS[0]}
+        attempt=1
+        max_attempts=$(( ${{ parameters.transient_conflict_retry_count }} + 1 ))
+        while true; do
+          terraform ${{ parameters.command }} --auto-approve ${{ parameters.arguments }} -var-file $terraform_input_file -var json_input="$terraform_input_variables" 2>&1 | tee terraform_${{ parameters.command }}.log
+          exit_code=${PIPESTATUS[0]}
+
+          if [[ $exit_code -eq 0 ]]; then
+            break
+          fi
+
+          if [[ "$CLOUD" != "azure" ]] || (( attempt >= max_attempts )); then
+            break
+          fi
+
+          # Only conflicts caused by a concurrent control-plane operation are retried.
+          # Any other failure falls through to the cleanup logic below immediately.
+          if ! grep -qEi "EtagMismatch|OperationNotAllowed|AnotherOperationInProgress|Another operation is in progress|in-progress .* operation|operation preempted" terraform_${{ parameters.command }}.log; then
+            break
+          fi
+
+          delay=$(( ${{ parameters.transient_conflict_retry_delay_seconds }} * 2 ** (attempt - 1) ))
+          echo "##vso[task.logissue type=warning;] terraform ${{ parameters.command }} hit a transient Azure control-plane conflict in region $region. Retrying in ${delay}s (attempt $attempt of ${{ parameters.transient_conflict_retry_count }})."
+          sleep $delay
+          attempt=$(( attempt + 1 ))
+        done
+
         if [[ $exit_code -ne 0 ]]; then
           if [[ ${{ parameters.command }} == "apply" && "$CLOUD" == "azure" ]]; then
             echo "Delete resources and remove state file before retrying"
