@@ -402,26 +402,29 @@ check_joined_members() {
 restart_joined_apiservers() {
   local role kubeconfig deadline
 
+  apiserver_cert_material_ready() {
+    local candidate_kubeconfig="$1"
+
+    KUBECONFIG="$candidate_kubeconfig" kubectl -n kube-system get \
+      deployment clustermesh-apiserver >/dev/null 2>&1 &&
+      KUBECONFIG="$candidate_kubeconfig" kubectl -n kube-system get \
+        secret cilium-root-ca.crt >/dev/null 2>&1 &&
+      KUBECONFIG="$candidate_kubeconfig" kubectl -n kube-system get \
+        secret clustermesh-apiserver-server-cert >/dev/null 2>&1 &&
+      KUBECONFIG="$candidate_kubeconfig" kubectl -n kube-system get \
+        secret clustermesh-apiserver-admin-cert >/dev/null 2>&1
+  }
+
   for role in "${joined[@]}"; do
     kubeconfig="$kubeconfig_dir/$role.config"
     deadline=$(( $(date +%s) + 600 ))
     while [ "$(date +%s)" -lt "$deadline" ]; do
-      if KUBECONFIG="$kubeconfig" kubectl -n kube-system get \
-          deployment clustermesh-apiserver \
-          secret cilium-root-ca.crt \
-          secret clustermesh-apiserver-server-cert \
-          secret clustermesh-apiserver-admin-cert \
-          >/dev/null 2>&1; then
+      if apiserver_cert_material_ready "$kubeconfig"; then
         break
       fi
       sleep 10
     done
-    if ! KUBECONFIG="$kubeconfig" kubectl -n kube-system get \
-        deployment clustermesh-apiserver \
-        secret cilium-root-ca.crt \
-        secret clustermesh-apiserver-server-cert \
-        secret clustermesh-apiserver-admin-cert \
-        >/dev/null 2>&1; then
+    if ! apiserver_cert_material_ready "$kubeconfig"; then
       echo "$role did not receive complete ClusterMesh certificate material before restart." >&2
       return 1
     fi
