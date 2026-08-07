@@ -1,0 +1,34 @@
+parameters:
+  - name: cloud
+    type: string
+  - name: region
+    type: string
+
+steps:
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(AZURE_SERVICE_CONNECTION)
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -euo pipefail
+        az account set --subscription "$TARGET_SUBSCRIPTION_ID"
+        actual_subscription_id=$(az account show --query id -o tsv)
+        if [[ "${actual_subscription_id,,}" != "${TARGET_SUBSCRIPTION_ID,,}" ]]; then
+          echo "Expected Azure subscription ${TARGET_SUBSCRIPTION_ID}, got ${actual_subscription_id}" >&2
+          exit 1
+        fi
+        bash "$CONFIGURE_SCRIPT"
+        echo "##vso[task.setvariable variable=AKS_TELEMETRY_CONFIGURED]true"
+    env:
+      TARGET_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
+      REGION: ${{ parameters.region }}
+      BUILD_ID: $(Build.BuildId)
+      CONFIGMAP_PATH: >-
+        $(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/telemetry/ama-metrics-settings-configmap.yaml
+      CONTROL_PLANE_MONITORS_PATH: >-
+        $(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/telemetry/azure-monitor-control-plane-monitors.yaml
+      MANIFEST_PATH: $(Pipeline.Workspace)/aks-control-plane-metrics/run-manifest.json
+      CONFIGURE_SCRIPT: >-
+        $(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/telemetry/configure-managed-prometheus.sh
+    displayName: "Configure AKS control-plane managed Prometheus"

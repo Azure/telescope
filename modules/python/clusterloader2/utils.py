@@ -26,7 +26,11 @@ SCHEDULING_THROUGHPUT_PREFIX = "SchedulingThroughput"
 def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, cl2_config_file="config.yaml", overrides=False, enable_prometheus=False, tear_down_prometheus=True,
                     enable_exec_service=False, scrape_kubelets=False,
                     scrape_containerd=False, scrape_ksm=False, scrape_metrics_server=False,
-                    prometheus_memory_request=None):
+                    prometheus_memory_request=None,
+                    prometheus_pvc_storage_class=None,
+                    prometheus_storage_class_provisioner=None,
+                    prometheus_storage_class_volume_type=None,
+                    prometheus_additional_monitors_path=None):
     docker_client = DockerClient()
 
     command = f"""--provider={provider} --v=2
@@ -51,6 +55,25 @@ def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provi
         # parameter — None preserves CL2 default for existing callers.
         command += f" --prometheus-memory-request={prometheus_memory_request}"
 
+    # Prometheus PVC storage class. CL2's bundled prometheus manifests default to
+    # a `ssd` StorageClass backed by `kubernetes.io/gce-pd`, which does NOT
+    # provision on AKS — the prometheus-k8s PVC stays unbound and the pod stays
+    # Pending, so every measurement gather returns "no endpoints". On AKS, pass
+    # an existing CSI class (e.g. managed-csi) here. None preserves CL2 default
+    # for existing (GCE) callers.
+    if prometheus_pvc_storage_class:
+        command += f" --prometheus-pvc-storage-class={prometheus_pvc_storage_class}"
+    if prometheus_storage_class_provisioner:
+        command += f" --prometheus-storage-class-provisioner={prometheus_storage_class_provisioner}"
+    if prometheus_storage_class_volume_type:
+        command += f" --prometheus-storage-class-volume-type={prometheus_storage_class_volume_type}"
+    if prometheus_additional_monitors_path:
+        command += (
+            " --prometheus-additional-monitors-path="
+            f"{prometheus_additional_monitors_path}"
+        )
+
+
     if overrides:
         command += " --testoverrides=/root/perf-tests/clusterloader2/config/overrides.yaml"
 
@@ -66,14 +89,32 @@ def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provi
         volumes[aws_path] = {'bind': '/root/.aws/credentials', 'mode': 'rw'}
 
     if provider == "aks":
-        azure_path = os.path.expanduser("~/.azure")
+        # Default: share the host's ~/.azure MSAL token cache, as before.
+        # CL2_AZURE_CONFIG_DIR (set by run-cl2-on-cluster.sh for the
+        # clustermesh-scale parallel fan-out) overrides this with a
+        # worker-private copy so concurrent containers don't race/corrupt
+        # the shared cache. Unset -> byte-for-byte unchanged behavior for
+        # every other caller/provider.
+        azure_config_override = os.environ.get("CL2_AZURE_CONFIG_DIR")
+        if azure_config_override:
+            if not os.path.isdir(azure_config_override):
+                raise ValueError(
+                    "CL2_AZURE_CONFIG_DIR is set to "
+                    f"'{azure_config_override}' but it does not exist or is "
+                    "not a directory"
+                )
+            azure_path = azure_config_override
+        else:
+            azure_path = os.path.expanduser("~/.azure")
         volumes[azure_path] = {'bind': '/root/.azure', 'mode': 'rw'}
 
     logger.info(
         f"Running clusterloader2 with command: {command} and volumes: {volumes}")
+    container = None
+    container_name = os.environ.get("CL2_WORKER_CONTAINER_NAME") or None
     try:
         container = docker_client.run_container(
-            cl2_image, command, volumes, detach=True)
+            cl2_image, command, volumes, detach=True, name=container_name)
         for log in container.logs(stream=True):
             log_line = log.decode('utf-8').rstrip('\n')
             if log_line:
@@ -86,6 +127,18 @@ def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provi
     except docker.errors.ContainerError as e:
         logger.error(
             f"Container exited with a non-zero status code: {e.exit_status}\n{e.stderr.decode('utf-8')}")
+    finally:
+        if container_name and container is not None:
+            try:
+                container.remove(force=True)
+            except docker.errors.NotFound:
+                pass
+            except docker.errors.APIError as error:
+                logger.warning(
+                    "Failed to remove named CL2 container %s: %s",
+                    container_name,
+                    error,
+                )
 
 
 def get_measurement(file_path):

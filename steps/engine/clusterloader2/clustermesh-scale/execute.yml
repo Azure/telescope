@@ -20,6 +20,22 @@ steps:
       set -eo pipefail
       set -x
 
+      # Azure logging commands must not be emitted while xtrace is enabled.
+      # Otherwise the agent can parse bash's quoted `+ echo '##vso[...]'`
+      # diagnostic as a second command and append a literal quote to values.
+      ado_set_variable() {
+        local _name="$1" _value="$2"
+        set +x
+        printf '##vso[task.setvariable variable=%s]%s\n' "$_name" "$_value"
+        set -x
+      }
+
+      ado_complete_with_issues() {
+        set +x
+        printf '%s\n' '##vso[task.complete result=SucceededWithIssues;]'
+        set -x
+      }
+
       # Matrix variables (namespaces, mesh_size, deployments_per_namespace,
       # replicas_per_deployment, hold_duration, warmup_duration, restart_count,
       # api_server_calls_per_second, test_type) are auto-exported by AzDO to
@@ -34,12 +50,178 @@ steps:
       # steps/engine/clusterloader2/network-scale/execute.yml which references
       # the auto-exported names directly.
       export CL2_NAMESPACES="$NAMESPACES"
+      # %global variation knob (Hemanth/Anubhab feedback experiment): how many
+      # of the N namespaces get the `clustermesh.cilium.io/global=true` annotation.
+      # Default to NAMESPACES (100% global, backward-compatible). Matrix entries
+      # for the %global sweep set `global_namespace_count` explicitly.
+      export CL2_GLOBAL_NAMESPACE_COUNT="${GLOBAL_NAMESPACE_COUNT:-$NAMESPACES}"
+      # test_type suffix for share-infra %global cells. See collect.yml header
+      # comment; this is exported here so the env propagates to downstream
+      # collect step in the same job. Empty string for non-matrix runs.
+      export TEST_TYPE_SUFFIX="${TEST_TYPE_SUFFIX:-}"
       export CL2_DEPLOYMENTS_PER_NAMESPACE="$DEPLOYMENTS_PER_NAMESPACE"
       export CL2_REPLICAS_PER_DEPLOYMENT="$REPLICAS_PER_DEPLOYMENT"
       export CL2_API_SERVER_CALLS_PER_SECOND="$API_SERVER_CALLS_PER_SECOND"
       export CL2_HOLD_DURATION="$HOLD_DURATION"
       export CL2_WARMUP_DURATION="$WARMUP_DURATION"
       export CL2_RESTART_GENERATION="$RESTART_COUNT"
+      # MOCK mode (topology clustermesh-scale-mock): matrix/pipeline var
+      # `mock_mode` auto-exports as MOCK_MODE; re-export under the CL2_* name that
+      # scale.py configure (--mock-mode) consumes. Falls back to a directly-set
+      # CL2_MOCK_MODE pipeline variable, then to false → real runs unchanged.
+      cl2_mock_mode_raw="${MOCK_MODE:-${CL2_MOCK_MODE:-false}}"
+      export CL2_MOCK_MODE="${cl2_mock_mode_raw,,}"
+      # Default 100 virtual nodes in mock mode (matches deploy-mock-layer.yml's own
+      # MOCK_NODE_COUNT default, so an unset override behaves identically for both
+      # provisioning and CL2 configuration); real mode stays 0 (unchanged).
+      export CL2_MOCK_NODE_COUNT="${MOCK_NODE_COUNT:-$( [ "$CL2_MOCK_MODE" = "true" ] && echo 100 || echo 0 )}"
+      export CL2_KWOK_USAGE_CPU="${KWOK_USAGE_CPU:-${CL2_KWOK_USAGE_CPU:-1m}}"
+      export CL2_KWOK_USAGE_MEMORY="${KWOK_USAGE_MEMORY:-${CL2_KWOK_USAGE_MEMORY:-1Mi}}"
+      # CL2 attempt count for the per-cluster worker (run-cl2-on-cluster.sh). At
+      # scale a single cluster's AKS apiserver can throw a transient "server is
+      # currently unable to handle the request (post namespaces)" that kills CL2's
+      # prometheus-stack setup BEFORE any measurement (n=20 spike build 71650,
+      # mesh-2). The worker retries ONLY that early-setup signature (no junit yet),
+      # never real test outcomes. Default 2 in mock mode (cheap early retry), 1 in
+      # real mode → real runs are byte-for-byte unchanged. Honor an explicit override.
+      export CL2_MAX_ATTEMPTS="${CL2_MAX_ATTEMPTS:-$( [ "$CL2_MOCK_MODE" = "true" ] && echo 2 || echo 1 )}"
+      # Prometheus memory limit (Gi). Consumed by scale.py (initial CL2 override)
+      # AND run-cl2-on-cluster.sh's prom-cr-patcher. Exported here so the stage
+      # variable reliably reaches both; unset -> the scripts default to 12Gi
+      # (mesh tiers unchanged). The 10k baseline sets it high (big prompool node).
+      export CL2_PROMETHEUS_MEMORY_LIMIT_GI="${CL2_PROMETHEUS_MEMORY_LIMIT_GI:-}"
+      # Phase 4a — Scenario #2 (Pod Churn Stress) knobs. Shell defaults so
+      # matrix entries that don't set these (event-throughput, default-config)
+      # silently fall back to the documented Phase 4a defaults rather than
+      # passing empty strings to argparse type=int. Pod-churn matrix entries
+      # set these explicitly via auto-exported uppercase matrix vars.
+      export CL2_CHURN_CYCLES="${CHURN_CYCLES:-5}"
+      export CL2_CHURN_UP_DURATION="${CHURN_UP_DURATION:-60s}"
+      export CL2_CHURN_DOWN_DURATION="${CHURN_DOWN_DURATION:-60s}"
+      export CL2_KILL_DURATION="${KILL_DURATION:-10m}"
+      export CL2_KILL_INTERVAL_SECONDS="${KILL_INTERVAL_SECONDS:-10}"
+      export CL2_KILL_BATCH="${KILL_BATCH:-5}"
+      export CL2_KILL_DURATION_SECONDS="${KILL_DURATION_SECONDS:-600}"
+      export CL2_KILL_JOB_DEADLINE_SECONDS="${KILL_JOB_DEADLINE_SECONDS:-660}"
+      # Per-worker watchdog timeout for execute-parallel (N=100 hardening,
+      # commit added 2026-05-19). Matrix entry can set worker_timeout_seconds
+      # (auto-exported as WORKER_TIMEOUT_SECONDS); default 0 = unbounded,
+      # which preserves all existing tier behavior (n=2/5/10/20). The
+      # watchdog SIGTERMs (then SIGKILLs) a worker that exceeds the budget,
+      # recording exit 124 — guards against pathological CL2/docker/kubectl
+      # hangs blocking the whole AzDO step until the job timeout.
+      export CL2_WORKER_TIMEOUT_SECONDS="${WORKER_TIMEOUT_SECONDS:-0}"
+      # Phase 4b — Scenario #4 (ClusterMesh APIServer Failure) knobs.
+      export CL2_APISERVER_KILL_TARGET_CONTEXT="${APISERVER_KILL_TARGET_CONTEXT:-clustermesh-1}"
+      export CL2_APISERVER_KILL_RECOVERY_TIMEOUT_SECONDS="${APISERVER_KILL_RECOVERY_TIMEOUT_SECONDS:-240}"
+      export CL2_APISERVER_KILL_OBSERVATION_SECONDS="${APISERVER_KILL_OBSERVATION_SECONDS:-60}"
+      # Phase 4b — Scenario #7 (HA Configuration Validation) knob.
+      export CL2_HA_CONFIG_REPLICAS="${HA_CONFIG_REPLICAS:-3}"
+      # Phase 4b — Scenario #3 (Node Churn / IP Churn) knobs.
+      # node-churner.sh (driven from this script, NOT Method:Exec — see
+      # config/node-churner.sh header for the design rationale) consumes
+      # these directly. scale.py configure also writes them into overrides.yaml
+      # so CL2 templates that reference CL2_NODE_CHURN_* can use them.
+      export CL2_NODE_CHURN_TARGET_CONTEXT="${NODE_CHURN_TARGET_CONTEXT:-${APISERVER_KILL_TARGET_CONTEXT:-clustermesh-1}}"
+      export CL2_NODE_CHURN_TARGET_NODEPOOL="${NODE_CHURN_TARGET_NODEPOOL:-default}"
+      export CL2_NODE_CHURN_CYCLES="${NODE_CHURN_CYCLES:-3}"
+      export CL2_NODE_CHURN_DELTA="${NODE_CHURN_DELTA:-5}"
+      export CL2_NODE_CHURN_SETTLE_SECONDS="${NODE_CHURN_SETTLE_SECONDS:-60}"
+      export CL2_NODE_CHURN_SCALE_DURATION_SECONDS="${NODE_CHURN_SCALE_DURATION_SECONDS:-1800}"
+      export CL2_NODE_CHURN_REPLACE_DURATION_SECONDS="${NODE_CHURN_REPLACE_DURATION_SECONDS:-1500}"
+      export CL2_NODE_CHURN_COMBINED_DURATION_SECONDS="${NODE_CHURN_COMBINED_DURATION_SECONDS:-3300}"
+      export CL2_NODE_REPLACE_BATCH_SIZE="${NODE_REPLACE_BATCH_SIZE:-10}"
+      export CL2_NODE_CHURN_READY_TIMEOUT_SECONDS="${NODE_CHURN_READY_TIMEOUT_SECONDS:-300}"
+      export CL2_NODE_CHURN_FINALIZER_TIMEOUT_SECONDS="${NODE_CHURN_FINALIZER_TIMEOUT_SECONDS:-900}"
+      export CL2_NODE_CHURN_RECOVERY_GRACE_SECONDS="${NODE_CHURN_RECOVERY_GRACE_SECONDS:-0}"
+      export CL2_SHARE_INFRA_SETTLE_SECONDS="${SHARE_INFRA_SETTLE_SECONDS:-60}"
+      export CL2_AGENT_DISK_MIN_FREE_GI="${AGENT_DISK_MIN_FREE_GI:-10}"
+      export CL2_AGENT_MEMORY_MIN_FREE_GI="${AGENT_MEMORY_MIN_FREE_GI:-0}"
+      export CL2_SUITE_TOTAL_BUDGET_SECONDS="${SUITE_TOTAL_BUDGET_SECONDS:-0}"
+      export CL2_SUITE_FINALIZATION_RESERVE_SECONDS="${SUITE_FINALIZATION_RESERVE_SECONDS:-0}"
+      export CL2_HEALTH_GATE_TIMEOUT_BUFFER_SECONDS="${HEALTH_GATE_TIMEOUT_BUFFER_SECONDS:-900}"
+      # Phase 4b — Scenario #6 (Upper Bound / Saturation) knobs.
+      # upper-bound.yaml consumes these via CL2's DefaultParam template
+      # func; non-saturation scenarios ignore them. Defaults mirror
+      # scale.py configure's defaults so a forgotten matrix var falls
+      # through to the documented 5-rung sweep at 100/500/1500/4000/10000 QPS.
+      export CL2_SATURATION_QPS_LIST="${SATURATION_QPS_LIST:-100,500,1500,4000,10000}"
+      export CL2_SATURATION_RESTARTS_LIST="${SATURATION_RESTARTS_LIST:-1,2,4,8,15}"
+      export CL2_SATURATION_OPS_PER_SEC_LIST="${SATURATION_OPS_PER_SEC_LIST:-0,0,0,0,0}"
+      export CL2_SATURATION_RUNG_DURATION_SECONDS="${SATURATION_RUNG_DURATION_SECONDS:-240}"
+      export CL2_SATURATION_SETTLE_SECONDS="${SATURATION_SETTLE_SECONDS:-90}"
+
+      # Host-side propagation probe defaults; small tiers override these.
+      export CL2_PROPAGATION_PROBE_ENABLED="${CL2_PROPAGATION_PROBE_ENABLED:-false}"
+      export CL2_PROPAGATION_PROBE_COUNT="${CL2_PROPAGATION_PROBE_COUNT:-20}"
+      export CL2_PROPAGATION_PROBE_INTERVAL_S="${CL2_PROPAGATION_PROBE_INTERVAL_S:-30}"
+      export CL2_PROPAGATION_PROBE_PEER_SAMPLE="${CL2_PROPAGATION_PROBE_PEER_SAMPLE:-20}"
+      export CL2_PROPAGATION_PROBE_PEER_TIMEOUT="${CL2_PROPAGATION_PROBE_PEER_TIMEOUT:-120}"
+      export CL2_PROPAGATION_PROBE_CONNECTIVITY="${CL2_PROPAGATION_PROBE_CONNECTIVITY:-false}"
+      # Optional removal and first-packet extensions.
+      export CL2_PROPAGATION_PROBE_REMOVE_ENABLED="${CL2_PROPAGATION_PROBE_REMOVE_ENABLED:-false}"
+      export CL2_PROPAGATION_PROBE_FIRST_PACKET_ENABLED="${CL2_PROPAGATION_PROBE_FIRST_PACKET_ENABLED:-false}"
+      # Service-backend membership probe remains opt-in for small tiers.
+      export CL2_PROPAGATION_PROBE_SERVICE_BACKEND_ENABLED="${CL2_PROPAGATION_PROBE_SERVICE_BACKEND_ENABLED:-false}"
+      export CL2_PROPAGATION_PROBE_REMOVE_TIMEOUT_S="${CL2_PROPAGATION_PROBE_REMOVE_TIMEOUT_S:-60}"
+      export CL2_PROPAGATION_PROBE_FIRST_PACKET_TIMEOUT_S="${CL2_PROPAGATION_PROBE_FIRST_PACKET_TIMEOUT_S:-60}"
+      export CL2_PROBE_WINDOW_DURATION="${CL2_PROBE_WINDOW_DURATION:-60m}"
+      # Prewait is best-effort; the probe script owns the readiness barrier.
+      export CL2_PROBE_PREWAIT_S="${CL2_PROBE_PREWAIT_S:-300}"
+      export CL2_PROPAGATION_PROBE_WORKLOAD_READY_TIMEOUT_S="${CL2_PROPAGATION_PROBE_WORKLOAD_READY_TIMEOUT_S:-}"
+      export CL2_PROBE_NAMESPACE="${CL2_PROBE_NAMESPACE:-clustermesh-probe-1}"
+
+      # Optional policy canary for propagation-probe.
+      export CL2_POLICY_CANARY_ENABLED="${CL2_POLICY_CANARY_ENABLED:-false}"
+
+      # policy-scale CNP count and hold window.
+      export CL2_POLICY_SCALE_CNP_PER_NS="${CL2_POLICY_SCALE_CNP_PER_NS:-50}"
+      export CL2_POLICY_SCALE_HOLD_DURATION="${CL2_POLICY_SCALE_HOLD_DURATION:-5m}"
+
+      # Optional mesh-state recovery probe.
+      export CL2_RECOVERY_PROBE_ENABLED="${CL2_RECOVERY_PROBE_ENABLED:-false}"
+      export CL2_RECOVERY_PROBE_COUNT="${CL2_RECOVERY_PROBE_COUNT:-3}"
+      export CL2_RECOVERY_PROBE_INTERVAL_S="${CL2_RECOVERY_PROBE_INTERVAL_S:-120}"
+      export CL2_RECOVERY_PROBE_TIMEOUT_S="${CL2_RECOVERY_PROBE_TIMEOUT_S:-300}"
+
+      # Optional Fleet member detach/rejoin probe (n>=3).
+      export CL2_DETACH_REJOIN_PROBE_ENABLED="${CL2_DETACH_REJOIN_PROBE_ENABLED:-false}"
+      export CL2_DETACH_REJOIN_PREWAIT_S="${CL2_DETACH_REJOIN_PREWAIT_S:-300}"
+      export CL2_DETACH_REJOIN_DETACH_TIMEOUT_S="${CL2_DETACH_REJOIN_DETACH_TIMEOUT_S:-300}"
+      export CL2_DETACH_REJOIN_REJOIN_TIMEOUT_S="${CL2_DETACH_REJOIN_REJOIN_TIMEOUT_S:-300}"
+      export CL2_DETACH_REJOIN_HOLD_S="${CL2_DETACH_REJOIN_HOLD_S:-60}"
+      export CL2_DETACH_REJOIN_PRE_STATE_TIMEOUT_S="${CL2_DETACH_REJOIN_PRE_STATE_TIMEOUT_S:-300}"
+
+      # Optional cross-cluster CNP propagation probe.
+      export CL2_POLICY_PROP_PROBE_ENABLED="${CL2_POLICY_PROP_PROBE_ENABLED:-false}"
+      export CL2_POLICY_PROP_PROBE_COUNT="${CL2_POLICY_PROP_PROBE_COUNT:-5}"
+      export CL2_POLICY_PROP_PROBE_INTERVAL_S="${CL2_POLICY_PROP_PROBE_INTERVAL_S:-60}"
+      export CL2_POLICY_PROP_PROBE_TIMEOUT_S="${CL2_POLICY_PROP_PROBE_TIMEOUT_S:-120}"
+      export CL2_POLICY_PROP_PROBE_PREWAIT_S="${CL2_POLICY_PROP_PROBE_PREWAIT_S:-60}"
+
+      # Optional single-cluster backend failover probe.
+      export CL2_FAILOVER_PROBE_ENABLED="${CL2_FAILOVER_PROBE_ENABLED:-false}"
+      export CL2_FAILOVER_PROBE_COUNT="${CL2_FAILOVER_PROBE_COUNT:-3}"
+      export CL2_FAILOVER_PROBE_INTERVAL_S="${CL2_FAILOVER_PROBE_INTERVAL_S:-60}"
+      export CL2_FAILOVER_PROBE_TIMEOUT_S="${CL2_FAILOVER_PROBE_TIMEOUT_S:-180}"
+      export CL2_FAILOVER_PROBE_PREWAIT_S="${CL2_FAILOVER_PROBE_PREWAIT_S:-60}"
+      export CL2_FAILOVER_SELECTOR_LABEL="${CL2_FAILOVER_SELECTOR_LABEL:-group=clustermesh-propagation-probe}"
+
+      # Optional clustermesh-apiserver restart-survival probe.
+      export CL2_RESTART_SURVIVAL_PROBE_ENABLED="${CL2_RESTART_SURVIVAL_PROBE_ENABLED:-false}"
+      export CL2_RESTART_SURVIVAL_PROBE_COUNT="${CL2_RESTART_SURVIVAL_PROBE_COUNT:-2}"
+      export CL2_RESTART_SURVIVAL_PROBE_INTERVAL_S="${CL2_RESTART_SURVIVAL_PROBE_INTERVAL_S:-180}"
+      export CL2_RESTART_SURVIVAL_PROBE_TIMEOUT_S="${CL2_RESTART_SURVIVAL_PROBE_TIMEOUT_S:-300}"
+      export CL2_RESTART_SURVIVAL_PROBE_PREWAIT_S="${CL2_RESTART_SURVIVAL_PROBE_PREWAIT_S:-60}"
+      export CL2_RESTART_SURVIVAL_DEPLOY_NAME="${CL2_RESTART_SURVIVAL_DEPLOY_NAME:-clustermesh-apiserver}"
+      export CL2_RESTART_SURVIVAL_DEPLOY_NS="${CL2_RESTART_SURVIVAL_DEPLOY_NS:-kube-system}"
+
+      # Optional native Prometheus TSDB snapshot and ACNS telemetry.
+      export CL2_PROM_SNAPSHOT_ENABLED="${CL2_PROM_SNAPSHOT_ENABLED:-false}"
+      export CL2_PROM_SNAPSHOT_TARGET="${CL2_PROM_SNAPSHOT_TARGET:-artifact}"
+      export CL2_PROM_SNAPSHOT_STORAGE_ACCOUNT="${CL2_PROM_SNAPSHOT_STORAGE_ACCOUNT:-cmshscaleprom}"
+      export CL2_PROM_SNAPSHOT_CONTAINER="${CL2_PROM_SNAPSHOT_CONTAINER:-snapshots}"
+      export CL2_ACNS_TELEMETRY_ENABLED="${CL2_ACNS_TELEMETRY_ENABLED:-false}"
 
       # Same discovery pattern as topology/clustermesh-scale/validate-resources.yml.
       # We re-run it here rather than relying on a step variable so this engine
@@ -47,149 +229,2299 @@ steps:
       clusters=$(az resource list \
         --resource-type Microsoft.ContainerService/managedClusters \
         --location "$REGION" \
-        --query "[?tags.run_id=='${RUN_ID}' && starts_with(tags.role, 'mesh-')].{name:name, rg:resourceGroup, role:tags.role}" \
+        --query "[?tags.run_id=='${RUN_ID}' && starts_with(tags.role, 'mesh-')].{name:name, rg:resourceGroup, role:tags.role, id:id}" \
         -o json)
 
       cluster_count=$(echo "$clusters" | jq 'length')
-      if [ "$cluster_count" -lt 2 ]; then
-        echo "##vso[task.logissue type=error;] Expected >=2 clustermesh clusters, found $cluster_count"
+      min_clusters="${CLUSTERMESH_MIN_CLUSTERS:-2}"
+      if [ "$cluster_count" -lt "$min_clusters" ]; then
+        echo "##vso[task.logissue type=error;] Expected >=${min_clusters} clustermesh clusters, found $cluster_count"
         exit 1
       fi
 
       echo "Running CL2 across $cluster_count clusters"
       mkdir -p "$HOME/.kube"
-      echo "$clusters" > "$HOME/.kube/clustermesh-clusters.json"
-      echo "##vso[task.setvariable variable=CLUSTERMESH_COUNT]$cluster_count"
+      # Pre-fetch all kubeconfigs sequentially. This is fast (<5s/cluster) and
+      # keeps the parallel CL2 fan-out below from racing on `az aks
+      # get-credentials` writes to ~/.azure (MSAL token cache shared across
+      # all subsequent CL2 docker containers).
+      for row in $(echo "$clusters" | jq -c '.[]'); do
+        name=$(echo "$row" | jq -r '.name')
+        rg=$(echo "$row"   | jq -r '.rg')
+        role=$(echo "$row" | jq -r '.role')
+        kubeconfig="$HOME/.kube/$role.config"
+        KUBECONFIG="$kubeconfig" az aks get-credentials \
+          --resource-group "$rg" --name "$name" --overwrite-existing --only-show-errors
+      done
+
+      # Augment clusters JSON with the per-cluster kubeconfig path, then write
+      # the file consumed by both this step (for parallel fan-out) and
+      # collect.yml (which only reads role/name/rg and ignores extra fields).
+      clusters_with_kubeconfig=$(echo "$clusters" | jq --arg home "$HOME" \
+        '[.[] | . + {kubeconfig: ($home + "/.kube/" + .role + ".config")}]')
+      echo "$clusters_with_kubeconfig" > "$HOME/.kube/clustermesh-clusters.json"
+      ado_set_variable CLUSTERMESH_COUNT "$cluster_count"
 
       # CL2 overrides are written once — params are identical for every cluster
       # in this run (the per-cluster variation is which kubeconfig CL2 hits).
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
         --namespaces "$CL2_NAMESPACES" \
+        --global-namespace-count "${CL2_GLOBAL_NAMESPACE_COUNT:-$CL2_NAMESPACES}" \
         --deployments-per-namespace "$CL2_DEPLOYMENTS_PER_NAMESPACE" \
         --replicas-per-deployment "$CL2_REPLICAS_PER_DEPLOYMENT" \
         --operation-timeout "${CL2_OPERATION_TIMEOUT:-15m}" \
+        --churn-cycles "$CL2_CHURN_CYCLES" \
+        --churn-up-duration "$CL2_CHURN_UP_DURATION" \
+        --churn-down-duration "$CL2_CHURN_DOWN_DURATION" \
+        --kill-duration "$CL2_KILL_DURATION" \
+        --kill-interval-seconds "$CL2_KILL_INTERVAL_SECONDS" \
+        --kill-batch "$CL2_KILL_BATCH" \
+        --kill-duration-seconds "$CL2_KILL_DURATION_SECONDS" \
+        --kill-job-deadline-seconds "$CL2_KILL_JOB_DEADLINE_SECONDS" \
+        --apiserver-kill-target-context "$CL2_APISERVER_KILL_TARGET_CONTEXT" \
+        --apiserver-kill-recovery-timeout-seconds "$CL2_APISERVER_KILL_RECOVERY_TIMEOUT_SECONDS" \
+        --apiserver-kill-observation-seconds "$CL2_APISERVER_KILL_OBSERVATION_SECONDS" \
+        --ha-config-replicas "$CL2_HA_CONFIG_REPLICAS" \
+        --node-churn-target-context "$CL2_NODE_CHURN_TARGET_CONTEXT" \
+        --node-churn-cycles "$CL2_NODE_CHURN_CYCLES" \
+        --node-churn-delta "$CL2_NODE_CHURN_DELTA" \
+        --node-churn-settle-seconds "$CL2_NODE_CHURN_SETTLE_SECONDS" \
+        --node-churn-scale-duration-seconds "$CL2_NODE_CHURN_SCALE_DURATION_SECONDS" \
+        --node-churn-replace-duration-seconds "$CL2_NODE_CHURN_REPLACE_DURATION_SECONDS" \
+        --node-churn-combined-duration-seconds "$CL2_NODE_CHURN_COMBINED_DURATION_SECONDS" \
+        --node-replace-batch-size "$CL2_NODE_REPLACE_BATCH_SIZE" \
+        --node-churn-ready-timeout-seconds "$CL2_NODE_CHURN_READY_TIMEOUT_SECONDS" \
+        --saturation-qps-list "$CL2_SATURATION_QPS_LIST" \
+        --saturation-restarts-list "$CL2_SATURATION_RESTARTS_LIST" \
+        --saturation-ops-per-sec-list "$CL2_SATURATION_OPS_PER_SEC_LIST" \
+        --saturation-rung-duration-seconds "$CL2_SATURATION_RUNG_DURATION_SECONDS" \
+        --saturation-settle-seconds "$CL2_SATURATION_SETTLE_SECONDS" \
+        --probe-window-duration "${CL2_PROBE_WINDOW_DURATION:-60m}" \
+        --policy-canary-enabled "${CL2_POLICY_CANARY_ENABLED:-false}" \
+        --policy-scale-cnp-per-ns "${CL2_POLICY_SCALE_CNP_PER_NS:-50}" \
+        --policy-scale-hold-duration "${CL2_POLICY_SCALE_HOLD_DURATION:-5m}" \
+        --mock-mode "${CL2_MOCK_MODE:-false}" \
+        --kwok-usage-cpu "${CL2_KWOK_USAGE_CPU:-1m}" \
+        --kwok-usage-memory "${CL2_KWOK_USAGE_MEMORY:-1Mi}" \
         --cl2_override_file "${CL2_CONFIG_DIR}/overrides.yaml"
 
-      # Per-cluster CL2 fan-out — sequential. Each invocation writes its own
-      # report dir at ${CL2_REPORT_DIR}/<role>/, so collect.yml can iterate the
-      # same way and tag results with --cluster-name.
-      failures=0
-      for row in $(echo "$clusters" | jq -c '.[]'); do
-        name=$(echo "$row" | jq -r '.name')
-        rg=$(echo "$row"   | jq -r '.rg')
-        role=$(echo "$row" | jq -r '.role')
+      # Pre-stage kubectl for Method:Exec scripts inside the CL2 container.
+      if [ ! -x "${CL2_CONFIG_DIR}/kubectl" ]; then
+        KUBECTL_VERSION="${KUBECTL_VERSION:-v1.30.0}"
+        echo "Pre-staging kubectl ${KUBECTL_VERSION} for in-container use by Method: Exec scripts"
+        if curl -sfL -o "${CL2_CONFIG_DIR}/kubectl" \
+            "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"; then
+          chmod 0755 "${CL2_CONFIG_DIR}/kubectl"
+          "${CL2_CONFIG_DIR}/kubectl" version --client=true --output=yaml | head -3 || true
+        else
+          echo "##vso[task.logissue type=warning;] kubectl pre-stage download failed; pod-churn kill phase will fail-soft (script's fallback path)"
+          rm -f "${CL2_CONFIG_DIR}/kubectl"
+        fi
+      fi
 
-        echo "===================================================================="
-        echo "  Running CL2 on $role ($name)"
-        echo "===================================================================="
+      # Best-effort single image pull avoids parallel GHCR pull races.
+      echo "Pre-pulling CL2 image ${CL2_IMAGE} on the AzDO agent (sidesteps ghcr.io rate-limit race during parallel fanout)..."
+      if docker pull "${CL2_IMAGE}" 2>&1 | tail -5; then
+        echo "Pre-pull succeeded; subsequent docker runs will hit local cache"
+      else
+        echo "##vso[task.logissue type=warning;] CL2 image pre-pull failed; per-cluster CL2 invocations will each attempt their own pull (ghcr.io rate-limit risk persists)"
+      fi
 
-        kubeconfig="$HOME/.kube/$role.config"
-        KUBECONFIG="$kubeconfig" az aks get-credentials \
-          --resource-group "$rg" --name "$name" --overwrite-existing --only-show-errors
+      # SHARE_INFRA_SCENARIOS runs configs sequentially on one provision.
+      overall_rc=0
 
-        report_dir="${CL2_REPORT_DIR}/${role}"
-        mkdir -p "$report_dir"
+      # These scenarios require overlapping observation windows on all peers.
+      needs_mesh_wide_concurrency() {
+        local _scen="$1"
+        case "$_scen" in
+          propagation-probe|apiserver-failure|isolation|node-churn-scale|node-churn-replace|node-churn-combined|upper-bound)
+            return 0
+            ;;
+        esac
+        return 1
+      }
 
-        cl2_passed=0
-        # Run CL2; collect outcome WITHOUT failing the bash script (so we can
-        # also inspect junit.xml for internal test failures even when CL2 exits
-        # 0). Treat as "passed" only if BOTH:
-        #   (a) junit.xml exists (CL2 actually completed and wrote a report)
-        #   (b) junit.xml has zero <failure>/<error> elements
-        # Without (b) we'd silently green-light runs where measurements failed
-        # — e.g. PodMonitor template substitution producing "<no value>", which
-        # k8s admission rejects but CL2 still writes junit with <failure> tags.
-        PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
-            --cl2-image "${CL2_IMAGE}" \
-            --cl2-config-dir "${CL2_CONFIG_DIR}" \
-            --cl2-report-dir "$report_dir" \
-            --cl2-config-file "${CL2_CONFIG_FILE}" \
-            --kubeconfig "$kubeconfig" \
-            --provider "${CLOUD}" \
-          || true
-        if [ -f "$report_dir/junit.xml" ]; then
-          # Count failure/error attrs from <testsuite ... failures="N" errors="M">.
-          junit_failures=$(grep -oE 'failures="[0-9]+"' "$report_dir/junit.xml" | head -1 | grep -oE '[0-9]+' || echo 0)
-          junit_errors=$(grep -oE 'errors="[0-9]+"' "$report_dir/junit.xml" | head -1 | grep -oE '[0-9]+' || echo 0)
-          junit_failures=${junit_failures:-0}
-          junit_errors=${junit_errors:-0}
-          if [ "$junit_failures" -eq 0 ] && [ "$junit_errors" -eq 0 ]; then
-            cl2_passed=1
+      scenario_requires_target_success() {
+        case "$1" in
+          apiserver-failure|isolation|node-churn-scale|node-churn-replace|node-churn-combined)
+            return 0
+            ;;
+        esac
+        return 1
+      }
+
+      check_agent_disk_headroom() {
+        local _available_kb _required_kb
+        mkdir -p "$CL2_REPORT_DIR"
+        _available_kb=$(df -Pk "$CL2_REPORT_DIR" | awk 'NR==2 {print $4}')
+        _required_kb=$(( CL2_AGENT_DISK_MIN_FREE_GI * 1024 * 1024 ))
+        if ! [[ "$_available_kb" =~ ^[0-9]+$ ]]; then
+          echo "##vso[task.logissue type=error;] Unable to determine agent disk headroom for $CL2_REPORT_DIR"
+          return 1
+        fi
+        echo "Agent disk headroom: $((_available_kb / 1024 / 1024)) GiB available; minimum=${CL2_AGENT_DISK_MIN_FREE_GI} GiB"
+        if [ "$_available_kb" -lt "$_required_kb" ]; then
+          echo "##vso[task.logissue type=error;] Agent disk headroom is below the configured watermark"
+          return 1
+        fi
+      }
+
+      check_agent_memory_headroom() {
+        local _available_kb _required_kb
+        _available_kb=$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)
+        _required_kb=$(( CL2_AGENT_MEMORY_MIN_FREE_GI * 1024 * 1024 ))
+        if ! [[ "$_available_kb" =~ ^[0-9]+$ ]]; then
+          echo "##vso[task.logissue type=error;] Unable to determine agent memory headroom"
+          return 1
+        fi
+        echo "Agent memory headroom: $((_available_kb / 1024 / 1024)) GiB available; minimum=${CL2_AGENT_MEMORY_MIN_FREE_GI} GiB"
+        if [ "$_available_kb" -lt "$_required_kb" ]; then
+          echo "##vso[task.logissue type=error;] Agent memory headroom is below the configured watermark"
+          return 1
+        fi
+      }
+
+      scenario_budget_seconds() {
+        local _scen="$1"
+        if [ "$cluster_count" -ge 50 ]; then
+          # Event, pod-churn, and policy run in nine 12-worker waves at n=100.
+          case "$_scen" in
+            propagation-probe) echo 7200 ;;
+            event-throughput) echo 7200 ;;
+            pod-churn-combined) echo 25200 ;;
+            apiserver-failure) echo 5400 ;;
+            policy-scale) echo 10800 ;;
+            isolation) echo 7200 ;;
+            node-churn-scale|node-churn-replace|node-churn-combined) echo 10800 ;;
+            upper-bound) echo 7200 ;;
+            *) echo 3600 ;;
+          esac
+        else
+          case "$_scen" in
+            propagation-probe) echo 1800 ;;
+            event-throughput) echo 1200 ;;
+            pod-churn-combined) echo 2400 ;;
+            apiserver-failure) echo 1200 ;;
+            policy-scale) echo 1800 ;;
+            isolation) echo 1800 ;;
+            node-churn-scale|node-churn-replace|node-churn-combined) echo 7200 ;;
+            upper-bound) echo 2400 ;;
+            *) echo 1200 ;;
+          esac
+        fi
+      }
+
+      scenario_worker_timeout_seconds() {
+        local _scen="$1" _outer="$2"
+        if [ "$cluster_count" -ge 50 ]; then
+          case "$_scen" in
+            event-throughput) echo 2400; return ;;
+            pod-churn-combined) echo 7200; return ;;
+            policy-scale) echo 3600; return ;;
+          esac
+        fi
+        echo "$_outer"
+      }
+
+      scenario_quiet_window_seconds() {
+        case "$1" in
+          policy-scale|isolation)
+            echo $(( CL2_SHARE_INFRA_SETTLE_SECONDS * 2 ))
+            ;;
+          node-churn-scale|node-churn-replace|node-churn-combined)
+            echo $(( CL2_SHARE_INFRA_SETTLE_SECONDS * 3 ))
+            ;;
+          *)
+            echo "$CL2_SHARE_INFRA_SETTLE_SECONDS"
+            ;;
+        esac
+      }
+
+      scenario_artifact_budget_seconds() {
+        if [ "$cluster_count" -ge 50 ]; then
+          echo 1800
+        else
+          echo 600
+        fi
+      }
+
+      # Final lifecycle-only upload budget (small JSON files only).
+      scenario_final_lifecycle_budget_seconds() {
+        if [ "${CL2_PROM_SNAPSHOT_ENABLED,,}" != "true" ] ||
+           [ "${CL2_PROM_SNAPSHOT_TARGET,,}" != "blob" ]; then
+          echo 0
+          return
+        fi
+        if [ "$cluster_count" -ge 50 ]; then
+          echo 180
+        else
+          echo 60
+        fi
+      }
+
+      scenario_diag_budget_seconds() {
+        if [ "$cluster_count" -ge 50 ]; then
+          echo 900
+        else
+          echo 300
+        fi
+      }
+
+      # Bound for one mock-layer reconcile pass.
+      scenario_mock_reconcile_budget_seconds() {
+        if [ "${CL2_MOCK_MODE:-false}" != "true" ]; then
+          echo 0
+          return
+        fi
+        if [ "$cluster_count" -ge 50 ]; then
+          echo 600
+        else
+          echo 300
+        fi
+      }
+
+      # Bound for one scenario-owned cleanup pass.
+      scenario_cleanup_reconcile_budget_seconds() {
+        if [ "$cluster_count" -ge 50 ]; then
+          echo 300
+        else
+          echo 120
+        fi
+      }
+
+      # Mirror the probe script's scale-aware readiness default.
+      propagation_probe_workload_ready_timeout_seconds() {
+        if [ -n "${CL2_PROPAGATION_PROBE_WORKLOAD_READY_TIMEOUT_S:-}" ]; then
+          echo "$CL2_PROPAGATION_PROBE_WORKLOAD_READY_TIMEOUT_S"
+        elif [ "$cluster_count" -ge 50 ]; then
+          echo 1800
+        else
+          echo 900
+        fi
+      }
+
+      # Generous outer bound for the complete host-side propagation probe.
+      propagation_probe_wait_budget_seconds() {
+        local _prewait _ready _count _interval _peer _per_iter_overhead _margin
+        _prewait="${CL2_PROBE_PREWAIT_S:-300}"
+        _ready=$(propagation_probe_workload_ready_timeout_seconds)
+        _count="${CL2_PROPAGATION_PROBE_COUNT:-20}"
+        _interval="${CL2_PROPAGATION_PROBE_INTERVAL_S:-30}"
+        _peer="${CL2_PROPAGATION_PROBE_PEER_TIMEOUT:-60}"
+        _per_iter_overhead=180
+        _margin="${CL2_PROPAGATION_PROBE_WAIT_MARGIN_SECONDS:-300}"
+        echo $(( _prewait + _ready + _count * (_interval + _peer + _per_iter_overhead) + _margin ))
+      }
+
+      scenario_post_budget_seconds() {
+        local _quiet _artifact _diag _mock_reconcile _cleanup_reconcile
+        _quiet=$(scenario_quiet_window_seconds "$1")
+        _artifact=$(scenario_artifact_budget_seconds)
+        _diag=$(scenario_diag_budget_seconds)
+        # The pre-scenario reconcile is accounted for separately.
+        _mock_reconcile=$(scenario_mock_reconcile_budget_seconds)
+        _cleanup_reconcile=$(scenario_cleanup_reconcile_budget_seconds)
+        echo $(( _quiet + CL2_HEALTH_GATE_TIMEOUT_BUFFER_SECONDS + _artifact + _diag + _mock_reconcile + _cleanup_reconcile ))
+      }
+
+      # Scenarios that drive their stimulus via node-churner.sh on the AzDO
+      # agent (NOT Method:Exec). The launcher returns the PID; the caller
+      # `wait`s after execute-parallel completes so the timing file is
+      # finalized before collect runs.
+      is_node_churn_scenario() {
+        case "$1" in
+          node-churn-scale|node-churn-replace|node-churn-combined) return 0 ;;
+        esac
+        return 1
+      }
+
+      # Scenario #6 (Upper Bound / Saturation) predicate. Used to gate the
+      # proactive failure-diag dump (runs unconditionally for upper-bound
+      # like for node-churn, NOT just on rc!=0). User direction 2026-05-14:
+      # be proactive about debug dumps until scenario is end-to-end green;
+      # remove the unconditional gate once the first n=2 + n=20 are clean.
+      is_upper_bound_scenario() {
+        case "$1" in
+          upper-bound) return 0 ;;
+        esac
+        return 1
+      }
+
+      # Propagation+connectivity probe scenario predicate. Like node-churn-*,
+      # this scenario's stimulus (the probe orchestrator) runs HOST-SIDE
+      # from the AzDO agent (NOT Method:Exec inside CL2). Reason: the
+      # orchestrator needs all N kubeconfigs in one shell process to poll
+      # peer ipcache/identity/CEP for each probe — the CL2 container only
+      # has ONE kubeconfig mounted. Pattern mirrors node-churner.sh.
+      is_propagation_probe_scenario() {
+        case "$1" in
+          propagation-probe) return 0 ;;
+        esac
+        return 1
+      }
+
+      # Reconciles the shared mock (KWOK node + bare Cilium agent) layer's
+      # actual state back to its declared desired state. Runs twice per
+      # scenario in mock mode:
+      #   - "before": repairs drift left over from the PREVIOUS scenario/run
+      #     so this scenario starts from a known-good shared-infra baseline.
+      #     A failure here means the shared mock infra itself is unsafe —
+      #     NOT a scenario measurement failure — so the caller stops the
+      #     whole suite rather than attributing it to this scenario.
+      #   - "after": repairs missing/deleted/Failed bare mock agents,
+      #     missing/NotReady KWOK nodes, and agents stranded on NotReady
+      #     real nodes that this scenario's stimulus may have left behind,
+      #     before the health gate proves baseline recovery.
+      # No-op (returns 0, writes nothing) outside mock mode.
+      # mock_layer_reconcile.py has no built-in outer-timeout flag, only
+      # bounded per-cluster attempts/settle/request timeouts — the outer
+      # `timeout` wrapper here is what bounds the whole pass.
+      run_mock_layer_reconcile() {
+        local _label="$1" _output="$2"
+        if [ "${CL2_MOCK_MODE:-false}" != "true" ]; then
+          return 0
+        fi
+        mkdir -p "$(dirname "$_output")"
+        local _concurrency
+        if [ "$cluster_count" -ge 50 ]; then
+          _concurrency=12
+        else
+          _concurrency="$cluster_count"
+        fi
+        local _budget
+        _budget=$(scenario_mock_reconcile_budget_seconds)
+        local _rc=0
+        timeout --signal=TERM --kill-after=30s "${_budget}s" \
+          python3 "$MOCK_RECONCILER_SCRIPT" \
+          --clusters "$HOME/.kube/clustermesh-clusters.json" \
+          --state-root "$HOME/.kube/mock-layer-state/${RUN_ID}" \
+          --run-id "${RUN_ID}" \
+          --expected-mock-count "${CL2_MOCK_NODE_COUNT}" \
+          --max-concurrent "$_concurrency" \
+          --attempts 5 \
+          --settle-seconds 15 \
+          --request-timeout-seconds 30 \
+          --summary-file "$_output" || _rc=$?
+        # Always persist an authoritative summary after an outer timeout.
+        if [ "$_rc" -eq 124 ] || [ "$_rc" -eq 137 ]; then
+          local _timed_out_at
+          _timed_out_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          if [ -s "$_output" ]; then
+            jq \
+              --arg timed_out_at "$_timed_out_at" \
+              --argjson budget "$_budget" \
+              --argjson rc "$_rc" \
+              '.success = false
+               | .timed_out = true
+               | .timed_out_at = $timed_out_at
+               | .budget_seconds = $budget
+               | .timeout_rc = $rc
+               | .phase = (.phase // "unknown")' \
+              "$_output" > "${_output}.tmp" && mv "${_output}.tmp" "$_output"
           else
-            echo "##vso[task.logissue type=warning;] $role: junit.xml reports failures=$junit_failures errors=$junit_errors"
+            jq -n \
+              --arg reconcile_label "$_label" \
+              --arg scenario "$SCENARIO" \
+              --arg timed_out_at "$_timed_out_at" \
+              --argjson budget "$_budget" \
+              --argjson rc "$_rc" \
+              '{
+                schema_version: 1,
+                success: false,
+                timed_out: true,
+                timed_out_at: $timed_out_at,
+                phase: "unknown",
+                label: $reconcile_label,
+                scenario: $scenario,
+                budget_seconds: $budget,
+                timeout_rc: $rc,
+                note: "mock_layer_reconcile.py produced no summary before the outer timeout fired; see the ADO pipeline log around this step for the last flushed per-cluster progress lines (mock-layer-reconcile[<role>] phase: ...)"
+              }' > "$_output"
           fi
         fi
-
-        if [ "$cl2_passed" -eq 1 ]; then
-          echo "  $role: CL2 run succeeded"
+        if [ "$_rc" -ne 0 ]; then
+          echo "##vso[task.logissue type=error;] mock-layer-reconcile (${_label}) failed rc=${_rc} for ${SCENARIO}; see ${_output}"
         fi
+        return "$_rc"
+      }
 
-        # Always-on log capture (spec line 35: "Logs: clustermesh-apiserver,
-        # agent watchers"). Files land in $report_dir/logs/ so they are
-        # uploaded alongside junit.xml + measurement results when the
-        # publish step runs. The same files double as immediate
-        # diagnostics for failed runs (see FAILURE DIAG block below).
-        log_dir="$report_dir/logs"
-        mkdir -p "$log_dir"
-        echo "------- $role: capturing pod logs to $log_dir -------"
-        # clustermesh-apiserver: all three containers (apiserver / etcd /
-        # kvstoremesh) — bounded tail, single pod expected.
-        for c in apiserver etcd kvstoremesh; do
-          KUBECONFIG="$kubeconfig" kubectl -n kube-system logs \
-            -l k8s-app=clustermesh-apiserver -c "$c" --tail=4000 \
-            > "$log_dir/clustermesh-apiserver-$c.log" 2>&1 || true
+      run_cilium_policy_guard() {
+        [ "${AKS_CILIUM_POLICY_GUARD_ENABLED:-false}" = "true" ] || return 0
+        local _output="$1" _budget
+        mkdir -p "$(dirname "$_output")"
+        _budget=$(( ${AKS_CILIUM_POLICY_GUARD_TIMEOUT_SECONDS:-1800} + ${AKS_CILIUM_POLICY_GUARD_COMMAND_TIMEOUT_SECONDS:-900} * cluster_count + 60 ))
+        timeout --signal=TERM --kill-after=60s "${_budget}s" \
+          env CLUSTERS_FILE="$HOME/.kube/clustermesh-clusters.json" \
+            OUTPUT_FILE="$_output" STATE_ROOT="$HOME/.kube/cilium-policy-guard/${RUN_ID}" \
+            TARGET_SUBSCRIPTION_ID="$TARGET_SUBSCRIPTION_ID" \
+            bash "$CILIUM_POLICY_GUARD_SCRIPT"
+      }
+
+      # Repair allowlisted scenario residue; the health gate remains proof.
+      run_scenario_cleanup_reconcile() {
+        local _output="$1"
+        mkdir -p "$(dirname "$_output")"
+        local _concurrency
+        if [ "$cluster_count" -ge 50 ]; then
+          _concurrency=12
+        else
+          _concurrency="$cluster_count"
+        fi
+        local _budget
+        _budget=$(scenario_cleanup_reconcile_budget_seconds)
+        local _rc=0
+        timeout --signal=TERM --kill-after=30s "${_budget}s" \
+          python3 "$SCENARIO_CLEANUP_RECONCILER" \
+          --clusters "$HOME/.kube/clustermesh-clusters.json" \
+          --scenario "$SCENARIO" \
+          --max-concurrent "$_concurrency" \
+          --attempts 5 \
+          --settle-seconds 15 \
+          --request-timeout-seconds 30 \
+          --summary-file "$_output" || _rc=$?
+        if [ "$_rc" -ne 0 ]; then
+          echo "##vso[task.logissue type=error;] scenario-cleanup-reconcile failed rc=${_rc} for ${SCENARIO}; see ${_output} (scenario-health-gate.sh remains authoritative)"
+        fi
+        return "$_rc"
+      }
+
+      LAST_PROCESS_GROUP_PID=""
+      start_logged_process_group() {
+        local _log="$1"
+        shift
+        setsid bash -c '
+          set -o pipefail
+          log_file="$1"
+          shift
+          "$@" 2>&1 | tee -a "$log_file"
+        ' _ "$_log" "$@" &
+        LAST_PROCESS_GROUP_PID=$!
+      }
+
+      terminate_process_group() {
+        local _pid="$1" _label="$2" _grace_seconds="${3:-30}"
+        local _attempts
+        [ -n "$_pid" ] || return 0
+        if ! kill -0 "$_pid" 2>/dev/null; then
+          wait "$_pid" 2>/dev/null || true
+          return 0
+        fi
+        echo "Terminating process group ${_pid} (${_label})"
+        kill -TERM -- "-$_pid" 2>/dev/null || true
+        _attempts=$(( (_grace_seconds + 4) / 5 ))
+        for _ in $(seq 1 "$_attempts"); do
+          if ! kill -0 -- "-$_pid" 2>/dev/null; then
+            wait "$_pid" 2>/dev/null || true
+            return 0
+          fi
+          sleep 5
         done
-        # cilium-agent: one pod per node — keep tail small to bound size.
-        KUBECONFIG="$kubeconfig" kubectl -n kube-system logs \
-          -l k8s-app=cilium --tail=1000 --prefix=true \
-          > "$log_dir/cilium-agent.log" 2>&1 || true
-        # cilium-operator: low-volume control plane.
-        KUBECONFIG="$kubeconfig" kubectl -n kube-system logs \
-          -l io.cilium/app=operator --tail=2000 --prefix=true \
-          > "$log_dir/cilium-operator.log" 2>&1 || true
+        echo "Process group ${_pid} (${_label}) ignored SIGTERM; sending SIGKILL"
+        kill -KILL -- "-$_pid" 2>/dev/null || true
+        wait "$_pid" 2>/dev/null || true
+      }
 
-        if [ "$cl2_passed" -ne 1 ]; then
-          # Dump enough state to distinguish prometheus-stack scheduling
-          # failures from CL2 logic failures. Prometheus is the most common
-          # culprit here — its pod requests 10Gi by default, doesn't fit on
-          # Standard_D4s_v4. If the pod is Pending with FailedScheduling, the
-          # describe events make that obvious.
-          #
-          # Note: scale.py passes tear_down_prometheus=False so the stack
-          # survives this dump (otherwise CL2 would clean up before we look).
-          echo "------- $role: CL2 FAILURE DIAG -------"
-          echo "------- node allocatable / requested capacity -------"
-          KUBECONFIG="$kubeconfig" kubectl get nodes -o wide 2>&1 || true
-          KUBECONFIG="$kubeconfig" kubectl describe nodes 2>&1 | grep -A 4 "Allocatable\|Allocated resources" | head -40 || true
-
-          echo "------- monitoring/* pods -------"
-          KUBECONFIG="$kubeconfig" kubectl -n monitoring get pods -o wide 2>&1 || true
-
-          echo "------- monitoring statefulsets -------"
-          KUBECONFIG="$kubeconfig" kubectl -n monitoring get statefulset -o wide 2>&1 || true
-
-          echo "------- Prometheus CR (operator input) -------"
-          KUBECONFIG="$kubeconfig" kubectl -n monitoring get prometheus -o yaml 2>&1 | head -80 || true
-
-          echo "------- prometheus-k8s pod describe -------"
-          KUBECONFIG="$kubeconfig" kubectl -n monitoring describe pod -l app.kubernetes.io/name=prometheus 2>&1 | tail -60 || true
-
-          echo "------- prometheus-operator logs (tail 60) -------"
-          KUBECONFIG="$kubeconfig" kubectl -n monitoring logs -l app.kubernetes.io/name=prometheus-operator --tail=60 2>&1 || true
-
-          echo "------- monitoring namespace events (recent) -------"
-          KUBECONFIG="$kubeconfig" kubectl -n monitoring get events --sort-by='.lastTimestamp' 2>&1 | tail -30 || true
-          echo "------- end CL2 FAILURE DIAG -------"
-
-          echo "##vso[task.logissue type=warning;] $role: CL2 run failed (junit missing or has failures/errors at $report_dir/junit.xml; continuing other clusters)"
-          failures=$((failures + 1))
+      # Launch propagation+connectivity probe orchestrator in background.
+      # Mirrors launch_node_churner: CL2 scenario yaml provides the workload
+      # (backend Deployment + global Service per cluster); orchestrator
+      # runs HOST-SIDE and emits PropagationTimings.jsonl +
+      # ConnectivityResults.jsonl into the LEADER cluster's per-cluster
+      # report dir (scale.py collect's _emit_propagation_probe_rows picks
+      # them up).
+      #
+      # Sets PROBE_PID. Caller `wait`s after execute-parallel returns so
+      # JSONLs are finalized before collect runs.
+      # Skips silently if CL2_PROPAGATION_PROBE_ENABLED != "true".
+      launch_propagation_probe() {
+        local _scen="$1" _report_dir_base="$2"
+        PROBE_PID=""
+        if [ "${CL2_PROPAGATION_PROBE_ENABLED:-false}" != "true" ]; then
+          echo "[propagation-probe] CL2_PROPAGATION_PROBE_ENABLED=${CL2_PROPAGATION_PROBE_ENABLED:-false}; skipping"
+          return 0
         fi
-      done
+        local _probe_script="${CL2_CONFIG_DIR}/propagation-probe.sh"
+        if [ ! -f "$_probe_script" ]; then
+          echo "##vso[task.logissue type=warning;] propagation-probe: $_probe_script not found; skipping"
+          return 0
+        fi
+        # Output dir: leader cluster's per-cluster report dir. collect.py
+        # reads per-cluster report dirs keyed by ROLE (mesh-1, not the
+        # AKS name clustermesh-1), so we use .role here to match. Probe
+        # JSONLs land at <base>/mesh-1/ which scale.py's
+        # _emit_propagation_probe_rows picks up at collect time.
+        local _leader_role _leader_name
+        _leader_role=$(jq -r '.[0].role' < "$HOME/.kube/clustermesh-clusters.json")
+        _leader_name=$(jq -r '.[0].name' < "$HOME/.kube/clustermesh-clusters.json")
+        if [ -z "$_leader_role" ] || [ "$_leader_role" = "null" ]; then
+          echo "##vso[task.logissue type=warning;] propagation-probe: could not resolve leader cluster role from clustermesh-clusters.json"
+          return 0
+        fi
+        local _out_dir="${_report_dir_base}/${_leader_role}"
+        mkdir -p "$_out_dir"
+        local _probe_log="${_out_dir}/propagation-probe.log"
+        echo "===== propagation-probe launch: scenario=${_scen} leader_role=${_leader_role} leader_name=${_leader_name} =====" | tee -a "$_probe_log"
+        local _prewait="${CL2_PROBE_PREWAIT_S:-180}"
+        start_logged_process_group "$_probe_log" \
+          bash -c '
+            prewait="$1"
+            shift
+            echo "[propagation-probe] best-effort prewait ${prewait}s before launch (correctness-bearing readiness is enforced inside propagation-probe.sh)..."
+            sleep "$prewait"
+            exec "$@"
+          ' _ "$_prewait" \
+          env \
+            ENABLE_REMOVE_PROBE="${CL2_PROPAGATION_PROBE_REMOVE_ENABLED:-false}" \
+            ENABLE_FIRST_PACKET_PROBE="${CL2_PROPAGATION_PROBE_FIRST_PACKET_ENABLED:-false}" \
+            ENABLE_SERVICE_BACKEND_PROBE="${CL2_PROPAGATION_PROBE_SERVICE_BACKEND_ENABLED:-false}" \
+            REMOVE_PROBE_TIMEOUT_S="${CL2_PROPAGATION_PROBE_REMOVE_TIMEOUT_S:-60}" \
+            FIRST_PACKET_PROBE_TIMEOUT_S="${CL2_PROPAGATION_PROBE_FIRST_PACKET_TIMEOUT_S:-60}" \
+            SERVICE_BACKEND_PROBE_TIMEOUT_S="${CL2_PROPAGATION_PROBE_SERVICE_BACKEND_TIMEOUT_S:-60}" \
+            PROBE_WORKLOAD_READY_TIMEOUT_S="${CL2_PROPAGATION_PROBE_WORKLOAD_READY_TIMEOUT_S:-}" \
+            bash "$_probe_script" \
+            "${CL2_PROPAGATION_PROBE_COUNT:-20}" \
+            "${CL2_PROPAGATION_PROBE_INTERVAL_S:-30}" \
+            "${CL2_PROBE_NAMESPACE:-clustermesh-probe-1}" \
+            "${CL2_PROPAGATION_PROBE_PEER_SAMPLE:-20}" \
+            "${CL2_PROPAGATION_PROBE_PEER_TIMEOUT:-60}" \
+            "$HOME/.kube/clustermesh-clusters.json" \
+            "$_out_dir" \
+            "${CL2_PROPAGATION_PROBE_CONNECTIVITY:-false}"
+        PROBE_PID="$LAST_PROCESS_GROUP_PID"
+        echo "propagation-probe: launched PID=$PROBE_PID for scenario=${_scen}; log=${_probe_log}"
+      }
 
-      if [ "$failures" -gt 0 ]; then
-        echo "##vso[task.logissue type=error;] CL2 failed on $failures cluster(s)"
-        exit 1
+      # Bounded wait for the host-side propagation-probe orchestrator.
+      # Polls PROBE_PID rather than using a bare shell `wait` (which would
+      # block forever if the background process somehow outlived its own
+      # internal workload-readiness/PROBE_COUNT deadlines) -- see
+      # propagation_probe_wait_budget_seconds for how the outer bound is
+      # computed. If that bound is exceeded the whole process GROUP is
+      # terminated via the existing terminate_process_group helper and
+      # this returns rc=124 (matching the coreutils `timeout` convention
+      # used elsewhere in this file). On normal completion the already-
+      # finalized PropagationTimings.jsonl/ConnectivityResults.jsonl are
+      # left untouched -- this function only observes exit status.
+      wait_propagation_probe() {
+        local _scen="$1"
+        PROBE_WAIT_RC=0
+        if [ -z "${PROBE_PID:-}" ]; then
+          return 0
+        fi
+        local _budget _rc=0 _state
+        _budget=$(propagation_probe_wait_budget_seconds)
+        local _deadline
+        _deadline=$(( $(date +%s) + _budget ))
+        echo "propagation-probe: waiting on PID=$PROBE_PID for scenario=${_scen} (bounded to ${_budget}s)"
+        while true; do
+          # Linux-specific liveness check: kill -0 alone reports true for
+          # zombie (already-exited, not-yet-reaped) children, which would
+          # make a plain `kill -0` polling loop never observe completion.
+          # Checking /proc's process state avoids that false positive;
+          # kill -0 remains the fallback if /proc is unavailable.
+          if [ -r "/proc/${PROBE_PID}/stat" ]; then
+            _state=$(awk '{print $3}' "/proc/${PROBE_PID}/stat" 2>/dev/null)
+            if [ "$_state" = "Z" ] || [ -z "$_state" ]; then
+              break
+            fi
+          elif ! kill -0 "$PROBE_PID" 2>/dev/null; then
+            break
+          fi
+          if [ "$(date +%s)" -ge "$_deadline" ]; then
+            echo "##vso[task.logissue type=error;] propagation-probe: scenario=${_scen} exceeded bounded wait"
+            echo "  budget=${_budget}s terminating process group PID=${PROBE_PID}"
+            terminate_process_group "$PROBE_PID" "propagation-probe(wait-timeout)"
+            PROBE_WAIT_RC=124
+            PROBE_PID=""
+            return 124
+          fi
+          sleep 2
+        done
+        wait "$PROBE_PID" 2>/dev/null || _rc=$?
+        PROBE_WAIT_RC="$_rc"
+        if [ "$_rc" -ne 0 ]; then
+          echo "##vso[task.logissue type=warning;] propagation-probe: scenario=${_scen} exited rc=${_rc}"
+          echo "  check PropagationTimings.jsonl + propagation-probe.log"
+        else
+          echo "propagation-probe: scenario=${_scen} completed cleanly"
+        fi
+        PROBE_PID=""
+      }
+
+      # Launch mesh-recovery probe (cilium-agent kill + resync timing).
+      # Same pattern as launch_propagation_probe. Runs in BACKGROUND in
+      # parallel with the CL2 scenario's probe-window sleep. Output
+      # ResilienceTimings.jsonl lands in the leader cluster's report dir;
+      # scale.py collect picks it up via _emit_recovery_probe_rows.
+      # Default OFF; opt-in via CL2_RECOVERY_PROBE_ENABLED=true.
+      launch_mesh_recovery_probe() {
+        local _scen="$1" _report_dir_base="$2"
+        RECOVERY_PID=""
+        if [ "${CL2_RECOVERY_PROBE_ENABLED:-false}" != "true" ]; then
+          echo "[recovery-probe] CL2_RECOVERY_PROBE_ENABLED=${CL2_RECOVERY_PROBE_ENABLED:-false}; skipping"
+          return 0
+        fi
+        local _script="${CL2_CONFIG_DIR}/mesh-recovery-probe.sh"
+        if [ ! -f "$_script" ]; then
+          echo "##vso[task.logissue type=warning;] mesh-recovery-probe: $_script not found; skipping"
+          return 0
+        fi
+        local _leader_role
+        _leader_role=$(jq -r '.[0].role' < "$HOME/.kube/clustermesh-clusters.json")
+        local _out_dir="${_report_dir_base}/${_leader_role}"
+        mkdir -p "$_out_dir"
+        local _log="${_out_dir}/mesh-recovery-probe.log"
+        echo "===== mesh-recovery-probe launch: scenario=${_scen} leader_role=${_leader_role} =====" | tee -a "$_log"
+        # Same prewait as propagation probe — wait for backends to be
+        # up across the mesh before starting kills. Plus extra 60s to
+        # let propagation probe finish its initial cycles first (less
+        # noisy data).
+        local _prewait=$((${CL2_PROBE_PREWAIT_S:-300} + 60))
+        (
+          echo "[recovery-probe] prewait ${_prewait}s..."
+          sleep "$_prewait"
+          bash "$_script" \
+            "${CL2_RECOVERY_PROBE_COUNT:-3}" \
+            "${CL2_RECOVERY_PROBE_INTERVAL_S:-120}" \
+            "${CL2_PROBE_NAMESPACE:-clustermesh-probe-1}" \
+            "${CL2_RECOVERY_PROBE_TIMEOUT_S:-300}" \
+            "$HOME/.kube/clustermesh-clusters.json" \
+            "$_out_dir" 2>&1 | tee -a "$_log"
+        ) &
+        RECOVERY_PID=$!
+        echo "mesh-recovery-probe: launched PID=$RECOVERY_PID for scenario=${_scen}; log=${_log}"
+      }
+
+      wait_mesh_recovery_probe() {
+        local _scen="$1"
+        if [ -z "${RECOVERY_PID:-}" ]; then
+          return 0
+        fi
+        echo "mesh-recovery-probe: waiting on PID=$RECOVERY_PID for scenario=${_scen}"
+        local _rc=0
+        wait "$RECOVERY_PID" || _rc=$?
+        if [ "$_rc" -ne 0 ]; then
+          echo "##vso[task.logissue type=warning;] mesh-recovery-probe: scenario=${_scen} exited rc=${_rc}; check ResilienceTimings.jsonl + mesh-recovery-probe.log"
+        else
+          echo "mesh-recovery-probe: scenario=${_scen} completed cleanly"
+        fi
+        RECOVERY_PID=""
+      }
+
+      # cluster-loss-recovery probe — relabels one Fleet member out of the
+      # CMP selector, waits for ready==total==(N-2) on remaining clusters,
+      # then re-labels back and verifies return to ready==total==(N-1).
+      # Same launcher pattern as propagation/recovery probes. Output:
+      # ${leader_role}-MeshDetachRejoinProbe.jsonl in leader's report dir;
+      # scale.py collect picks up via _emit_detach_rejoin_probe_rows.
+      # Default OFF; opt-in via CL2_DETACH_REJOIN_PROBE_ENABLED=true.
+      # MINIMUM 3 clusters required for meaningful signal.
+      launch_mesh_detach_rejoin_probe() {
+        local _scen="$1" _report_dir_base="$2"
+        DETACH_REJOIN_PID=""
+        if [ "${CL2_DETACH_REJOIN_PROBE_ENABLED:-false}" != "true" ]; then
+          echo "[detach-rejoin-probe] CL2_DETACH_REJOIN_PROBE_ENABLED=${CL2_DETACH_REJOIN_PROBE_ENABLED:-false}; skipping"
+          return 0
+        fi
+        local _script="${CL2_CONFIG_DIR}/mesh-detach-rejoin-probe.sh"
+        if [ ! -f "$_script" ]; then
+          echo "##vso[task.logissue type=warning;] mesh-detach-rejoin-probe: $_script not found; skipping"
+          return 0
+        fi
+        local _clusters_json="$HOME/.kube/clustermesh-clusters.json"
+        local _n
+        _n=$(jq -r 'length' "$_clusters_json" 2>/dev/null || echo 0)
+        if [ "$_n" -lt 3 ]; then
+          echo "##vso[task.logissue type=warning;] mesh-detach-rejoin-probe: need >=3 clusters, got $_n; skipping"
+          return 0
+        fi
+        # Derive Fleet RG/name/cmp the same way validate-resources.yml does:
+        # FLEET_RG = first cluster's RG. fleet_name/cmp_name = terraform hardcoded.
+        local _fleet_rg _fleet_name _cmp_name _sub_id _leader_role _out_dir _log
+        _fleet_rg=$(jq -r '.[0].rg' "$_clusters_json")
+        _fleet_name="${CL2_FLEET_NAME_OVERRIDE:-clustermesh-flt}"
+        _cmp_name="${CL2_CMP_NAME_OVERRIDE:-clustermesh-cmp}"
+        _sub_id=$(az account show --query id -o tsv)
+        # Deterministic leader pick: LOWEST numeric role (mesh-1). Probe
+        # picks victim as HIGHEST numeric role (mesh-N). At N>=2 these
+        # never collide. Avoids the `.[0].role` race where clusters JSON
+        # ordering varied (build 69318 evidence: leader=mesh-3=victim).
+        _leader_role=$(jq -r '[.[] | .role | capture("mesh-(?<n>[0-9]+)") | .n | tonumber] | min as $m | "mesh-\($m)"' "$_clusters_json")
+        _out_dir="${_report_dir_base}/${_leader_role}"
+        mkdir -p "$_out_dir"
+        _log="${_out_dir}/mesh-detach-rejoin-probe.log"
+        echo "===== mesh-detach-rejoin-probe launch: scenario=${_scen} leader=${_leader_role} fleet=${_fleet_name}/${_cmp_name} rg=${_fleet_rg} =====" | tee -a "$_log"
+        # Prewait so pre-state assertion has steady-state mesh
+        local _prewait="${CL2_DETACH_REJOIN_PREWAIT_S:-120}"
+        (
+          echo "[detach-rejoin-probe] prewait ${_prewait}s..."
+          sleep "$_prewait"
+          REPORT_DIR="$_out_dir" \
+          SCENARIO_NAME="$_scen" \
+          LEADER_ROLE="$_leader_role" \
+          CLUSTERMESH_CLUSTERS_JSON="$_clusters_json" \
+          CL2_FLEET_NAME="$_fleet_name" \
+          CL2_FLEET_RG="$_fleet_rg" \
+          CL2_CMP_NAME="$_cmp_name" \
+          CL2_SUBSCRIPTION_ID="$_sub_id" \
+          CL2_DETACH_REJOIN_DETACH_TIMEOUT_S="${CL2_DETACH_REJOIN_DETACH_TIMEOUT_S:-300}" \
+          CL2_DETACH_REJOIN_REJOIN_TIMEOUT_S="${CL2_DETACH_REJOIN_REJOIN_TIMEOUT_S:-300}" \
+          CL2_DETACH_REJOIN_HOLD_S="${CL2_DETACH_REJOIN_HOLD_S:-60}" \
+          CL2_DETACH_REJOIN_PRE_STATE_TIMEOUT_S="${CL2_DETACH_REJOIN_PRE_STATE_TIMEOUT_S:-300}" \
+          bash "$_script" 2>&1 | tee -a "$_log"
+        ) &
+        DETACH_REJOIN_PID=$!
+        echo "mesh-detach-rejoin-probe: launched PID=$DETACH_REJOIN_PID for scenario=${_scen}; log=${_log}"
+      }
+
+      wait_mesh_detach_rejoin_probe() {
+        local _scen="$1"
+        if [ -z "${DETACH_REJOIN_PID:-}" ]; then
+          return 0
+        fi
+        echo "mesh-detach-rejoin-probe: waiting on PID=$DETACH_REJOIN_PID for scenario=${_scen}"
+        local _rc=0
+        wait "$DETACH_REJOIN_PID" || _rc=$?
+        if [ "$_rc" -ne 0 ]; then
+          echo "##vso[task.logissue type=warning;] mesh-detach-rejoin-probe: scenario=${_scen} exited rc=${_rc}; check MeshDetachRejoinProbe.jsonl + mesh-detach-rejoin-probe.log"
+        else
+          echo "mesh-detach-rejoin-probe: scenario=${_scen} completed cleanly"
+        fi
+        DETACH_REJOIN_PID=""
+      }
+
+      # Cross-cluster CNP propagation cost probe. Applies the same CNP
+      # IN PARALLEL to every cluster, then polls each cluster's
+      # cilium-dbg policy get to measure per-cluster load latency.
+      # max(latency) = "time to fleet-wide enforcement" — the GitOps/
+      # Fleet workload-policy rollout question. Output: ${leader_role}-
+      # MeshPolicyPropProbe.jsonl. scale.py collect picks it up via
+      # _emit_policy_prop_probe_rows. Default OFF; opt-in via
+      # CL2_POLICY_PROP_PROBE_ENABLED=true.
+      launch_mesh_policy_propagation_probe() {
+        local _scen="$1" _report_dir_base="$2"
+        POLICY_PROP_PID=""
+        if [ "${CL2_POLICY_PROP_PROBE_ENABLED:-false}" != "true" ]; then
+          echo "[policy-prop-probe] CL2_POLICY_PROP_PROBE_ENABLED=${CL2_POLICY_PROP_PROBE_ENABLED:-false}; skipping"
+          return 0
+        fi
+        local _script="${CL2_CONFIG_DIR}/mesh-policy-propagation-probe.sh"
+        if [ ! -f "$_script" ]; then
+          echo "##vso[task.logissue type=warning;] mesh-policy-propagation-probe: $_script not found; skipping"
+          return 0
+        fi
+        local _clusters_json="$HOME/.kube/clustermesh-clusters.json"
+        local _n
+        _n=$(jq -r 'length' "$_clusters_json" 2>/dev/null || echo 0)
+        if [ "$_n" -lt 2 ]; then
+          echo "##vso[task.logissue type=warning;] mesh-policy-propagation-probe: need >=2 clusters, got $_n; skipping"
+          return 0
+        fi
+        local _leader_role _out_dir _log _prewait
+        _leader_role=$(jq -r '[.[] | .role | capture("mesh-(?<n>[0-9]+)") | .n | tonumber] | min as $m | "mesh-\($m)"' "$_clusters_json")
+        _out_dir="${_report_dir_base}/${_leader_role}"
+        mkdir -p "$_out_dir"
+        _log="${_out_dir}/mesh-policy-propagation-probe.log"
+        echo "===== mesh-policy-propagation-probe launch: scenario=${_scen} leader=${_leader_role} =====" | tee -a "$_log"
+        _prewait="${CL2_POLICY_PROP_PROBE_PREWAIT_S:-60}"
+        (
+          echo "[policy-prop-probe] prewait ${_prewait}s..."
+          sleep "$_prewait"
+          REPORT_DIR="$_out_dir" \
+          SCENARIO_NAME="$_scen" \
+          LEADER_ROLE="$_leader_role" \
+          CLUSTERMESH_CLUSTERS_JSON="$_clusters_json" \
+          CL2_POLICY_PROP_PROBE_COUNT="${CL2_POLICY_PROP_PROBE_COUNT:-5}" \
+          CL2_POLICY_PROP_PROBE_INTERVAL_S="${CL2_POLICY_PROP_PROBE_INTERVAL_S:-60}" \
+          CL2_POLICY_PROP_PROBE_TIMEOUT_S="${CL2_POLICY_PROP_PROBE_TIMEOUT_S:-120}" \
+          bash "$_script" 2>&1 | tee -a "$_log"
+        ) &
+        POLICY_PROP_PID=$!
+        echo "mesh-policy-propagation-probe: launched PID=$POLICY_PROP_PID for scenario=${_scen}; log=${_log}"
+      }
+
+      wait_mesh_policy_propagation_probe() {
+        local _scen="$1"
+        if [ -z "${POLICY_PROP_PID:-}" ]; then
+          return 0
+        fi
+        echo "mesh-policy-propagation-probe: waiting on PID=$POLICY_PROP_PID for scenario=${_scen}"
+        local _rc=0
+        wait "$POLICY_PROP_PID" || _rc=$?
+        if [ "$_rc" -ne 0 ]; then
+          echo "##vso[task.logissue type=warning;] mesh-policy-propagation-probe: scenario=${_scen} exited rc=${_rc}; check MeshPolicyPropProbe.jsonl + mesh-policy-propagation-probe.log"
+        else
+          echo "mesh-policy-propagation-probe: scenario=${_scen} completed cleanly"
+        fi
+        POLICY_PROP_PID=""
+      }
+
+      # Single-cluster backend failover probe. Scales the victim cluster's
+      # backend Deployment to 0, polls every peer's BPF lb map for
+      # victim-IP removal, then scales back up and polls for re-add. Output
+      # ${leader_role}-MeshFailoverProbe.jsonl. scale.py collect picks it
+      # up via _emit_failover_probe_rows. Default OFF; opt-in via
+      # CL2_FAILOVER_PROBE_ENABLED=true.
+      launch_mesh_failover_probe() {
+        local _scen="$1" _report_dir_base="$2"
+        FAILOVER_PID=""
+        if [ "${CL2_FAILOVER_PROBE_ENABLED:-false}" != "true" ]; then
+          echo "[failover-probe] CL2_FAILOVER_PROBE_ENABLED=${CL2_FAILOVER_PROBE_ENABLED:-false}; skipping"
+          return 0
+        fi
+        local _script="${CL2_CONFIG_DIR}/mesh-failover-probe.sh"
+        if [ ! -f "$_script" ]; then
+          echo "##vso[task.logissue type=warning;] mesh-failover-probe: $_script not found; skipping"
+          return 0
+        fi
+        local _clusters_json="$HOME/.kube/clustermesh-clusters.json"
+        local _n
+        _n=$(jq -r 'length' "$_clusters_json" 2>/dev/null || echo 0)
+        if [ "$_n" -lt 2 ]; then
+          echo "##vso[task.logissue type=warning;] mesh-failover-probe: need >=2 clusters, got $_n; skipping"
+          return 0
+        fi
+        local _leader_role _out_dir _log _prewait
+        _leader_role=$(jq -r '[.[] | .role | capture("mesh-(?<n>[0-9]+)") | .n | tonumber] | min as $m | "mesh-\($m)"' "$_clusters_json")
+        _out_dir="${_report_dir_base}/${_leader_role}"
+        mkdir -p "$_out_dir"
+        _log="${_out_dir}/mesh-failover-probe.log"
+        echo "===== mesh-failover-probe launch: scenario=${_scen} leader=${_leader_role} =====" | tee -a "$_log"
+        _prewait="${CL2_FAILOVER_PROBE_PREWAIT_S:-60}"
+        (
+          echo "[failover-probe] prewait ${_prewait}s..."
+          sleep "$_prewait"
+          REPORT_DIR="$_out_dir" \
+          SCENARIO_NAME="$_scen" \
+          LEADER_ROLE="$_leader_role" \
+          PROBE_NS="${CL2_PROBE_NAMESPACE:-clustermesh-probe-1}" \
+          CLUSTERMESH_CLUSTERS_JSON="$_clusters_json" \
+          CL2_FAILOVER_PROBE_COUNT="${CL2_FAILOVER_PROBE_COUNT:-3}" \
+          CL2_FAILOVER_PROBE_INTERVAL_S="${CL2_FAILOVER_PROBE_INTERVAL_S:-60}" \
+          CL2_FAILOVER_PROBE_TIMEOUT_S="${CL2_FAILOVER_PROBE_TIMEOUT_S:-180}" \
+          CL2_FAILOVER_SELECTOR_LABEL="${CL2_FAILOVER_SELECTOR_LABEL:-group=clustermesh-propagation-probe}" \
+          bash "$_script" 2>&1 | tee -a "$_log"
+        ) &
+        FAILOVER_PID=$!
+        echo "mesh-failover-probe: launched PID=$FAILOVER_PID for scenario=${_scen}; log=${_log}"
+      }
+
+      wait_mesh_failover_probe() {
+        local _scen="$1"
+        if [ -z "${FAILOVER_PID:-}" ]; then
+          return 0
+        fi
+        echo "mesh-failover-probe: waiting on PID=$FAILOVER_PID for scenario=${_scen}"
+        local _rc=0
+        wait "$FAILOVER_PID" || _rc=$?
+        if [ "$_rc" -ne 0 ]; then
+          echo "##vso[task.logissue type=warning;] mesh-failover-probe: scenario=${_scen} exited rc=${_rc}; check MeshFailoverProbe.jsonl + mesh-failover-probe.log"
+        else
+          echo "mesh-failover-probe: scenario=${_scen} completed cleanly"
+        fi
+        FAILOVER_PID=""
+      }
+
+      # clustermesh-apiserver restart survival probe. Starts long-lived
+      # curl pods on every peer running an in-pod 1Hz curl loop against
+      # the victim's global Service, rolling-restarts clustermesh-apiserver
+      # on victim, verifies Deployment generation incremented, computes
+      # per-peer transport-survival ratio. Output ${leader_role}-
+      # MeshRestartSurvivalProbe.jsonl. scale.py collect picks it up via
+      # _emit_restart_survival_probe_rows. Default OFF; opt-in via
+      # CL2_RESTART_SURVIVAL_PROBE_ENABLED=true.
+      launch_mesh_restart_survival_probe() {
+        local _scen="$1" _report_dir_base="$2"
+        RESTART_SURVIVAL_PID=""
+        if [ "${CL2_RESTART_SURVIVAL_PROBE_ENABLED:-false}" != "true" ]; then
+          echo "[restart-survival-probe] CL2_RESTART_SURVIVAL_PROBE_ENABLED=${CL2_RESTART_SURVIVAL_PROBE_ENABLED:-false}; skipping"
+          return 0
+        fi
+        local _script="${CL2_CONFIG_DIR}/mesh-restart-survival-probe.sh"
+        if [ ! -f "$_script" ]; then
+          echo "##vso[task.logissue type=warning;] mesh-restart-survival-probe: $_script not found; skipping"
+          return 0
+        fi
+        local _clusters_json="$HOME/.kube/clustermesh-clusters.json"
+        local _n
+        _n=$(jq -r 'length' "$_clusters_json" 2>/dev/null || echo 0)
+        if [ "$_n" -lt 2 ]; then
+          echo "##vso[task.logissue type=warning;] mesh-restart-survival-probe: need >=2 clusters, got $_n; skipping"
+          return 0
+        fi
+        local _leader_role _out_dir _log _prewait
+        _leader_role=$(jq -r '[.[] | .role | capture("mesh-(?<n>[0-9]+)") | .n | tonumber] | min as $m | "mesh-\($m)"' "$_clusters_json")
+        _out_dir="${_report_dir_base}/${_leader_role}"
+        mkdir -p "$_out_dir"
+        _log="${_out_dir}/mesh-restart-survival-probe.log"
+        echo "===== mesh-restart-survival-probe launch: scenario=${_scen} leader=${_leader_role} =====" | tee -a "$_log"
+        _prewait="${CL2_RESTART_SURVIVAL_PROBE_PREWAIT_S:-60}"
+        (
+          echo "[restart-survival-probe] prewait ${_prewait}s..."
+          sleep "$_prewait"
+          REPORT_DIR="$_out_dir" \
+          SCENARIO_NAME="$_scen" \
+          LEADER_ROLE="$_leader_role" \
+          PROBE_NS="${CL2_PROBE_NAMESPACE:-clustermesh-probe-1}" \
+          CLUSTERMESH_CLUSTERS_JSON="$_clusters_json" \
+          CL2_RESTART_SURVIVAL_PROBE_COUNT="${CL2_RESTART_SURVIVAL_PROBE_COUNT:-2}" \
+          CL2_RESTART_SURVIVAL_PROBE_INTERVAL_S="${CL2_RESTART_SURVIVAL_PROBE_INTERVAL_S:-180}" \
+          CL2_RESTART_SURVIVAL_PROBE_TIMEOUT_S="${CL2_RESTART_SURVIVAL_PROBE_TIMEOUT_S:-300}" \
+          CL2_RESTART_SURVIVAL_DEPLOY_NAME="${CL2_RESTART_SURVIVAL_DEPLOY_NAME:-clustermesh-apiserver}" \
+          CL2_RESTART_SURVIVAL_DEPLOY_NS="${CL2_RESTART_SURVIVAL_DEPLOY_NS:-kube-system}" \
+          bash "$_script" 2>&1 | tee -a "$_log"
+        ) &
+        RESTART_SURVIVAL_PID=$!
+        echo "mesh-restart-survival-probe: launched PID=$RESTART_SURVIVAL_PID for scenario=${_scen}; log=${_log}"
+      }
+
+      wait_mesh_restart_survival_probe() {
+        local _scen="$1"
+        if [ -z "${RESTART_SURVIVAL_PID:-}" ]; then
+          return 0
+        fi
+        echo "mesh-restart-survival-probe: waiting on PID=$RESTART_SURVIVAL_PID for scenario=${_scen}"
+        local _rc=0
+        wait "$RESTART_SURVIVAL_PID" || _rc=$?
+        if [ "$_rc" -ne 0 ]; then
+          echo "##vso[task.logissue type=warning;] mesh-restart-survival-probe: scenario=${_scen} exited rc=${_rc}; check MeshRestartSurvivalProbe.jsonl + mesh-restart-survival-probe.log"
+        else
+          echo "mesh-restart-survival-probe: scenario=${_scen} completed cleanly"
+        fi
+        RESTART_SURVIVAL_PID=""
+      }
+
+      # Sentinel dir bind-mounted into every CL2 container at
+      # /root/perf-tests/clusterloader2/config/sentinels (CL2_CONFIG_DIR is
+      # bind-mounted at /root/perf-tests/clusterloader2/config). Per-cluster
+      # CL2 writes ready-<cluster_context> when it enters the measurement
+      # window; node-churner.sh polls for $cluster_count sentinel files
+      # before starting the first nodepool op. Cleared per scenario so
+      # stale sentinels from a previous scenario don't fool the barrier.
+      SENTINEL_DIR="${CL2_CONFIG_DIR}/sentinels"
+      mkdir -p "$SENTINEL_DIR"
+
+      # Launch node-churner.sh for the named scenario; populates
+      # NODE_CHURNER_PID. Caller must:
+      #   - mkdir -p the per-cluster target report dir BEFORE calling so
+      #     the churner has a writable place for NodeChurnTimings_*.json
+      #   - call `wait $NODE_CHURNER_PID` after execute-parallel returns
+      #   - unset NODE_CHURNER_PID after wait
+      launch_node_churner() {
+        local _scen="$1" _report_dir_base="$2"
+        # Discover target cluster + kubeconfig from the augmented clusters
+        # JSON written to $HOME/.kube/clustermesh-clusters.json. The shell
+        # `$clusters` var in this script is the EARLY discovery output
+        # WITHOUT the kubeconfig field; using it here gave node-churner an
+        # empty TARGET_KUBECONFIG arg in build 67126.
+        local _all _target_role _target_row
+        _all=$(cat "$HOME/.kube/clustermesh-clusters.json" 2>/dev/null || echo "[]")
+        _target_role="${CL2_NODE_CHURN_TARGET_CONTEXT}"
+        # Map role → AKS name + RG. Our tfvars set aks_name == role-derived
+        # name (e.g., role=mesh-1 → name=clustermesh-1), and `az aks
+        # get-credentials` writes kubectl context = AKS name. So
+        # CL2_NODE_CHURN_TARGET_CONTEXT is the AKS cluster name.
+        _target_row=$(echo "$_all" | jq -c --arg n "$_target_role" '.[] | select(.name==$n)')
+        if [ -z "$_target_row" ]; then
+          # Fallback: maybe the user set NODE_CHURN_TARGET_CONTEXT to a role.
+          _target_row=$(echo "$_all" | jq -c --arg r "$_target_role" '.[] | select(.role==$r)')
+        fi
+        if [ -z "$_target_row" ]; then
+          echo "##vso[task.logissue type=warning;] node-churner: target cluster '${_target_role}' not found in discovered clusters; skipping scenario stimulus"
+          NODE_CHURNER_PID=""
+          return 0
+        fi
+        local _target_name _target_rg _target_role_field _target_kubeconfig
+        _target_name=$(echo "$_target_row" | jq -r '.name')
+        _target_rg=$(echo "$_target_row" | jq -r '.rg')
+        _target_role_field=$(echo "$_target_row" | jq -r '.role')
+        _target_kubeconfig=$(echo "$_target_row" | jq -r '.kubeconfig // ""')
+
+        # Per-scenario expected duration (matches the CL2 sleep window).
+        local _expected_dur
+        case "$_scen" in
+          node-churn-scale)    _expected_dur="$CL2_NODE_CHURN_SCALE_DURATION_SECONDS" ;;
+          node-churn-replace)  _expected_dur="$CL2_NODE_CHURN_REPLACE_DURATION_SECONDS" ;;
+          node-churn-combined) _expected_dur="$CL2_NODE_CHURN_COMBINED_DURATION_SECONDS" ;;
+          *)                   _expected_dur=1500 ;;
+        esac
+
+        # Clear sentinels for THIS scenario so the prior scenario's
+        # leftovers (if any) don't pre-trigger the barrier.
+        rm -f "$SENTINEL_DIR"/ready-* 2>/dev/null || true
+
+        # Target report dir for NodeChurnTimings_*.json. Pre-create so
+        # node-churner.sh can write even before CL2 finishes for that
+        # cluster (CL2 lazy-creates report dirs).
+        local _target_report_dir="${_report_dir_base}/${_target_role_field}"
+        mkdir -p "$_target_report_dir"
+
+        local _churner_log="${_target_report_dir}/node-churner.log"
+        echo "===== node-churner launch: scenario=${_scen} target=${_target_name} rg=${_target_rg} =====" | tee -a "$_churner_log"
+
+        # Dedicated process group ensures a scenario timeout reaches the
+        # churner and its Azure CLI children together. Redirect directly to
+        # the log (no tee pipeline) so the EXIT finalizer keeps a live output
+        # sink after SIGTERM while it restores the pool.
+        node_churn_cleanup_grace=$(( \
+          CL2_NODE_CHURN_FINALIZER_TIMEOUT_SECONDS +
+          CL2_NODE_CHURN_RECOVERY_GRACE_SECONDS +
+          60 ))
+        node_churn_runtime=$(( \
+          _expected_dur +
+          CL2_NODE_CHURN_READY_TIMEOUT_SECONDS +
+          CL2_NODE_CHURN_FINALIZER_TIMEOUT_SECONDS +
+          CL2_NODE_CHURN_RECOVERY_GRACE_SECONDS +
+          60 ))
+        setsid timeout --signal=TERM \
+          --kill-after="${node_churn_cleanup_grace}s" \
+          "${node_churn_runtime}s" \
+          bash "$NODE_CHURNER_SCRIPT" \
+            "$_scen" \
+            "$_target_name" \
+            "$_target_rg" \
+            "$CL2_NODE_CHURN_TARGET_NODEPOOL" \
+            "$_target_report_dir" \
+            "$SENTINEL_DIR" \
+            "$cluster_count" \
+            "$CL2_NODE_CHURN_CYCLES" \
+            "$CL2_NODE_CHURN_DELTA" \
+            "$CL2_NODE_CHURN_SETTLE_SECONDS" \
+            "$CL2_NODE_REPLACE_BATCH_SIZE" \
+            "$CL2_NODE_CHURN_READY_TIMEOUT_SECONDS" \
+            "$_expected_dur" \
+            "$_target_kubeconfig" >> "$_churner_log" 2>&1 &
+        NODE_CHURNER_PID=$!
+        NODE_CHURNER_LOG="$_churner_log"
+        echo "node-churner: launched PID=$NODE_CHURNER_PID for scenario=${_scen}; log=${_churner_log}"
+      }
+
+      # Wait helper — caller invokes after execute-parallel returns.
+      wait_node_churner() {
+        local _scen="$1"
+        NODE_CHURNER_WAIT_RC=0
+        if [ -z "${NODE_CHURNER_PID:-}" ]; then
+          return 0
+        fi
+        echo "node-churner: waiting on PID=$NODE_CHURNER_PID for scenario=${_scen}"
+        wait "$NODE_CHURNER_PID" || NODE_CHURNER_WAIT_RC=$?
+        if [ -s "${NODE_CHURNER_LOG:-}" ]; then
+          cat "$NODE_CHURNER_LOG"
+        fi
+        if [ "$NODE_CHURNER_WAIT_RC" -ne 0 ]; then
+          echo "##vso[task.logissue type=warning;] node-churner: scenario=${_scen} exited rc=${NODE_CHURNER_WAIT_RC}; cleanup completion is unverifiable"
+        fi
+        NODE_CHURNER_PID=""
+        NODE_CHURNER_LOG=""
+        return 0
+      }
+
+      # Proactive failure-time debug dump — runs after every scenario
+      # (always for node-churn; on rc!=0 for others). Writes diagnostic
+      # state to <report_dir>/_debug/scenario-diag-<scenario>.log so
+      # postmortem doesn't depend on AzDO retaining stdout. Captures:
+      #   - per-cluster `kubectl get nodes` (Ready state, IPs)
+      #   - per-cluster `kubectl -n kube-system get pods` (mesh + workload pods)
+      #   - per-cluster `cilium clustermesh status` (mesh health)
+      #   - clusters JSON snapshot
+      #   - share-infra meta snapshot
+      #   - node-churner.log + NodeChurnTimings_*.json contents (for node-churn)
+      # User direction 2026-05-14: assume failure; keep this dump baked
+      # in until end-to-end node-churn is green.
+      scenario_failure_diag() {
+        local _scen="$1" _rc="${2:-0}"
+        local _diag_dir="${CL2_REPORT_DIR}/_debug"
+        mkdir -p "$_diag_dir"
+        local _diag_log="${_diag_dir}/scenario-diag-${_scen}.log"
+        # Read augmented clusters JSON (has kubeconfig field) — the shell
+        # `$clusters` var earlier in this script is the EARLY discovery
+        # output WITHOUT kubeconfig. Build 67126 regression: using
+        # `$clusters` here caused _kc=null → kubectl context errors.
+        local _clusters_with_kc
+        _clusters_with_kc=$(cat "$HOME/.kube/clustermesh-clusters.json" 2>/dev/null || echo "[]")
+        {
+          echo "================================================================"
+          echo "=== scenario-failure-diag: scenario=${_scen} rc=${_rc}"
+          echo "=== timestamp: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          echo "================================================================"
+          echo ""
+          echo "-- clusters JSON (kubeconfig-augmented) --"
+          echo "$_clusters_with_kc" | jq . 2>&1 || echo "$_clusters_with_kc"
+          echo ""
+          if [ -f "${SHARE_INFRA_META:-/nonexistent}" ]; then
+            echo "-- share-infra meta --"
+            jq . "$SHARE_INFRA_META" 2>&1 || cat "$SHARE_INFRA_META"
+            echo ""
+          fi
+          echo "-- per-cluster state --"
+          for _row in $(echo "$_clusters_with_kc" | jq -c '.[]'); do
+            local _role _name _kc
+            _role=$(echo "$_row" | jq -r '.role')
+            _name=$(echo "$_row" | jq -r '.name')
+            _kc=$(echo "$_row" | jq -r '.kubeconfig')
+            echo "--- cluster ${_role} (${_name}, kubeconfig=${_kc}) ---"
+            if [ ! -f "$_kc" ]; then
+              echo "(kubeconfig file missing: ${_kc})"
+              continue
+            fi
+            echo "-- nodes --"
+            KUBECONFIG="$_kc" kubectl --context "$_name" get nodes -o wide 2>&1 | head -40 || echo "(kubectl get nodes failed)"
+            echo "-- nodes providerID --"
+            KUBECONFIG="$_kc" kubectl --context "$_name" get nodes \
+              -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.spec.providerID}{"\n"}{end}' 2>&1 | head -40 || true
+            echo "-- kube-system pods (clustermesh/cilium) --"
+            KUBECONFIG="$_kc" kubectl --context "$_name" -n kube-system get pods \
+              -l 'k8s-app in (clustermesh-apiserver,cilium)' -o wide 2>&1 | head -20 || true
+            echo "-- recent kube-system events --"
+            KUBECONFIG="$_kc" kubectl --context "$_name" -n kube-system get events \
+              --sort-by=.lastTimestamp 2>&1 | tail -20 || true
+            # APF / kwok-controller / readiness diag. Root-cause of the n2 mesh-1
+            # readiness collapse (build 72911) was API Priority & Fairness starvation
+            # of the workload-low class throttling kwok-controller's pod-status PATCHes.
+            # These four probes surface that in-band, at the moment of failure, so future
+            # postmortems don't need a 30-min prom-snapshot dive.
+            echo "-- APF rejections by priority (non-zero; kwok status-PATCHes live in workload-low) --"
+            KUBECONFIG="$_kc" kubectl --context "$_name" get --raw /metrics 2>/dev/null \
+              | awk '/^apiserver_flowcontrol_rejected_requests_total/ && $NF+0 != 0 { if (++n <= 20) print } END { if (n==0) exit 1 }' \
+              || echo "(no non-zero APF rejections / metrics unavailable)"
+            echo "-- kwok-controller pod + restart count --"
+            KUBECONFIG="$_kc" kubectl --context "$_name" -n kube-system get pods \
+              -l 'app=kwok-controller' -o wide 2>&1 | head -10 || true
+            echo "-- kwok-controller client-side throttling (last 100 log lines) --"
+            KUBECONFIG="$_kc" kubectl --context "$_name" -n kube-system logs \
+              -l 'app=kwok-controller' --tail=100 2>/dev/null \
+              | grep -iE 'throttl|client-side|Waited for|429' | tail -15 || echo "(no throttle log lines)"
+            echo "-- fresh deployment readiness tally (fresh API read; bypasses CL2 informer -> real vs cosmetic) --"
+            KUBECONFIG="$_kc" kubectl --context "$_name" get deploy -A --no-headers 2>/dev/null \
+              | awk '{n=split($3,a,"/"); if(n==2){rd+=a[1]; ds+=a[2]; if(a[1]<a[2]) under++}} END{printf "  deployments=%d under-ready=%d readyReplicas=%d desiredReplicas=%d\n", NR, under+0, rd+0, ds+0}' \
+              || echo "(deploy tally failed)"
+            echo "-- kwok-controller APF objects present? (Step 1.5) --"
+            KUBECONFIG="$_kc" kubectl --context "$_name" get \
+              flowschema/kwok-controller prioritylevelconfiguration/kwok-controller 2>&1 | head -6 \
+              || echo "(kwok-controller APF objects MISSING — provision-kwok-layer Step 1.5 did not land)"
+            echo ""
+          done
+          echo "-- sentinel dir contents (${SENTINEL_DIR:-unset}) --"
+          ls -la "${SENTINEL_DIR:-/nonexistent}" 2>&1 || echo "(sentinel dir missing)"
+          echo ""
+          if is_node_churn_scenario "$_scen"; then
+            echo "-- node-churn timing files + logs --"
+            # Two report-dir layouts exist:
+            #   share-infra mode: <CL2_REPORT_DIR>/<scen>/<role>/...
+            #   solo-scenario mode: <CL2_REPORT_DIR>/<role>/...
+            # Search BOTH from CL2_REPORT_DIR root so we pick up
+            # NodeChurnTimings_*.json regardless of layout. Trailing
+            # `|| true` so an empty find (no files match) doesn't
+            # propagate non-zero through pipefail → set -e (build 67542
+            # solo-scenario n2_node_churn_combined exited 1 here even
+            # though both clusters' CL2 succeeded — find returned 1
+            # because the share-infra-style path didn't exist).
+            find "${CL2_REPORT_DIR}" \
+              \( -name 'NodeChurnTimings_*.json' -o -name 'node-churner*.log' \) \
+              2>/dev/null | while IFS= read -r _f; do
+              echo "--- ${_f} ---"
+              cat "$_f" 2>&1 || true
+              echo ""
+            done || true
+          fi
+          if is_upper_bound_scenario "$_scen"; then
+            echo "-- upper-bound scenario state --"
+            echo "-- CL2_SATURATION_* env (as passed into CL2) --"
+            env | grep -E '^CL2_SATURATION_' 2>&1 || echo "(no CL2_SATURATION_* env vars)"
+            echo ""
+            echo "-- rendered overrides.yaml (CL2 sees this — verifies scale.py configure landed the saturation knobs) --"
+            if [ -f "${CL2_CONFIG_DIR}/overrides.yaml" ]; then
+              grep -E '^CL2_(SATURATION|NAMESPACES|DEPLOYMENTS|REPLICAS)' "${CL2_CONFIG_DIR}/overrides.yaml" 2>&1 || true
+            else
+              echo "(${CL2_CONFIG_DIR}/overrides.yaml does not exist)"
+            fi
+            echo ""
+            # Per-cluster: which rung measurement files made it to disk?
+            # If a rung is missing entirely, the classifier flags rung_completed=false;
+            # this dump tells postmortem WHY (e.g. CL2 timed out mid-rung,
+            # Prometheus pod was Pending, restart-burst hung).
+            for _row in $(echo "$_clusters_with_kc" | jq -c '.[]'); do
+              local _role _name _kc
+              _role=$(echo "$_row" | jq -r '.role')
+              _name=$(echo "$_row" | jq -r '.name')
+              _kc=$(echo "$_row" | jq -r '.kubeconfig')
+              # Single-scenario mode: report dir is <CL2_REPORT_DIR>/<role>.
+              # Share-infra mode: <CL2_REPORT_DIR>/<scenario>/<role>. Try both.
+              local _report_dir="${CL2_REPORT_DIR}/${_scen}/${_role}"
+              if [ ! -d "$_report_dir" ]; then
+                _report_dir="${CL2_REPORT_DIR}/${_role}"
+              fi
+              echo "--- cluster ${_role} (${_name}) report dir: ${_report_dir} ---"
+              echo "-- per-rung measurement file counts --"
+              for _rung in 0 1 2 3 4 5 6 7; do
+                # CL2 emits filenames like "GenericPrometheusQuery <metricName> Rung<N>_<group>_<ts>.json"
+                # with a SPACE between method and metric name (build 67211 verified).
+                # Match both space and legacy underscore conventions via "GenericPrometheusQuery*".
+                local _count
+                _count=$(find "${_report_dir}" -maxdepth 1 -name "GenericPrometheusQuery*Rung${_rung}_*.json" 2>/dev/null | wc -l)
+                if [ "$_count" -gt 0 ]; then
+                  echo "  Rung${_rung}: ${_count} measurement files"
+                fi
+              done
+              echo "-- junit.xml (CL2 phase pass/fail per rung) --"
+              if [ -f "${_report_dir}/junit.xml" ]; then
+                head -200 "${_report_dir}/junit.xml" 2>&1 || true
+              else
+                echo "(no junit.xml — CL2 likely failed before gathering measurements)"
+              fi
+              echo "-- monitoring/prometheus pod status (saturation can OOM Prom) --"
+              if [ -f "$_kc" ]; then
+                KUBECONFIG="$_kc" kubectl --context "$_name" -n monitoring get pods \
+                  -o wide 2>&1 | head -20 || echo "(kubectl get pods -n monitoring failed)"
+                echo "-- clustermesh-apiserver pod resource state (OOM/Restart signals) --"
+                KUBECONFIG="$_kc" kubectl --context "$_name" -n kube-system describe pod \
+                  -l 'k8s-app=clustermesh-apiserver' 2>&1 \
+                  | grep -E 'OOMKilled|Last State|Restart Count|Ready:' \
+                  | head -30 || true
+              else
+                echo "(kubeconfig missing: ${_kc})"
+              fi
+              echo ""
+            done
+          fi
+          echo "=== end scenario-failure-diag ==="
+        } 2>&1 | tee -a "$_diag_log"
+        echo "scenario-failure-diag: wrote ${_diag_log}"
+      }
+
+      if [ -n "${SHARE_INFRA_SCENARIOS:-}" ]; then
+        # Trim whitespace from each entry, split on comma.
+        IFS=',' read -ra SCENARIO_LIST <<< "$SHARE_INFRA_SCENARIOS"
+        for i in "${!SCENARIO_LIST[@]}"; do
+          SCENARIO_LIST[$i]="$(echo "${SCENARIO_LIST[$i]}" | xargs)"
+        done
+
+        # Pre-validate: non-empty, all referenced config files exist, no
+        # blanks (catches trailing commas, whitespace-only entries).
+        if [ "${#SCENARIO_LIST[@]}" -eq 0 ]; then
+          echo "##vso[task.logissue type=error;] SHARE_INFRA_SCENARIOS is set but empty after split"
+          exit 1
+        fi
+        for s in "${SCENARIO_LIST[@]}"; do
+          if [ -z "$s" ]; then
+            echo "##vso[task.logissue type=error;] SHARE_INFRA_SCENARIOS contains empty entry; got: '$SHARE_INFRA_SCENARIOS'"
+            exit 1
+          fi
+          if [ ! -f "${CL2_CONFIG_DIR}/${s}.yaml" ]; then
+            echo "##vso[task.logissue type=error;] CL2 config file not found: ${CL2_CONFIG_DIR}/${s}.yaml (from SHARE_INFRA_SCENARIOS=$SHARE_INFRA_SCENARIOS)"
+            exit 1
+          fi
+        done
+
+        # Persist the validated scenario list + per-scenario start timestamps
+        # for downstream collect.yml. Written to the kubeconfig dir alongside
+        # clustermesh-clusters.json so it's deterministically discoverable.
+        SHARE_INFRA_META="$HOME/.kube/share-infra-meta.json"
+        echo "[]" > "$SHARE_INFRA_META"
+
+        echo "============================================="
+        echo "Share-infra mode: ${#SCENARIO_LIST[@]} scenarios in this lifecycle: ${SCENARIO_LIST[*]}"
+        echo "============================================="
+        suite_job_start_epoch="${CLUSTERMESH_JOB_START_EPOCH:-}"
+        if ! [[ "$suite_job_start_epoch" =~ ^[0-9]+$ ]]; then
+          echo "##vso[task.logissue type=error;] CLUSTERMESH_JOB_START_EPOCH is missing or invalid; refusing to run without the protected finalization budget"
+          ado_set_variable SHARE_INFRA_META "$SHARE_INFRA_META"
+          ado_complete_with_issues
+          exit 0
+        fi
+
+        for i in "${!SCENARIO_LIST[@]}"; do
+          SCENARIO="${SCENARIO_LIST[$i]}"
+          scenario_idx=$((i + 1))
+          scenario_budget=$(scenario_budget_seconds "$SCENARIO")
+          scenario_worker_timeout=$(scenario_worker_timeout_seconds \
+            "$SCENARIO" "$scenario_budget")
+          scenario_post_budget=$(scenario_post_budget_seconds "$SCENARIO")
+          artifact_preservation_budget=$(scenario_artifact_budget_seconds)
+          final_lifecycle_budget=$(scenario_final_lifecycle_budget_seconds)
+          scenario_diag_budget=$(scenario_diag_budget_seconds)
+          # scenario_post_budget already folds in ONE (the "after") mock
+          # reconcile pass; add the "before" pass here so the pre-flight
+          # budget check covers both without touching the finalization
+          # reserve, which is kept as its own separate additive term below.
+          mock_reconcile_pre_budget=$(scenario_mock_reconcile_budget_seconds)
+          cilium_policy_guard_budget=0
+          if [ "${AKS_CILIUM_POLICY_GUARD_ENABLED:-false}" = "true" ]; then
+            cilium_policy_guard_budget=$(( ${AKS_CILIUM_POLICY_GUARD_TIMEOUT_SECONDS:-1800} + ${AKS_CILIUM_POLICY_GUARD_COMMAND_TIMEOUT_SECONDS:-900} * cluster_count + 60 ))
+          fi
+          if [ "$CL2_SUITE_TOTAL_BUDGET_SECONDS" -gt 0 ]; then
+            now_epoch=$(date +%s)
+            elapsed_seconds=$(( now_epoch - suite_job_start_epoch ))
+            remaining_seconds=$(( CL2_SUITE_TOTAL_BUDGET_SECONDS - elapsed_seconds ))
+            required_seconds=$(( scenario_budget + scenario_post_budget + mock_reconcile_pre_budget + cilium_policy_guard_budget + final_lifecycle_budget + CL2_SUITE_FINALIZATION_RESERVE_SECONDS ))
+            echo "Suite budget: elapsed=${elapsed_seconds}s remaining=${remaining_seconds}s scenario_estimate=${scenario_budget}s post_scenario_estimate=${scenario_post_budget}s mock_reconcile_pre_estimate=${mock_reconcile_pre_budget}s final_lifecycle_estimate=${final_lifecycle_budget}s finalization_reserve=${CL2_SUITE_FINALIZATION_RESERVE_SECONDS}s"
+            if [ "$remaining_seconds" -lt "$required_seconds" ]; then
+              skipped_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+              jq \
+                --arg name "$SCENARIO" \
+                --arg skipped_at "$skipped_at" \
+                --arg reason "insufficient_time_budget" \
+                --argjson remaining "$remaining_seconds" \
+                --argjson required "$required_seconds" \
+                '. += [{
+                  scenario: $name,
+                  skipped: true,
+                  skipped_at: $skipped_at,
+                  skip_reason: $reason,
+                  remaining_budget_seconds: $remaining,
+                  required_budget_seconds: $required
+                }]' \
+                "$SHARE_INFRA_META" > "${SHARE_INFRA_META}.tmp" &&
+                mv "${SHARE_INFRA_META}.tmp" "$SHARE_INFRA_META"
+              echo "##vso[task.logissue type=error;] Not starting ${SCENARIO}: doing so would consume the protected finalization reserve"
+              overall_rc=1
+              break
+            fi
+          fi
+          if ! check_agent_disk_headroom; then
+            overall_rc=1
+            break
+          fi
+          if ! check_agent_memory_headroom; then
+            overall_rc=1
+            break
+          fi
+
+          if ! run_cilium_policy_guard "${CL2_REPORT_DIR}/${SCENARIO}/cilium-policy-guard-before.json"; then
+            skipped_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+            jq --arg name "$SCENARIO" --arg skipped_at "$skipped_at" \
+              '. += [{scenario:$name, skipped:true, skip_reason:"cilium_guard_failed", start_timestamp:$skipped_at, end_timestamp:$skipped_at}]' \
+              "$SHARE_INFRA_META" > "${SHARE_INFRA_META}.tmp" &&
+              mv "${SHARE_INFRA_META}.tmp" "$SHARE_INFRA_META"
+            echo "##vso[task.logissue type=error;] ${SCENARIO}: Cilium guard failed"
+            overall_rc=1
+            break
+          fi
+
+          # Pre-scenario shared-infra recovery (mock mode only). This is
+          # NOT this scenario's measurement — it's proving/repairing the
+          # shared mock layer BEFORE this scenario's stimulus runs. A
+          # failure here means the environment is unsafe for ANY further
+          # scenario, so we record it as a skipped entry (like the budget
+          # check above) and stop the whole suite.
+          mock_reconcile_before_output="${CL2_REPORT_DIR}/${SCENARIO}/mock-layer-reconcile-before.json"
+          if ! run_mock_layer_reconcile "before" "$mock_reconcile_before_output"; then
+            skipped_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+            jq \
+              --arg name "$SCENARIO" \
+              --arg skipped_at "$skipped_at" \
+              --arg reason "pre_scenario_mock_reconcile_failed" \
+              '. += [{
+                scenario: $name,
+                skipped: true,
+                skipped_at: $skipped_at,
+                skip_reason: $reason
+              }]' \
+              "$SHARE_INFRA_META" > "${SHARE_INFRA_META}.tmp" &&
+              mv "${SHARE_INFRA_META}.tmp" "$SHARE_INFRA_META"
+            echo "##vso[task.logissue type=error;] Not starting ${SCENARIO}: pre-scenario shared-infra mock-layer recovery failed; environment is unsafe for further scenarios"
+            overall_rc=1
+            break
+          fi
+
+          echo "============================================="
+          echo "Scenario [${scenario_idx}/${#SCENARIO_LIST[@]}]: ${SCENARIO}"
+          echo "============================================="
+          scenario_start=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          jq --arg name "$SCENARIO" --arg start "$scenario_start" \
+            '. += [{"scenario": $name, "start_timestamp": $start}]' \
+            "$SHARE_INFRA_META" > "${SHARE_INFRA_META}.tmp" && mv "${SHARE_INFRA_META}.tmp" "$SHARE_INFRA_META"
+
+          # Per-scenario report dir so collect.yml can iterate per-scenario.
+          # tear_down_prometheus=True so each scenario gets a clean Prom deploy
+          # (rather than colliding with the previous scenario's leftover
+          # PodMonitor + scrape config).
+          #
+          # Per-scenario max_concurrent override:
+          # The isolation scenario REQUIRES every peer cluster's Prometheus
+          # window to overlap the target's 10min churn window — otherwise
+          # peers in later batches start CL2 AFTER target's churn has
+          # ended and produce useless rows for the A/B. Bump concurrency to
+          # mesh_size (== cluster_count) for isolation. Safe at n=20 because
+          # peers SLEEP during the kill window — 1 heavy container + 19
+          # idle ones easily fits the agent. Same override applies to
+          # node-churn-* scenarios: node-churner.sh's ready-sentinel
+          # barrier requires every cluster's CL2 to be running before the
+          # first nodepool op fires.
+          if needs_mesh_wide_concurrency "$SCENARIO"; then
+            EFFECTIVE_MAX_CONCURRENT="${cluster_count}"
+            echo "Scenario ${SCENARIO}: overriding max_concurrent ${CL2_MAX_CONCURRENT:-4} → ${EFFECTIVE_MAX_CONCURRENT} (mesh-wide observation required)"
+          else
+            EFFECTIVE_MAX_CONCURRENT="${CL2_MAX_CONCURRENT:-4}"
+          fi
+          # Launch the host-side stimulus driver for node-churn-* scenarios
+          # BEFORE execute-parallel so the churner is ready to consume CL2
+          # sentinels as soon as the per-cluster CL2 containers start.
+          NODE_CHURNER_PID=""
+          NODE_CHURNER_WAIT_RC=0
+          if is_node_churn_scenario "$SCENARIO"; then
+            launch_node_churner "$SCENARIO" "${CL2_REPORT_DIR}/${SCENARIO}"
+          fi
+          # Propagation probe runs host-side too — orchestrator script
+          # polls all N peers' ipcache/identity/CEP. Launched in background
+          # before execute-parallel; we wait after the CL2 phase ends.
+          PROBE_PID=""
+          RECOVERY_PID=""
+          DETACH_REJOIN_PID=""
+          POLICY_PROP_PID=""
+          FAILOVER_PID=""
+          RESTART_SURVIVAL_PID=""
+          if is_propagation_probe_scenario "$SCENARIO"; then
+            launch_propagation_probe "$SCENARIO" "${CL2_REPORT_DIR}/${SCENARIO}"
+            launch_mesh_recovery_probe "$SCENARIO" "${CL2_REPORT_DIR}/${SCENARIO}"
+            launch_mesh_detach_rejoin_probe "$SCENARIO" "${CL2_REPORT_DIR}/${SCENARIO}"
+            launch_mesh_policy_propagation_probe "$SCENARIO" "${CL2_REPORT_DIR}/${SCENARIO}"
+            launch_mesh_failover_probe "$SCENARIO" "${CL2_REPORT_DIR}/${SCENARIO}"
+            launch_mesh_restart_survival_probe "$SCENARIO" "${CL2_REPORT_DIR}/${SCENARIO}"
+          fi
+          scenario_rc=0
+          non_worker_failure=false
+          worker_summary="${CL2_REPORT_DIR}/${SCENARIO}/worker-summary.json"
+          rm -f "$worker_summary"
+          timeout --signal=TERM --kill-after=60s "${scenario_budget}s" \
+            env PYTHONPATH="$PYTHONPATH:$(pwd)" \
+            python3 "$PYTHON_SCRIPT_FILE" execute-parallel \
+            --clusters "$HOME/.kube/clustermesh-clusters.json" \
+            --max-concurrent "${EFFECTIVE_MAX_CONCURRENT}" \
+            --worker-script "$WORKER_SCRIPT" \
+            --cl2-image "${CL2_IMAGE}" \
+            --cl2-config-dir "${CL2_CONFIG_DIR}" \
+            --cl2-config-file "${SCENARIO}.yaml" \
+            --cl2-report-dir-base "${CL2_REPORT_DIR}/${SCENARIO}" \
+            --provider "${CLOUD}" \
+            --python-script-file "$PYTHON_SCRIPT_FILE" \
+            --python-workdir "$(pwd)" \
+            --worker-timeout-seconds "$scenario_worker_timeout" \
+            --summary-file "$worker_summary" \
+            --tear-down-prometheus || scenario_rc=$?
+          if [ "$scenario_rc" -eq 124 ]; then
+            non_worker_failure=true
+            echo "##vso[task.logissue type=error;] ${SCENARIO}: exceeded its protected ${scenario_budget}s scenario budget"
+            node_churn_termination_grace=$(( \
+              CL2_NODE_CHURN_FINALIZER_TIMEOUT_SECONDS +
+              CL2_NODE_CHURN_RECOVERY_GRACE_SECONDS +
+              60 ))
+            terminate_process_group \
+              "${NODE_CHURNER_PID:-}" \
+              "node-churner" \
+              "$node_churn_termination_grace"
+            terminate_process_group "${PROBE_PID:-}" "propagation-probe"
+            for stimulus_pid in \
+                "${RECOVERY_PID:-}" \
+                "${DETACH_REJOIN_PID:-}" \
+                "${POLICY_PROP_PID:-}" \
+                "${FAILOVER_PID:-}" \
+                "${RESTART_SURVIVAL_PID:-}"; do
+              if [ -n "$stimulus_pid" ]; then
+                kill "$stimulus_pid" 2>/dev/null || true
+                wait "$stimulus_pid" 2>/dev/null || true
+              fi
+            done
+          fi
+          if [ "$scenario_rc" -ne 0 ] &&
+             [ -s "$worker_summary" ] &&
+             [ "$(jq -r '.failed_count // 0' "$worker_summary")" -eq 0 ] &&
+             [ "$(jq -r '.telemetry_failed_count // 0' "$worker_summary")" -eq 0 ]; then
+            non_worker_failure=true
+          fi
+
+          # Join node-churner BEFORE finalizing scenario_rc — the churner's
+          # finalizer must complete (pool restored to original count) before
+          # the next scenario starts, otherwise the next CL2 invocation
+          # could run against an in-flux topology.
+          wait_node_churner "$SCENARIO"
+          if [ "${NODE_CHURNER_WAIT_RC:-0}" -ne 0 ]; then
+            scenario_rc="$NODE_CHURNER_WAIT_RC"
+            non_worker_failure=true
+          fi
+          # Same for propagation + recovery probes: wait so JSONLs are
+          # finalized before collect runs.
+          wait_propagation_probe "$SCENARIO"
+          if [ "${PROBE_WAIT_RC:-0}" -ne 0 ]; then
+            scenario_rc="$PROBE_WAIT_RC"
+            non_worker_failure=true
+          fi
+          wait_mesh_recovery_probe "$SCENARIO"
+          wait_mesh_detach_rejoin_probe "$SCENARIO"
+          wait_mesh_policy_propagation_probe "$SCENARIO"
+          wait_mesh_failover_probe "$SCENARIO"
+          wait_mesh_restart_survival_probe "$SCENARIO"
+
+          target_stimulus_valid=true
+          target_role=""
+          if [ "$SCENARIO" = "apiserver-failure" ]; then
+            target_role=$(jq -r --arg name "$CL2_APISERVER_KILL_TARGET_CONTEXT" \
+              '.[] | select(.name == $name or .role == $name) | .role' \
+              "$HOME/.kube/clustermesh-clusters.json" | head -1)
+            apiserver_timing="${CL2_REPORT_DIR}/${SCENARIO}/${target_role}/ApiserverFailureTimings_${CL2_APISERVER_KILL_TARGET_CONTEXT}.json"
+            if [ -z "$target_role" ] ||
+               [ ! -s "$apiserver_timing" ] ||
+               ! jq -e '.recovered == true' "$apiserver_timing" >/dev/null 2>&1; then
+              target_stimulus_valid=false
+              scenario_rc=1
+              non_worker_failure=true
+              echo "##vso[task.logissue type=error;] apiserver-failure target recovery was not verified"
+            fi
+          elif [ "$SCENARIO" = "isolation" ]; then
+            target_role=$(jq -r --arg name "$CL2_APISERVER_KILL_TARGET_CONTEXT" \
+              '.[] | select(.name == $name or .role == $name) | .role' \
+              "$HOME/.kube/clustermesh-clusters.json" | head -1)
+            isolation_timing="${CL2_REPORT_DIR}/${SCENARIO}/${target_role}/IsolationChurnTimings_${CL2_APISERVER_KILL_TARGET_CONTEXT}.json"
+            if [ -z "$target_role" ] ||
+               [ ! -s "$isolation_timing" ] ||
+               ! jq -e '
+                 .stimulus_valid == true and
+                 .killer_exit_code == 0 and
+                 .killed_total > 0
+               ' "$isolation_timing" >/dev/null 2>&1; then
+              target_stimulus_valid=false
+              scenario_rc=1
+              non_worker_failure=true
+              echo "##vso[task.logissue type=error;] isolation target pod-churn stimulus was not verified"
+            fi
+          elif is_node_churn_scenario "$SCENARIO"; then
+            target_role=$(jq -r --arg name "$CL2_NODE_CHURN_TARGET_CONTEXT" \
+              '.[] | select(.name == $name or .role == $name) | .role' \
+              "$HOME/.kube/clustermesh-clusters.json" | head -1)
+            _churner_timing_file=$(find "${CL2_REPORT_DIR}/${SCENARIO}" \
+              -maxdepth 2 -type f \
+              -name "NodeChurnTimings_${CL2_NODE_CHURN_TARGET_CONTEXT}.json" \
+              -print -quit 2>/dev/null || true)
+            _cleanup_failed=true
+            _cleanup_recovered=false
+            _scenario_valid=false
+            if [ "${NODE_CHURNER_WAIT_RC:-0}" -eq 0 ] &&
+               [ -s "$_churner_timing_file" ] &&
+               _churner_timing_json=$(jq -c . "$_churner_timing_file" 2>/dev/null); then
+              # jq's `false // true` evaluates to true, so boolean fields that
+              # legitimately contain false must be distinguished from absence.
+              _cleanup_failed=$(jq -r '
+                if has("cleanup_failed") then .cleanup_failed else true end
+              ' <<<"$_churner_timing_json")
+              _cleanup_recovered=$(jq -r '
+                if has("cleanup_recovered") then .cleanup_recovered else false end
+              ' <<<"$_churner_timing_json")
+              _scenario_valid=$(jq -r '
+                if has("scenario_valid") then .scenario_valid else false end
+              ' <<<"$_churner_timing_json")
+            fi
+            if [ "$_cleanup_recovered" = "true" ]; then
+              echo "##vso[task.logissue type=warning;] node-churner required bounded recovery for ${SCENARIO}, then returned the target pool to healthy state"
+            fi
+            if [ -z "$target_role" ] ||
+               [ "$_scenario_valid" != "true" ] ||
+               [ "$_cleanup_failed" = "true" ]; then
+              target_stimulus_valid=false
+              scenario_rc=1
+              non_worker_failure=true
+              echo "##vso[task.logissue type=error;] node-churn target stimulus or cleanup was not verified"
+            fi
+          fi
+
+          if scenario_requires_target_success "$SCENARIO" &&
+             [ -z "$target_role" ]; then
+            if is_node_churn_scenario "$SCENARIO"; then
+              target_name="$CL2_NODE_CHURN_TARGET_CONTEXT"
+            else
+              target_name="$CL2_APISERVER_KILL_TARGET_CONTEXT"
+            fi
+            target_role=$(jq -r --arg name "$target_name" \
+              '.[] | select(.name == $name or .role == $name) | .role' \
+              "$HOME/.kube/clustermesh-clusters.json" | head -1)
+          fi
+
+          # B.3: file-only scenario evidence validation. Missing/malformed
+          # output means evidence_valid=false; this invalidates THIS
+          # scenario's measurement but does not itself stop later
+          # scenarios (that's governed by suite_continue below, which
+          # evidence_valid does not feed into).
+          evidence_output="${CL2_REPORT_DIR}/${SCENARIO}/scenario-evidence.json"
+          evidence_rc=0
+          python3 "$SCENARIO_EVIDENCE_SCRIPT" \
+            --scenario "$SCENARIO" \
+            --report-dir "${CL2_REPORT_DIR}/${SCENARIO}" \
+            --worker-summary "$worker_summary" \
+            --cluster-count "$cluster_count" \
+            --target-role "$target_role" \
+            --propagation-probe-count "${CL2_PROPAGATION_PROBE_COUNT:-20}" \
+            --propagation-peer-sample "${CL2_PROPAGATION_PROBE_PEER_SAMPLE:-20}" \
+            --saturation-qps-list "$CL2_SATURATION_QPS_LIST" \
+            --output "$evidence_output" || evidence_rc=$?
+          evidence_valid=false
+          if evidence_json=$(jq -c . "$evidence_output" 2>/dev/null) &&
+             [ -n "$evidence_json" ]; then
+            if jq -e '.measurement_valid == true' <<<"$evidence_json" >/dev/null 2>&1; then
+              evidence_valid=true
+            else
+              jq -r '.reasons[]? // empty' <<<"$evidence_json" |
+                while IFS= read -r reason; do
+                  echo "##vso[task.logissue type=error;] ${SCENARIO}: evidence: ${reason}"
+                done
+            fi
+          else
+            echo "##vso[task.logissue type=error;] ${SCENARIO}: scenario evidence output missing or malformed at ${evidence_output} (rc=${evidence_rc})"
+          fi
+
+          policy_output="${CL2_REPORT_DIR}/${SCENARIO}/scenario-policy.json"
+          policy_rc=0
+          python3 "$SCENARIO_POLICY_SCRIPT" \
+            --scenario "$SCENARIO" \
+            --cluster-count "$cluster_count" \
+            --worker-summary "$worker_summary" \
+            --target-role "$target_role" \
+            --non-worker-failure "$non_worker_failure" \
+            --target-stimulus-valid "$target_stimulus_valid" \
+            --evidence-valid "$evidence_valid" \
+            --output "$policy_output" || policy_rc=$?
+          measurement_valid=false
+          worker_failed_count="$cluster_count"
+          allowed_worker_failures=0
+          failure_rate=0
+          failed_roles_json='[]'
+          telemetry_failed_count=0
+          telemetry_failed_roles_json='[]'
+          worker_threshold_exceeded=true
+          if [ -s "$policy_output" ]; then
+            measurement_valid=$(jq -r '.measurement_valid' "$policy_output")
+            worker_failed_count=$(jq -r '.worker_failed_count' "$policy_output")
+            allowed_worker_failures=$(jq -r '.worker_allowed_failures' "$policy_output")
+            failure_rate=$(jq -r '.worker_failure_rate_percent' "$policy_output")
+            failed_roles_json=$(jq -c '.failed_roles // []' "$policy_output")
+            telemetry_failed_count=$(jq -r \
+              '.telemetry_failed_count // 0' "$policy_output")
+            telemetry_failed_roles_json=$(jq -c \
+              '.telemetry_failed_roles // []' "$policy_output")
+            worker_threshold_exceeded=$(jq -r \
+              '.worker_failed_count > .worker_allowed_failures' "$policy_output")
+            if jq -e '.tolerated_worker_failures == true' \
+                "$policy_output" >/dev/null; then
+              echo "##vso[task.logissue type=warning;] ${SCENARIO}: tolerating ${worker_failed_count}/${cluster_count} hard worker failure(s), allowed=${allowed_worker_failures} (${failure_rate}%)"
+            fi
+            if [ "$measurement_valid" != "true" ]; then
+              jq -r '.measurement_reasons[]' "$policy_output" |
+                while IFS= read -r reason; do
+                  echo "##vso[task.logissue type=error;] ${SCENARIO}: ${reason}"
+                done
+            fi
+          else
+            echo "##vso[task.logissue type=error;] ${SCENARIO}: scenario policy output is missing"
+          fi
+
+          artifact_preservation_rc=0
+          timeout --signal=TERM --kill-after=30s \
+            "${artifact_preservation_budget}s" \
+            env \
+              SCENARIO_REPORT_DIR="${CL2_REPORT_DIR}/${SCENARIO}" \
+              SCENARIO_NAME="$SCENARIO" \
+              RUN_ID="$RUN_ID" \
+              BUILD_ID="$BUILD_ID" \
+              SNAPSHOT_TIER="$SNAPSHOT_TIER" \
+              BUILD_BRANCH="$BUILD_BRANCH" \
+              STORAGE_ACCOUNT_NAME="$CL2_PROM_SNAPSHOT_STORAGE_ACCOUNT" \
+              CONTAINER_NAME="$CL2_PROM_SNAPSHOT_CONTAINER" \
+              TARGET_SUBSCRIPTION_ID="$TARGET_SUBSCRIPTION_ID" \
+              WORKER_SUMMARY_FILE="$worker_summary" \
+              RELABEL_SCRIPT="$SNAPSHOT_RELABEL_SCRIPT" \
+              CL2_PROM_SNAPSHOT_ENABLED="$CL2_PROM_SNAPSHOT_ENABLED" \
+              CL2_PROM_SNAPSHOT_TARGET="$CL2_PROM_SNAPSHOT_TARGET" \
+              bash "$SCENARIO_ARTIFACT_PRESERVER" || artifact_preservation_rc=$?
+
+          # Fix: parse the preservation script's OWN summary (authoritative)
+          # rather than treating every nonzero exit code as a shared
+          # evidence-infrastructure failure. The summary distinguishes:
+          #   - infrastructure_failure=true (Azure auth, blob upload/verify,
+          #     required tooling) -- or a missing/malformed summary, which
+          #     is fail-safe-treated the same way -- means the shared
+          #     evidence infrastructure itself is unsafe. artifact_preserved
+          #     is set false, which (via scenario_policy.py's
+          #     suite_stop_reasons/suite_continue) MUST stop later
+          #     scenarios.
+          #   - scenario_incomplete=true (missing/invalid worker summary,
+          #     missing/invalid role snapshots, relabel failure) with
+          #     infrastructure_failure=false means only THIS scenario's OWN
+          #     artifact set is incomplete. artifact_preserved stays true
+          #     (does NOT stop the suite) but folds into evidence_valid so
+          #     the final scenario_policy.py call below marks THIS
+          #     scenario's measurement_valid=false.
+          artifact_summary_file="${CL2_REPORT_DIR}/${SCENARIO}/artifact-preservation-summary.json"
+          artifact_preserved=true
+          artifact_infrastructure_failure=false
+          artifact_scenario_incomplete=false
+          if artifact_summary_json=$(jq -c . "$artifact_summary_file" 2>/dev/null) &&
+             [ -n "$artifact_summary_json" ]; then
+            artifact_infrastructure_failure=$(jq -r '.infrastructure_failure' <<<"$artifact_summary_json" 2>/dev/null)
+            artifact_scenario_incomplete=$(jq -r '.scenario_incomplete' <<<"$artifact_summary_json" 2>/dev/null)
+            if [ "$artifact_infrastructure_failure" != "true" ] && [ "$artifact_infrastructure_failure" != "false" ]; then
+              artifact_infrastructure_failure=true
+              echo "##vso[task.logissue type=error;] ${SCENARIO}: artifact preservation summary is missing infrastructure_failure; treating as an infrastructure failure"
+            fi
+            if [ "$artifact_scenario_incomplete" != "true" ] && [ "$artifact_scenario_incomplete" != "false" ]; then
+              artifact_scenario_incomplete=true
+            fi
+          else
+            artifact_infrastructure_failure=true
+            echo "##vso[task.logissue type=error;] ${SCENARIO}: artifact preservation summary is missing or malformed at ${artifact_summary_file} (rc=${artifact_preservation_rc})"
+          fi
+
+          if [ "$artifact_infrastructure_failure" = "true" ]; then
+            artifact_preserved=false
+            echo "##vso[task.logissue type=error;] ${SCENARIO}: per-scenario artifact preservation hit a shared evidence-infrastructure failure; this will stop later scenarios"
+          fi
+          if [ "$artifact_scenario_incomplete" = "true" ]; then
+            evidence_valid=false
+            measurement_valid=false
+            echo "##vso[task.logissue type=error;] ${SCENARIO}: per-scenario artifact preservation is incomplete for this scenario only; measurement invalidated, later scenarios are not stopped by this alone"
+          fi
+
+          scenario_end=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          jq \
+            --arg scenario_end "$scenario_end" \
+            --argjson result "$scenario_rc" \
+            --argjson worker_failed_count "$worker_failed_count" \
+            --argjson worker_allowed_failures "$allowed_worker_failures" \
+            --argjson worker_failure_rate_percent "$failure_rate" \
+            --argjson worker_threshold_exceeded "$worker_threshold_exceeded" \
+            --argjson failed_roles "$failed_roles_json" \
+            --argjson telemetry_failed_count "$telemetry_failed_count" \
+            --argjson telemetry_failed_roles "$telemetry_failed_roles_json" \
+            --argjson target_stimulus_valid "$target_stimulus_valid" \
+            --argjson artifact_preservation_rc "$artifact_preservation_rc" \
+            --argjson evidence_valid "$evidence_valid" \
+            --argjson artifact_preserved "$artifact_preserved" \
+            --argjson artifact_infrastructure_failure "$artifact_infrastructure_failure" \
+            --argjson artifact_scenario_incomplete "$artifact_scenario_incomplete" \
+            --argjson measurement_valid "$measurement_valid" \
+            '.[-1] += {
+              end_timestamp: $scenario_end,
+              result_code: $result,
+              worker_failed_count: $worker_failed_count,
+              worker_allowed_failures: $worker_allowed_failures,
+              worker_failure_rate_percent: $worker_failure_rate_percent,
+              worker_threshold_exceeded: $worker_threshold_exceeded,
+              failed_roles: $failed_roles,
+              telemetry_failed_count: $telemetry_failed_count,
+              telemetry_failed_roles: $telemetry_failed_roles,
+              target_stimulus_valid: $target_stimulus_valid,
+              artifact_preservation_rc: $artifact_preservation_rc,
+              evidence_valid: $evidence_valid,
+              artifact_preserved: $artifact_preserved,
+              artifact_infrastructure_failure: $artifact_infrastructure_failure,
+              artifact_scenario_incomplete: $artifact_scenario_incomplete,
+              measurement_valid: $measurement_valid
+            }' \
+            "$SHARE_INFRA_META" > "${SHARE_INFRA_META}.tmp" &&
+            mv "${SHARE_INFRA_META}.tmp" "$SHARE_INFRA_META"
+
+          # Proactive failure debug dump (added 2026-05-14 after build 67114).
+          # User direction: assume failure, keep debug logs persistent across
+          # runs; remove only after green. Runs unconditionally for node-churn
+          # AND upper-bound scenarios (both have rich state worth dumping
+          # whether or not CL2 succeeded); runs only on rc!=0 for others.
+          if is_node_churn_scenario "$SCENARIO" || is_upper_bound_scenario "$SCENARIO" || [ "$scenario_rc" -ne 0 ]; then
+            export -f scenario_failure_diag is_node_churn_scenario is_upper_bound_scenario
+            export SHARE_INFRA_META SENTINEL_DIR
+            if ! timeout --signal=TERM --kill-after=30s \
+                "${scenario_diag_budget}s" \
+                bash -c 'scenario_failure_diag "$1" "$2"' \
+                _ "$SCENARIO" "$scenario_rc"; then
+              echo "##vso[task.logissue type=warning;] ${SCENARIO}: diagnostic capture exceeded ${scenario_diag_budget}s or failed"
+            fi
+          fi
+
+          # Persist node-churn cleanup metadata after it has already informed
+          # the scenario policy and early artifact preservation above.
+          if is_node_churn_scenario "$SCENARIO"; then
+            jq \
+              --argjson cleanup_failed "$_cleanup_failed" \
+              --argjson cleanup_recovered "$_cleanup_recovered" \
+              --argjson scenario_valid "$_scenario_valid" \
+              '.[-1] += {
+                cleanup_failed: $cleanup_failed,
+                cleanup_recovered: $cleanup_recovered,
+                scenario_valid: $scenario_valid
+              }' \
+              "$SHARE_INFRA_META" > "${SHARE_INFRA_META}.tmp" &&
+              mv "${SHARE_INFRA_META}.tmp" "$SHARE_INFRA_META"
+
+          fi
+
+          # B.4.5: post-scenario ACTIVE cleanup of THIS scenario's own
+          # recoverable Kubernetes residue (namespaces, ACNS CRs, allowlisted
+          # monitoring/exporter objects) -- run AFTER diagnostics but BEFORE
+          # the mock-layer reconcile + health gate, so both of those observe
+          # an environment this scenario has already cleaned up after
+          # itself. This is repair, not proof: scenario-health-gate.sh below
+          # remains the proof-only, final authority, so a failure here is
+          # logged but does NOT independently stop the suite -- the health
+          # gate decides that.
+          cleanup_reconcile_output="${CL2_REPORT_DIR}/${SCENARIO}/scenario-cleanup-reconcile.json"
+          if ! run_scenario_cleanup_reconcile "$cleanup_reconcile_output"; then
+            echo "##vso[task.logissue type=warning;] ${SCENARIO}: scenario-cleanup-reconcile did not fully converge; deferring to the post-scenario health gate"
+          fi
+
+          # B.5: post-scenario shared-infra recovery (mock mode only), run
+          # AFTER diagnostics but BEFORE the health gate so the gate proves
+          # the layer this reconcile pass just repaired. Repairs
+          # missing/deleted/Failed bare mock agents, missing/NotReady KWOK
+          # nodes, and agents stranded on NotReady real nodes. A failure
+          # here is a shared-infra failure (mock_reconcile_valid=false)
+          # and MUST stop later scenarios.
+          mock_reconcile_after_output="${CL2_REPORT_DIR}/${SCENARIO}/mock-layer-reconcile-after.json"
+          mock_reconcile_valid=true
+          if ! run_mock_layer_reconcile "after" "$mock_reconcile_after_output"; then
+            mock_reconcile_valid=false
+          fi
+
+          cleanup_quiet_seconds=$(scenario_quiet_window_seconds "$SCENARIO")
+          cleanup_timeout_seconds=$(( cleanup_quiet_seconds + CL2_HEALTH_GATE_TIMEOUT_BUFFER_SECONDS ))
+          if [ "$cluster_count" -ge 50 ]; then
+            cleanup_cycle_timeout_seconds=300
+            cleanup_concurrency=12
+          else
+            cleanup_cycle_timeout_seconds=60
+            cleanup_concurrency="$cluster_count"
+          fi
+          cleanup_summary="${CL2_REPORT_DIR}/${SCENARIO}/scenario-health-gate.json"
+          # B.6: always run the health gate — even when measurement or
+          # evidence already failed — to prove baseline recovery. It is
+          # proof-only (no repair inside it); repair already happened via
+          # the reconciler passes above.
+          cleanup_gate_rc=0
+          expected_mock_count=0
+          if [ "$CL2_MOCK_MODE" = "true" ]; then
+            expected_mock_count="$CL2_MOCK_NODE_COUNT"
+          fi
+          bash "$HEALTH_GATE_SCRIPT" \
+            --clusters "$HOME/.kube/clustermesh-clusters.json" \
+            --scenario "$SCENARIO" \
+            --expected-mock-count "$expected_mock_count" \
+            --expected-remote-count $(( cluster_count - 1 )) \
+            --timeout-seconds "$cleanup_timeout_seconds" \
+            --cycle-timeout-seconds "$cleanup_cycle_timeout_seconds" \
+            --quiet-window-seconds "$cleanup_quiet_seconds" \
+            --poll-interval-seconds 30 \
+            --concurrency "$cleanup_concurrency" \
+            --summary-file "$cleanup_summary" || cleanup_gate_rc=$?
+
+          # B.7: recovery_valid is normally just the health gate's result;
+          # node-churn scenarios ALSO require the churner's own pool
+          # restoration (cleanup_failed=false) — a target stimulus failure
+          # or recovery timeout invalidates THIS scenario's measurement
+          # (via target_stimulus_valid above) but, by design, does not by
+          # itself stop later scenarios as long as the health gate proves
+          # the shared baseline is healthy (intentional scenario isolation).
+          infrastructure_healthy=true
+          if [ "$cleanup_gate_rc" -ne 0 ]; then
+            infrastructure_healthy=false
+            echo "##vso[task.logissue type=error;] ${SCENARIO}: post-scenario health gate failed"
+          fi
+          recovery_valid="$infrastructure_healthy"
+          if is_node_churn_scenario "$SCENARIO" && [ "$_cleanup_failed" = "true" ]; then
+            recovery_valid=false
+            echo "##vso[task.logissue type=error;] ${SCENARIO}: node-churner cleanup_failed=true; recovery not verified"
+          fi
+
+          # B.8: finalize the scenario policy decision now that every
+          # lifecycle signal is known, overwriting scenario-policy.json
+          # with the explicit booleans.
+          policy_rc=0
+          failed_policy_output="${policy_output}.artifact-failure"
+          rm -f "$failed_policy_output"
+          python3 "$SCENARIO_POLICY_SCRIPT" \
+            --scenario "$SCENARIO" \
+            --cluster-count "$cluster_count" \
+            --worker-summary "$worker_summary" \
+            --target-role "$target_role" \
+            --non-worker-failure "$non_worker_failure" \
+            --target-stimulus-valid "$target_stimulus_valid" \
+            --evidence-valid "$evidence_valid" \
+            --recovery-valid "$recovery_valid" \
+            --infrastructure-healthy "$infrastructure_healthy" \
+            --artifact-preserved "$artifact_preserved" \
+            --mock-reconcile-valid "$mock_reconcile_valid" \
+            --output "$policy_output" || policy_rc=$?
+          suite_continue=false
+          overall_failure=true
+          if [ -s "$policy_output" ]; then
+            measurement_valid=$(jq -r '.measurement_valid' "$policy_output")
+            suite_continue=$(jq -r '.suite_continue' "$policy_output")
+            overall_failure=$(jq -r '.overall_failure' "$policy_output")
+            if [ "$suite_continue" != "true" ]; then
+              jq -r '.suite_stop_reasons[]? // empty' "$policy_output" |
+                while IFS= read -r reason; do
+                  echo "##vso[task.logissue type=error;] ${SCENARIO}: ${reason}"
+                done
+            fi
+          else
+            echo "##vso[task.logissue type=error;] ${SCENARIO}: final scenario policy output is missing"
+          fi
+
+          jq \
+            --argjson cleanup_gate_rc "$cleanup_gate_rc" \
+            --argjson cleanup_quiet_seconds "$cleanup_quiet_seconds" \
+            --argjson recovery_valid "$recovery_valid" \
+            --argjson infrastructure_healthy "$infrastructure_healthy" \
+            --argjson artifact_preserved "$artifact_preserved" \
+            --argjson mock_reconcile_valid "$mock_reconcile_valid" \
+            --argjson evidence_valid "$evidence_valid" \
+            --argjson measurement_valid "$measurement_valid" \
+            --argjson suite_continue "$suite_continue" \
+            --argjson overall_failure "$overall_failure" \
+            '.[-1] += {
+              cleanup_gate_rc: $cleanup_gate_rc,
+              cleanup_quiet_window_seconds: $cleanup_quiet_seconds,
+              recovery_valid: $recovery_valid,
+              infrastructure_healthy: $infrastructure_healthy,
+              artifact_preserved: $artifact_preserved,
+              mock_reconcile_valid: $mock_reconcile_valid,
+              evidence_valid: $evidence_valid,
+              measurement_valid: $measurement_valid,
+              suite_continue: $suite_continue,
+              overall_failure: $overall_failure
+            }' \
+            "$SHARE_INFRA_META" > "${SHARE_INFRA_META}.tmp" &&
+            mv "${SHARE_INFRA_META}.tmp" "$SHARE_INFRA_META"
+
+          # B.8.5: final lifecycle-only artifact upload. Everything this
+          # scenario will ever write to scenario-policy.json/
+          # scenario-health-gate.json/mock-layer-reconcile-*.json is now
+          # on disk -- re-upload just these small durable-state files
+          # (PRESERVE_LIFECYCLE_ONLY=true) so Blob storage carries the
+          # FINAL suite_continue/recovery fields even if the job dies
+          # before the end-of-stage collect() step runs. Uploads the
+          # EARLY artifact-preservation-summary.json alongside them but
+          # writes its OWN artifact-preservation-final-summary.json only
+          # after all uploads finish (avoids a recursive self-upload
+          # race). A failure here is ALWAYS an infrastructure failure --
+          # the mode skips every scenario-local requirement -- so it must
+          # override artifact_preserved and re-finalize the policy/
+          # metadata that was just written above, then stop the suite.
+          final_lifecycle_infrastructure_failure=false
+          if [ "${CL2_PROM_SNAPSHOT_ENABLED,,}" = "true" ] &&
+             [ "${CL2_PROM_SNAPSHOT_TARGET,,}" = "blob" ]; then
+            final_lifecycle_rc=0
+            timeout --signal=TERM --kill-after=30s \
+              "${final_lifecycle_budget}s" \
+              env \
+                PRESERVE_LIFECYCLE_ONLY=true \
+                SCENARIO_REPORT_DIR="${CL2_REPORT_DIR}/${SCENARIO}" \
+                SCENARIO_NAME="$SCENARIO" \
+                RUN_ID="$RUN_ID" \
+                BUILD_ID="$BUILD_ID" \
+                SNAPSHOT_TIER="$SNAPSHOT_TIER" \
+                BUILD_BRANCH="$BUILD_BRANCH" \
+                STORAGE_ACCOUNT_NAME="$CL2_PROM_SNAPSHOT_STORAGE_ACCOUNT" \
+                CONTAINER_NAME="$CL2_PROM_SNAPSHOT_CONTAINER" \
+                TARGET_SUBSCRIPTION_ID="$TARGET_SUBSCRIPTION_ID" \
+                WORKER_SUMMARY_FILE="$worker_summary" \
+                RELABEL_SCRIPT="$SNAPSHOT_RELABEL_SCRIPT" \
+                CL2_PROM_SNAPSHOT_ENABLED="$CL2_PROM_SNAPSHOT_ENABLED" \
+                CL2_PROM_SNAPSHOT_TARGET="$CL2_PROM_SNAPSHOT_TARGET" \
+                bash "$SCENARIO_ARTIFACT_PRESERVER" || final_lifecycle_rc=$?
+
+            final_lifecycle_summary_file="${CL2_REPORT_DIR}/${SCENARIO}/artifact-preservation-final-summary.json"
+            final_lifecycle_infrastructure_failure=true
+            if final_lifecycle_summary_json=$(jq -c . "$final_lifecycle_summary_file" 2>/dev/null) &&
+               [ -n "$final_lifecycle_summary_json" ]; then
+              final_lifecycle_infrastructure_failure=$(jq -r '.infrastructure_failure' <<<"$final_lifecycle_summary_json" 2>/dev/null)
+              if [ "$final_lifecycle_infrastructure_failure" != "true" ] && [ "$final_lifecycle_infrastructure_failure" != "false" ]; then
+                final_lifecycle_infrastructure_failure=true
+              fi
+            else
+              echo "##vso[task.logissue type=error;] ${SCENARIO}: final lifecycle artifact summary is missing or malformed at ${final_lifecycle_summary_file} (rc=${final_lifecycle_rc})"
+            fi
+          else
+            echo "${SCENARIO}: final lifecycle Blob refresh skipped because snapshot target is not enabled Blob; final lifecycle files will be retained by collect.yml's pipeline-artifact path."
+          fi
+
+          if [ "$final_lifecycle_infrastructure_failure" = "true" ]; then
+            artifact_preserved=false
+            echo "##vso[task.logissue type=error;] ${SCENARIO}: final lifecycle artifact upload hit a shared evidence-infrastructure failure; re-finalizing policy and stopping later scenarios"
+
+            # Re-finalize scenario-policy.json + SHARE_INFRA_META with
+            # artifact_preserved now false, so the durable record (Blob,
+            # best-effort above, and the local files) agree that later
+            # scenarios must not run.
+            policy_rc=0
+            python3 "$SCENARIO_POLICY_SCRIPT" \
+              --scenario "$SCENARIO" \
+              --cluster-count "$cluster_count" \
+              --worker-summary "$worker_summary" \
+              --target-role "$target_role" \
+              --non-worker-failure "$non_worker_failure" \
+              --target-stimulus-valid "$target_stimulus_valid" \
+              --evidence-valid "$evidence_valid" \
+              --recovery-valid "$recovery_valid" \
+              --infrastructure-healthy "$infrastructure_healthy" \
+              --artifact-preserved "$artifact_preserved" \
+              --mock-reconcile-valid "$mock_reconcile_valid" \
+              --output "$failed_policy_output" || policy_rc=$?
+            suite_continue=false
+            overall_failure=true
+            if [ "$policy_rc" -eq 0 ] &&
+               jq -e '
+                 .artifact_preserved == false and
+                 .suite_continue == false and
+                 .overall_failure == true
+               ' "$failed_policy_output" >/dev/null 2>&1; then
+              mv "$failed_policy_output" "$policy_output"
+              measurement_valid=$(jq -r '.measurement_valid' "$policy_output")
+              suite_continue=$(jq -r '.suite_continue' "$policy_output")
+              overall_failure=$(jq -r '.overall_failure' "$policy_output")
+            else
+              rm -f "$failed_policy_output"
+              echo "##vso[task.logissue type=error;] ${SCENARIO}: re-finalized scenario policy output is missing or unsafe; forcing the existing local policy to the artifact-failure stop state"
+              if jq '
+                  .artifact_preserved = false
+                  | .suite_continue = false
+                  | .overall_failure = true
+                  | .suite_stop_reasons = (
+                      ((.suite_stop_reasons // []) +
+                       ["final lifecycle artifact upload failed"])
+                      | unique
+                    )
+                ' "$policy_output" > "${policy_output}.tmp" 2>/dev/null; then
+                mv "${policy_output}.tmp" "$policy_output"
+                measurement_valid=$(jq -r '.measurement_valid // false' "$policy_output")
+              else
+                rm -f "${policy_output}.tmp"
+                jq -n \
+                  --arg scenario "$SCENARIO" \
+                  '{
+                    schema_version: 1,
+                    scenario: $scenario,
+                    measurement_valid: false,
+                    measurement_reasons: [
+                      "scenario policy re-finalization failed"
+                    ],
+                    recovery_valid: false,
+                    infrastructure_healthy: false,
+                    artifact_preserved: false,
+                    mock_reconcile_valid: false,
+                    suite_continue: false,
+                    suite_stop_reasons: [
+                      "final lifecycle artifact upload failed"
+                    ],
+                    overall_failure: true,
+                    success: false,
+                    reasons: [
+                      "scenario policy re-finalization failed"
+                    ]
+                  }' > "$policy_output"
+                measurement_valid=false
+              fi
+            fi
+            jq \
+              --argjson artifact_preserved "$artifact_preserved" \
+              --argjson measurement_valid "$measurement_valid" \
+              --argjson suite_continue "$suite_continue" \
+              --argjson overall_failure "$overall_failure" \
+              '.[-1] += {
+                artifact_preserved: $artifact_preserved,
+                measurement_valid: $measurement_valid,
+                suite_continue: $suite_continue,
+                overall_failure: $overall_failure
+              }' \
+              "$SHARE_INFRA_META" > "${SHARE_INFRA_META}.tmp" &&
+              mv "${SHARE_INFRA_META}.tmp" "$SHARE_INFRA_META"
+
+            # One bounded retry after the authoritative failure policy has
+            # been written. A transient failure in the first lifecycle pass
+            # may clear; even if another lifecycle file still fails, this
+            # retry gives the re-finalized scenario-policy.json
+            # (artifact_preserved=false, suite_continue=false) a chance to
+            # replace the earlier optimistic copy in Blob storage.
+            final_lifecycle_retry_rc=0
+            timeout --signal=TERM --kill-after=30s \
+              "${final_lifecycle_budget}s" \
+              env \
+                PRESERVE_LIFECYCLE_ONLY=true \
+                SCENARIO_REPORT_DIR="${CL2_REPORT_DIR}/${SCENARIO}" \
+                SCENARIO_NAME="$SCENARIO" \
+                RUN_ID="$RUN_ID" \
+                BUILD_ID="$BUILD_ID" \
+                SNAPSHOT_TIER="$SNAPSHOT_TIER" \
+                BUILD_BRANCH="$BUILD_BRANCH" \
+                STORAGE_ACCOUNT_NAME="$CL2_PROM_SNAPSHOT_STORAGE_ACCOUNT" \
+                CONTAINER_NAME="$CL2_PROM_SNAPSHOT_CONTAINER" \
+                TARGET_SUBSCRIPTION_ID="$TARGET_SUBSCRIPTION_ID" \
+                WORKER_SUMMARY_FILE="$worker_summary" \
+                RELABEL_SCRIPT="$SNAPSHOT_RELABEL_SCRIPT" \
+                CL2_PROM_SNAPSHOT_ENABLED="$CL2_PROM_SNAPSHOT_ENABLED" \
+                CL2_PROM_SNAPSHOT_TARGET="$CL2_PROM_SNAPSHOT_TARGET" \
+                bash "$SCENARIO_ARTIFACT_PRESERVER" || final_lifecycle_retry_rc=$?
+            if [ "$final_lifecycle_retry_rc" -ne 0 ]; then
+              echo "##vso[task.logissue type=warning;] ${SCENARIO}: retrying the final lifecycle failure record also failed rc=${final_lifecycle_retry_rc}; local collect artifacts remain authoritative"
+            fi
+          fi
+
+          # B.9: measurement validity and suite continuation are
+          # independent decisions. An invalid measurement alone (e.g. a
+          # target stimulus timeout, or evidence failure) marks the build
+          # SucceededWithIssues but — as long as suite_continue=true — the
+          # remaining scenarios still run, since the health gate above
+          # already proved the shared baseline recovered. Only stop the
+          # whole suite when suite_continue=false (recovery, infra,
+          # artifact preservation, or mock reconcile actually failed).
+          if [ "$measurement_valid" != "true" ]; then
+            overall_rc=1
+            if [ "$suite_continue" = "true" ]; then
+              echo "##vso[task.logissue type=warning;] ${SCENARIO}: measurement invalid, but shared infra recovered — continuing the suite"
+            else
+              echo "##vso[task.logissue type=warning;] ${SCENARIO}: measurement invalid"
+            fi
+          fi
+          if [ "$suite_continue" != "true" ]; then
+            overall_rc=1
+            echo "##vso[task.logissue type=error;] Scenario ${SCENARIO}: unsafe environment — stopping the remaining suite (suite_continue=false)"
+            break
+          fi
+
+          echo "Post-${SCENARIO} cleanup gate passed with ${cleanup_quiet_seconds}s of stable health."
+        done
+
+        for configured_scenario in "${SCENARIO_LIST[@]}"; do
+          if jq -e --arg scenario "$configured_scenario" \
+              'any(.[]; .scenario == $scenario)' \
+              "$SHARE_INFRA_META" >/dev/null; then
+            continue
+          fi
+          skipped_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          jq \
+            --arg scenario "$configured_scenario" \
+            --arg skipped_at "$skipped_at" \
+            '. += [{
+              scenario: $scenario,
+              skipped: true,
+              skipped_at: $skipped_at,
+              skip_reason: "prior_environment_failure_or_budget_stop"
+            }]' \
+            "$SHARE_INFRA_META" > "${SHARE_INFRA_META}.tmp" &&
+            mv "${SHARE_INFRA_META}.tmp" "$SHARE_INFRA_META"
+        done
+
+        # Make the meta file available to collect.yml via a step variable —
+        # written as task.setvariable so the next step in the same job picks it up.
+        ado_set_variable SHARE_INFRA_META "$SHARE_INFRA_META"
+
+        echo "============================================="
+        echo "Share-infra summary: ${#SCENARIO_LIST[@]} scenarios processed, overall_rc=${overall_rc}"
+        echo "============================================="
+        # Phase 4b: do NOT exit with non-zero on per-scenario failure.
+        # If we did, AzDO's default succeeded() gate on subsequent steps
+        # (collect + upload + destroy) would SKIP them and we'd lose ALL
+        # data even when most scenarios succeeded. Instead, emit
+        # `task.complete result=SucceededWithIssues` so the step shows
+        # orange in the AzDO UI (not green, not red) while still allowing
+        # downstream steps to run. Per-scenario failures remain visible
+        # via the ##vso[task.logissue type=warning] lines emitted in the
+        # loop above; per-row failures are also queryable in Kusto via
+        # the status column.
+        #
+        # Genuinely catastrophic failures (validation errors above this
+        # block) still exit 1 — those happen BEFORE any data is gathered
+        # so skipping downstream is the right call.
+        if [ "$overall_rc" -ne 0 ]; then
+          ado_complete_with_issues
+        fi
+        exit 0
       fi
+
+      # Single-scenario path (default, unchanged from Phase 4a — prod pipeline
+      # relies on this).
+      #
+      # Bounded-parallel CL2 fan-out across clusters. Each worker invokes
+      # run-cl2-on-cluster.sh — same per-cluster body the bash for-loop used
+      # to run sequentially (CL2 invoke + junit gate + log capture + failure
+      # diag), now with bounded concurrency. CL2_MAX_CONCURRENT defaults to 4
+      # at the matrix level (event-throughput.yaml); smaller tiers can lower
+      # it to 1 to recover sequential behavior if needed.
+      #
+      # Same per-scenario override as the share-infra loop above: isolation
+      # and node-churn-* need mesh-wide concurrent observation.
+      SINGLE_SCENARIO_BASENAME="${CL2_CONFIG_FILE%.yaml}"
+      if needs_mesh_wide_concurrency "$SINGLE_SCENARIO_BASENAME"; then
+        EFFECTIVE_MAX_CONCURRENT="${cluster_count}"
+        echo "Single-scenario ${SINGLE_SCENARIO_BASENAME}: overriding max_concurrent ${CL2_MAX_CONCURRENT:-4} → ${EFFECTIVE_MAX_CONCURRENT} (mesh-wide observation required)"
+      else
+        EFFECTIVE_MAX_CONCURRENT="${CL2_MAX_CONCURRENT:-4}"
+      fi
+      # Launch host-side stimulus for node-churn-* in single-scenario mode.
+      NODE_CHURNER_PID=""
+      NODE_CHURNER_WAIT_RC=0
+      if is_node_churn_scenario "$SINGLE_SCENARIO_BASENAME"; then
+        launch_node_churner "$SINGLE_SCENARIO_BASENAME" "${CL2_REPORT_DIR}"
+      fi
+      PROBE_PID=""
+      RECOVERY_PID=""
+      DETACH_REJOIN_PID=""
+      POLICY_PROP_PID=""
+      FAILOVER_PID=""
+      RESTART_SURVIVAL_PID=""
+      if is_propagation_probe_scenario "$SINGLE_SCENARIO_BASENAME"; then
+        launch_propagation_probe "$SINGLE_SCENARIO_BASENAME" "${CL2_REPORT_DIR}"
+        launch_mesh_recovery_probe "$SINGLE_SCENARIO_BASENAME" "${CL2_REPORT_DIR}"
+        launch_mesh_detach_rejoin_probe "$SINGLE_SCENARIO_BASENAME" "${CL2_REPORT_DIR}"
+        launch_mesh_policy_propagation_probe "$SINGLE_SCENARIO_BASENAME" "${CL2_REPORT_DIR}"
+        launch_mesh_failover_probe "$SINGLE_SCENARIO_BASENAME" "${CL2_REPORT_DIR}"
+        launch_mesh_restart_survival_probe "$SINGLE_SCENARIO_BASENAME" "${CL2_REPORT_DIR}"
+      fi
+      single_scenario_rc=0
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute-parallel \
+        --clusters "$HOME/.kube/clustermesh-clusters.json" \
+        --max-concurrent "${EFFECTIVE_MAX_CONCURRENT}" \
+        --worker-script "$WORKER_SCRIPT" \
+        --cl2-image "${CL2_IMAGE}" \
+        --cl2-config-dir "${CL2_CONFIG_DIR}" \
+        --cl2-config-file "${CL2_CONFIG_FILE}" \
+        --cl2-report-dir-base "${CL2_REPORT_DIR}" \
+        --provider "${CLOUD}" \
+        --python-script-file "$PYTHON_SCRIPT_FILE" \
+        --python-workdir "$(pwd)" \
+        --worker-timeout-seconds "${CL2_WORKER_TIMEOUT_SECONDS:-0}" || single_scenario_rc=$?
+      wait_node_churner "$SINGLE_SCENARIO_BASENAME"
+      wait_propagation_probe "$SINGLE_SCENARIO_BASENAME"
+      wait_mesh_recovery_probe "$SINGLE_SCENARIO_BASENAME"
+      wait_mesh_detach_rejoin_probe "$SINGLE_SCENARIO_BASENAME"
+      wait_mesh_policy_propagation_probe "$SINGLE_SCENARIO_BASENAME"
+      wait_mesh_failover_probe "$SINGLE_SCENARIO_BASENAME"
+      wait_mesh_restart_survival_probe "$SINGLE_SCENARIO_BASENAME"
+      if [ "${NODE_CHURNER_WAIT_RC:-0}" -ne 0 ]; then
+        single_scenario_rc="$NODE_CHURNER_WAIT_RC"
+      fi
+      # Proactive failure debug dump for single-scenario mode too. Run
+      # unconditionally for node-churn AND upper-bound (rich state worth
+      # dumping regardless of success); rc!=0 for everything else.
+      if is_node_churn_scenario "$SINGLE_SCENARIO_BASENAME" || is_upper_bound_scenario "$SINGLE_SCENARIO_BASENAME" || [ "$single_scenario_rc" -ne 0 ]; then
+        scenario_failure_diag "$SINGLE_SCENARIO_BASENAME" "$single_scenario_rc"
+      fi
+      # In single-scenario prod mode we DON'T have a share-infra loop to
+      # break out of, but we still want the AzDO step to surface non-zero
+      # rc on CL2 failure (prod's existing contract). The churner-finalizer
+      # cleanup_failed state is logged via the timing JSON (Kusto-visible);
+      # we don't promote it to step failure here because terraform destroy
+      # will tear down the cluster regardless.
+      #
+      # 2026-05-21 (%global matrix experiment): mirror the share-infra
+      # behavior. At cl2_max_concurrent>=12, a SINGLE worker OOM/timeout
+      # would otherwise exit non-zero here, which causes AzDO's default
+      # `succeeded()` gate to skip the next steps (Collect + Upload Test
+      # Results to telescopedata). That loses ALL 99 successful workers'
+      # data for the cell. By emitting SucceededWithIssues and exit 0,
+      # collect/upload still run and per-row failures remain visible in
+      # the blob's `status` field + the warning logissue emitted by
+      # scale.py for the failed worker. Genuinely catastrophic
+      # pre-execute-parallel failures still exit 1 above this block
+      # (they happen before any data is gathered).
+      if [ "$single_scenario_rc" -ne 0 ]; then
+        echo "##vso[task.logissue type=warning;] Single-scenario CL2 exited rc=${single_scenario_rc} — some workers failed. Per-worker details in scale.py output above; per-cluster rows in blob carry status field. Emitting SucceededWithIssues so collect/upload still runs and successful workers' data is preserved."
+        ado_complete_with_issues
+      fi
+      exit 0
     workingDirectory: modules/python
     env:
       ${{ if eq(parameters.cloud, 'azure') }}:
@@ -198,9 +2530,23 @@ steps:
         CLOUD: ${{ parameters.cloud }}
       REGION: ${{ parameters.region }}
       PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/scale.py
+      SCENARIO_POLICY_SCRIPT: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/scenario_policy.py
+      SCENARIO_EVIDENCE_SCRIPT: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/scenario_evidence.py
+      MOCK_RECONCILER_SCRIPT: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/mock_layer_reconcile.py
+      SCENARIO_CLEANUP_RECONCILER: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/scenario_cleanup_reconcile.py
+      WORKER_SCRIPT: $(Pipeline.Workspace)/s/steps/engine/clusterloader2/clustermesh-scale/run-cl2-on-cluster.sh
       CL2_IMAGE: ${{ parameters.engine_input.image }}
       CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/config
       CL2_CONFIG_FILE: $(cl2_config_file)
       CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/results
       CL2_OPERATION_TIMEOUT: ${{ parameters.engine_input.operation_timeout }}
+      NODE_CHURNER_SCRIPT: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/config/node-churner.sh
+      HEALTH_GATE_SCRIPT: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/config/scenario-health-gate.sh
+      SCENARIO_ARTIFACT_PRESERVER: $(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/telemetry/preserve-scenario-artifacts.sh
+      SNAPSHOT_RELABEL_SCRIPT: $(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/telemetry/relabel-prometheus-snapshots.sh
+      CILIUM_POLICY_GUARD_SCRIPT: $(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/telemetry/ensure-cilium-policy.sh
+      TARGET_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
+      BUILD_ID: $(Build.BuildId)
+      BUILD_BRANCH: $(Build.SourceBranchName)
+      SNAPSHOT_TIER: $(System.JobName)
     displayName: "Run CL2 across all clustermesh clusters"

@@ -1,0 +1,308 @@
+name: clustermesh-pod-churn-kill
+
+# Scale scenario #2 (Pod Churn Stress Test) — random pod kill variant.
+#
+# Spec (scale testing.txt line 64): "Kill pods at random intervals."
+#
+# This complements pod-churn-scale.yaml: instead of cycling Deployment .spec.replicas
+# (deterministic, controller-driven churn), we deploy an in-cluster killer Job
+# that picks $killBatch random pods every $killInterval and force-deletes them.
+# The ReplicaSet immediately re-creates them, exercising the failure-driven
+# event path. Both halves of scenario #2 produce overlapping but
+# distinguishable mesh signals: scale-cycle is steady-state, predictable;
+# kill is bursty, ReplicaSet-driven.
+#
+# Killer Job runs for ${killDuration}s then exits 0 cleanly. The Job's
+# activeDeadlineSeconds is set to killDuration + 60s buffer as a defense-in-depth
+# bound. WaitForFinishedJobs gathers the completion signal — no explicit
+# delete-and-wait dance.
+
+{{$namespaces := DefaultParam .CL2_NAMESPACES 5}}
+{{$deploymentsPerNamespace := DefaultParam .CL2_DEPLOYMENTS_PER_NAMESPACE 4}}
+{{$replicasPerDeployment := DefaultParam .CL2_REPLICAS_PER_DEPLOYMENT 10}}
+{{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "20m"}}
+{{$apiServerCallsPerSecond := DefaultParam .CL2_API_SERVER_CALLS_PER_SECOND 20}}
+{{$warmupDuration := DefaultParam .CL2_WARMUP_DURATION "30s"}}
+{{$holdDuration := DefaultParam .CL2_HOLD_DURATION "2m"}}
+{{$killDuration := DefaultParam .CL2_KILL_DURATION "10m"}}
+{{$killIntervalSeconds := DefaultParam .CL2_KILL_INTERVAL_SECONDS 10}}
+{{$killBatch := DefaultParam .CL2_KILL_BATCH 5}}
+{{$killDurationSeconds := DefaultParam .CL2_KILL_DURATION_SECONDS 600}}
+{{$jobDeadlineSeconds := DefaultParam .CL2_KILL_JOB_DEADLINE_SECONDS 660}}
+# Hard-coded — repeated below for the killer's --label-selector and the
+# workload's group label. Keep these in sync.
+{{$workloadGroup := "clustermesh-pod-churn-kill"}}
+{{$killerGroup := "clustermesh-pod-churn-killer"}}
+{{$workloadBasename := "pck"}}
+# bitnami/kubectl image already trusted in this repo (modules/kustomize/fio/.../ds.yaml).
+# Ships bash + shuf + xargs + cut + kubectl which the killer script depends on.
+{{$killerImage := DefaultParam .CL2_KILLER_IMAGE "telescope.azurecr.io/bitnami/kubectl:v1.33.2"}}
+
+namespace:
+  number: {{$namespaces}}
+  prefix: clustermesh-pck
+  deleteStaleNamespaces: true
+  deleteAutomanagedNamespaces: true
+  enableExistingNamespaces: false
+  deleteNamespaceTimeout: 20m
+
+tuningSets:
+  - name: Sequence
+    parallelismLimitedLoad:
+      parallelismLimit: 1
+  - name: DeploymentCreateQps
+    qpsLoad:
+      qps: {{$apiServerCallsPerSecond}}
+
+steps:
+  # ----- ACNS namespace opt-in (CFP-39876) -----
+  # AKS-managed Cilium ships with clustermesh-default-global-namespace=false,
+  # so workload namespaces need clustermesh.cilium.io/global=true to sync
+  # their CiliumIdentity/Endpoint/Services across the mesh. Without this,
+  # cross-cluster propagation metrics are structurally 0. See plan.md
+  # note #14 + ACNS team confirmation 2026-05-11.
+  - name: Annotate workload namespaces for ACNS cross-cluster sync
+    measurements:
+      - Identifier: AnnotateNamespacesForGlobalSync
+        Method: Exec
+        Params:
+          streamOutput: true
+          timeout: 1m
+          command:
+          - bash
+          - /root/perf-tests/clusterloader2/config/annotate-namespaces.sh
+          - "{{$namespaces}}"
+          - "clustermesh-pck"
+
+  # ----- Start measurements -----
+  - module:
+      path: /modules/measurements/control-plane.yaml
+      params:
+        action: start
+        group: {{$workloadGroup}}
+
+  - module:
+      path: /modules/measurements/cilium.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/measurements/clustermesh-metrics.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/measurements/clustermesh-throughput.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/measurements/etcd-metrics.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/measurements/pod-churn-stress.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/clustermesh.yaml
+      params:
+        actionName: create
+        tuningSet: DeploymentCreateQps
+
+  # ----- Workload deploy + initial settle -----
+  - name: Start tracking pod-churn-kill Deployments
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-pod-churn-kill
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: start
+          apiVersion: apps/v1
+          kind: Deployment
+          checkIfPodsAreUpdated: true
+          labelSelector: group = {{$workloadGroup}}
+          operationTimeout: {{$operationTimeout}}
+
+  - module:
+      path: /modules/pod-churn-workload.yaml
+      params:
+        actionName: apply
+        replicas: {{$replicasPerDeployment}}
+        namespaces: {{$namespaces}}
+        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
+        tuningSet: DeploymentCreateQps
+        group: {{$workloadGroup}}
+        basename: {{$workloadBasename}}
+
+  - name: Wait for initial pod-churn-kill pods to be Running
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-pod-churn-kill
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: gather
+
+  - name: Warmup before kill
+    measurements:
+      - Identifier: WarmupSleep
+        Method: Sleep
+        Params:
+          duration: {{$warmupDuration}}
+
+  # ----- Killer deploy -----
+  # Distinct basenames per kind so the binding's RoleName/SAName references
+  # are unambiguous and don't depend on CL2's cross-kind name-collision
+  # behavior. All four objects share namespace `default` (universal),
+  # replicasPerNamespace: 1.
+  - name: Register WaitForFinishedJobs for killer
+    measurements:
+      - Identifier: WaitForFinishedJobs-killer
+        Method: WaitForFinishedJobs
+        Params:
+          action: start
+          labelSelector: group={{$killerGroup}}
+          # Killer's activeDeadlineSeconds bounds the Job's lifetime;
+          # this WaitForFinishedJobs timeout has to exceed that with margin
+          # so the gather doesn't time out while the killer is still inside
+          # its grace period.
+          timeout: {{$operationTimeout}}
+
+  - name: Deploy pod-churn killer
+    phases:
+      - namespaceList: ["default"]
+        replicasPerNamespace: 1
+        tuningSet: Sequence
+        objectBundle:
+          - basename: pck-sa
+            objectTemplatePath: /modules/pod-churn-killer-sa.yaml
+            templateFillMap:
+              Group: {{$killerGroup}}
+          - basename: pck-cr
+            objectTemplatePath: /modules/pod-churn-killer-clusterrole.yaml
+            templateFillMap:
+              Group: {{$killerGroup}}
+          - basename: pck-crb
+            objectTemplatePath: /modules/pod-churn-killer-clusterrolebinding.yaml
+            templateFillMap:
+              Group: {{$killerGroup}}
+              RoleName: pck-cr-1
+              SAName: pck-sa-1
+              SANamespace: default
+          - basename: pck-job
+            objectTemplatePath: /modules/pod-churn-killer-job.yaml
+            templateFillMap:
+              Group: {{$killerGroup}}
+              SAName: pck-sa-1
+              Image: {{$killerImage}}
+              ActiveDeadlineSeconds: {{$jobDeadlineSeconds}}
+              KillDurationSeconds: {{$killDurationSeconds}}
+              KillIntervalSeconds: {{$killIntervalSeconds}}
+              KillBatch: {{$killBatch}}
+              WorkloadLabelSelector: group={{$workloadGroup}}
+
+  # ----- Wait for the killer to finish its own time-bounded run -----
+  # WaitForFinishedJobs blocks until the killer pod's status is Succeeded
+  # (clean exit 0 on deadline) or Failed (image pull error / RBAC denial /
+  # script crash). Either way, control returns here and we proceed to
+  # final reconciliation. We don't explicitly delete the Job — the
+  # Sleep + WaitForFinishedJobs is the gate.
+  - name: Wait for killer Job to complete
+    measurements:
+      - Identifier: WaitForFinishedJobs-killer
+        Method: WaitForFinishedJobs
+        Params:
+          action: gather
+
+  # ----- Re-register a fresh watcher for the post-kill convergence so the
+  # final gather only reflects pod reconciliation after the killer stopped. -----
+  - name: Start tracking post-kill convergence
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-post-kill
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: start
+          apiVersion: apps/v1
+          kind: Deployment
+          checkIfPodsAreUpdated: true
+          labelSelector: group = {{$workloadGroup}}
+          operationTimeout: {{$operationTimeout}}
+
+  - name: Wait for post-kill pods to be Running
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-post-kill
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: gather
+
+  - name: Settle after kill
+    measurements:
+      - Identifier: SettleSleep
+        Method: Sleep
+        Params:
+          duration: {{$holdDuration}}
+
+  # ----- Gather measurements -----
+  - module:
+      path: /modules/measurements/control-plane.yaml
+      params:
+        action: gather
+        group: {{$workloadGroup}}
+
+  - module:
+      path: /modules/measurements/cilium.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/measurements/clustermesh-metrics.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/measurements/clustermesh-throughput.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/measurements/etcd-metrics.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/measurements/pod-churn-stress.yaml
+      params:
+        action: gather
+
+  # ----- Teardown: workload + killer (SA/CR/CRB/Job objects). -----
+  - module:
+      path: /modules/pod-churn-workload.yaml
+      params:
+        actionName: delete
+        replicas: 0
+        namespaces: {{$namespaces}}
+        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
+        tuningSet: DeploymentCreateQps
+        group: {{$workloadGroup}}
+        basename: {{$workloadBasename}}
+
+  - name: Tear down killer resources
+    phases:
+      - namespaceList: ["default"]
+        replicasPerNamespace: 0
+        tuningSet: Sequence
+        objectBundle:
+          - basename: pck-sa
+            objectTemplatePath: /modules/pod-churn-killer-sa.yaml
+          - basename: pck-cr
+            objectTemplatePath: /modules/pod-churn-killer-clusterrole.yaml
+          - basename: pck-crb
+            objectTemplatePath: /modules/pod-churn-killer-clusterrolebinding.yaml
+          - basename: pck-job
+            objectTemplatePath: /modules/pod-churn-killer-job.yaml
+
+  - module:
+      path: /modules/clustermesh.yaml
+      params:
+        actionName: delete
+        tuningSet: DeploymentCreateQps

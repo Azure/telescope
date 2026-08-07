@@ -79,3 +79,18 @@ class TestDockerClient(unittest.TestCase):
 
         # Verify
         self.assertIs(result, mock_container)
+
+    def test_run_container_passes_optional_name(self):
+        mock_client = self.mock_from_env.return_value
+
+        self.docker_client.run_container(
+            "alpine", "sleep 1", {}, True, name="cl2-run-mesh-1"
+        )
+
+        mock_client.containers.run.assert_called_once_with(
+            "alpine",
+            "sleep 1",
+            volumes={},
+            detach=True,
+            name="cl2-run-mesh-1",
+        )

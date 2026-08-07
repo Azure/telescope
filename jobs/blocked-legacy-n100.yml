@@ -1,0 +1,55 @@
+parameters:
+- name: cloud
+  type: string
+  default: ''
+- name: regions
+  type: object
+  default: []
+- name: preserve_state_on_apply_failure
+  type: string
+  default: "false"
+- name: destroy_retry_attempt_count
+  type: number
+  default: 0
+- name: engine
+  type: string
+  default: ''
+- name: engine_input
+  type: object
+  default: {}
+- name: topology
+  type: string
+  default: ''
+- name: terraform_input_file_mapping
+  type: object
+  default: []
+- name: matrix
+  type: object
+  default: {}
+- name: max_parallel
+  type: number
+  default: 1
+- name: timeout_in_minutes
+  type: number
+  default: 5
+- name: cancel_timeout_in_minutes
+  type: number
+  default: 1
+- name: credential_type
+  type: string
+  default: service_connection
+- name: ssh_key_enabled
+  type: boolean
+  default: false
+- name: skip_publish
+  type: boolean
+  default: true
+
+jobs:
+- job: blocked_legacy_n100
+  timeoutInMinutes: 5
+  steps:
+  - bash: |
+      echo "Legacy Central US EUAP n=100 is permanently blocked."
+      exit 1
+    displayName: "Reject legacy n=100 stage"

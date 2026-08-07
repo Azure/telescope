@@ -10,6 +10,11 @@ parameters:
     default: {}
 
 steps:
+  - template: /steps/topology/clustermesh-scale/configure-control-plane-metrics.yml
+    parameters:
+      cloud: ${{ parameters.cloud }}
+      region: ${{ parameters.regions[0] }}
+
   - template: /steps/engine/clusterloader2/clustermesh-scale/execute.yml
     parameters:
       cloud: ${{ parameters.cloud }}

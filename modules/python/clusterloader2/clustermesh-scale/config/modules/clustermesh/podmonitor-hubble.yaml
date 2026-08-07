@@ -1,0 +1,32 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: hubble-metrics
+  namespace: monitoring
+spec:
+  # Hubble metrics endpoint on cilium-agent pods. Same pods as the
+  # default cilium-agent scrape (port 9962), DIFFERENT port (9965 by
+  # default on AKS / ACNS). Without this PodMonitor, queries against
+  # cilium_drop_count_total / cilium_forward_count_total {l7,...} would
+  # return "No data items found" (build 69395 confirmed this gap).
+  #
+  # On AKS managed Cilium with ACNS, the hubble-metrics container is
+  # exposed on port 9965. Older / non-ACNS deployments may not expose
+  # this endpoint at all; the PodMonitor is then silent (no scrape error
+  # because relabel just won't find an open port).
+  selector:
+    matchLabels:
+      k8s-app: cilium
+  namespaceSelector:
+    matchNames:
+      - kube-system
+  podMetricsEndpoints:
+    - interval: {{.Interval}}
+      honorLabels: true
+      path: /metrics
+      relabelings:
+        - sourceLabels: [__address__]
+          action: replace
+          targetLabel: __address__
+          regex: (.+?)(\:\d+)?
+          replacement: $1:9965
