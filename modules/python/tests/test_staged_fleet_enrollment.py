@@ -389,7 +389,15 @@ def test_terraform_separates_initial_member_label_from_profile_selector():
     assert "az fleet member reconcile" not in staged_script
     assert "apply_profile 1" in staged_script
     assert "issuing single-request profile recovery apply" in staged_script
-    assert "legacy periodic profile re-applier is disabled" in validation
+    assert "progress-aware clustermeshprofile recovery watcher" in validation
+    assert "global apply suppressed because member progress" in validation
+    assert "zero-progress stall confirmed" in validation
+    assert "while true" not in validation[
+        validation.index("REAPPLY_LOG=") :
+        validation.index(
+            "# Background clustermeshprofile AUTO-RECOVERY"
+        )
+    ]
     assert "applied_high_water" in staged_script
     assert "connected_high_water" in staged_script
     assert "capture-fleet-profile-state.sh" in staged_script

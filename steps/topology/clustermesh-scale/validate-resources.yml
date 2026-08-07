@@ -269,45 +269,98 @@ steps:
           bash "$BUILD_SOURCESDIRECTORY/steps/topology/clustermesh-scale/staged-fleet-enrollment.sh"
       fi
 
-      # Background ClusterMeshProfile re-applier (N>=15 only). At smaller
-      # mesh sizes the first apply reliably reaches all members within a
-      # few minutes, so the re-apply just adds noise. Staged enrollment owns
-      # its bounded recovery policy and must not be followed by this unlimited
-      # periodic apply loop, which would reset healthy member convergence.
+      # Progress-aware ClusterMeshProfile recovery for non-staged large meshes.
+      # A global profile apply resets healthy members to Connecting, so never
+      # issue one after any member has Connected or Failed. The only safe
+      # recovery case is a complete zero-progress stall (0 Connected,
+      # 0 Failed) lasting 45 minutes. Even then, apply at most once and leave
+      # enough post-apply runway for natural convergence.
       REAPPLY_LOG="$(pwd)/clustermeshprofile-reapply.log"
       if [ "$cluster_count" -ge 15 ] && [ "${CMP_STAGED_JOIN_ENABLED:-false}" != "true" ]; then
+        PROFILE_RECOVERY_APPLY_AFTER_SECONDS="${CMP_PROFILE_RECOVERY_APPLY_AFTER_SECONDS:-2700}"
+        PROFILE_RECOVERY_MAX_APPLIES="${CMP_PROFILE_RECOVERY_MAX_APPLIES:-1}"
+        PROFILE_RECOVERY_MIN_POST_SECONDS="${CMP_PROFILE_RECOVERY_MIN_POST_SECONDS:-1800}"
+        PROFILE_RECOVERY_POLL_SECONDS="${CMP_PROFILE_RECOVERY_POLL_SECONDS:-60}"
+        for recovery_setting in \
+          "$PROFILE_RECOVERY_APPLY_AFTER_SECONDS" \
+          "$PROFILE_RECOVERY_MAX_APPLIES" \
+          "$PROFILE_RECOVERY_MIN_POST_SECONDS" \
+          "$PROFILE_RECOVERY_POLL_SECONDS"; do
+          if ! [[ "$recovery_setting" =~ ^[1-9][0-9]*$ ]]; then
+            echo "##vso[task.logissue type=error;] ClusterMeshProfile recovery settings must be positive integers."
+            exit 1
+          fi
+        done
         {
-          echo "[reapplier] starting; re-issuing fleet clustermeshprofile apply every 600s"
-          # Wait 5 min before first re-apply so we don't double-trigger
-          # the initial apply that terraform just did 0-15s ago.
-          sleep 300
-          while true; do
+          echo "[reapplier] progress-aware recovery started; after=${PROFILE_RECOVERY_APPLY_AFTER_SECONDS}s max=${PROFILE_RECOVERY_MAX_APPLIES} min_post=${PROFILE_RECOVERY_MIN_POST_SECONDS}s"
+          watcher_started=$(date +%s)
+          watcher_deadline=$((watcher_started + WAIT_BUDGET_SECONDS))
+          last_progress_at=$watcher_started
+          connected_high_water=0
+          recovery_applies=0
+          while [ "$(date +%s)" -lt "$watcher_deadline" ]; do
             _ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-            echo "[reapplier] $_ts re-applying clustermeshprofile..."
-            if az fleet clustermeshprofile apply \
-                 --resource-group "$FLEET_RG" \
-                 --fleet-name "$FLEET_NAME" \
-                 --name "$FLEET_PROFILE" \
-                 --output none --only-show-errors 2>&1; then
-              echo "[reapplier] $_ts re-apply OK"
-            else
-              echo "[reapplier] $_ts re-apply FAILED (Fleet RP may be busy; will retry)"
-            fi
-            # Optional: dump current profile state for diagnostics
-            az fleet clustermeshprofile show \
+            members_json=$(az fleet clustermeshprofile list-members \
               --resource-group "$FLEET_RG" \
               --fleet-name "$FLEET_NAME" \
               --name "$FLEET_PROFILE" \
-              --query "{provisioningState:properties.provisioningState, members:properties.memberClusters}" \
-              -o yaml --only-show-errors 2>&1 || true
-            sleep 600
+              --output json --only-show-errors 2>&1) || {
+                echo "[reapplier] $_ts member-state query failed; deferring recovery: $members_json"
+                sleep "$PROFILE_RECOVERY_POLL_SECONDS"
+                continue
+              }
+            connected=$(jq '[.[] | select(.meshProperties.status.state=="Connected")] | length' <<<"$members_json")
+            failed=$(jq '[.[] | select(.meshProperties.status.state=="Failed")] | length' <<<"$members_json")
+            total=$(jq 'length' <<<"$members_json")
+            now=$(date +%s)
+            if [ "$connected" -gt "$connected_high_water" ]; then
+              connected_high_water="$connected"
+              last_progress_at="$now"
+              echo "[reapplier] $_ts progress: connected_high_water=$connected_high_water/$total"
+            fi
+            stall_age=$((now - last_progress_at))
+            remaining=$((watcher_deadline - now))
+            echo "[reapplier] $_ts total=$total connected=$connected failed=$failed stall=${stall_age}s remaining=${remaining}s applies=$recovery_applies/$PROFILE_RECOVERY_MAX_APPLIES"
+            if [ "$connected" -ge "$cluster_count" ]; then
+              echo "[reapplier] $_ts all members Connected; recovery watcher complete"
+              exit 0
+            fi
+            if [ "$connected" -gt 0 ] || [ "$failed" -gt 0 ]; then
+              echo "[reapplier] $_ts global apply suppressed because member progress or a member-scoped failure exists"
+            elif [ "$stall_age" -ge "$PROFILE_RECOVERY_APPLY_AFTER_SECONDS" ] &&
+              [ "$recovery_applies" -lt "$PROFILE_RECOVERY_MAX_APPLIES" ] &&
+              [ "$remaining" -ge "$PROFILE_RECOVERY_MIN_POST_SECONDS" ]; then
+              profile_state=$(az fleet clustermeshprofile show \
+                --resource-group "$FLEET_RG" \
+                --fleet-name "$FLEET_NAME" \
+                --name "$FLEET_PROFILE" \
+                --query properties.provisioningState \
+                -o tsv --only-show-errors 2>/dev/null || echo unknown)
+              if [[ "$profile_state" =~ ^(Applying|Updating|Creating)$ ]]; then
+                echo "[reapplier] $_ts profile remains $profile_state; deferring recovery apply"
+              else
+                recovery_applies=$((recovery_applies + 1))
+                echo "[reapplier] $_ts zero-progress stall confirmed; issuing bounded recovery apply $recovery_applies/$PROFILE_RECOVERY_MAX_APPLIES"
+                if az fleet clustermeshprofile apply \
+                    --resource-group "$FLEET_RG" \
+                    --fleet-name "$FLEET_NAME" \
+                    --name "$FLEET_PROFILE" \
+                    --output none --only-show-errors 2>&1; then
+                  echo "[reapplier] $_ts recovery apply accepted"
+                else
+                  echo "[reapplier] $_ts recovery apply failed; no additional global apply will be attempted"
+                fi
+                last_progress_at=$(date +%s)
+              fi
+            fi
+            sleep "$PROFILE_RECOVERY_POLL_SECONDS"
           done
         } > "$REAPPLY_LOG" 2>&1 &
         REAPPLY_PID=$!
-        echo "Spawned clustermeshprofile re-applier (PID=$REAPPLY_PID, log=$REAPPLY_LOG)"
+        echo "Spawned progress-aware clustermeshprofile recovery watcher (PID=$REAPPLY_PID, log=$REAPPLY_LOG)"
         trap 'kill $REAPPLY_PID 2>/dev/null || true' EXIT
       elif [ "$cluster_count" -ge 15 ]; then
-        echo "Staged Fleet enrollment enabled; legacy periodic profile re-applier is disabled."
+        echo "Staged Fleet enrollment enabled; non-staged profile recovery watcher is disabled."
       fi
 
       # Background clustermeshprofile AUTO-RECOVERY (build 69155 evidence):
