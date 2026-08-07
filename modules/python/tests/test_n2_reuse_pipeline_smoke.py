@@ -88,6 +88,9 @@ def test_preserve_smoke_intentionally_fails_without_cleanup():
     assert "sustained Succeeded across 3 checks" in script
     assert "aks_stability_timeout" in script
     assert "desired_state_sha" in script
+    assert "apply_profile_bounded" in script
+    assert "apply is active asynchronously" in script
+    assert "fleet_profile_apply_failed" in script
 
 
 def test_resume_smoke_reuses_same_aks_ids_and_staged_fleet():

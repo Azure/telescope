@@ -67,6 +67,46 @@ wait_for_stable_cluster() {
   return 1
 }
 
+apply_profile_bounded() {
+  local attempt output rc state applied
+
+  for attempt in $(seq 1 5); do
+    rc=0
+    output=$(timeout --foreground 900s az fleet clustermeshprofile apply \
+      --resource-group "$run_id" \
+      --fleet-name "$fleet_name" \
+      --name "$profile_name" \
+      --output none --only-show-errors 2>&1) || rc=$?
+    if [ "$rc" -eq 0 ]; then
+      log "ClusterMeshProfile apply completed on attempt $attempt/5"
+      return 0
+    fi
+
+    state=$(az fleet clustermeshprofile show \
+      --resource-group "$run_id" \
+      --fleet-name "$fleet_name" \
+      --name "$profile_name" \
+      --query properties.provisioningState \
+      -o tsv --only-show-errors 2>/dev/null || echo unknown)
+    applied=$(az fleet clustermeshprofile list-members \
+      --resource-group "$run_id" \
+      --fleet-name "$fleet_name" \
+      --name "$profile_name" \
+      --query 'length(@)' -o tsv --only-show-errors 2>/dev/null || echo unknown)
+    log "ClusterMeshProfile apply attempt $attempt/5 returned rc=$rc state=$state applied=$applied output=${output:-<none>}"
+    if [ "$applied" = "2" ] &&
+      [[ "$state" =~ ^(Succeeded|Applying|Updating|Creating)$ ]]; then
+      log "ClusterMeshProfile apply is active asynchronously; continuing to health validation"
+      return 0
+    fi
+    sleep 30
+  done
+
+  reason=fleet_profile_apply_failed
+  echo "ClusterMeshProfile apply was not accepted after 5 attempts." >&2
+  return 1
+}
+
 write_summary() {
   jq -n \
     --arg run_id "$run_id" \
@@ -202,9 +242,7 @@ az fleet clustermeshprofile create \
   --resource-group "$run_id" --fleet-name "$fleet_name" \
   --name "$profile_name" --selector mesh=true \
   --output none --only-show-errors
-az fleet clustermeshprofile apply \
-  --resource-group "$run_id" --fleet-name "$fleet_name" \
-  --name "$profile_name" --output none --only-show-errors
+apply_profile_bounded
 
 for index in 0 1; do
   az aks get-credentials \
