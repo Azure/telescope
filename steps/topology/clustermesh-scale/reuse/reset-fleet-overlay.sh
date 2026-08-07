@@ -165,6 +165,8 @@ while IFS=$'\t' read -r role cluster_name; do
   KUBECONFIG="$kubeconfig" kubectl -n kube-system delete secret \
     cilium-ca \
     cilium-clustermesh \
+    cilium-kvstoremesh \
+    cilium-root-ca.crt \
     clustermesh-apiserver-admin-cert \
     clustermesh-apiserver-local-cert \
     clustermesh-apiserver-remote-cert \
@@ -176,7 +178,7 @@ while IFS=$'\t' read -r role cluster_name; do
     residual=$(KUBECONFIG="$kubeconfig" kubectl -n kube-system get \
       deployment,service,configmap,secret \
       --ignore-not-found -o name 2>/dev/null |
-      grep -E '(^|/)(clustermesh-apiserver|clustermesh-remote-users|cilium-clustermesh)' ||
+      grep -E '(^|/)(clustermesh-apiserver|clustermesh-remote-users|cilium-clustermesh|cilium-kvstoremesh|cilium-root-ca\.crt)' ||
       true)
     if [ -z "$residual" ]; then
       break
