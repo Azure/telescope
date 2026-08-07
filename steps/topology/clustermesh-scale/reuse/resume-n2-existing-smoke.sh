@@ -10,6 +10,7 @@ artifact_dir="${CLUSTERMESH_SMOKE_ARTIFACT_DIR:?CLUSTERMESH_SMOKE_ARTIFACT_DIR i
 desired_state_path="${CLUSTERMESH_DEBUG_DESIRED_STATE_PATH:?CLUSTERMESH_DEBUG_DESIRED_STATE_PATH is required}"
 repository_root="${REPOSITORY_ROOT:-$(cd "$(dirname "$0")/../../../.." && pwd)}"
 private_kube_dir="${AGENT_TEMPDIRECTORY:-/tmp}/n2-reuse-${target_run_id}-existing"
+workload_namespace="persistence-workload-smoke"
 
 if [ "$confirm" != "$target_run_id" ]; then
   echo "Resume confirmation mismatch." >&2
@@ -23,7 +24,16 @@ if [[ "${actual_subscription,,}" != "${expected_subscription,,}" ]]; then
 fi
 
 mkdir -p "$artifact_dir" "$private_kube_dir"
-trap 'rm -rf "$private_kube_dir"' EXIT
+cleanup_local() {
+  local kubeconfig
+  for kubeconfig in "$private_kube_dir"/*.config; do
+    [ -f "$kubeconfig" ] || continue
+    KUBECONFIG="$kubeconfig" kubectl delete namespace "$workload_namespace" \
+      --ignore-not-found --wait=false >/dev/null 2>&1 || true
+  done
+  rm -rf "$private_kube_dir"
+}
+trap cleanup_local EXIT
 
 export CLUSTERMESH_DEBUG_EXPECTED_CLUSTER_COUNT=2
 export CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256
@@ -89,6 +99,7 @@ if [ "$connected" -ne 2 ]; then
   exit 1
 fi
 
+printf '[]\n' > "$artifact_dir/workload-evidence.json"
 for row in $(jq -c '.[]' <<<"$clusters"); do
   name=$(jq -r '.name' <<<"$row")
   role=$(jq -r '.role' <<<"$row")
@@ -112,6 +123,82 @@ for row in $(jq -c '.[]' <<<"$clusters"); do
     echo "$role existing Fleet is not functionally healthy: deployment=$available lb=${lb_ip:-missing} peers=${peers:-0}/1" >&2
     exit 1
   fi
+
+  KUBECONFIG="$kubeconfig" kubectl create namespace "$workload_namespace"
+  KUBECONFIG="$kubeconfig" kubectl -n "$workload_namespace" apply -f - <<'YAML'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: persistence-smoke
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: persistence-smoke
+  template:
+    metadata:
+      labels:
+        app: persistence-smoke
+    spec:
+      containers:
+        - name: pause
+          image: mcr.microsoft.com/oss/kubernetes/pause:3.9
+YAML
+  KUBECONFIG="$kubeconfig" kubectl -n "$workload_namespace" rollout status \
+    deployment/persistence-smoke --timeout=300s
+  KUBECONFIG="$kubeconfig" kubectl -n "$workload_namespace" scale \
+    deployment/persistence-smoke --replicas=3
+  KUBECONFIG="$kubeconfig" kubectl -n "$workload_namespace" rollout status \
+    deployment/persistence-smoke --timeout=300s
+
+  pods=$(KUBECONFIG="$kubeconfig" kubectl -n "$workload_namespace" get pods \
+    -l app=persistence-smoke -o json)
+  ready_pods=$(jq '
+    [
+      .items[]
+      | select(
+          .status.phase == "Running"
+          and (.status.podIP // "") != ""
+          and (.status.containerStatuses | length) > 0
+          and all(.status.containerStatuses[]; .ready == true)
+        )
+    ]
+    | length
+  ' <<<"$pods")
+  if [ "$ready_pods" -ne 3 ]; then
+    echo "$role workload smoke expected 3 Ready networked pods, found $ready_pods." >&2
+    exit 1
+  fi
+
+  evidence_tmp=$(mktemp "$artifact_dir/workload-evidence.tmp.XXXXXX")
+  jq \
+    --arg role "$role" \
+    --arg cluster "$name" \
+    --argjson pods "$pods" \
+    '. += [{
+      role: $role,
+      cluster: $cluster,
+      replicas: 3,
+      pod_ips: [$pods.items[].status.podIP]
+    }]' \
+    "$artifact_dir/workload-evidence.json" > "$evidence_tmp"
+  mv -f "$evidence_tmp" "$artifact_dir/workload-evidence.json"
+
+  KUBECONFIG="$kubeconfig" kubectl delete namespace "$workload_namespace" \
+    --wait=false
+  delete_deadline=$(( $(date +%s) + 300 ))
+  while [ "$(date +%s)" -lt "$delete_deadline" ]; do
+    if ! KUBECONFIG="$kubeconfig" kubectl get namespace "$workload_namespace" \
+        >/dev/null 2>&1; then
+      break
+    fi
+    sleep 5
+  done
+  if KUBECONFIG="$kubeconfig" kubectl get namespace "$workload_namespace" \
+      >/dev/null 2>&1; then
+    echo "$role workload namespace did not delete within 300s." >&2
+    exit 1
+  fi
 done
 
 jq -n \
@@ -121,6 +208,9 @@ jq -n \
     result:"passed",
     aks_ids_preserved:true,
     existing_fleet_preserved:true,
-    connected_members:2
+    connected_members:2,
+    workload_smoke:true,
+    workload_clusters:2,
+    workload_replicas_per_cluster:3
   }' > "$artifact_dir/summary.json"
-echo "Existing-Fleet n=2 resume passed with unchanged AKS IDs and 2/2 connectivity."
+echo "Existing-Fleet n=2 resume passed with unchanged AKS IDs, 2/2 connectivity, and persisted-cluster workloads."

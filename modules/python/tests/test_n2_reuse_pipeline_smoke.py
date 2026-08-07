@@ -117,6 +117,11 @@ def test_existing_fleet_resume_is_read_only():
     assert "AKS resource IDs changed" in script
     assert "Expected preserved Fleet to remain 2/2 Connected" in script
     assert "cilium-dbg status" in script
+    assert "persistence-workload-smoke" in script
+    assert "deployment/persistence-smoke --replicas=3" in script
+    assert "mcr.microsoft.com/oss/kubernetes/pause:3.9" in script
+    assert "pod_ips" in script
+    assert "workload_smoke:true" in script
     for forbidden in (
         "az fleet create",
         "az fleet delete",
