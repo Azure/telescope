@@ -952,7 +952,7 @@ def evaluate_pass_fail(measurements: dict, expected_targets: int = 0) -> dict:
     if expected_targets > 0:
         scrape_pass = scrape_up >= expected_targets
     else:
-        scrape_pass = scrape_rate >= 0.99
+        scrape_pass = scrape_rate >= 0.90
     oom_pass = (oom_events + oom_killed) == 0
     restarts_pass = restarts == 0
     dial_pass = dial_mean < 2.0

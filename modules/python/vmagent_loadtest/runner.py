@@ -490,7 +490,8 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
                           max_rows_per_block: int = 10000,
                           konn_server_image: str = KONN_SERVER_IMAGE,
                           konn_agent_image: str = KONN_AGENT_IMAGE,
-                          resume: bool = False) -> dict:
+                          resume: bool = False,
+                          final_tier_dwell_minutes: int = 5) -> dict:
     """Ramp the DP nodepool through every node count in `tiers` (ascending)
     inside ONE continuous namespace/deployment, mirroring how a real prod
     cluster is actually scaled up (e.g. 0->400->800->...->2000) and watched
@@ -642,6 +643,17 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
                 "(no extra post-scale dwell -- scale-up was already sampled continuously)...", tier)
         last_sample = sample_step(cp_kubeconfig, dp_kubeconfig, namespace, tier)
         all_samples.append(last_sample)
+
+        if tier == steps[-1] and final_tier_dwell_minutes > 0:
+            # The final tier's evaluation is what determines the ramp's
+            # overall pass/fail (below) -- unlike intermediate checkpoints,
+            # it needs real scrape coverage, not just a same-instant sample.
+            # Dwell here so SD discovery + the first few scrape cycles catch
+            # up to the nodes just added before collecting graded metrics.
+            log.info("Final tier reached — dwelling %dm to let scrape coverage catch up "
+                    "before collecting graded metrics...", final_tier_dwell_minutes)
+            all_samples.extend(dwell_and_sample(cp_kubeconfig, dp_kubeconfig, namespace,
+                                                tier, duration_minutes=final_tier_dwell_minutes))
 
         step_measurements = collect_metrics(cp_kubeconfig, dp_kubeconfig, namespace, tier, work_dir)
         step_pass_fail = evaluate_pass_fail(step_measurements, expected_targets=min_targets)
@@ -802,7 +814,8 @@ def run_fake_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
                           drain_observe_seconds: int = 120,
                           konn_server_image: str = KONN_SERVER_IMAGE,
                           konn_agent_image: str = KONN_AGENT_IMAGE,
-                          resume: bool = False) -> dict:
+                          resume: bool = False,
+                          final_tier_dwell_minutes: int = 5) -> dict:
     """Ramp fake-exporter replicas through every tier in `tiers` (ascending)
     inside ONE continuous namespace/deployment, mirroring
     run_real_targets_ramp but scaling via scale_fake_and_sample (DP nodepool
@@ -940,6 +953,14 @@ def run_fake_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
                 "(no extra post-scale dwell -- scale-up was already sampled continuously)...", tier)
         last_sample = sample_step(cp_kubeconfig, dp_kubeconfig, namespace, tier)
         all_samples.append(last_sample)
+
+        if tier == steps[-1] and final_tier_dwell_minutes > 0:
+            # See run_real_targets_ramp: only the final tier's evaluation
+            # is graded, so give scrape coverage time to catch up here.
+            log.info("Final tier reached — dwelling %dm to let scrape coverage catch up "
+                    "before collecting graded metrics...", final_tier_dwell_minutes)
+            all_samples.extend(dwell_and_sample(cp_kubeconfig, dp_kubeconfig, namespace,
+                                                tier, duration_minutes=final_tier_dwell_minutes))
 
         step_measurements = collect_metrics(cp_kubeconfig, dp_kubeconfig, namespace, tier, work_dir)
         step_pass_fail = evaluate_pass_fail(step_measurements, expected_targets=min_targets)

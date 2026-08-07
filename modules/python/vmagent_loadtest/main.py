@@ -79,6 +79,13 @@ def main() -> None:
                         help="Comma-separated replicas-per-role per tier (total targets = tier × 4)")
     parser.add_argument("--warm-up-minutes", type=int, default=5,
                         help="Warm-up time per tier (default: 5)")
+    parser.add_argument("--final-tier-dwell-minutes", type=int, default=5,
+                        help="Ramp modes only: after the FINAL (highest) tier's nodes are "
+                             "Ready, dwell this long before collecting the metrics that "
+                             "determine the ramp's overall pass/fail (default: 5). "
+                             "Intermediate tiers don't gate on scrape coverage, but the "
+                             "final tier's result does, so it needs real time for SD "
+                             "discovery + scrape cycles to catch up. Set to 0 to disable.")
     parser.add_argument("--cleanup", action="store_true",
                         help="Delete all loadtest namespaces and exit")
     parser.add_argument("--verbose", "-v", action="store_true",
@@ -468,6 +475,7 @@ def main() -> None:
                     konn_server_image=args.konn_server_image,
                     konn_agent_image=args.konn_agent_image,
                     resume=resume,
+                    final_tier_dwell_minutes=args.final_tier_dwell_minutes,
                 )
                 all_results.append(result)
                 break
@@ -542,6 +550,7 @@ def main() -> None:
                     konn_server_image=args.konn_server_image,
                     konn_agent_image=args.konn_agent_image,
                     resume=resume,
+                    final_tier_dwell_minutes=args.final_tier_dwell_minutes,
                 )
                 all_results.append(result)
                 break
