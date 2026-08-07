@@ -38,7 +38,9 @@ from vmagent_loadtest.runner import (
     cleanup, cleanup_ramp, cleanup_tier, compute_fake_nodes_needed,
     run_fake_targets_ramp, run_real_targets_ramp, run_single_tier,
 )
-from vmagent_loadtest.scaling import scale_dp_nodepool, wait_for_nodes_ready, delete_fanout_nodepools
+from vmagent_loadtest.scaling import (
+    scale_dp_nodepool, scale_down_for_teardown, wait_for_nodes_ready, delete_fanout_nodepools,
+)
 from vmagent_loadtest import utils as _utils
 
 
@@ -488,6 +490,7 @@ def main() -> None:
                     all_results.append(result)
                     failed_tiers.extend(tiers)
         cleanup_ramp(args.cp_kubeconfig, args.dp_kubeconfig, run_label=args.run_label, mode="real")
+        scale_down_for_teardown(args.resource_group, args.dp_cluster_name, args.nodepool_name)
     else:
         # Fake targets ramp through every tier as exporter replica counts
         # inside ONE continuous deployment (see run_fake_targets_ramp)
@@ -561,6 +564,7 @@ def main() -> None:
                     all_results.append(result)
                     failed_tiers.extend(tiers)
         cleanup_ramp(args.cp_kubeconfig, args.dp_kubeconfig, run_label=args.run_label, mode="fake")
+        scale_down_for_teardown(args.resource_group, args.dp_cluster_name, args.nodepool_name)
 
     log.info("")
     log.info("=" * 60)

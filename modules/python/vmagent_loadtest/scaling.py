@@ -202,10 +202,39 @@ def delete_fanout_nodepools(resource_group: str, cluster_name: str,
         log.info("No fan-out nodepools to delete.")
 
 
+def scale_down_for_teardown(resource_group: str, dp_cluster_name: str, nodepool: str) -> None:
+    """Delete the fan-out nodepools this code created (dataplane2, ...)
+    before the pipeline's terraform destroy / `az group delete` step.
+
+    The base DP pool and the CP `controlplane` pool are both provisioned by
+    terraform and get torn down as part of normal cluster deletion
+    regardless of their current node count -- only the EXTRA pools this
+    code created out-of-band via `az aks nodepool add` need explicit
+    cleanup here, since terraform's state doesn't know about them.
+    """
+    if not (resource_group and dp_cluster_name):
+        return
+    try:
+        delete_fanout_nodepools(resource_group, dp_cluster_name, nodepool)
+    except Exception as e:
+        log.warning("Fan-out nodepool cleanup before teardown failed (non-fatal): %s", e)
+
+
 
 def wait_for_nodes_ready(kubeconfig: str, expected: int,
-                         timeout_minutes: int = 30, poll_interval: int = 30) -> int:
-    """Wait until at least `expected` nodes are in Ready state."""
+                         timeout_minutes: int = 30, poll_interval: int = 30,
+                         tolerance_pct: float = 0.0) -> int:
+    """Wait until at least `expected` nodes (minus `tolerance_pct` margin)
+    are in Ready state.
+
+    `tolerance_pct` defaults to 0 (exact match) -- intermediate ramp tiers
+    need their real node count for reproducible per-tier data. Callers pass
+    a margin (e.g. 0.02) only when scaling to the ramp's FINAL tier, where
+    a handful of stragglers at the tail of a large climb (e.g. the last 1-2%
+    of 2000 nodes) can lag well behind the rest with no useful signal on
+    when they'll actually join.
+    """
+    min_required = max(1, math.ceil(expected * (1 - tolerance_pct)))
     deadline = time.time() + timeout_minutes * 60
     ready_count = 0
     while time.time() < deadline:
@@ -216,9 +245,10 @@ def wait_for_nodes_ready(kubeconfig: str, expected: int,
         )
         lines = [l.strip() for l in result.stdout.strip().split("\n") if l.strip()]
         ready_count = sum(1 for l in lines if "Ready" in l and "True" in l)
-        log.info("  nodes: %d/%d Ready", ready_count, expected)
-        if ready_count >= expected:
-            log.info("All %d nodes are Ready.", expected)
+        log.info("  nodes: %d/%d Ready (accepting >= %d)", ready_count, expected, min_required)
+        if ready_count >= min_required:
+            log.info("%d/%d nodes are Ready (within %.0f%% margin).",
+                     ready_count, expected, tolerance_pct * 100)
             return ready_count
         time.sleep(poll_interval)
     log.warning("Timed out waiting for %d nodes (got %d)", expected, ready_count)

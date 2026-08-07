@@ -2,9 +2,9 @@
 
 ## Mission
 
-**Increase the VMAgent platform-metrics scrape ceiling from 150 nodes to 5,000 nodes over konnectivity**, with a clear empirical understanding of the bottleneck profile at each scale increment (150 → 250 → 500 → 1,000), and a validated architectural path to 6,000 nodes.
+**Increase the VMAgent platform-metrics scrape ceiling from 200 nodes to 5,000 nodes over konnectivity**, with a clear empirical understanding of the bottleneck profile at each scale increment (200 → 500 → 1,000), and a validated architectural path to 5,000 nodes.
 
-**Current limit:** `vmagentMaximumNodeCount = 150` — above this threshold, VMAgent switches from full-mode (all overlay targets) to default mode (overlay targets dropped).
+**Current limit:** `vmagentMaximumNodeCount = 200` — above this threshold, VMAgent switches from full-mode (all overlay targets) to default mode (overlay targets dropped).
 
 **Scaling dimensions under investigation:**
 
@@ -15,6 +15,45 @@
 | Pod density (cadvisor cardinality) | containers_per_node x ~25 series | 150 pods/node = ~3,750 series/node |
 
 **Success criteria:** >99% scrape rate at 5,000 nodes, konnectivity dial p99 < 2s, automated test turnaround < 30 min.
+
+**Progress to date:** the real-targets ramp is actively validating 500 → 1,000 → 1,500 → 2,000 nodes as ONE continuous deployment (no teardown between tiers); 500 and 1,000 have passed cleanly, 1,500+ validation is in progress alongside the scale-up robustness fixes described below.
+
+---
+
+## Current Process (as of 2026-08-06)
+
+The load test now runs as an Azure DevOps pipeline instead of a devbox-only script, so every run is reproducible, versioned, and exports results to Kusto automatically.
+
+- **Pipeline:** `New Pipeline Test` (`pipelines/system/new-pipeline-test.yml`, org `akstelescope`, project `telescope`).
+- **Active stage:** `eastus_real` only — `westus2_fake` (fake-exporter tiering) is defined but held/commented for now.
+- **Active leg:** `real_targets` — the prod-default baseline config (`RATE_LIMIT=2 MiB/s`, `MAX_BLOCK_SIZE=.5 MiB`, `QUEUES≈4`, matching what production runs today), ramping `TIERS: 500,1000,1500,2000`.
+- **Held-back legs:** `real_targets_tune1`-`tune4` sweep `-remoteWrite.queues` (8/10/12/16) and `rateLimit` (2/4/6/8 MiB/s) against the same 500-2000 node ramp. These stay commented out in the pipeline until baseline passes cleanly at 2,000 nodes — validating raw scale first, before layering on remote-write tuning experiments.
+
+### Ramp architecture — continuous sampling instead of a fixed dwell
+
+Earlier iterations scaled the DP nodepool, blocked silently until nodes reported `Ready`, then dwelled for a fixed warm-up window (15 min, later 5 min) before taking a single sample — a multi-minute black box with no visibility into the climb itself.
+
+`scale_and_sample()` / `scale_fake_and_sample()` (in `runner.py`/`metrics.py`) now run the scale-up and a background sampler **concurrently**: a sample (resource usage + scrape health) is taken every 60s for the entire duration of the node-count climb, and only one confirmation sample is taken once nodes report `Ready` — no extra post-scale dwell. This produces a full time series across the scale-up itself, not just the steady state after it. Reconciliation of konnectivity-server/agent/vmagent sizing is also skipped for the first tier in a ramp (already deployed pre-loop), removing a redundant rollout wait that previously added confusing extra delay.
+
+### Real-config parity with production
+
+The harness now mirrors production sizing rather than using arbitrary test values:
+
+| Aspect | Load-test value | Matches prod source |
+|--------|-----------------|----------------------|
+| konnectivity-server / agent image | `v0.32.1-11` | `aks-rp/toolkit/versioning/manifests/ccp/apiserver-network-proxy-server/` |
+| konnectivity-server CPU/mem floors | H2 (cpuReq=1, memLim=2Gi) below 1,000 nodes; H4/H8 (cpuReq=2, memLim=4Gi) at/above | `aks-rp/ccp/konnectivity-server-synth/helmvalues/control_plane_scaling_profile.go` |
+| konnectivity-server replica floor | 3 | prod's paid-tier default (`konnectivityServerReplicaCount()`) |
+| konnectivity-agent replica count | node-count-keyed table: 3/4/5/6/7/8/10 replicas at 50/100/250/500/1,000/2,000/5,000 nodes | `aks-rp/ccp/konnectivity-agent-autoscaler/helmvalues/values.go` (`minReplicasByNodeCount`), copied verbatim into `config.py`'s `konnectivity_agent_replicas_for_node_count()` |
+
+Previously the harness ran a flat 1 konn-server replica and scaled agent replicas 1:1 with node/tier count (e.g. 2,000 agent pods for a 2,000-node test) — architecturally wrong; both are now sized the way prod actually would at each node count.
+
+### Scale-up robustness fixes
+
+Ramping to 1,500+ nodes surfaced two real bugs, both now fixed in `scaling.py`/`deploy.py`:
+
+1. **Rollout-status timeouts were too tight** for the scheduling churn at larger tiers (konn-server was `--timeout=120s`) — bumped to 300s-600s across konn-server, konn-agent, vmsingle, and vmagent.
+2. **Retrying the whole ramp after a failure could collide with Azure itself**: `az aks nodepool scale --no-wait` returns immediately, but the actual scale operation keeps running on Azure's side for many minutes afterward. A retry that re-issued a new scale command while the previous one was still in flight was rejected outright (`OperationNotAllowed: ... in-progress scale node pool operation`), turning one transient failure into a guaranteed 3/3 retry failure. `_scale_single_pool()` now waits for any in-flight nodepool operation to settle before issuing a new one.
 
 ---
 
@@ -223,6 +262,8 @@ The DP API server URL is auto-detected from the DP kubeconfig and injected as th
 
 ### vmagent-proxy: Dual-Mode Proxy
 
+> **Note:** the table below describes the original Python proxy prototype's request handling. Pipeline runs today use the real production `vmagent-proxy` Go binary (`prometheus-extensions/vmagent-proxy`), which serves the same CONNECT-tunnel role and additionally supports a pooled/reused-tunnel mode (`--enableTunnelReuse`, `ReuseProxy` vs `LegacyProxy` in `pkg/proxy/proxy.go`) that this harness now measures via the `vmagent-proxy` scrape job (`vmagent_proxy_dials_total`, `vmagent_proxy_active_connections` — see Current Process above). The GET/CONNECT split below still describes the request shapes conceptually.
+
 The vmagent-proxy sidecar supports **two request handlers**:
 
 | Handler | When Used | Flow |
@@ -309,10 +350,13 @@ az aks get-credentials --resource-group VMAgent-Load-testing \
 
 | Component | Image |
 |-----------|-------|
-| Konnectivity Server | `mcr.microsoft.com/oss/v2/kubernetes/apiserver-network-proxy/server:v0.32.1-3` |
-| Konnectivity Agent | `mcr.microsoft.com/oss/v2/kubernetes/apiserver-network-proxy/agent:v0.32.1-3` |
+| Konnectivity Server | `mcr.microsoft.com/oss/v2/kubernetes/apiserver-network-proxy/server:v0.32.1-11` |
+| Konnectivity Agent | `mcr.microsoft.com/oss/v2/kubernetes/apiserver-network-proxy/agent:v0.32.1-11` |
 | VMAgent | `mcr.microsoft.com/oss/v2/victoriametrics/vmagent:v1.127.0-1` |
-| VMSingle | `victoriametrics/victoria-metrics:v1.117.0` |
+| vmagent-proxy | `mcr.microsoft.com/aks/hcp/vmagent-proxy:1.522.0-master.260728-f125952f` — the real production Go binary (`prometheus-extensions/vmagent-proxy`), not a test stub |
+| VMSingle | `mcr.microsoft.com/oss/v2/victoriametrics/victoria-metrics:v1.125.1-7` |
+
+Image tags and konnectivity resource floors are kept in sync with prod (see `config.py`); override via `--konn-server-image`/`--konn-agent-image` (or the pipeline's `konn_server_image`/`konn_agent_image` parameters) to test a fix candidate before it ships.
 
 ---
 
@@ -479,48 +523,55 @@ scrape_configs:
 
 ## Running the Test
 
-```bash
-cd aks-operator
+### Via the ADO pipeline (primary path)
 
-# Real targets — correctness validation (3 nodes × 4 roles = 12 targets)
-python3 tests/scale/fake-controlplane/main.py \
-  --cp-kubeconfig /tmp/fakecpcluster.kubeconfig \
-  --dp-kubeconfig /tmp/fakedpcluster.kubeconfig \
-  --tiers 3 \
+Pipeline **`New Pipeline Test`** (`pipelines/system/new-pipeline-test.yml`, project `telescope`, org `akstelescope`), stage `eastus_real`, matrix leg `real_targets`. It provisions the CP/DP AKS clusters via Terraform, runs `main.py` through the real-targets ramp (`TIERS: 500,1000,1500,2000`), streams results to Kusto (`vmagentloadtest` DB, cluster `vmagent-loadtesting.eastus2.kusto.windows.net`), then tears down. Trigger it from the ADO pipeline UI against the branch you want to validate.
+
+### Locally (manual/debugging)
+
+```bash
+cd telescope/modules/python
+
+# Real targets — single tier, no node scaling (assumes clusters already sized)
+python3 -m vmagent_loadtest.main \
+  --cp-kubeconfig /tmp/cp.kubeconfig \
+  --dp-kubeconfig /tmp/dp.kubeconfig \
+  --tiers 500 \
   --warm-up-minutes 5 \
   --real-targets
 
-# Real targets with DP node pool scaling (auto-scale DP to tier N nodes)
-python3 tests/scale/fake-controlplane/main.py \
-  --cp-kubeconfig /tmp/fakecpcluster.kubeconfig \
-  --dp-kubeconfig /tmp/fakedpcluster.kubeconfig \
-  --tiers 10,50,100 \
-  --warm-up-minutes 10 \
+# Real targets ramp — scales the DP nodepool through each tier as ONE
+# continuous deployment (matches what the pipeline runs)
+python3 -m vmagent_loadtest.main \
+  --cp-kubeconfig /tmp/cp.kubeconfig \
+  --dp-kubeconfig /tmp/dp.kubeconfig \
+  --tiers 500,1000,1500,2000 \
   --real-targets \
   --resource-group VMAgent-Load-testing \
-  --dp-cluster-name fakedpcluster
+  --dp-cluster-name vmagent-dp
 
 # Cleanup all loadtest namespaces
-python3 tests/scale/fake-controlplane/main.py \
-  --cp-kubeconfig /tmp/fakecpcluster.kubeconfig \
-  --dp-kubeconfig /tmp/fakedpcluster.kubeconfig \
+python3 -m vmagent_loadtest.main \
+  --cp-kubeconfig /tmp/cp.kubeconfig \
+  --dp-kubeconfig /tmp/dp.kubeconfig \
   --cleanup
 ```
 
-### CLI Options
+### CLI Options (selected)
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--cp-kubeconfig` | (required) | Control plane cluster kubeconfig |
-| `--dp-kubeconfig` | (required) | Dataplane cluster kubeconfig |
-| `--tiers` | `150,500,1000` | Comma-separated DP node counts per tier (targets = nodes × 4 real roles) |
-| `--warm-up-minutes` | `5` | Max time to wait for targets to come up |
-| `--real-targets` | `false` | Scrape real kubelet/cadvisor/kube-proxy/azure-cns endpoints on the DP cluster nodes |
-| `--resource-group` | `""` | Azure resource group for DP cluster (enables node scaling) |
-| `--dp-cluster-name` | `""` | AKS cluster name for DP (enables node scaling) |
-| `--nodepool-name` | `nodepool1` | DP cluster nodepool to scale |
+| `--cp-kubeconfig` / `--dp-kubeconfig` | (required) | Control plane / dataplane cluster kubeconfigs |
+| `--tiers` | `150,500,1000` | Comma-separated DP node counts to ramp through (pipeline overrides to `500,1000,1500,2000`) |
+| `--real-targets` | `false` | Scrape real kubelet/cadvisor/kube-proxy/azure-cns instead of fake exporters; ramps continuously via `run_real_targets_ramp` |
+| `--resource-group` / `--dp-cluster-name` / `--nodepool-name` | `""` / `""` / `dataplane` | Enables DP nodepool scaling |
+| `--max-retries` | `2` | Retries the whole ramp on failure (cleans up + restarts from the first tier) |
+| `--rate-limit` / `--max-block-size` / `--queues` / `--max-rows-per-block` | `2097152` / `8388608` / `8` / `10000` | `-remoteWrite.*` flags passed to vmagent — the tuning-leg sweep knobs |
+| `--konn-server-image` / `--konn-agent-image` | current prod tag | Override to test a fix candidate |
+| `--run-label` | `""` | Namespace prefix, avoids collisions across parallel/matrix runs |
+| `--parallel` / `--max-concurrency` | `false` / all | Fake-mode only: run all tiers concurrently in separate namespaces |
+| `--compare` | `false` | Run real + fake for the first tier, then produce a real-vs-fake fidelity report |
 | `--cleanup` | `false` | Delete all loadtest namespaces and exit |
-| `--verbose` / `-v` | `false` | Enable debug logging |
 
 ---
 
@@ -673,14 +724,17 @@ These values become significant at higher tiers (500+ nodes) where memory and go
 
 | Criterion | Threshold | Description |
 |-----------|-----------|-------------|
-| Scrape success rate | >= 99% | All targets must be scrapeable through tunnel |
-| OOM events | = 0 | No components should OOM (events + terminated pods) |
+| Scrape targets up | >= expected count (or >=99% rate if no expected count given) | All targets must be scrapeable through tunnel |
+| OOM events | = 0 | OOMKilled events + terminated-pod state, combined |
 | Pod restarts | = 0 | No containers should restart |
 | Konnectivity dial mean latency | < 2.0s | Tunnel setup must be fast |
+| Konnectivity dial failures | = 0 | konn-server dial_duration failure count |
+| Konnectivity stream error rate | < 10% | errors / total stream packets — a *rate*, not an absolute count, since some close/reset events are normal connection lifecycle |
+| Konnectivity agent dial failures | = 0 | Agent-side endpoint dial failures |
 | Remote write errors | = 0 | No write failures to VMSingle |
 | Remote write rows inserted | > 0 | Data must actually arrive at receiver |
 
-**Overall: PASS only if ALL criteria pass.**
+**Overall: PASS only if ALL criteria pass.** (see `evaluate_pass_fail()` in `metrics.py`)
 
 ---
 
@@ -747,67 +801,61 @@ Test **PASSED**: 3 DP nodes × 4 real endpoints (kubelet, cadvisor, kube-proxy, 
 ## File Structure
 
 ```
-tests/scale/fake-controlplane/
-├── main.py                                       # Entry point: argparse + main() orchestration
-├── modules/
-│   ├── config/
-│   │   └── manifest/
-│   │       ├── konnectivity-agent.yaml           # Agent deployment (--enable-profiling, admin :8094)
-│   │       ├── konnectivity-server.yaml          # Server deployment + LB service (--enable-profiling, admin :8096)
-│   │       ├── scrape-config.yaml                # VMAgent scrape config ConfigMap (11 jobs, separated from vmagent.yaml)
-│   │       ├── vmagent.yaml                      # VMAgent StatefulSet + proxy sidecar (references scrape-config.yaml ConfigMap)
-│   │       └── vmsingle.yaml                     # VMSingle receiver deployment + service
-│   └── python/
-│       └── vmagent_loadtesting/                  # Python package
-│           ├── __init__.py
-│           ├── certs.py                          # Pure-Python TLS cert generation (cryptography library, no cfssl)
-│           ├── config.py                         # Constants: images, roles, ports, paths
-│           ├── deploy.py                         # K8s deployment helpers (ensure_namespace, deploy_*, setup_dp_access, get_dp_api_server)
-│           ├── metrics.py                        # Metrics collection, pprof profiling + auto-analysis, pass/fail evaluation
-│           ├── runner.py                         # Single-tier execution (run_single_tier) + cleanup
-│           ├── scaling.py                        # Azure DP nodepool scaling (az aks nodepool scale)
-│           └── utils.py                          # kubectl wrapper, template rendering, PortForward context manager, retry_request
-├── pipeline/
-│   └── fake-cp-loadtest.yaml                     # Azure Pipelines (3 stages: create clusters → run test → cleanup)
-└── __pycache__/
+telescope/modules/python/vmagent_loadtest/
+├── main.py           # Entry point: argparse + main() orchestration (ramp/single-tier/parallel/compare modes)
+├── config.py         # Image tags, tier resource buckets, konn-agent replica-count table, roles/ports
+├── cluster.py        # AKS cluster create/delete, az login
+├── deploy.py         # kubectl apply operations, namespace mgmt, RBAC, rollout waits
+├── scaling.py        # az aks nodepool scale + wait_for_nodes_ready + multi-nodepool fan-out
+├── metrics.py        # Metric extraction, sample_step/scale_and_sample, pass/fail, pprof
+├── runner.py         # run_single_tier / run_real_targets_ramp / run_fake_targets_ramp / cleanup
+├── adx.py            # Kusto (ADX) export: run summary + time-series metrics
+├── certs.py          # CA + server + client cert generation (cryptography library)
+├── compare.py        # Real-vs-fake and cross-tier comparison report generation
+├── utils.py          # kubectl() wrapper, template rendering, PortForward, retry()
+├── manifests/        # konnectivity-{server,agent}.yaml, scrape-config.yaml, vmagent.yaml, vmsingle.yaml
+└── wiki/             # This page
 ```
 
 ### Key Module Responsibilities
 
-| Module | Lines | Responsibility |
-|--------|-------|---------------|
-| `main.py` | ~125 | CLI parsing, tier loop, results summary |
-| `config.py` | ~50 | Image tags, real/DaemonSet role definitions, logging |
-| `deploy.py` | ~220 | All `kubectl apply` operations, namespace management, RBAC, token transfer |
-| `metrics.py` | ~600 | Prometheus metric extraction, pprof collection (3 components) + auto-analysis, resource sampling, pass/fail |
-| `runner.py` | ~155 | Single-tier orchestration: deploy → wait → collect → evaluate → write JSON |
-| `certs.py` | ~80 | CA + server + client cert generation using Python `cryptography` library |
-| `utils.py` | ~95 | `kubectl()` subprocess wrapper, YAML template rendering, `PortForward` context manager |
-| `scaling.py` | ~40 | `az aks nodepool scale` + `wait_for_nodes_ready` |
+| Module | Responsibility |
+|--------|---------------|
+| `main.py` | CLI parsing, mode dispatch (ramp / single-tier / parallel / compare / cluster lifecycle) |
+| `config.py` | Image tags, real/fake role definitions, tier-bucketed resource sizing, konn-agent replica table |
+| `deploy.py` | All `kubectl apply` operations, namespace management, RBAC, token transfer, rollout waits |
+| `scaling.py` | `az aks nodepool scale`, `wait_for_nodes_ready`, multi-nodepool fan-out past the 1,000-node AKS cap |
+| `metrics.py` | Prometheus metric extraction, `sample_step`/`scale_and_sample` continuous sampling, pprof, pass/fail |
+| `runner.py` | Orchestration: `run_single_tier`, `run_real_targets_ramp`, `run_fake_targets_ramp`, cleanup |
+| `adx.py` | Kusto export — run summary row + per-metric time series, including vmagent-proxy tunnel-reuse metrics |
+| `certs.py` | CA + server + client cert generation using Python `cryptography` library |
+| `utils.py` | `kubectl()` subprocess wrapper, YAML template rendering, `PortForward` context manager, `retry()` |
 
 ---
 
 ## CI/CD Pipeline
 
-The Azure Pipelines definition (`pipeline/fake-cp-loadtest.yaml`) automates the full flow:
+The ADO pipeline definition (`pipelines/system/new-pipeline-test.yml`, using the shared `/jobs/competitive-test.yml` template and `/steps/engine/vmagent-loadtest/execute.yml`) automates the full flow per matrix leg: Terraform-provision CP/DP clusters → run `main.py`'s ramp → export results to Kusto → upload `results.json` → teardown.
 
-| Stage | Description | Timeout |
-|-------|-------------|---------|
-| **Setup** | Creates resource group + CP/DP AKS clusters, publishes kubeconfigs | 30 min |
-| **LoadTest** | Runs `main.py` with configured tiers, publishes results JSON | 180 min |
-| **Cleanup** | Deletes resource group (conditional on `deleteAfterTest`) | 15 min |
+### Stages
 
-### Pipeline Parameters
+| Stage | Status | Description |
+|-------|--------|-------------|
+| `eastus_real` | **Active** | Real-targets ramp, matrix leg `real_targets` (baseline) live; `real_targets_tune1`-`tune4` (queues/rateLimit sweeps) held/commented |
+| `westus2_fake` | Held/commented | Fake-exporter tiering (100/200/300), isolates rateLimit vs flushInterval effects on remote-write backlog |
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `scaleTiers` | `150,500,1000,2000` | DP node counts per tier |
-| `soakMinutes` | `10` | Soak duration per tier |
-| `cpNodeCount` | `3` | CP cluster node count |
-| `dpNodeCount` | `10` | DP cluster node count |
-| `location` | `westus2` | Azure region |
-| `vmSize` | `Standard_D4s_v3` | VM size for both clusters |
-| `deleteAfterTest` | `true` | Delete clusters after test |
+### Current `real_targets` leg parameters
+
+| Parameter | Value | Note |
+|-----------|-------|------|
+| `TIERS` | `500,1000,1500,2000` | Ramped as one continuous deployment |
+| `SOAK_MINUTES` | `5` | Legacy dwell param, superseded by continuous scale-up sampling |
+| `RATE_LIMIT` | `2097152` (2 MiB/s) | Current prod value |
+| `MAX_BLOCK_SIZE` | `524288` (.5 MiB) | Current prod value |
+| `QUEUES` | `4` | Closest available default; prod doesn't set this flag today |
+| `KONN_SERVER_IMAGE` / `KONN_AGENT_IMAGE` | `v0.32.1-11` | Pipeline parameters, override per-run |
+| `max_parallel` | `1` | Legs run sequentially |
+| `timeout_in_minutes` | `2500` | |
 
 ---
 
@@ -834,6 +882,13 @@ az group delete --name VMAgent-Load-testing --no-wait --yes
 
 | Date | Change |
 |------|--------|
+| 2026-08-06 | Fixed scale-up retry conflict: `_scale_single_pool()` now waits for any in-flight AKS nodepool scale/update operation to settle before issuing a new one, preventing `OperationNotAllowed` cascades on ramp retries |
+| 2026-08-06 | Bumped rollout-status timeouts (konn-server 120s→300s, konn-agent 300s→600s, vmsingle 180s→300s, vmagent 300s→600s) — too tight for scheduling churn at 1,500+ node tiers |
+| 2026-08-06 | Pipeline now runs only the `real_targets` baseline leg (500→2,000 nodes); the 4 queues/rateLimit tuning legs held/commented until baseline passes clean |
+| 2026-08-06 | Migrated from devbox-only script (`tests/scale/fake-controlplane`) to an ADO pipeline (`New Pipeline Test`) with automatic Kusto export |
+| 2026-08-06 | Added `scale_and_sample`/`scale_fake_and_sample`: continuous 60s sampling during node scale-up, replacing the old fixed post-scale dwell |
+| 2026-08-06 | Aligned konnectivity-server/agent images (`v0.32.1-11`), CPU/mem floors (CPSP H2/H4/H8), server replica floor (3), and agent replica count (node-count-keyed table) with real prod defaults |
+| 2026-08-06 | Added `vmagent-proxy` scrape job + ADX time-series metrics (`vmagent_proxy_dials_total`, `_active_connections`, etc.) to validate tunnel reuse, matching the real production Go proxy binary |
 | 2026-07-30 | Removed fake-exporter/fake-node references from this page (Mode 1, diagrams, tables, Sample Results); page now documents real-target (`--real-targets`) validation exclusively |
 | 2026-07-30 | Synced `-remoteWrite` flags to current prod (`flushInterval` 30s→1s, `rateLimit` .5→2 MiB/s, added `label=cluster_id`/`showURL`); added new `--max-block-size` (→8 MiB) / `--max-rows-per-block` (new flag) CLI args to validate prod's pending/unvalidated 2k-node-incident recommendations (see `aks-operator/config/channels/packages/adx-vmagent/vmagent-loadtest-analysis.md`) |
 | 2026-07-30 | Aligned `konnectivity-server.yaml` with the real standalone `konnectivity-server-synth` chart (post apiserver/konnectivity split): admin/metrics port 8095→8096, added `--graceful-shutdown-timeout=15s` and `--cipher-suites` restriction |
