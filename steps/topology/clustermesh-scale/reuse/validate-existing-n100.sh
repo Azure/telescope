@@ -8,7 +8,7 @@ expected_region="${CLUSTERMESH_DEBUG_EXPECTED_REGION:-eastus2}"
 expected_count="${CLUSTERMESH_DEBUG_EXPECTED_CLUSTER_COUNT:-100}"
 expected_tfvars_sha="${CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256:?CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256 is required}"
 extend_lease_hours="${CLUSTERMESH_DEBUG_EXTEND_LEASE_HOURS:-0}"
-manifest_path="${CLUSTERMESH_DEBUG_MANIFEST_PATH:-$(pwd)/n100-reuse-validation.json}"
+manifest_path="${CLUSTERMESH_DEBUG_MANIFEST_PATH:-$(pwd)/scale-reuse-validation.json}"
 require_overlay_reset="${CLUSTERMESH_DEBUG_REQUIRE_OVERLAY_RESET:-false}"
 
 if ! [[ "$target_run_id" =~ ^[0-9]+-[0-9a-f]{8}$ ]]; then
@@ -143,4 +143,4 @@ jq -n \
     clusters: $clusters
   }' > "$manifest_path"
 
-echo "Validated preserved n=100 RG $target_run_id: clusters=$cluster_count fleet=$fleet_count lease=$deletion_due_time"
+echo "Validated preserved scale RG $target_run_id: expected=$expected_count clusters=$cluster_count fleet=$fleet_count lease=$deletion_due_time"

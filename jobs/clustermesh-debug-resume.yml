@@ -28,6 +28,18 @@ parameters:
   default: scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-100-mock-shared.tfvars
 - name: expected_subscription_id
   type: string
+- name: expected_cluster_count
+  type: number
+  default: 100
+- name: run_workload
+  type: boolean
+  default: true
+- name: publish_results
+  type: boolean
+  default: true
+- name: manifest_subdir
+  type: string
+  default: scale-resume
 
 jobs:
 - job: azure
@@ -59,19 +71,19 @@ jobs:
       CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256=$(sha256sum \
         "$(Pipeline.Workspace)/s/${{ parameters.tfvars_path }}" \
         | awk '{print $1}')
-      bash "$(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/validate-existing-n100.sh"
+      bash "$(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/validate-existing-scale.sh"
       bash "$(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/create-staged-fleet-overlay.sh"
-    displayName: "Validate preserved n100 and recreate staged Fleet overlay"
+    displayName: "Validate preserved scale clusters and recreate staged Fleet overlay"
     env:
       RUN_ID: $(RUN_ID)
       CLUSTERMESH_DEBUG_TARGET_RUN_ID: $(RUN_ID)
       CLUSTERMESH_DEBUG_CONFIRM_RESUME: $(CLUSTERMESH_DEBUG_CONFIRM_RESUME)
       CLUSTERMESH_DEBUG_EXPECTED_SUBSCRIPTION_ID: ${{ parameters.expected_subscription_id }}
       CLUSTERMESH_DEBUG_EXPECTED_REGION: ${{ parameters.region }}
-      CLUSTERMESH_DEBUG_EXPECTED_CLUSTER_COUNT: "100"
+      CLUSTERMESH_DEBUG_EXPECTED_CLUSTER_COUNT: "${{ parameters.expected_cluster_count }}"
       CLUSTERMESH_DEBUG_EXTEND_LEASE_HOURS: "60"
       CLUSTERMESH_DEBUG_REQUIRE_OVERLAY_RESET: "true"
-      CLUSTERMESH_DEBUG_MANIFEST_PATH: $(Build.ArtifactStagingDirectory)/n100-resume/validation.json
+      CLUSTERMESH_DEBUG_MANIFEST_PATH: $(Build.ArtifactStagingDirectory)/${{ parameters.manifest_subdir }}/validation.json
 
   - template: /steps/validate-resources.yml
     parameters:
@@ -81,24 +93,26 @@ jobs:
       topology: ${{ parameters.topology }}
       engine: ${{ parameters.engine }}
 
-  - template: /steps/execute-tests.yml
-    parameters:
-      cloud: azure
-      topology: ${{ parameters.topology }}
-      engine: ${{ parameters.engine }}
-      regions:
-      - ${{ parameters.region }}
-      engine_input: ${{ parameters.engine_input }}
+  - ${{ if parameters.run_workload }}:
+    - template: /steps/execute-tests.yml
+      parameters:
+        cloud: azure
+        topology: ${{ parameters.topology }}
+        engine: ${{ parameters.engine }}
+        regions:
+        - ${{ parameters.region }}
+        engine_input: ${{ parameters.engine_input }}
 
-  - template: /steps/publish-results.yml
-    parameters:
-      cloud: azure
-      topology: ${{ parameters.topology }}
-      engine: ${{ parameters.engine }}
-      regions:
-      - ${{ parameters.region }}
-      engine_input: ${{ parameters.engine_input }}
-      credential_type: ${{ parameters.credential_type }}
+  - ${{ if and(parameters.run_workload, parameters.publish_results) }}:
+    - template: /steps/publish-results.yml
+      parameters:
+        cloud: azure
+        topology: ${{ parameters.topology }}
+        engine: ${{ parameters.engine }}
+        regions:
+        - ${{ parameters.region }}
+        engine_input: ${{ parameters.engine_input }}
+        credential_type: ${{ parameters.credential_type }}
 
   - template: /steps/topology/clustermesh-scale/reuse/write-resume-manifest.yml
     parameters:

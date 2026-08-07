@@ -57,6 +57,11 @@ def test_debug_stages_are_explicitly_mode_gated():
     assert "eq(variables['CLUSTERMESH_DEBUG_MODE'], '')" in active
     pipeline = PIPELINE_PATH.read_text(encoding="utf-8")
     assert 'CLUSTERMESH_DEBUG_MODE: ""' in pipeline
+    assert "- name: scaleDebugClusterCount" in pipeline
+    assert "- name: scaleDebugTfvarsPath" in pipeline
+    assert "- name: scaleDebugTopology" in pipeline
+    assert "- name: scaleDebugRequiredFamilyVcpus" in pipeline
+    assert "- name: scaleDebugRunWorkload" in pipeline
 
     assert "CLUSTERMESH_DEBUG_MODE'], 'fresh-preserve'" in fresh
     assert 'SKIP_RESOURCE_DELETION: "true"' in fresh
@@ -66,7 +71,11 @@ def test_debug_stages_are_explicitly_mode_gated():
     assert "eq(variables['Build.Reason'], 'Manual')" in fresh
     assert "eq(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], '')" in fresh
     assert "- eastus2euap" in fresh
-    assert "azure-100-mock-shared.tfvars" in fresh
+    assert "parameters.scaleDebugTfvarsPath" in fresh
+    assert "parameters.scaleDebugClusterCount" in fresh
+    assert "parameters.scaleDebugRequiredFamilyVcpus" in fresh
+    assert "parameters.scaleDebugTopology" in fresh
+    assert "parameters.scaleDebugRunWorkload" in fresh
     assert "standardDv3Family" in fresh
     assert "standardDSv3Family" not in fresh
     assert 'cl2_prom_snapshot_storage_account: "cmshscaleprom"' in fresh
@@ -77,7 +86,8 @@ def test_debug_stages_are_explicitly_mode_gated():
     assert "eq(variables['Build.Reason'], 'Manual')" in reset
     assert "eq(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], '')" in reset
     assert "region: eastus2euap" in reset
-    assert "azure-100-mock-shared.tfvars" in reset
+    assert "parameters.scaleDebugTfvarsPath" in reset
+    assert "parameters.scaleDebugClusterCount" in reset
 
     assert "CLUSTERMESH_DEBUG_MODE'], 'resume'" in resume
     assert "clustermesh-debug-resume.yml" in resume
@@ -85,7 +95,10 @@ def test_debug_stages_are_explicitly_mode_gated():
     assert "eq(variables['Build.Reason'], 'Manual')" in resume
     assert "eq(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], '')" in resume
     assert "region: eastus2euap" in resume
-    assert "azure-100-mock-shared.tfvars" in resume
+    assert "parameters.scaleDebugTfvarsPath" in resume
+    assert "parameters.scaleDebugClusterCount" in resume
+    assert "parameters.scaleDebugTopology" in resume
+    assert "parameters.scaleDebugRunWorkload" in resume
     assert 'cl2_prom_snapshot_storage_account: "cmshscaleprom"' in resume
 
     assert "CLUSTERMESH_DEBUG_MODE'], 'cleanup'" in cleanup
@@ -95,6 +108,8 @@ def test_debug_stages_are_explicitly_mode_gated():
     assert "eq(variables['Build.Reason'], 'Manual')" in cleanup
     assert "eq(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], '')" in cleanup
     assert "CLUSTERMESH_DEBUG_EXPECTED_REGION: eastus2euap" in cleanup
+    assert "parameters.scaleDebugTfvarsPath" in cleanup
+    assert "parameters.scaleDebugClusterCount" in cleanup
 
     invalid_start = pipeline.index("- stage: n100_debug_mode_invalid")
     invalid_end = pipeline.index(
@@ -109,12 +124,20 @@ def test_resume_job_skips_terraform_and_preserves_resources():
 
     assert "/steps/provision-resources.yml" not in resume
     assert "/steps/cleanup-resources.yml" not in resume
-    assert "validate-existing-n100.sh" in resume
+    assert "validate-existing-scale.sh" in resume
     assert "create-staged-fleet-overlay.sh" in resume
     assert "/steps/validate-resources.yml" in resume
     assert "/steps/execute-tests.yml" in resume
     assert "/steps/publish-results.yml" in resume
     assert "CLUSTERMESH_DEBUG_CONFIRM_RESUME" in resume
+    assert "- name: expected_cluster_count" in resume
+    assert "- name: run_workload" in resume
+    assert "- name: publish_results" in resume
+    assert "${{ if parameters.run_workload }}:" in resume
+    assert (
+        "${{ if and(parameters.run_workload, parameters.publish_results) }}:"
+        in resume
+    )
 
 
 def test_fleet_reset_and_resume_do_not_mutate_aks_lifecycle():

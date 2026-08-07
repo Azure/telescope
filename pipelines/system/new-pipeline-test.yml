@@ -1,5 +1,25 @@
 trigger: none
 
+parameters:
+  - name: scaleDebugClusterCount
+    type: number
+    default: 100
+  - name: scaleDebugTfvarsPath
+    type: string
+    default: scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-100-mock-shared.tfvars
+  - name: scaleDebugTopology
+    type: string
+    default: clustermesh-scale-mock
+    values:
+      - clustermesh-scale
+      - clustermesh-scale-mock
+  - name: scaleDebugRequiredFamilyVcpus
+    type: number
+    default: 2536
+  - name: scaleDebugRunWorkload
+    type: boolean
+    default: true
+
 pool: AKS-Telescope-Airlock
 
 schedules:
@@ -2431,8 +2451,9 @@ stages:
           skip_publish: false
 
   # ===========================================================================
-  # Reusable n=100 debug lifecycle. These stages are opt-in and guarded by
-  # CLUSTERMESH_DEBUG_MODE. They never run as part of a normal launch.
+  # Reusable scale debug lifecycle (defaults to n=100). These stages are
+  # opt-in and guarded by CLUSTERMESH_DEBUG_MODE. They never run as part of
+  # a normal launch.
   #
   # fresh-preserve:
   #   CLUSTERMESH_DEBUG_MODE=fresh-preserve
@@ -2459,7 +2480,7 @@ stages:
   - stage: azure_eastus2euap_n100_debug_preserve_37deca
     dependsOn: []
     condition: and(always(), eq(variables['Build.Reason'], 'Manual'), eq(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], ''), eq(variables['CLUSTERMESH_DEBUG_MODE'], 'fresh-preserve'))
-    displayName: "DEBUG EUAP n=100 fresh provision + preserve RG (37deca)"
+    displayName: "DEBUG EUAP scale fresh provision + preserve RG (37deca)"
     variables:
       SKIP_RESOURCE_DELETION: "true"
       CLUSTERMESH_DEBUG_PRESERVE: "true"
@@ -2497,10 +2518,10 @@ stages:
       AKS_CONTROL_PLANE_LAW_LOCATION: eastus2
       AKS_CONTROL_PLANE_LOG_RETENTION_DAYS: "30"
       CLUSTERMESH_QUOTA_PREFLIGHT_ENABLED: "true"
-      CLUSTERMESH_REQUIRED_MANAGED_CLUSTERS: "100"
+      CLUSTERMESH_REQUIRED_MANAGED_CLUSTERS: "${{ parameters.scaleDebugClusterCount }}"
       CLUSTERMESH_MANAGED_CLUSTER_QUOTA_HEADROOM: "5"
       CLUSTERMESH_VM_FAMILY_QUOTA_NAME: standardDv3Family
-      CLUSTERMESH_REQUIRED_FAMILY_VCPUS: "2536"
+      CLUSTERMESH_REQUIRED_FAMILY_VCPUS: "${{ parameters.scaleDebugRequiredFamilyVcpus }}"
       CLUSTERMESH_QUOTA_HEADROOM_VCPUS: "128"
       CMP_AUTO_RECOVERY_ENABLED: "false"
       CMP_STAGED_JOIN_ENABLED: "true"
@@ -2533,17 +2554,17 @@ stages:
             image: "ghcr.io/azure/clusterloader2:v20250513"
             install: false
             operation_timeout: 90m
-          topology: clustermesh-scale-mock
+          topology: ${{ parameters.scaleDebugTopology }}
           terraform_input_file_mapping:
-            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-100-mock-shared.tfvars"
+            - eastus2euap: "${{ parameters.scaleDebugTfvarsPath }}"
           matrix:
             n100_debug_preserve:
               cl2_prom_snapshot_enabled: "true"
               cl2_prom_snapshot_target: "blob"
               cl2_prom_snapshot_storage_account: "cmshscaleprom"
               cl2_prom_snapshot_container: "snapshots"
-              cluster_count: 100
-              mesh_size: 100
+              cluster_count: ${{ parameters.scaleDebugClusterCount }}
+              mesh_size: ${{ parameters.scaleDebugClusterCount }}
               share_infra_scenarios: "propagation-probe,event-throughput,policy-scale,pod-churn-combined,apiserver-failure,isolation,node-churn-combined,upper-bound"
               share_infra_settle_seconds: 300
               agent_disk_min_free_gi: 40
@@ -2586,21 +2607,22 @@ stages:
           cancel_timeout_in_minutes: 120
           credential_type: service_connection
           ssh_key_enabled: false
-          skip_publish: false
+          skip_execute: ${{ not(parameters.scaleDebugRunWorkload) }}
+          skip_publish: ${{ not(parameters.scaleDebugRunWorkload) }}
           emit_resume_manifest: true
           resume_manifest_region: eastus2euap
-          resume_manifest_tfvars_path: scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-100-mock-shared.tfvars
+          resume_manifest_tfvars_path: ${{ parameters.scaleDebugTfvarsPath }}
           debug_preserve: "true"
 
   - stage: azure_eastus2euap_n100_debug_reset_fleet_37deca
     dependsOn: []
     condition: and(always(), eq(variables['Build.Reason'], 'Manual'), eq(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], ''), eq(variables['CLUSTERMESH_DEBUG_MODE'], 'reset-fleet'))
-    displayName: "DEBUG EUAP n=100 reset Fleet overlay only (37deca)"
+    displayName: "DEBUG EUAP scale reset Fleet overlay only (37deca)"
     variables:
       CLUSTERMESH_REQUIRED_SUBSCRIPTION_ID: "37deca37-c375-4a14-b90a-043849bd2bf1"
       CLUSTERMESH_QUOTA_PREFLIGHT_ENABLED: "false"
       AKS_CONTROL_PLANE_METRICS_ENABLED: "false"
-      CLUSTER_COUNT: "100"
+      CLUSTER_COUNT: "${{ parameters.scaleDebugClusterCount }}"
       AGENT_DISK_MIN_FREE_GI: "5"
       AGENT_MEMORY_MIN_FREE_GI: "2"
     jobs:
@@ -2618,9 +2640,9 @@ stages:
               set -euo pipefail
               export CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256
               CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256=$(sha256sum \
-                "$(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-100-mock-shared.tfvars" \
+                "$(Pipeline.Workspace)/s/${{ parameters.scaleDebugTfvarsPath }}" \
                 | awk '{print $1}')
-              bash "$(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/validate-existing-n100.sh"
+              bash "$(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/validate-existing-scale.sh"
               bash "$(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/reset-fleet-overlay.sh"
             displayName: "Validate preserved RG and reset Fleet overlay"
             env:
@@ -2628,20 +2650,20 @@ stages:
               CLUSTERMESH_DEBUG_CONFIRM_RESET: $(CLUSTERMESH_DEBUG_CONFIRM_RESET)
               CLUSTERMESH_DEBUG_EXPECTED_SUBSCRIPTION_ID: $(CLUSTERMESH_REQUIRED_SUBSCRIPTION_ID)
               CLUSTERMESH_DEBUG_EXPECTED_REGION: eastus2euap
-              CLUSTERMESH_DEBUG_EXPECTED_CLUSTER_COUNT: "100"
+              CLUSTERMESH_DEBUG_EXPECTED_CLUSTER_COUNT: "${{ parameters.scaleDebugClusterCount }}"
               CLUSTERMESH_DEBUG_EXTEND_LEASE_HOURS: "24"
               CLUSTERMESH_DEBUG_REQUIRE_OVERLAY_RESET: "false"
-              CLUSTERMESH_DEBUG_MANIFEST_PATH: $(Build.ArtifactStagingDirectory)/n100-resume/reset-validation.json
+              CLUSTERMESH_DEBUG_MANIFEST_PATH: $(Build.ArtifactStagingDirectory)/scale-resume/reset-validation.json
           - template: /steps/topology/clustermesh-scale/reuse/write-resume-manifest.yml
             parameters:
               enabled: true
               region: eastus2euap
-              tfvars_path: scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-100-mock-shared.tfvars
+              tfvars_path: ${{ parameters.scaleDebugTfvarsPath }}
 
   - stage: azure_eastus2euap_n100_debug_resume_37deca
     dependsOn: []
     condition: and(always(), eq(variables['Build.Reason'], 'Manual'), eq(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], ''), eq(variables['CLUSTERMESH_DEBUG_MODE'], 'resume'))
-    displayName: "DEBUG EUAP n=100 resume preserved AKS clusters (37deca)"
+    displayName: "DEBUG EUAP scale resume preserved AKS clusters (37deca)"
     variables:
       CLUSTERMESH_REQUIRED_SUBSCRIPTION_ID: "37deca37-c375-4a14-b90a-043849bd2bf1"
       MOCK_ACR_HOST: mockmeshshared11225.azurecr.io
@@ -2704,15 +2726,15 @@ stages:
             image: "ghcr.io/azure/clusterloader2:v20250513"
             install: false
             operation_timeout: 90m
-          topology: clustermesh-scale-mock
+          topology: ${{ parameters.scaleDebugTopology }}
           matrix:
             n100_debug_resume:
               cl2_prom_snapshot_enabled: "true"
               cl2_prom_snapshot_target: "blob"
               cl2_prom_snapshot_storage_account: "cmshscaleprom"
               cl2_prom_snapshot_container: "snapshots"
-              cluster_count: 100
-              mesh_size: 100
+              cluster_count: ${{ parameters.scaleDebugClusterCount }}
+              mesh_size: ${{ parameters.scaleDebugClusterCount }}
               share_infra_scenarios: "propagation-probe,event-throughput,policy-scale,pod-churn-combined,apiserver-failure,isolation,node-churn-combined,upper-bound"
               share_infra_settle_seconds: 300
               agent_disk_min_free_gi: 40
@@ -2753,13 +2775,17 @@ stages:
           timeout_in_minutes: 3000
           cancel_timeout_in_minutes: 120
           credential_type: service_connection
-          tfvars_path: scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-100-mock-shared.tfvars
+          tfvars_path: ${{ parameters.scaleDebugTfvarsPath }}
           expected_subscription_id: "37deca37-c375-4a14-b90a-043849bd2bf1"
+          expected_cluster_count: ${{ parameters.scaleDebugClusterCount }}
+          run_workload: ${{ parameters.scaleDebugRunWorkload }}
+          publish_results: ${{ parameters.scaleDebugRunWorkload }}
+          manifest_subdir: scale-resume
 
   - stage: azure_eastus2euap_n100_debug_cleanup_37deca
     dependsOn: []
     condition: and(always(), eq(variables['Build.Reason'], 'Manual'), eq(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], ''), eq(variables['CLUSTERMESH_DEBUG_MODE'], 'cleanup'))
-    displayName: "DEBUG EUAP n=100 delete preserved RG (37deca)"
+    displayName: "DEBUG EUAP scale delete preserved RG (37deca)"
     variables:
       CLUSTERMESH_REQUIRED_SUBSCRIPTION_ID: "37deca37-c375-4a14-b90a-043849bd2bf1"
     jobs:
@@ -2776,7 +2802,7 @@ stages:
                 set -euo pipefail
                 export CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256
                 CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256=$(sha256sum \
-                  "$(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-100-mock-shared.tfvars" \
+                  "$(Pipeline.Workspace)/s/${{ parameters.scaleDebugTfvarsPath }}" \
                   | awk '{print $1}')
                 bash "$(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/delete-preserved-rg.sh"
             env:
@@ -2784,7 +2810,7 @@ stages:
               CLUSTERMESH_DEBUG_CONFIRM_DELETE: $(CLUSTERMESH_DEBUG_CONFIRM_DELETE)
               CLUSTERMESH_DEBUG_EXPECTED_SUBSCRIPTION_ID: $(CLUSTERMESH_REQUIRED_SUBSCRIPTION_ID)
               CLUSTERMESH_DEBUG_EXPECTED_REGION: eastus2euap
-              CLUSTERMESH_DEBUG_EXPECTED_CLUSTER_COUNT: "100"
+              CLUSTERMESH_DEBUG_EXPECTED_CLUSTER_COUNT: "${{ parameters.scaleDebugClusterCount }}"
 
   - stage: n100_debug_mode_invalid
     dependsOn: []
@@ -2795,7 +2821,7 @@ stages:
       ne(variables['CLUSTERMESH_DEBUG_MODE'], 'reset-fleet'),
       ne(variables['CLUSTERMESH_DEBUG_MODE'], 'resume'),
       ne(variables['CLUSTERMESH_DEBUG_MODE'], 'cleanup'))
-    displayName: "INVALID n=100 debug mode"
+    displayName: "INVALID scale debug mode"
     jobs:
       - job: reject_invalid_debug_mode
         timeoutInMinutes: 5
@@ -2803,7 +2829,7 @@ stages:
           - bash: |
               echo "##vso[task.logissue type=error;] Unsupported CLUSTERMESH_DEBUG_MODE='$(CLUSTERMESH_DEBUG_MODE)'."
               exit 1
-            displayName: "Reject unsupported n=100 debug mode"
+            displayName: "Reject unsupported scale debug mode"
 
   - stage: azure_centraluseuap_n100_mock
     dependsOn: []
