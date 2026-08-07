@@ -174,15 +174,17 @@ def scale_dp_nodepool(resource_group: str, cluster_name: str, nodepool: str,
 
 
 def delete_fanout_nodepools(resource_group: str, cluster_name: str,
-                            nodepool: str) -> None:
+                            nodepool: str) -> list[str]:
     """Delete the extra fan-out nodepools (<base>2, <base>3, ...) that the
     multi-nodepool scaling created to exceed the AKS per-nodepool cap.
 
     The base pool (``nodepool``) is left intact — it is provisioned by
     terraform, not by this code. Called at teardown so tiers > 1000 don't
-    leave orphaned nodepools burning cores.
+    leave orphaned nodepools burning cores. Returns the names deleted (each
+    fired with --no-wait -- caller decides whether/how long to wait for
+    them to actually finish).
     """
-    deleted = 0
+    deleted = []
     for idx in range(1, 16):  # base2 .. base16 (covers well past 5k)
         name = _pool_name(nodepool, idx)
         if _get_nodepool(resource_group, cluster_name, name) is None:
@@ -195,14 +197,16 @@ def delete_fanout_nodepools(resource_group: str, cluster_name: str,
             "--name", name,
             "--no-wait",
         ], check=False)
-        deleted += 1
+        deleted.append(name)
     if deleted:
-        log.info("Requested deletion of %d fan-out nodepool(s).", deleted)
+        log.info("Requested deletion of %d fan-out nodepool(s).", len(deleted))
     else:
         log.info("No fan-out nodepools to delete.")
+    return deleted
 
 
-def scale_down_for_teardown(resource_group: str, dp_cluster_name: str, nodepool: str) -> None:
+def scale_down_for_teardown(resource_group: str, dp_cluster_name: str, nodepool: str,
+                            wait_minutes: int = 10) -> None:
     """Delete the fan-out nodepools this code created (dataplane2, ...)
     before the pipeline's terraform destroy / `az group delete` step.
 
@@ -211,13 +215,37 @@ def scale_down_for_teardown(resource_group: str, dp_cluster_name: str, nodepool:
     regardless of their current node count -- only the EXTRA pools this
     code created out-of-band via `az aks nodepool add` need explicit
     cleanup here, since terraform's state doesn't know about them.
+
+    Waits up to `wait_minutes` for those deletions to actually finish
+    before returning -- otherwise the pipeline's next step (terraform
+    destroy) can race an in-flight nodepool deletion and hit the same
+    'OperationNotAllowed: in-progress operation' conflict seen with scale
+    requests.
     """
     if not (resource_group and dp_cluster_name):
         return
     try:
-        delete_fanout_nodepools(resource_group, dp_cluster_name, nodepool)
+        deleted_names = delete_fanout_nodepools(resource_group, dp_cluster_name, nodepool)
     except Exception as e:
         log.warning("Fan-out nodepool cleanup before teardown failed (non-fatal): %s", e)
+        return
+    if not deleted_names:
+        return
+
+    remaining = set(deleted_names)
+    deadline = time.time() + wait_minutes * 60
+    while remaining and time.time() < deadline:
+        remaining = {n for n in remaining
+                    if _get_nodepool(resource_group, dp_cluster_name, n) is not None}
+        if not remaining:
+            break
+        log.info("  waiting for fan-out nodepool(s) %s to finish deleting...", sorted(remaining))
+        time.sleep(20)
+    if remaining:
+        log.warning("Fan-out nodepool(s) %s still deleting after %dm — proceeding to teardown anyway.",
+                   sorted(remaining), wait_minutes)
+    else:
+        log.info("Fan-out nodepool cleanup confirmed complete.")
 
 
 
