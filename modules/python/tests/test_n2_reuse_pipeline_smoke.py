@@ -85,6 +85,7 @@ def test_preserve_smoke_intentionally_fails_without_cleanup():
     assert "private_kube_dir" in script
     assert '$artifact_dir/kube' not in script
     assert "wait_for_stable_cluster" in script
+    assert script.count("wait_for_stable_cluster") >= 3
     assert "sustained Succeeded across 3 checks" in script
     assert "aks_stability_timeout" in script
     assert "desired_state_sha" in script

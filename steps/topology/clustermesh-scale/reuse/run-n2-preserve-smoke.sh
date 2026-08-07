@@ -230,6 +230,7 @@ log "create healthy Fleet overlay"
 az fleet create --resource-group "$run_id" --name "$fleet_name" \
   --location "$region" --output none --only-show-errors
 for index in 0 1; do
+  wait_for_stable_cluster "${clusters[$index]}"
   cluster_id=$(az aks show \
     --resource-group "$run_id" --name "${clusters[$index]}" \
     --query id -o tsv)
