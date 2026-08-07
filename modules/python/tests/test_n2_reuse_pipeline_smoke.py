@@ -92,6 +92,7 @@ def test_preserve_smoke_intentionally_fails_without_cleanup():
     assert "apply_profile_bounded" in script
     assert "apply is active asynchronously" in script
     assert "fleet_profile_apply_failed" in script
+    assert "head -1 ||" in script
 
 
 def test_resume_smoke_reuses_same_aks_ids_and_staged_fleet():

@@ -265,10 +265,13 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
       get service clustermesh-apiserver \
       -o jsonpath='{.status.loadBalancer.ingress[0].ip}' \
       2>/dev/null || true)
-    peers=$(KUBECONFIG="$kubeconfig" kubectl -n kube-system \
-      exec daemonset/cilium -- cilium-dbg status 2>/dev/null \
-      | sed -nE 's/.*ClusterMesh:[[:space:]]+([0-9]+)\/[0-9]+ remote clusters ready.*/\1/p' \
-      | head -1)
+    peers=$(
+      KUBECONFIG="$kubeconfig" kubectl -n kube-system \
+        exec daemonset/cilium -- cilium-dbg status 2>/dev/null |
+        sed -nE 's/.*ClusterMesh:[[:space:]]+([0-9]+)\/[0-9]+ remote clusters ready.*/\1/p' |
+        head -1 ||
+        true
+    )
     peers="${peers:-0}"
     log "${roles[$index]} deployment=${available:-missing} LB=${ip:-missing} peers=$peers/1"
     if [ "$available" = "True" ] && [ -n "$ip" ] && [ "$peers" -ge 1 ]; then
