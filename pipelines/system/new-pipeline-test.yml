@@ -19,12 +19,6 @@ parameters:
   - name: reuseSmokeMode
     type: string
     default: ""
-    values:
-      - ""
-      - preserve
-      - reset
-      - resume
-      - cleanup
   - name: scaleDebugClusterCount
     type: number
     default: 100
