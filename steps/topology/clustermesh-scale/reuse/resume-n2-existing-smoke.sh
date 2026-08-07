@@ -43,7 +43,7 @@ clusters=$(az resource list \
   --resource-type Microsoft.ContainerService/managedClusters \
   --query "[?tags.run_id=='${target_run_id}' && starts_with(tags.role, 'mesh-')].{name:name,rg:resourceGroup,role:tags.role,id:id}" \
   -o json)
-current_ids_sha=$(jq -c '[.[] | {role,id}] | sort_by(.role)' <<<"$clusters" |
+current_ids_sha=$(jq -c '[.[] | {id,role}] | sort_by(.role)' <<<"$clusters" |
   sha256sum | awk '{print $1}')
 if [ "$current_ids_sha" != "$expected_ids_sha" ]; then
   echo "AKS resource IDs changed before existing-Fleet resume." >&2
