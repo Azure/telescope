@@ -16,7 +16,7 @@ if [ -z "$node_table" ]; then
   echo "FAILED CLOUD-NODE-MANAGER CHECK: no nodes found"; exit 1
 fi
 
-report=$(printf '%s\\n' "$node_table" | awk '
+report=$(echo "$node_table" | awk '
 {
   total++
   if ($2 == "<none>" || $2 == "") { print "node " $1 " missing providerID"; bad++ }
