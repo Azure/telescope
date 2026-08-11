@@ -416,33 +416,14 @@ data:
             target_label: instance
             replacement: $1:9253
 
-      - job_name: node-problem-detector
-        stream_parse: true
-        scheme: https
-        authorization:
-          type: Bearer
-          credentials_file: /var/run/secrets/kubelet/token
-        tls_config:
-          insecure_skip_verify: true
-        kubernetes_sd_configs:
-          - role: node
-            api_server: "__DP_API_SERVER__"
-            bearer_token_file: /var/run/secrets/kubelet/token
-            tls_config:
-              insecure_skip_verify: true
-        relabel_configs:
-          - source_labels: [__meta_kubernetes_node_label_kubernetes_io_os]
-            action: keep
-            regex: linux
-          - target_label: __address__
-            replacement: "__DP_API_SERVER_HOST__"
-          - source_labels: [__meta_kubernetes_node_name]
-            regex: (.+)
-            target_label: __metrics_path__
-            replacement: /api/v1/nodes/${1}:20257/proxy/metrics
-          - source_labels: [__meta_kubernetes_node_address_InternalIP]
-            target_label: instance
-            replacement: $1:20257
+      # node-problem-detector job intentionally removed: unlike localdns
+      # (guarded by a node label present only when it's actually enabled),
+      # this job's role:node SD generates one target per node unconditionally
+      # with no such guard -- NPD isn't a stock AKS/terraform-provisioned
+      # DaemonSet (it's deployed by AKS-RP's own reconciliation on real
+      # control planes), so every one of those targets permanently fails,
+      # inflating ScrapeTargetsTotal/deflating scrape_success_rate with
+      # ~500 guaranteed-down phantom targets that were never going to work.
           - source_labels: [__meta_kubernetes_node_label_agentpool]
             target_label: nodepool
 

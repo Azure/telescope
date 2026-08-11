@@ -722,8 +722,13 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
 
         step_results.append({
             "node_count": tier,
-            "targets_up": last_sample.get("targets_up", 0),
-            "targets_total": last_sample.get("targets_total", 0),
+            # Use the graded (post-dwell) scrape numbers actually used for
+            # step_pass_fail, not last_sample -- that's the instantaneous
+            # confirmation sample taken the moment nodes hit Ready, before
+            # SD/scrape coverage has caught up, and would otherwise show a
+            # misleadingly low count in the final summary vs. the real result.
+            "targets_up": step_measurements.get("scrape_targets_up", last_sample.get("targets_up", 0)),
+            "targets_total": step_measurements.get("scrape_targets_total", last_sample.get("targets_total", 0)),
             "measurements": step_measurements,
             "pass_criteria": step_pass_fail,
         })
@@ -1017,8 +1022,10 @@ def run_fake_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
 
         step_results.append({
             "node_count": tier,
-            "targets_up": last_sample.get("targets_up", 0),
-            "targets_total": last_sample.get("targets_total", 0),
+            # See run_real_targets_ramp's identical fix: use the graded
+            # (post-dwell) numbers, not the pre-dwell confirmation sample.
+            "targets_up": step_measurements.get("scrape_targets_up", last_sample.get("targets_up", 0)),
+            "targets_total": step_measurements.get("scrape_targets_total", last_sample.get("targets_total", 0)),
             "measurements": step_measurements,
             "pass_criteria": step_pass_fail,
         })

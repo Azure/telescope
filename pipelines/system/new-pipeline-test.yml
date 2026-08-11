@@ -18,11 +18,11 @@ parameters:
         max_block_size: 524288   # .5 MiB — current prod value
         konn_server_image: 'mcr.microsoft.com/oss/v2/kubernetes/apiserver-network-proxy/server:v0.32.1-11'
         konn_agent_image: 'mcr.microsoft.com/oss/v2/kubernetes/apiserver-network-proxy/agent:v0.32.1-11'
-      - run_label: real-rate20mib-block10mib
-        rate_limit: 20971520     # 20 MiB/s
-        max_block_size: 10485760 # 10 MiB
-        konn_server_image: 'mcr.microsoft.com/oss/v2/kubernetes/apiserver-network-proxy/server:v0.32.1-11'
-        konn_agent_image: 'mcr.microsoft.com/oss/v2/kubernetes/apiserver-network-proxy/agent:v0.32.1-11'
+      - run_label: real-new-konnectivity-image
+        rate_limit: 2097152
+        max_block_size: 524288 
+        konn_server_image: 'imranpochi/proxy-server:aksmaster-holfix'
+        konn_agent_image: 'imranpochi/proxy-agent:aksmaster-holfix'
 
 pool:
   name: 'AKS-Telescope-Airlock'
@@ -50,7 +50,7 @@ stages:
             # engine_input above); TIERS/SOAK_MINUTES/REAL_TARGETS/PARALLEL
             # are shared/global across all combinations.
             real_targets_sweep:
-              TIERS: "500"
+              TIERS: "500, 1000, 1500, 2000"
               SOAK_MINUTES: 5
               REAL_TARGETS: "true"
               PARALLEL: "false"
