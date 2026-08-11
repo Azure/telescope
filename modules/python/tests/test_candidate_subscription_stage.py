@@ -289,6 +289,8 @@ def test_original_subscription_n99_threshold_reuses_confirmed_n90_shape():
         'TF_CLI_ARGS_apply: "-parallelism=4"',
         'CLUSTERMESH_NODE_READINESS_REQUIRED: "false"',
         'CLUSTERMESH_CROSS_CLUSTER_SMOKE_ENABLED: "false"',
+        'CMP_AUTO_RECOVERY_ENABLED: "false"',
+        'CMP_REJOIN_ENABLED: "true"',
         'preserve_state_on_apply_failure: "true"',
         "n99_g100_threshold:",
         "cluster_count: 99",

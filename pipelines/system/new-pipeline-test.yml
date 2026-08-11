@@ -1414,6 +1414,10 @@ stages:
       TF_CLI_ARGS_apply: "-parallelism=4"
       CLUSTERMESH_NODE_READINESS_REQUIRED: "false"
       CLUSTERMESH_CROSS_CLUSTER_SMOKE_ENABLED: "false"
+      # Non-staged large-N projection can wedge near 30 members. Use the
+      # bounded batched member rejoin, never whole-profile recreation.
+      CMP_AUTO_RECOVERY_ENABLED: "false"
+      CMP_REJOIN_ENABLED: "true"
     displayName: "Fleet threshold probe: n=99 (validation only)"
     jobs:
       - template: /jobs/competitive-test.yml
