@@ -498,7 +498,8 @@ def main() -> None:
                     all_results.append(result)
                     failed_tiers.extend(tiers)
         cleanup_ramp(args.cp_kubeconfig, args.dp_kubeconfig, run_label=args.run_label, mode="real")
-        scale_down_for_teardown(args.resource_group, args.dp_cluster_name, args.nodepool_name)
+        scale_down_for_teardown(args.resource_group, args.dp_cluster_name, args.nodepool_name,
+                               cp_cluster_name=args.cp_cluster_name, cp_nodepool=args.cp_nodepool_name)
     else:
         # Fake targets ramp through every tier as exporter replica counts
         # inside ONE continuous deployment (see run_fake_targets_ramp)
@@ -573,7 +574,8 @@ def main() -> None:
                     all_results.append(result)
                     failed_tiers.extend(tiers)
         cleanup_ramp(args.cp_kubeconfig, args.dp_kubeconfig, run_label=args.run_label, mode="fake")
-        scale_down_for_teardown(args.resource_group, args.dp_cluster_name, args.nodepool_name)
+        scale_down_for_teardown(args.resource_group, args.dp_cluster_name, args.nodepool_name,
+                               cp_cluster_name=args.cp_cluster_name, cp_nodepool=args.cp_nodepool_name)
 
     log.info("")
     log.info("=" * 60)

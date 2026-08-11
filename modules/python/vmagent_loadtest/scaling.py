@@ -206,21 +206,24 @@ def delete_fanout_nodepools(resource_group: str, cluster_name: str,
 
 
 def scale_down_for_teardown(resource_group: str, dp_cluster_name: str, nodepool: str,
+                            cp_cluster_name: str = "", cp_nodepool: str = "",
                             wait_minutes: int = 10) -> None:
-    """Delete the fan-out nodepools this code created (dataplane2, ...)
-    before the pipeline's terraform destroy / `az group delete` step.
+    """Delete the fan-out nodepools this code created (dataplane2, ...),
+    then wait for EVERY nodepool this code touched to settle out of any
+    in-flight operation before the pipeline's terraform destroy /
+    `az group delete` step.
 
     The base DP pool and the CP `controlplane` pool are both provisioned by
-    terraform and get torn down as part of normal cluster deletion
-    regardless of their current node count -- only the EXTRA pools this
-    code created out-of-band via `az aks nodepool add` need explicit
-    cleanup here, since terraform's state doesn't know about them.
-
-    Waits up to `wait_minutes` for those deletions to actually finish
-    before returning -- otherwise the pipeline's next step (terraform
-    destroy) can race an in-flight nodepool deletion and hit the same
-    'OperationNotAllowed: in-progress operation' conflict seen with scale
-    requests.
+    terraform and are NOT resized here -- they get torn down as part of
+    normal cluster deletion regardless of node count. But the ramp's own
+    last scale-up can still be "Scaling" on Azure's side even after
+    wait_for_nodes_ready() returns: the final-tier tolerance_pct margin
+    means kubectl can report nodes Ready while Azure is still finishing the
+    last few VMs. Handing off to terraform destroy while any nodepool is
+    still mid-operation risks the same 'OperationNotAllowed: in-progress
+    operation' conflict seen with scale requests -- so every pool this code
+    could have touched (base DP pool, fan-out pools, CP pool) is waited on
+    here, not just the ones actually deleted.
     """
     if not (resource_group and dp_cluster_name):
         return
@@ -228,24 +231,31 @@ def scale_down_for_teardown(resource_group: str, dp_cluster_name: str, nodepool:
         deleted_names = delete_fanout_nodepools(resource_group, dp_cluster_name, nodepool)
     except Exception as e:
         log.warning("Fan-out nodepool cleanup before teardown failed (non-fatal): %s", e)
-        return
-    if not deleted_names:
-        return
+        deleted_names = []
 
-    remaining = set(deleted_names)
+    pools = [(dp_cluster_name, nodepool)] + [(dp_cluster_name, n) for n in deleted_names]
+    if cp_cluster_name and cp_nodepool:
+        pools.append((cp_cluster_name, cp_nodepool))
+
+    remaining = list(pools)
     deadline = time.time() + wait_minutes * 60
     while remaining and time.time() < deadline:
-        remaining = {n for n in remaining
-                    if _get_nodepool(resource_group, dp_cluster_name, n) is not None}
+        still_busy = []
+        for cluster, pool in remaining:
+            spec = _get_nodepool(resource_group, cluster, pool)
+            if spec is not None and spec.get("provisioningState") == "Scaling":
+                still_busy.append((cluster, pool))
+        remaining = still_busy
         if not remaining:
             break
-        log.info("  waiting for fan-out nodepool(s) %s to finish deleting...", sorted(remaining))
+        log.info("  waiting for nodepool(s) %s to settle before teardown...",
+                 [p for _, p in remaining])
         time.sleep(20)
     if remaining:
-        log.warning("Fan-out nodepool(s) %s still deleting after %dm — proceeding to teardown anyway.",
-                   sorted(remaining), wait_minutes)
+        log.warning("Nodepool(s) %s still scaling after %dm — proceeding to teardown anyway.",
+                   [p for _, p in remaining], wait_minutes)
     else:
-        log.info("Fan-out nodepool cleanup confirmed complete.")
+        log.info("All nodepools settled — safe to proceed to teardown.")
 
 
 
