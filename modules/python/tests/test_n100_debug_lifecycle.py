@@ -93,6 +93,7 @@ def test_debug_stages_are_explicitly_mode_gated():
     assert "region: eastus2euap" in reset
     assert "parameters.scaleDebugTfvarsPath" in reset
     assert "parameters.scaleDebugClusterCount" in reset
+    assert 'CLUSTERMESH_DEBUG_EXTEND_LEASE_HOURS: "168"' in reset
 
     assert "CLUSTERMESH_DEBUG_MODE'], 'resume'" in resume
     assert "clustermesh-debug-resume.yml" in resume
@@ -139,6 +140,7 @@ def test_resume_job_skips_terraform_and_preserves_resources():
     assert "- name: run_workload" in resume
     assert "- name: publish_results" in resume
     assert "${{ if parameters.run_workload }}:" in resume
+    assert 'CLUSTERMESH_DEBUG_EXTEND_LEASE_HOURS: "168"' in resume
     assert (
         "${{ if and(parameters.run_workload, parameters.publish_results) }}:"
         in resume
@@ -189,6 +191,9 @@ def test_preserved_rg_validation_is_fail_closed():
         "clustermesh_debug_expected_clusters",
         "exactly $expected_count total AKS clusters",
         "outside $expected_region",
+        "Preserving later existing lease",
+        "requested_deletion_due_time",
+        "existing_deletion_due_time",
     ):
         assert expected in validation
 

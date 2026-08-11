@@ -81,7 +81,7 @@ jobs:
       CLUSTERMESH_DEBUG_EXPECTED_SUBSCRIPTION_ID: ${{ parameters.expected_subscription_id }}
       CLUSTERMESH_DEBUG_EXPECTED_REGION: ${{ parameters.region }}
       CLUSTERMESH_DEBUG_EXPECTED_CLUSTER_COUNT: "${{ parameters.expected_cluster_count }}"
-      CLUSTERMESH_DEBUG_EXTEND_LEASE_HOURS: "60"
+      CLUSTERMESH_DEBUG_EXTEND_LEASE_HOURS: "168"
       CLUSTERMESH_DEBUG_REQUIRE_OVERLAY_RESET: "true"
       CLUSTERMESH_DEBUG_MANIFEST_PATH: $(Build.ArtifactStagingDirectory)/${{ parameters.manifest_subdir }}/validation.json
 

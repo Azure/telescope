@@ -2740,7 +2740,7 @@ stages:
               CLUSTERMESH_DEBUG_EXPECTED_SUBSCRIPTION_ID: $(CLUSTERMESH_REQUIRED_SUBSCRIPTION_ID)
               CLUSTERMESH_DEBUG_EXPECTED_REGION: eastus2euap
               CLUSTERMESH_DEBUG_EXPECTED_CLUSTER_COUNT: "${{ parameters.scaleDebugClusterCount }}"
-              CLUSTERMESH_DEBUG_EXTEND_LEASE_HOURS: "24"
+              CLUSTERMESH_DEBUG_EXTEND_LEASE_HOURS: "168"
               CLUSTERMESH_DEBUG_REQUIRE_OVERLAY_RESET: "false"
               CLUSTERMESH_DEBUG_MANIFEST_PATH: $(Build.ArtifactStagingDirectory)/scale-resume/reset-validation.json
           - template: /steps/topology/clustermesh-scale/reuse/write-resume-manifest.yml

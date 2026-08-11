@@ -114,14 +114,27 @@ if [ "${require_overlay_reset,,}" = "true" ] && [ "$fleet_count" -ne 0 ]; then
   exit 1
 fi
 
+existing_deletion_due_time=$(jq -r '.tags.deletion_due_time // empty' <<< "$rg_json")
 if [ "$extend_lease_hours" -gt 0 ]; then
-  deletion_due_time=$(date -u -d "+${extend_lease_hours} hours" +%Y-%m-%dT%H:%M:%SZ)
+  requested_deletion_due_time=$(date -u -d "+${extend_lease_hours} hours" +%Y-%m-%dT%H:%M:%SZ)
+  requested_deletion_due_epoch=$(date -u -d "$requested_deletion_due_time" +%s)
+  existing_deletion_due_epoch=""
+  if [ -n "$existing_deletion_due_time" ]; then
+    existing_deletion_due_epoch=$(date -u -d "$existing_deletion_due_time" +%s 2>/dev/null || true)
+  fi
+  if [[ "$existing_deletion_due_epoch" =~ ^[0-9]+$ ]] &&
+    [ "$existing_deletion_due_epoch" -gt "$requested_deletion_due_epoch" ]; then
+    deletion_due_time="$existing_deletion_due_time"
+    echo "Preserving later existing lease $deletion_due_time instead of shortening it to $requested_deletion_due_time."
+  else
+    deletion_due_time="$requested_deletion_due_time"
+  fi
   az group update --name "$target_run_id" \
     --set tags.deletion_due_time="$deletion_due_time" \
           tags.clustermesh_debug_last_validation_build="${BUILD_BUILDID:-manual}" \
     --only-show-errors >/dev/null
 else
-  deletion_due_time=$(jq -r '.tags.deletion_due_time // empty' <<< "$rg_json")
+  deletion_due_time="$existing_deletion_due_time"
 fi
 
 mkdir -p "$(dirname "$manifest_path")"
