@@ -27,6 +27,7 @@ query_timeout_seconds="${CMP_STAGED_JOIN_QUERY_TIMEOUT_SECONDS:-60}"
 recovery_apply_after_seconds="${CMP_STAGED_JOIN_RECOVERY_APPLY_AFTER_SECONDS:-2700}"
 max_recovery_applies="${CMP_STAGED_JOIN_MAX_RECOVERY_APPLIES:-1}"
 recovery_min_post_seconds="${CMP_STAGED_JOIN_RECOVERY_MIN_POST_SECONDS:-1800}"
+recovery_retry_seconds="${CMP_STAGED_JOIN_RECOVERY_RETRY_SECONDS:-300}"
 restart_apiserver_after_apply="${CMP_STAGED_JOIN_RESTART_APISERVER_AFTER_APPLY:-false}"
 summary_file="${CMP_STAGED_JOIN_SUMMARY_FILE:-$(pwd)/clustermeshprofile-staged-join.json}"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -54,7 +55,8 @@ for setting in \
   "CMP_STAGED_JOIN_QUERY_TIMEOUT_SECONDS:$query_timeout_seconds" \
   "CMP_STAGED_JOIN_RECOVERY_APPLY_AFTER_SECONDS:$recovery_apply_after_seconds" \
   "CMP_STAGED_JOIN_MAX_RECOVERY_APPLIES:$max_recovery_applies" \
-  "CMP_STAGED_JOIN_RECOVERY_MIN_POST_SECONDS:$recovery_min_post_seconds"; do
+  "CMP_STAGED_JOIN_RECOVERY_MIN_POST_SECONDS:$recovery_min_post_seconds" \
+  "CMP_STAGED_JOIN_RECOVERY_RETRY_SECONDS:$recovery_retry_seconds"; do
   require_positive_integer "${setting%%:*}" "${setting#*:}"
 done
 if [ "$restart_apiserver_after_apply" != "true" ] &&
@@ -215,10 +217,12 @@ run_member_update() {
   update_member_label "$1" "$label_value" "selected"
 }
 
+apply_profile_outcome=""
 apply_profile() {
   local max_attempts="${1:-$apply_attempts}"
   local attempt output rc timeout_seconds
 
+  apply_profile_outcome="failed"
   for attempt in $(seq 1 "$max_attempts"); do
     timeout_seconds=$(remaining_batch_timeout "$command_timeout_seconds") || return 1
     rc=0
@@ -229,6 +233,7 @@ apply_profile() {
       --output none \
       --only-show-errors 2>&1) || rc=$?
     if [ "$rc" -eq 0 ]; then
+      apply_profile_outcome="accepted"
       echo "[staged-join] profile apply accepted on attempt $attempt/$max_attempts"
       return 0
     fi
@@ -239,6 +244,7 @@ apply_profile() {
     fi
     if [ "$rc" -eq 124 ] ||
       echo "$output" | grep -Eqi 'ResourceNotFinalState|OperationNotAllowed|AnotherOperationInProgress'; then
+      apply_profile_outcome="active"
       echo "[staged-join] profile apply is still active; continuing with bounded readiness polling"
       return 0
     fi
@@ -443,7 +449,8 @@ run_batch() {
   local batch_started_at batch_finished_at last_progress_at
   local max_applied max_connected now progress stall_age
   local applied connected failed profile_state expected_remote
-  local recovery_apply_count recovery_limit_logged remaining_seconds
+  local recovery_apply_count recovery_limit_logged recovery_retry_not_before
+  local recovery_attempt_number remaining_seconds
   local recovery_required_seconds
 
   if [ "${#batch[@]}" -eq 0 ]; then
@@ -489,6 +496,7 @@ run_batch() {
   max_connected=0
   recovery_apply_count=0
   recovery_limit_logged=false
+  recovery_retry_not_before=0
   expected_remote=$((${#joined[@]} - 1))
   while [ "$(date +%s)" -lt "$batch_deadline" ]; do
     applied=""
@@ -530,7 +538,8 @@ run_batch() {
     echo "[staged-join] batch #$batch_number waiting: applied=${applied:-unknown}/${#joined[@]}, connected=${connected:-unknown}/${#joined[@]}, failed=${failed:-unknown}, profile=${profile_state:-unknown}, expected_remote=$expected_remote"
     stall_age=$((now - last_progress_at))
     if [ "$stall_age" -ge "$recovery_apply_after_seconds" ] &&
-      [ "$recovery_apply_count" -lt "$max_recovery_applies" ]; then
+      [ "$recovery_apply_count" -lt "$max_recovery_applies" ] &&
+      [ "$now" -ge "$recovery_retry_not_before" ]; then
       remaining_seconds=$((batch_deadline - now))
       recovery_required_seconds=$((command_timeout_seconds + recovery_min_post_seconds))
       if [ "$remaining_seconds" -lt "$recovery_required_seconds" ]; then
@@ -538,13 +547,21 @@ run_batch() {
         recovery_apply_count="$max_recovery_applies"
         recovery_limit_logged=true
       else
-        recovery_apply_count=$((recovery_apply_count + 1))
-        echo "[staged-join] no progress for ${stall_age}s; issuing single-request profile recovery apply $recovery_apply_count/$max_recovery_applies"
+        recovery_attempt_number=$((recovery_apply_count + 1))
+        echo "[staged-join] no progress for ${stall_age}s; issuing single-request profile recovery apply $recovery_attempt_number/$max_recovery_applies"
         if apply_profile 1; then
-          max_applied=0
-          max_connected=0
-          last_progress_at=$(date +%s)
+          if [ "$apply_profile_outcome" = "accepted" ]; then
+            recovery_apply_count="$recovery_attempt_number"
+            recovery_retry_not_before=0
+            max_applied=0
+            max_connected=0
+            last_progress_at=$(date +%s)
+          else
+            recovery_retry_not_before=$((now + recovery_retry_seconds))
+            echo "[staged-join] recovery apply deferred because the profile still has an active operation; budget remains $recovery_apply_count/$max_recovery_applies, retrying after ${recovery_retry_seconds}s"
+          fi
         else
+          recovery_apply_count="$recovery_attempt_number"
           echo "##vso[task.logissue type=warning;] [staged-join] profile recovery apply failed; continuing without another recovery"
         fi
       fi

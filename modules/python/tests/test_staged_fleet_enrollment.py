@@ -52,6 +52,7 @@ def _run_staged_join(
     recovery_apply_after_seconds=2,
     recovery_min_post_seconds=1,
     connected_sequence="",
+    active_recovery_apply_attempts=0,
 ):
     bin_dir = tmp_path / "bin"
     home_dir = tmp_path / "home"
@@ -79,6 +80,7 @@ def _run_staged_join(
     command_log = tmp_path / "commands.log"
     selected_file = tmp_path / "selected.txt"
     apply_file = tmp_path / "applies.txt"
+    recovery_apply_attempt_file = tmp_path / "recovery-apply-attempts.txt"
     connected_query_file = tmp_path / "connected-queries.txt"
     summary_file = tmp_path / "summary.json"
 
@@ -145,6 +147,15 @@ if [[ " $* " == *" clustermeshprofile show "* ]]; then
   exit 0
 fi
 if [[ " $* " == *" clustermeshprofile apply "* ]]; then
+  accepted_count=$(wc -l < "$APPLY_FILE" 2>/dev/null || printf '0')
+  if [ "$accepted_count" -ge 1 ]; then
+    recovery_attempt=$(( $(wc -l < "$RECOVERY_APPLY_ATTEMPT_FILE" 2>/dev/null || printf '0') + 1 ))
+    echo attempt >> "$RECOVERY_APPLY_ATTEMPT_FILE"
+    if [ "$recovery_attempt" -le "$ACTIVE_RECOVERY_APPLY_ATTEMPTS" ]; then
+      echo "ERROR: (ResourceNotFinalState) profile is Applying" >&2
+      exit 1
+    fi
+  fi
   echo apply >> "$APPLY_FILE"
   exit 0
 fi
@@ -189,6 +200,8 @@ exit 1
             "COMMAND_LOG": str(command_log),
             "SELECTED_FILE": str(selected_file),
             "APPLY_FILE": str(apply_file),
+            "RECOVERY_APPLY_ATTEMPT_FILE": str(recovery_apply_attempt_file),
+            "ACTIVE_RECOVERY_APPLY_ATTEMPTS": str(active_recovery_apply_attempts),
             "CONNECTED_QUERY_FILE": str(connected_query_file),
             "CONNECTED_SEQUENCE": connected_sequence,
             "REQUIRED_APPLY_COUNT": str(required_apply_count),
@@ -212,6 +225,7 @@ exit 1
             "CMP_STAGED_JOIN_RECOVERY_MIN_POST_SECONDS": str(
                 recovery_min_post_seconds
             ),
+            "CMP_STAGED_JOIN_RECOVERY_RETRY_SECONDS": "1",
             "CMP_STAGED_JOIN_SUMMARY_FILE": str(summary_file),
         }
     )
@@ -300,6 +314,27 @@ def test_staged_join_tracks_fresh_progress_after_recovery_apply(tmp_path):
     assert summary["status"] == "succeeded"
 
 
+def test_staged_join_preserves_recovery_budget_while_profile_is_active(tmp_path):
+    result, selected, summary, command_log = _run_staged_join(
+        tmp_path,
+        ["mesh-1", "mesh-2"],
+        required_apply_count=2,
+        batch_wait_seconds=8,
+        recovery_apply_after_seconds=1,
+        active_recovery_apply_attempts=1,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert selected == ["mesh-1", "mesh-2"]
+    assert command_log.count("clustermeshprofile apply") == 3
+    assert "profile apply is still active" in result.stdout
+    assert "budget remains 0/1" in result.stdout
+    assert result.stdout.count(
+        "issuing single-request profile recovery apply 1/1"
+    ) == 2
+    assert summary["status"] == "succeeded"
+
+
 def test_staged_join_caps_profile_recovery_applies(tmp_path):
     result, _, summary, command_log = _run_staged_join(
         tmp_path,
@@ -385,6 +420,7 @@ def test_terraform_separates_initial_member_label_from_profile_selector():
     assert "CMP_STAGED_JOIN_RECOVERY_APPLY_AFTER_SECONDS" in staged_script
     assert "CMP_STAGED_JOIN_MAX_RECOVERY_APPLIES" in staged_script
     assert "CMP_STAGED_JOIN_RECOVERY_MIN_POST_SECONDS" in staged_script
+    assert "CMP_STAGED_JOIN_RECOVERY_RETRY_SECONDS" in staged_script
     assert "CLUSTERMESH_KUBECONFIG_DIR" in staged_script
     assert "az fleet member reconcile" not in staged_script
     assert "apply_profile 1" in staged_script
