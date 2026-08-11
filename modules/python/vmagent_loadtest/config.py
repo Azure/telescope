@@ -102,49 +102,51 @@ SYSTEM_MEM_PER_NODE_MI = 800    # kube-system + kubelet overhead (Mi)
 # vmagent native clustering (-promscrape.cluster.*), so each shard holds
 # ~total_targets/shards and its memory scales down accordingly.
 #
-# Memory limits are ~2× the observed/projected per-shard steady RSS. Recorded
-# RSS lags sub-second spikes (WAL flush + remote-write backlog), so limits are
-# intentionally larger than observed steady-state usage. Observed monolithic
-# RSS: tier 150 → 213 MiB, 300 → 285 MiB, 500 → 2126 MiB, 1000 → 3336 MiB.
+# vmagent/vmagent_proxy requests+limits are pinned to prod's exact static
+# values (aks-operator/config/channels/packages/adx-vmagent/default/
+# statefulset.yaml) instead of scaling per tier -- matches real fleet sizing,
+# and keeps deploy_vmagent()'s pod template identical across tier transitions
+# so the StatefulSet only adds shards (non-disruptive) instead of also
+# triggering a rolling restart of already-running shards on every tier step.
 def _r(cpu_req, mem_req, cpu_lim, mem_lim):
     return {"cpu_req": cpu_req, "mem_req": mem_req,
             "cpu_lim": cpu_lim, "mem_lim": mem_lim}
 
+VMAGENT_PROD_RESOURCES = _r("200m", "500Mi", "1500m", "2500Mi")
+VMAGENT_PROXY_PROD_RESOURCES = _r("50m", "150Mi", "400m", "800Mi")
+
 TIER_RESOURCE_BUCKETS = [
     # (upper_tier, shards, {"vmagent":..., "vmagent_proxy":..., "konn_server":...})
-    # vmagent/vmagent_proxy resources are PER-SHARD. konn_server floors match
-    # prod's real Control Plane Scaling Profile (CPSP) minimums -- H2 (cpuReq=1,
-    # memLimit=2Gi) below, H4/H8 (cpuReq=2, memLimit=4Gi) at tier>=1000 -- so
-    # even the smallest load-test tier isn't under-provisioned relative to the
-    # smallest real control plane (see aks-rp/ccp/konnectivity-server-synth/
-    # helmvalues/control_plane_scaling_profile.go).
-    (200,  1, {"vmagent":       _r("100m", "256Mi", "500m", "768Mi"),
-               "vmagent_proxy": _r("100m", "128Mi", "1",    "256Mi"),
+    # konn_server floors match prod's real Control Plane Scaling Profile (CPSP)
+    # minimums -- H2 (cpuReq=1, memLimit=2Gi) below, H4/H8 (cpuReq=2,
+    # memLimit=4Gi) at tier>=1000 -- so even the smallest load-test tier isn't
+    # under-provisioned relative to the smallest real control plane (see
+    # aks-rp/ccp/konnectivity-server-synth/helmvalues/control_plane_scaling_profile.go).
+    (200,  1, {"vmagent":       VMAGENT_PROD_RESOURCES,
+               "vmagent_proxy": VMAGENT_PROXY_PROD_RESOURCES,
                "konn_server":   _r("1",    "1Gi",   "2",    "2Gi")}),
-    (350,  1, {"vmagent":       _r("250m", "512Mi", "1",    "1Gi"),
-               "vmagent_proxy": _r("250m", "256Mi", "2",    "512Mi"),
+    (350,  1, {"vmagent":       VMAGENT_PROD_RESOURCES,
+               "vmagent_proxy": VMAGENT_PROXY_PROD_RESOURCES,
                "konn_server":   _r("1",    "1Gi",   "2",    "2Gi")}),
-    (600,  1, {"vmagent":       _r("500m", "1Gi",   "2",    "3Gi"),
-               "vmagent_proxy": _r("500m", "256Mi", "4",    "1Gi"),
+    (600,  1, {"vmagent":       VMAGENT_PROD_RESOURCES,
+               "vmagent_proxy": VMAGENT_PROXY_PROD_RESOURCES,
                "konn_server":   _r("1",    "1Gi",   "2",    "2Gi")}),
-    (1000, 3, {"vmagent":       _r("500m", "1Gi",   "2",    "3Gi"),
-               "vmagent_proxy": _r("500m", "256Mi", "4",    "1Gi"),
+    (1000, 3, {"vmagent":       VMAGENT_PROD_RESOURCES,
+               "vmagent_proxy": VMAGENT_PROXY_PROD_RESOURCES,
                "konn_server":   _r("2",    "2Gi",   "2",    "4Gi")}),
     # tier 1500 needs 4 shards: 3 shards put ~5767 targets/shard which pushed
     # scrape_duration to ~5s. 4 shards -> ~4325/shard (proven-good range, tier
     # 1200 ran 4613/shard at 0.26s).
-    # Requests right-sized to measured usage (vmagent RSS ~300-450MiB flat
-    # across tiers thanks to pooling+sharding); limits stay high for burst.
-    (1500, 4, {"vmagent":       _r("500m", "1Gi",   "3",    "4Gi"),
-               "vmagent_proxy": _r("500m", "512Mi", "6",    "1Gi"),
+    (1500, 4, {"vmagent":       VMAGENT_PROD_RESOURCES,
+               "vmagent_proxy": VMAGENT_PROXY_PROD_RESOURCES,
                "konn_server":   _r("2",    "2Gi",   "2",    "4Gi")}),
 ]
 # Above the top bucket: shard so each vmagent holds ~TARGETS_PER_SHARD targets.
 TARGETS_PER_SHARD = 3700
 FAKE_ROLES_COUNT = 11  # keep in sync with len(FAKE_EXPORTER_ROLES)
 TIER_RESOURCES_OVER = {
-    "vmagent":       _r("500m", "1Gi", "4", "4Gi"),
-    "vmagent_proxy": _r("500m", "512Mi", "6", "2Gi"),
+    "vmagent":       VMAGENT_PROD_RESOURCES,
+    "vmagent_proxy": VMAGENT_PROXY_PROD_RESOURCES,
     "konn_server":   _r("2", "2Gi", "2", "4Gi"),
 }
 
