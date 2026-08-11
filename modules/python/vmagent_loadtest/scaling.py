@@ -13,6 +13,14 @@ def _pool_name(base: str, index: int) -> str:
     return base if index == 0 else f"{base}{index + 1}"
 
 
+# provisioningState values meaning "an operation is in flight" -- issuing a
+# new scale/delete/destroy against the same pool while any of these is set
+# gets rejected with OperationNotAllowed. "Deleting" matters here: fan-out
+# pools are fired with `az aks nodepool delete --no-wait`, so they can still
+# be actively deleting when a settle-check runs right after.
+_BUSY_PROVISIONING_STATES = ("Scaling", "Updating", "Creating", "Deleting")
+
+
 def _plan_pools(node_count: int) -> list[int]:
     """Distribute node_count across pools of <= MAX_NODES_PER_POOL.
 
@@ -90,7 +98,7 @@ def _wait_for_nodepool_idle(resource_group: str, cluster_name: str, nodepool: st
         if spec is None:
             return  # pool doesn't exist yet -- nothing to wait on
         state = spec.get("provisioningState", "")
-        if state not in ("Scaling", "Updating", "Creating"):
+        if state not in _BUSY_PROVISIONING_STATES:
             return
         log.info("  nodepool '%s' still %s, waiting for it to settle before scaling...",
                  nodepool, state)
@@ -243,7 +251,7 @@ def scale_down_for_teardown(resource_group: str, dp_cluster_name: str, nodepool:
         still_busy = []
         for cluster, pool in remaining:
             spec = _get_nodepool(resource_group, cluster, pool)
-            if spec is not None and spec.get("provisioningState") == "Scaling":
+            if spec is not None and spec.get("provisioningState") in _BUSY_PROVISIONING_STATES:
                 still_busy.append((cluster, pool))
         remaining = still_busy
         if not remaining:
@@ -290,7 +298,7 @@ def wait_for_dp_nodepools_settled(resource_group: str, cluster_name: str, nodepo
         still_busy = []
         for pool in remaining:
             spec = _get_nodepool(resource_group, cluster_name, pool)
-            if spec is not None and spec.get("provisioningState") == "Scaling":
+            if spec is not None and spec.get("provisioningState") in _BUSY_PROVISIONING_STATES:
                 still_busy.append(pool)
         remaining = still_busy
         if not remaining:
