@@ -141,6 +141,10 @@ def test_reset_script_accepts_guarded_expected_count():
 
     assert 'expected_count="${CLUSTERMESH_DEBUG_EXPECTED_CLUSTER_COUNT:-100}"' in reset
     assert "--argjson expected_count" in reset
+    assert '--slurpfile members "$member_file"' in reset
+    assert '--slurpfile clusters "$cluster_file"' in reset
+    assert "--argjson members" not in reset
+    assert "--argjson clusters" not in reset
     assert "mesh-1..mesh-$expected_count" in reset
 
 

@@ -159,6 +159,11 @@ def test_fleet_reset_and_resume_do_not_mutate_aks_lifecycle():
     assert "does not exactly match" in reset
     assert "CLUSTERMESH_DEBUG_EXPECTED_CLUSTER_COUNT" in reset
     assert "--argjson expected_count" in reset
+    assert '--slurpfile members "$member_file"' in reset
+    assert '--slurpfile clusters "$cluster_file"' in reset
+    assert "--argjson members" not in reset
+    assert "--argjson clusters" not in reset
+    assert "clustermesh-reset-inventory" in reset
     assert "issuing bounded apply nudge" in reset
     assert "deferring apply nudge" in reset
     assert "Removing residual ClusterMesh Kubernetes resources" in reset

@@ -28,28 +28,34 @@ if ! az fleet show --resource-group "$target_run_id" --name "$fleet_name" \
   exit 0
 fi
 
-mapfile -t members < <(az fleet member list \
+inventory_dir=$(mktemp -d "${TMPDIR:-/tmp}/clustermesh-reset-inventory.XXXXXX")
+member_file="$inventory_dir/fleet-members.json"
+cluster_file="$inventory_dir/aks-clusters.json"
+cleanup_inventory() {
+  rm -rf "$inventory_dir"
+}
+trap cleanup_inventory EXIT
+
+az fleet member list \
   --resource-group "$target_run_id" --fleet-name "$fleet_name" \
-  --query '[].name' -o tsv --only-show-errors)
-member_json=$(az fleet member list \
-  --resource-group "$target_run_id" --fleet-name "$fleet_name" \
-  -o json --only-show-errors)
-cluster_json=$(az resource list \
+  -o json --only-show-errors >"$member_file"
+az resource list \
   --resource-group "$target_run_id" \
   --resource-type Microsoft.ContainerService/managedClusters \
   --query "[?tags.run_id=='${target_run_id}' && starts_with(tags.role, 'mesh-')].{name:tags.role,clusterResourceId:id}" \
-  -o json)
+  -o json >"$cluster_file"
+mapfile -t members < <(jq -r '.[].name' "$member_file")
 if ! jq -e -n \
-    --argjson members "$member_json" \
-    --argjson clusters "$cluster_json" \
+    --slurpfile members "$member_file" \
+    --slurpfile clusters "$cluster_file" \
     --argjson expected_count "$expected_count" '
-      ($clusters
+      ($clusters[0]
         | map({key:.name, value:(.clusterResourceId | ascii_downcase)})
         | from_entries) as $expected_map
-      | ($members
+      | ($members[0]
         | map({key:.name, value:(.clusterResourceId | ascii_downcase)})
         | from_entries) as $actual
-      | ($members | length) == $expected_count
+      | ($members[0] | length) == $expected_count
         and ($actual | length) == $expected_count
         and $actual == $expected_map
     ' >/dev/null; then
@@ -143,7 +149,7 @@ fi
 
 kube_dir=$(mktemp -d "${TMPDIR:-/tmp}/clustermesh-reset-kube.XXXXXX")
 cleanup_kube_dir() {
-  rm -rf "$kube_dir"
+  rm -rf "$kube_dir" "$inventory_dir"
 }
 trap cleanup_kube_dir EXIT
 
@@ -199,7 +205,7 @@ done < <(
         (.clusterResourceId | split("/")[-1])
       ]
     | @tsv
-  ' <<<"$cluster_json"
+  ' "$cluster_file"
 )
 
 az group update --name "$target_run_id" \
