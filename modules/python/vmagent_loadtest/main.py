@@ -116,16 +116,6 @@ def main() -> None:
                              "prod is still pinned at the old 524288 = .5 MiB — this is "
                              "a pending/unvalidated recommendation this load test exists "
                              "to confirm)")
-    parser.add_argument("--queues", type=int, default=8,
-                        help="-remoteWrite.queues count passed to vmagent "
-                             "(default: 8; prod does NOT set this flag today, so it "
-                             "silently defaults to ~2xGOMAXPROCS (~4) — prod's 2k-node "
-                             "test recommends an explicit 8-16, still unvalidated)")
-    parser.add_argument("--max-rows-per-block", type=int, default=10000,
-                        help="-remoteWrite.maxRowsPerBlock passed to vmagent "
-                             "(default: 10000, VictoriaMetrics stock default; prod "
-                             "doesn't set this either — VM guidance is to raise it "
-                             "alongside --max-block-size, still unvalidated)")
     parser.add_argument("--konn-server-image", default=KONN_SERVER_IMAGE,
                         help=f"konnectivity-server image to deploy "
                              f"(default: {KONN_SERVER_IMAGE}). Use this to load-test "
@@ -256,8 +246,6 @@ def main() -> None:
             run_label="real",
             rate_limit=args.rate_limit,
             max_block_size=args.max_block_size,
-            queues=args.queues,
-            max_rows_per_block=args.max_rows_per_block,
             measure_drain=args.measure_drain,
             drain_observe_seconds=args.drain_observe_seconds,
             konn_server_image=args.konn_server_image,
@@ -283,8 +271,6 @@ def main() -> None:
             run_label="fake",
             rate_limit=args.rate_limit,
             max_block_size=args.max_block_size,
-            queues=args.queues,
-            max_rows_per_block=args.max_rows_per_block,
             measure_drain=args.measure_drain,
             drain_observe_seconds=args.drain_observe_seconds,
             konn_server_image=args.konn_server_image,
@@ -390,8 +376,6 @@ def main() -> None:
                     run_label=args.run_label,
                     rate_limit=args.rate_limit,
                     max_block_size=args.max_block_size,
-                    queues=args.queues,
-                    max_rows_per_block=args.max_rows_per_block,
                     measure_drain=args.measure_drain,
                     drain_observe_seconds=args.drain_observe_seconds,
                     konn_server_image=args.konn_server_image,
@@ -470,8 +454,6 @@ def main() -> None:
                     skip_diagnostics=not args.collect_diagnostics,
                     rate_limit=args.rate_limit,
                     max_block_size=args.max_block_size,
-                    queues=args.queues,
-                    max_rows_per_block=args.max_rows_per_block,
                     konn_server_image=args.konn_server_image,
                     konn_agent_image=args.konn_agent_image,
                     resume=resume,
@@ -544,8 +526,6 @@ def main() -> None:
                     skip_diagnostics=not args.collect_diagnostics,
                     rate_limit=args.rate_limit,
                     max_block_size=args.max_block_size,
-                    queues=args.queues,
-                    max_rows_per_block=args.max_rows_per_block,
                     measure_drain=args.measure_drain,
                     drain_observe_seconds=args.drain_observe_seconds,
                     konn_server_image=args.konn_server_image,

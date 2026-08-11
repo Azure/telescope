@@ -94,8 +94,6 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
                     skip_diagnostics: bool = True,
                     rate_limit: int = VMAGENT_RATE_LIMIT,
                     max_block_size: int = 8388608,
-                    queues: int = 8,
-                    max_rows_per_block: int = 10000,
                     measure_drain: bool = False,
                     drain_observe_seconds: int = 120,
                     konn_server_image: str = KONN_SERVER_IMAGE,
@@ -207,9 +205,7 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
                    proxy_resources=tier_resources["vmagent_proxy"],
                    replicas=shard_count,
                    rate_limit=rate_limit,
-                   max_block_size=max_block_size,
-                   queues=queues,
-                   max_rows_per_block=max_rows_per_block)
+                   max_block_size=max_block_size)
     tier_start_ts = time.time()  # ADX time-series window starts here
     wall_start_ts = tier_start_ts
 
@@ -296,6 +292,7 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
             cp_kubeconfig, namespace, run_id, tier,
             mode="real-targets" if real_targets else "fake-targets",
             start_ts=tier_start_ts,
+            run_label=run_label or "",
         )
 
         # 12c. Collect peak resource usage for the summary row (cheap PromQL).
@@ -332,8 +329,6 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
                 "rate_limit": rate_limit,
                 "max_block_size": max_block_size,
                 "flush_interval": VMAGENT_FLUSH_INTERVAL,
-                "queues": queues,
-                "max_rows_per_block": max_rows_per_block,
                 "konn_server_image": konn_server_image,
                 "konn_agent_image": konn_agent_image,
                 "vmagent_image": VMAGENT_IMAGE,
@@ -369,8 +364,6 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
             "rate_limit": rate_limit,
             "max_block_size": max_block_size,
             "flush_interval": VMAGENT_FLUSH_INTERVAL,
-            "queues": queues,
-            "max_rows_per_block": max_rows_per_block,
             "konn_server_image": konn_server_image,
             "konn_agent_image": konn_agent_image,
             "vmagent_image": VMAGENT_IMAGE,
@@ -486,8 +479,6 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
                           skip_diagnostics: bool = True,
                           rate_limit: int = VMAGENT_RATE_LIMIT,
                           max_block_size: int = 8388608,
-                          queues: int = 8,
-                          max_rows_per_block: int = 10000,
                           konn_server_image: str = KONN_SERVER_IMAGE,
                           konn_agent_image: str = KONN_AGENT_IMAGE,
                           resume: bool = False,
@@ -576,9 +567,7 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
                        proxy_resources=tier_resources["vmagent_proxy"],
                        replicas=shard_count,
                        rate_limit=rate_limit,
-                       max_block_size=max_block_size,
-                       queues=queues,
-                       max_rows_per_block=max_rows_per_block)
+                       max_block_size=max_block_size)
     ramp_start_ts = time.time()
 
     all_samples: list[dict] = []
@@ -627,9 +616,7 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
                            proxy_resources=tier_resources["vmagent_proxy"],
                            replicas=shard_count,
                            rate_limit=rate_limit,
-                           max_block_size=max_block_size,
-                           queues=queues,
-                           max_rows_per_block=max_rows_per_block)
+                           max_block_size=max_block_size)
 
         node_ips = get_node_ips(dp_kubeconfig)
         dp_nodes = len(node_ips)
@@ -668,7 +655,8 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
         # Push this step's time series to ADX (no-op unless ADX_CLUSTER_URI/ADX_DATABASE set)
         log.info("Pushing time-series to ADX...")
         adx_export_if_configured(cp_kubeconfig, namespace, run_id, tier,
-                                  mode="real-targets", start_ts=step_start_ts)
+                                  mode="real-targets", start_ts=step_start_ts,
+                                  run_label=run_label or "")
         log.info("Collecting peak resource usage for summary row...")
         step_measurements.update(adx_collect_resource_peaks(cp_kubeconfig, namespace, ramp_start_ts))
 
@@ -692,8 +680,6 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
                 "rate_limit": rate_limit,
                 "max_block_size": max_block_size,
                 "flush_interval": VMAGENT_FLUSH_INTERVAL,
-                "queues": queues,
-                "max_rows_per_block": max_rows_per_block,
                 "konn_server_image": konn_server_image,
                 "konn_agent_image": konn_agent_image,
                 "vmagent_image": VMAGENT_IMAGE,
@@ -749,8 +735,6 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
             "rate_limit": rate_limit,
             "max_block_size": max_block_size,
             "flush_interval": VMAGENT_FLUSH_INTERVAL,
-            "queues": queues,
-            "max_rows_per_block": max_rows_per_block,
             "konn_server_image": konn_server_image,
             "konn_agent_image": konn_agent_image,
             "vmagent_image": VMAGENT_IMAGE,
@@ -808,8 +792,6 @@ def run_fake_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
                           skip_diagnostics: bool = True,
                           rate_limit: int = VMAGENT_RATE_LIMIT,
                           max_block_size: int = 8388608,
-                          queues: int = 8,
-                          max_rows_per_block: int = 10000,
                           measure_drain: bool = False,
                           drain_observe_seconds: int = 120,
                           konn_server_image: str = KONN_SERVER_IMAGE,
@@ -893,9 +875,7 @@ def run_fake_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
                        proxy_resources=tier_resources["vmagent_proxy"],
                        replicas=shard_count,
                        rate_limit=rate_limit,
-                       max_block_size=max_block_size,
-                       queues=queues,
-                       max_rows_per_block=max_rows_per_block)
+                       max_block_size=max_block_size)
         last_tier_resources = tier_resources
     ramp_start_ts = time.time()
 
@@ -943,9 +923,7 @@ def run_fake_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
                            proxy_resources=tier_resources["vmagent_proxy"],
                            replicas=shard_count,
                            rate_limit=rate_limit,
-                           max_block_size=max_block_size,
-                           queues=queues,
-                           max_rows_per_block=max_rows_per_block)
+                           max_block_size=max_block_size)
 
         min_targets = int(tier * len(FAKE_EXPORTER_ROLES) * 0.95)
 
@@ -970,7 +948,8 @@ def run_fake_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
         # Push this step's time series to ADX (no-op unless ADX_CLUSTER_URI/ADX_DATABASE set)
         log.info("Pushing time-series to ADX...")
         adx_export_if_configured(cp_kubeconfig, namespace, run_id, tier,
-                                  mode="fake-targets", start_ts=step_start_ts)
+                                  mode="fake-targets", start_ts=step_start_ts,
+                                  run_label=run_label or "")
         log.info("Collecting peak resource usage for summary row...")
         step_measurements.update(adx_collect_resource_peaks(cp_kubeconfig, namespace, ramp_start_ts))
 
@@ -994,8 +973,6 @@ def run_fake_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
                 "rate_limit": rate_limit,
                 "max_block_size": max_block_size,
                 "flush_interval": VMAGENT_FLUSH_INTERVAL,
-                "queues": queues,
-                "max_rows_per_block": max_rows_per_block,
                 "konn_server_image": konn_server_image,
                 "konn_agent_image": konn_agent_image,
                 "vmagent_image": VMAGENT_IMAGE,
@@ -1076,8 +1053,6 @@ def run_fake_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
             "rate_limit": rate_limit,
             "max_block_size": max_block_size,
             "flush_interval": VMAGENT_FLUSH_INTERVAL,
-            "queues": queues,
-            "max_rows_per_block": max_rows_per_block,
             "konn_server_image": konn_server_image,
             "konn_agent_image": konn_agent_image,
             "vmagent_image": VMAGENT_IMAGE,

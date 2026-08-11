@@ -249,7 +249,8 @@ CREATE_TABLE_CMD = """
     Job: string,
     Instance: string,
     Pod: string,
-    Labels: dynamic
+    Labels: dynamic,
+    RunLabel: string
 )
 """
 
@@ -265,7 +266,8 @@ CREATE_MAPPING_CMD = """
 '{"column":"Job","Properties":{"Path":"$.Job"}},'
 '{"column":"Instance","Properties":{"Path":"$.Instance"}},'
 '{"column":"Pod","Properties":{"Path":"$.Pod"}},'
-'{"column":"Labels","Properties":{"Path":"$.Labels"}}'
+'{"column":"Labels","Properties":{"Path":"$.Labels"}},'
+'{"column":"RunLabel","Properties":{"Path":"$.RunLabel"}}'
 ']'
 """
 
@@ -381,8 +383,12 @@ def export_timeseries(cp_kubeconfig: str, namespace: str,
                       cluster_uri: str, database: str,
                       run_id: str, tier: int, mode: str,
                       start_ts: float, end_ts: float | None = None,
-                      step_seconds: int = 15) -> int:
+                      step_seconds: int = 15, run_label: str = "") -> int:
     """Query vmsingle for the test window and ingest rows into ADX.
+
+    `run_label` tags every row so data from multiple config_combinations run
+    sequentially in the same pipeline job (same run_id-adjacent timestamps)
+    can still be told apart in Kusto.
 
     Returns number of rows ingested.
     """
@@ -426,6 +432,7 @@ def export_timeseries(cp_kubeconfig: str, namespace: str,
                         "Instance": instance,
                         "Pod": pod,
                         "Labels": labels,
+                        "RunLabel": run_label,
                     }))
                     metric_rows += 1
             per_metric[metric_name] = metric_rows
@@ -526,7 +533,7 @@ def collect_resource_peaks(cp_kubeconfig: str, namespace: str,
 
 def export_if_configured(cp_kubeconfig: str, namespace: str,
                          run_id: str, tier: int, mode: str,
-                         start_ts: float) -> None:
+                         start_ts: float, run_label: str = "") -> None:
     """No-op unless ADX cluster URI + database are configured (env or config)."""
     cluster_uri = os.environ.get("ADX_CLUSTER_URI", "").strip() or _config.ADX_CLUSTER_URI
     database = os.environ.get("ADX_DATABASE", "").strip() or _config.ADX_DATABASE
@@ -535,7 +542,7 @@ def export_if_configured(cp_kubeconfig: str, namespace: str,
         return
     try:
         export_timeseries(cp_kubeconfig, namespace, cluster_uri, database,
-                          run_id, tier, mode, start_ts)
+                          run_id, tier, mode, start_ts, run_label=run_label)
     except Exception as e:
         log.warning("ADX export failed (non-fatal): %s", e)
 
