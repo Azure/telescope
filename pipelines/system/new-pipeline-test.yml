@@ -103,6 +103,55 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
+  # Azure CNI Node Subnet (no overlay, no Cilium)
+  - stage: azure_cni_node_subnet
+    variables:
+      SCENARIO_NAME: node-startup-latency-azure-cni-node-subnet
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          topology: node-startup-latency
+          engine: crud
+          matrix:
+            azure_cni_node_subnet_node_startup:
+              pool_name: userpool
+              vm_size: Standard_D8s_v3
+              step_time_out: 900
+              cni_daemonset_label: ""
+          max_parallel: 1
+          timeout_in_minutes: 60
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  # NAP / Karpenter (Azure CNI Overlay, no Cilium) — same probe-pod metrics as above
+  - stage: azure_nap
+    variables:
+      SCENARIO_NAME: node-startup-latency-nap
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          topology: node-startup-latency-nap
+          engine: crud
+          matrix:
+            nap_node_startup:
+              pool_name: default
+              vm_size: Standard_D8s_v3
+              step_time_out: 900
+              cni_daemonset_label: ""
+              cni_blocking_taint: ""
+          max_parallel: 1
+          timeout_in_minutes: 60
+          credential_type: service_connection
+          ssh_key_enabled: false
+
   # # BYOCNI + Cilium unified init container (msp/com-init)
   # - stage: azure_cilium_byocni_unified_init
   #   variables:
