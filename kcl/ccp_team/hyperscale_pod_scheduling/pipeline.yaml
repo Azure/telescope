@@ -156,7 +156,7 @@ stages:
               --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
               --name "cl2pool" \
               --node-count 1 \
-              --node-vm-size "Standard_D8S_v4" \
+              --node-vm-size "Standard_D16S_v4" \
               --mode User \
               --node-taints cl2pool=true:NoSchedule 2>&1)
             rc=$?
@@ -483,7 +483,7 @@ stages:
               --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
               --name "cl2pool" \
               --node-count 1 \
-              --node-vm-size "Standard_D8S_v4" \
+              --node-vm-size "Standard_D16S_v4" \
               --mode User \
               --node-taints cl2pool=true:NoSchedule 2>&1)
             rc=$?
@@ -810,7 +810,7 @@ stages:
               --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
               --name "cl2pool" \
               --node-count 1 \
-              --node-vm-size "Standard_D8S_v4" \
+              --node-vm-size "Standard_D16S_v4" \
               --mode User \
               --node-taints cl2pool=true:NoSchedule 2>&1)
             rc=$?
