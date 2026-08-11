@@ -350,8 +350,43 @@ CREATE_RESULTS_MAPPING_CMD = """
 """
 
 
+# Raw vmagent + vmagent-proxy container log lines (one row per line), so
+# log content can be queried/correlated in Kusto the same way prod's log
+# pipeline works, instead of only being reachable as pipeline-artifact files.
+# `container`/`log`/`TIMESTAMP` are named to match prod's adx-mon-forwarded
+# VMAgent table so existing prod KQL queries port over with minimal edits.
+CREATE_LOGS_TABLE_CMD = """
+.create-merge table VMAgentLogs (
+    RunId: string,
+    Tier: int,
+    Mode: string,
+    RunLabel: string,
+    Namespace: string,
+    Pod: string,
+    container: string,
+    TIMESTAMP: datetime,
+    log: string
+)
+"""
+
+CREATE_LOGS_MAPPING_CMD = """
+.create-or-alter table VMAgentLogs ingestion json mapping 'VMAgentLogsMapping'
+'['
+'{"column":"RunId","Properties":{"Path":"$.RunId"}},'
+'{"column":"Tier","Properties":{"Path":"$.Tier"}},'
+'{"column":"Mode","Properties":{"Path":"$.Mode"}},'
+'{"column":"RunLabel","Properties":{"Path":"$.RunLabel"}},'
+'{"column":"Namespace","Properties":{"Path":"$.Namespace"}},'
+'{"column":"Pod","Properties":{"Path":"$.Pod"}},'
+'{"column":"container","Properties":{"Path":"$.container"}},'
+'{"column":"TIMESTAMP","Properties":{"Path":"$.TIMESTAMP"}},'
+'{"column":"log","Properties":{"Path":"$.log"}}'
+']'
+"""
+
+
 def ensure_schema(cluster_uri: str, database: str) -> None:
-    """Create VMAgentMetrics + VMAgentRunSummary tables and mappings (idempotent)."""
+    """Create VMAgentMetrics + VMAgentRunSummary + VMAgentLogs tables/mappings (idempotent)."""
     data_client, _ = _kusto_clients(cluster_uri)
     data_client.execute_mgmt(database, CREATE_TABLE_CMD)
     data_client.execute_mgmt(database, CREATE_MAPPING_CMD)
@@ -359,7 +394,9 @@ def ensure_schema(cluster_uri: str, database: str) -> None:
     # `.create-merge` ADDS new columns to an existing table but never removes
     # them, so re-running the command after this code lands is safe.
     data_client.execute_mgmt(database, CREATE_RESULTS_MAPPING_CMD)
-    log.info("ADX schema ready: %s/{VMAgentMetrics, VMAgentRunSummary}", database)
+    data_client.execute_mgmt(database, CREATE_LOGS_TABLE_CMD)
+    data_client.execute_mgmt(database, CREATE_LOGS_MAPPING_CMD)
+    log.info("ADX schema ready: %s/{VMAgentMetrics, VMAgentRunSummary, VMAgentLogs}", database)
 
 
 def _query_range(vm_url: str, query: str, start: float, end: float, step: int = 15):
@@ -545,6 +582,91 @@ def export_if_configured(cp_kubeconfig: str, namespace: str,
                           run_id, tier, mode, start_ts, run_label=run_label)
     except Exception as e:
         log.warning("ADX export failed (non-fatal): %s", e)
+
+
+def export_vmagent_logs(cp_kubeconfig: str, namespace: str,
+                        cluster_uri: str, database: str,
+                        run_id: str, tier: int, mode: str,
+                        run_label: str = "", tail_lines: int = 2000) -> int:
+    """Ingest raw vmagent + vmagent-proxy container log lines into ADX.
+
+    vmagent is a StatefulSet (label app=vmagent) always deployed on the CP
+    cluster (see deploy_vmagent). `kubectl logs --timestamps` prefixes each
+    line with an RFC3339 timestamp, split off here as the TIMESTAMP column.
+
+    Returns number of rows ingested.
+    """
+    import json as _json
+    from .utils import kubectl
+    from azure.kusto.ingest import IngestionProperties, StreamDescriptor
+    from azure.kusto.data.data_format import DataFormat
+
+    _, ingest_client = _kusto_clients(cluster_uri)
+
+    result = kubectl(cp_kubeconfig, "-n", namespace, "get", "pods",
+                     "-l", "app=vmagent",
+                     "-o", "jsonpath={range .items[*]}{.metadata.name}{\"\\n\"}{end}",
+                     check=False)
+    pods = [p for p in (result.stdout or "").strip().split("\n") if p.strip()]
+    if not pods:
+        log.debug("ADX log export: no vmagent pods found in %s", namespace)
+        return 0
+
+    rows: list[str] = []
+    for pod in pods:
+        for container_name in ("vmagent", "vmagent-proxy"):
+            lr = kubectl(cp_kubeconfig, "-n", namespace, "logs", pod,
+                        "-c", container_name, "--timestamps", f"--tail={tail_lines}",
+                        check=False)
+            if not lr.stdout:
+                continue
+            for line in lr.stdout.splitlines():
+                if not line.strip():
+                    continue
+                ts, _, message = line.partition(" ")
+                rows.append(_json.dumps({
+                    "RunId": run_id,
+                    "Tier": tier,
+                    "Mode": mode,
+                    "RunLabel": run_label or "",
+                    "Namespace": namespace,
+                    "Pod": pod,
+                    "container": container_name,
+                    "TIMESTAMP": ts,
+                    "log": message,
+                }))
+
+    if not rows:
+        log.warning("ADX log export: no log lines collected for tier %d", tier)
+        return 0
+
+    payload = "\n".join(rows).encode("utf-8")
+    props = IngestionProperties(
+        database=database,
+        table="VMAgentLogs",
+        data_format=DataFormat.MULTIJSON,
+        ingestion_mapping_reference="VMAgentLogsMapping",
+    )
+    stream = StreamDescriptor(io.BytesIO(payload), is_compressed=False)
+    ingest_client.ingest_from_stream(stream, ingestion_properties=props)
+    log.info("ADX log export: queued %d log lines across %d pod(s) for tier %d",
+             len(rows), len(pods), tier)
+    return len(rows)
+
+
+def export_logs_if_configured(cp_kubeconfig: str, namespace: str,
+                              run_id: str, tier: int, mode: str,
+                              run_label: str = "") -> None:
+    """No-op unless ADX cluster URI + database are configured (env or config)."""
+    cluster_uri = os.environ.get("ADX_CLUSTER_URI", "").strip() or _config.ADX_CLUSTER_URI
+    database = os.environ.get("ADX_DATABASE", "").strip() or _config.ADX_DATABASE
+    if not cluster_uri or not database:
+        return
+    try:
+        export_vmagent_logs(cp_kubeconfig, namespace, cluster_uri, database,
+                            run_id, tier, mode, run_label=run_label)
+    except Exception as e:
+        log.warning("ADX log export failed (non-fatal): %s", e)
 
 
 def export_run_summary(cluster_uri: str, database: str, run_id: str, tier: int,

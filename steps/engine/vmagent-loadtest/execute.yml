@@ -102,138 +102,241 @@ steps:
       MEASURE_DRAIN: $(MEASURE_DRAIN)
       DRAIN_OBSERVE_SECONDS: $(DRAIN_OBSERVE_SECONDS)
 
-- script: |
-    set -euo pipefail
+- ${{ each combo in parameters.config_combinations }}:
+  - script: |
+      set -euo pipefail
 
-    # config_combinations (above) already handled real-targets mode when
-    # populated; this script covers PARALLEL and sequential fake-targets.
-    if [[ "${REAL_TARGETS:-false}" == "true" ]]; then
-      echo "REAL_TARGETS is true and was already handled by the config_combinations steps above -- nothing more to do."
-      exit 0
-    fi
+      if [[ "${REAL_TARGETS:-false}" == "true" ]]; then
+        echo "REAL_TARGETS is true -- config_combinations for fake-targets does not apply, skipping."
+        exit 0
+      fi
 
-    CP_KUBECONFIG="${{ parameters.cp_kubeconfig }}"
-    DP_KUBECONFIG="${{ parameters.dp_kubeconfig }}"
+      CP_KUBECONFIG="${{ parameters.cp_kubeconfig }}"
+      DP_KUBECONFIG="${{ parameters.dp_kubeconfig }}"
+      TIERS="${TIERS:-150,500,1000}"
+      SOAK_MINUTES="${SOAK_MINUTES:-10}"
+      PARALLEL="${PARALLEL:-false}"
+      MAX_CONCURRENCY="${MAX_CONCURRENCY:-}"
+      COLLECT_DIAGNOSTICS="${COLLECT_DIAGNOSTICS:-false}"
+      MEASURE_DRAIN="${MEASURE_DRAIN:-false}"
+      DRAIN_OBSERVE_SECONDS="${DRAIN_OBSERVE_SECONDS:-120}"
 
-    TIERS="${TIERS:-150,500,1000}"
-    SOAK_MINUTES="${SOAK_MINUTES:-10}"
-    RUN_LABEL="${RUN_LABEL:-}"
-    PARALLEL="${PARALLEL:-false}"
-    MAX_CONCURRENCY="${MAX_CONCURRENCY:-}"
-    COLLECT_DIAGNOSTICS="${COLLECT_DIAGNOSTICS:-false}"
-    # -remoteWrite.rateLimit / -remoteWrite.maxBlockSize passed to vmagent.
-    # Defaults match prod's pre-change values (524288 = .5 MiB/s, .5 MiB).
-    RATE_LIMIT="${RATE_LIMIT:-524288}"
-    MAX_BLOCK_SIZE="${MAX_BLOCK_SIZE:-524288}"
-    MEASURE_DRAIN="${MEASURE_DRAIN:-false}"
-    DRAIN_OBSERVE_SECONDS="${DRAIN_OBSERVE_SECONDS:-120}"
-    # Optional image overrides for testing a fix candidate before it merges.
-    # Empty (default) = main.py falls back to its own MCR image defaults.
-    KONN_SERVER_IMAGE="${KONN_SERVER_IMAGE:-}"
-    KONN_AGENT_IMAGE="${KONN_AGENT_IMAGE:-}"
+      combo_rate_limit="${{ combo.rate_limit }}"
+      combo_max_block_size="${{ combo.max_block_size }}"
+      combo_run_label="${{ combo.run_label }}"
+      combo_konn_server_image="${{ combo.konn_server_image }}"
+      combo_konn_agent_image="${{ combo.konn_agent_image }}"
+      combo_rate_limit="${combo_rate_limit:-2097152}"       # 2 MiB/s — current prod value
+      combo_max_block_size="${combo_max_block_size:-524288}" # .5 MiB — current prod value
+      if [[ -z "$combo_run_label" ]]; then
+        echo "##vso[task.logissue type=error;]config_combinations entry is missing required run_label"
+        exit 1
+      fi
 
-    EXTRA_ARGS="--resource-group ${{ parameters.dp_resource_group }} --dp-cluster-name ${{ parameters.dp_cluster_name }}"
-    EXTRA_ARGS="$EXTRA_ARGS --rate-limit $RATE_LIMIT --max-block-size $MAX_BLOCK_SIZE"
-    if [[ "$MEASURE_DRAIN" == "true" ]]; then
-      EXTRA_ARGS="$EXTRA_ARGS --measure-drain --drain-observe-seconds $DRAIN_OBSERVE_SECONDS"
-    fi
-    if [[ -n "$RUN_LABEL" ]]; then
-      EXTRA_ARGS="$EXTRA_ARGS --run-label $RUN_LABEL"
-    fi
-    [[ -n "$KONN_SERVER_IMAGE" ]] && EXTRA_ARGS="$EXTRA_ARGS --konn-server-image $KONN_SERVER_IMAGE"
-    [[ -n "$KONN_AGENT_IMAGE" ]] && EXTRA_ARGS="$EXTRA_ARGS --konn-agent-image $KONN_AGENT_IMAGE"
-    # Diagnostics (pprof + per-pod logs) are SKIPPED by default for speed.
-    # Opt in with COLLECT_DIAGNOSTICS=true only when debugging a failure.
-    if [[ "$COLLECT_DIAGNOSTICS" == "true" ]]; then
-      EXTRA_ARGS="$EXTRA_ARGS --collect-diagnostics"
-    fi
+      args="--resource-group ${{ parameters.dp_resource_group }} --dp-cluster-name ${{ parameters.dp_cluster_name }}"
+      args="$args --rate-limit $combo_rate_limit --max-block-size $combo_max_block_size"
+      args="$args --run-label $combo_run_label"
+      [[ -n "$combo_konn_server_image" ]] && args="$args --konn-server-image $combo_konn_server_image"
+      [[ -n "$combo_konn_agent_image" ]] && args="$args --konn-agent-image $combo_konn_agent_image"
+      [[ "$MEASURE_DRAIN" == "true" ]] && args="$args --measure-drain --drain-observe-seconds $DRAIN_OBSERVE_SECONDS"
+      [[ "$COLLECT_DIAGNOSTICS" == "true" ]] && args="$args --collect-diagnostics"
 
-    # Parallel mode: invoke main.py ONCE with all tiers. Only supported for
-    # fake-targets (real-targets reshapes the DP nodepool per tier).
-    if [[ "$PARALLEL" == "true" ]]; then
+      # A failed combination shouldn't block the next one from still running
+      # in the same already-paid-for cluster -- log and move on rather than
+      # letting `set -e` abort the whole script.
+      if [[ "$PARALLEL" == "true" ]]; then
+        echo ""
+        echo "######################################################################"
+        echo "# TIERS $TIERS — execute in PARALLEL (run_label=${{ combo.run_label }})"
+        echo "######################################################################"
+
+        PARALLEL_ARGS="--parallel"
+        [[ -n "$MAX_CONCURRENCY" ]] && PARALLEL_ARGS="$PARALLEL_ARGS --max-concurrency $MAX_CONCURRENCY"
+
+        python3 modules/python/vmagent_loadtest/main.py \
+          --cp-kubeconfig "$CP_KUBECONFIG" \
+          --dp-kubeconfig "$DP_KUBECONFIG" \
+          --tiers "$TIERS" \
+          --warm-up-minutes "$SOAK_MINUTES" \
+          $PARALLEL_ARGS \
+          $args \
+          || echo "##vso[task.logissue type=warning;]main.py failed for run_label=${{ combo.run_label }}"
+      else
+        echo ""
+        echo "######################################################################"
+        echo "# TIERS $TIERS — execute as FAKE-TARGETS RAMP (run_label=${{ combo.run_label }})"
+        echo "######################################################################"
+
+        python3 modules/python/vmagent_loadtest/main.py \
+          --cp-kubeconfig "$CP_KUBECONFIG" \
+          --dp-kubeconfig "$DP_KUBECONFIG" \
+          --tiers "$TIERS" \
+          --warm-up-minutes "$SOAK_MINUTES" \
+          $args \
+          || echo "##vso[task.logissue type=warning;]main.py failed for run_label=${{ combo.run_label }}"
+      fi
+
+      WORK_DIR=$(ls -td /tmp/vmagent-loadtest.* 2>/dev/null | head -1)
+      if [[ -n "$WORK_DIR" && -d "${WORK_DIR}/results" ]]; then
+        mkdir -p "$(TEST_RESULTS_DIR)"
+        cp -v "${WORK_DIR}/results"/*.json "$(TEST_RESULTS_DIR)/" 2>/dev/null || true
+        cp -v "${WORK_DIR}/results"/*.csv "$(TEST_RESULTS_DIR)/" 2>/dev/null || true
+        cp -v "${WORK_DIR}/results"/*.md "$(TEST_RESULTS_DIR)/" 2>/dev/null || true
+        [[ -d "${WORK_DIR}/pprof" ]] && mkdir -p "$(TEST_RESULTS_DIR)/pprof" && cp -rv "${WORK_DIR}/pprof"/. "$(TEST_RESULTS_DIR)/pprof/" 2>/dev/null || true
+        [[ -d "${WORK_DIR}/raw" ]] && mkdir -p "$(TEST_RESULTS_DIR)/raw" && cp -rv "${WORK_DIR}/raw"/. "$(TEST_RESULTS_DIR)/raw/" 2>/dev/null || true
+        [[ -d "${WORK_DIR}/diagnostics" ]] && mkdir -p "$(TEST_RESULTS_DIR)/diagnostics" && cp -rv "${WORK_DIR}/diagnostics"/. "$(TEST_RESULTS_DIR)/diagnostics/" 2>/dev/null || true
+        echo "Results collected (run_label=${{ combo.run_label }})."
+        ls -l "$(TEST_RESULTS_DIR)/"
+      else
+        echo "##vso[task.logissue type=warning;]No results found for run_label=${{ combo.run_label }}"
+      fi
+
+      # PARALLEL mode's per-tier namespaces are already cleaned up inside
+      # main.py (cleanup_tier runs in a `finally` per tier); only the
+      # sequential ramp's single namespace needs cleanup here.
+      if [[ "$PARALLEL" != "true" ]]; then
+        ns="loadtest-${{ combo.run_label }}-fake-ramp"
+        kubectl --kubeconfig "$CP_KUBECONFIG" delete ns "$ns" --wait=false --ignore-not-found=true || true
+        kubectl --kubeconfig "$DP_KUBECONFIG" delete ns "$ns" --wait=false --ignore-not-found=true || true
+      fi
+    displayName: "Execute VMAgent load test (fake-targets, ${{ combo.run_label }})"
+    env:
+      TIERS: $(TIERS)
+      SOAK_MINUTES: $(SOAK_MINUTES)
+      REAL_TARGETS: $(REAL_TARGETS)
+      PARALLEL: $(PARALLEL)
+      MAX_CONCURRENCY: $(MAX_CONCURRENCY)
+      COLLECT_DIAGNOSTICS: $(COLLECT_DIAGNOSTICS)
+      MEASURE_DRAIN: $(MEASURE_DRAIN)
+      DRAIN_OBSERVE_SECONDS: $(DRAIN_OBSERVE_SECONDS)
+
+# Legacy single-config path, only generated when no config_combinations are
+# given -- once combos are set, both real- and fake-targets are fully
+# handled by the ${{ each }} steps above.
+- ${{ if eq(length(parameters.config_combinations), 0) }}:
+  - script: |
+      set -euo pipefail
+
+      CP_KUBECONFIG="${{ parameters.cp_kubeconfig }}"
+      DP_KUBECONFIG="${{ parameters.dp_kubeconfig }}"
+
+      TIERS="${TIERS:-150,500,1000}"
+      SOAK_MINUTES="${SOAK_MINUTES:-10}"
+      RUN_LABEL="${RUN_LABEL:-}"
+      PARALLEL="${PARALLEL:-false}"
+      MAX_CONCURRENCY="${MAX_CONCURRENCY:-}"
+      COLLECT_DIAGNOSTICS="${COLLECT_DIAGNOSTICS:-false}"
+      # -remoteWrite.rateLimit / -remoteWrite.maxBlockSize passed to vmagent.
+      # Defaults match prod's pre-change values (524288 = .5 MiB/s, .5 MiB).
+      RATE_LIMIT="${RATE_LIMIT:-524288}"
+      MAX_BLOCK_SIZE="${MAX_BLOCK_SIZE:-524288}"
+      MEASURE_DRAIN="${MEASURE_DRAIN:-false}"
+      DRAIN_OBSERVE_SECONDS="${DRAIN_OBSERVE_SECONDS:-120}"
+      # Optional image overrides for testing a fix candidate before it merges.
+      # Empty (default) = main.py falls back to its own MCR image defaults.
+      KONN_SERVER_IMAGE="${KONN_SERVER_IMAGE:-}"
+      KONN_AGENT_IMAGE="${KONN_AGENT_IMAGE:-}"
+
+      EXTRA_ARGS="--resource-group ${{ parameters.dp_resource_group }} --dp-cluster-name ${{ parameters.dp_cluster_name }}"
+      EXTRA_ARGS="$EXTRA_ARGS --rate-limit $RATE_LIMIT --max-block-size $MAX_BLOCK_SIZE"
+      if [[ "$MEASURE_DRAIN" == "true" ]]; then
+        EXTRA_ARGS="$EXTRA_ARGS --measure-drain --drain-observe-seconds $DRAIN_OBSERVE_SECONDS"
+      fi
+      if [[ -n "$RUN_LABEL" ]]; then
+        EXTRA_ARGS="$EXTRA_ARGS --run-label $RUN_LABEL"
+      fi
+      [[ -n "$KONN_SERVER_IMAGE" ]] && EXTRA_ARGS="$EXTRA_ARGS --konn-server-image $KONN_SERVER_IMAGE"
+      [[ -n "$KONN_AGENT_IMAGE" ]] && EXTRA_ARGS="$EXTRA_ARGS --konn-agent-image $KONN_AGENT_IMAGE"
+      # Diagnostics (pprof + per-pod logs) are SKIPPED by default for speed.
+      # Opt in with COLLECT_DIAGNOSTICS=true only when debugging a failure.
+      if [[ "$COLLECT_DIAGNOSTICS" == "true" ]]; then
+        EXTRA_ARGS="$EXTRA_ARGS --collect-diagnostics"
+      fi
+
+      # Parallel mode: invoke main.py ONCE with all tiers. Only supported for
+      # fake-targets (real-targets reshapes the DP nodepool per tier).
+      if [[ "$PARALLEL" == "true" ]]; then
+        echo ""
+        echo "######################################################################"
+        echo "# TIERS $TIERS — execute in PARALLEL"
+        echo "######################################################################"
+
+        PARALLEL_ARGS="--parallel"
+        [[ -n "$MAX_CONCURRENCY" ]] && PARALLEL_ARGS="$PARALLEL_ARGS --max-concurrency $MAX_CONCURRENCY"
+
+        python3 modules/python/vmagent_loadtest/main.py \
+          --cp-kubeconfig "$CP_KUBECONFIG" \
+          --dp-kubeconfig "$DP_KUBECONFIG" \
+          --tiers "$TIERS" \
+          --warm-up-minutes "$SOAK_MINUTES" \
+          $PARALLEL_ARGS \
+          $EXTRA_ARGS
+
+        WORK_DIR=$(ls -td /tmp/vmagent-loadtest.* 2>/dev/null | head -1)
+        if [[ -n "$WORK_DIR" && -d "${WORK_DIR}/results" ]]; then
+          mkdir -p "$(TEST_RESULTS_DIR)"
+          cp -v "${WORK_DIR}/results"/*.json "$(TEST_RESULTS_DIR)/" 2>/dev/null || true
+          cp -v "${WORK_DIR}/results"/*.md "$(TEST_RESULTS_DIR)/" 2>/dev/null || true
+          [[ -d "${WORK_DIR}/pprof" ]] && mkdir -p "$(TEST_RESULTS_DIR)/pprof" && cp -rv "${WORK_DIR}/pprof"/. "$(TEST_RESULTS_DIR)/pprof/" 2>/dev/null || true
+          [[ -d "${WORK_DIR}/raw" ]] && mkdir -p "$(TEST_RESULTS_DIR)/raw" && cp -rv "${WORK_DIR}/raw"/. "$(TEST_RESULTS_DIR)/raw/" 2>/dev/null || true
+          [[ -d "${WORK_DIR}/diagnostics" ]] && mkdir -p "$(TEST_RESULTS_DIR)/diagnostics" && cp -rv "${WORK_DIR}/diagnostics"/. "$(TEST_RESULTS_DIR)/diagnostics/" 2>/dev/null || true
+          echo "Parallel results collected."
+          ls -l "$(TEST_RESULTS_DIR)/"
+        else
+          echo "##vso[task.logissue type=warning;]No results found for parallel run"
+        fi
+        exit 0
+      fi
+
+      # Fake targets, sequential (non-parallel): invoke main.py ONCE with the
+      # full tier list so it can ramp exporter replicas through every
+      # checkpoint inside ONE continuous deployment (see run_fake_targets_ramp),
+      # instead of tearing down and redeploying per tier.
       echo ""
       echo "######################################################################"
-      echo "# TIERS $TIERS — execute in PARALLEL"
+      echo "# TIERS $TIERS — execute as FAKE-TARGETS RAMP"
       echo "######################################################################"
-
-      PARALLEL_ARGS="--parallel"
-      [[ -n "$MAX_CONCURRENCY" ]] && PARALLEL_ARGS="$PARALLEL_ARGS --max-concurrency $MAX_CONCURRENCY"
 
       python3 modules/python/vmagent_loadtest/main.py \
         --cp-kubeconfig "$CP_KUBECONFIG" \
         --dp-kubeconfig "$DP_KUBECONFIG" \
         --tiers "$TIERS" \
         --warm-up-minutes "$SOAK_MINUTES" \
-        $PARALLEL_ARGS \
         $EXTRA_ARGS
 
       WORK_DIR=$(ls -td /tmp/vmagent-loadtest.* 2>/dev/null | head -1)
       if [[ -n "$WORK_DIR" && -d "${WORK_DIR}/results" ]]; then
         mkdir -p "$(TEST_RESULTS_DIR)"
         cp -v "${WORK_DIR}/results"/*.json "$(TEST_RESULTS_DIR)/" 2>/dev/null || true
+        cp -v "${WORK_DIR}/results"/*.csv "$(TEST_RESULTS_DIR)/" 2>/dev/null || true
         cp -v "${WORK_DIR}/results"/*.md "$(TEST_RESULTS_DIR)/" 2>/dev/null || true
-        [[ -d "${WORK_DIR}/pprof" ]] && mkdir -p "$(TEST_RESULTS_DIR)/pprof" && cp -rv "${WORK_DIR}/pprof"/. "$(TEST_RESULTS_DIR)/pprof/" 2>/dev/null || true
-        [[ -d "${WORK_DIR}/raw" ]] && mkdir -p "$(TEST_RESULTS_DIR)/raw" && cp -rv "${WORK_DIR}/raw"/. "$(TEST_RESULTS_DIR)/raw/" 2>/dev/null || true
         [[ -d "${WORK_DIR}/diagnostics" ]] && mkdir -p "$(TEST_RESULTS_DIR)/diagnostics" && cp -rv "${WORK_DIR}/diagnostics"/. "$(TEST_RESULTS_DIR)/diagnostics/" 2>/dev/null || true
-        echo "Parallel results collected."
+        echo "Ramp results collected."
         ls -l "$(TEST_RESULTS_DIR)/"
       else
-        echo "##vso[task.logissue type=warning;]No results found for parallel run"
+        echo "##vso[task.logissue type=warning;]No results found for fake-targets ramp"
       fi
-      exit 0
-    fi
 
-    # Fake targets, sequential (non-parallel): invoke main.py ONCE with the
-    # full tier list so it can ramp exporter replicas through every
-    # checkpoint inside ONE continuous deployment (see run_fake_targets_ramp),
-    # instead of tearing down and redeploying per tier.
-    echo ""
-    echo "######################################################################"
-    echo "# TIERS $TIERS — execute as FAKE-TARGETS RAMP"
-    echo "######################################################################"
+      NS_PREFIX="loadtest-fake-ramp"
+      [[ -n "$RUN_LABEL" ]] && NS_PREFIX="loadtest-${RUN_LABEL}-fake-ramp"
+      kubectl --kubeconfig "$CP_KUBECONFIG" delete ns "$NS_PREFIX" --wait=false --ignore-not-found=true || true
+      kubectl --kubeconfig "$DP_KUBECONFIG" delete ns "$NS_PREFIX" --wait=false --ignore-not-found=true || true
 
-    python3 modules/python/vmagent_loadtest/main.py \
-      --cp-kubeconfig "$CP_KUBECONFIG" \
-      --dp-kubeconfig "$DP_KUBECONFIG" \
-      --tiers "$TIERS" \
-      --warm-up-minutes "$SOAK_MINUTES" \
-      $EXTRA_ARGS
-
-    WORK_DIR=$(ls -td /tmp/vmagent-loadtest.* 2>/dev/null | head -1)
-    if [[ -n "$WORK_DIR" && -d "${WORK_DIR}/results" ]]; then
-      mkdir -p "$(TEST_RESULTS_DIR)"
-      cp -v "${WORK_DIR}/results"/*.json "$(TEST_RESULTS_DIR)/" 2>/dev/null || true
-      cp -v "${WORK_DIR}/results"/*.csv "$(TEST_RESULTS_DIR)/" 2>/dev/null || true
-      cp -v "${WORK_DIR}/results"/*.md "$(TEST_RESULTS_DIR)/" 2>/dev/null || true
-      [[ -d "${WORK_DIR}/diagnostics" ]] && mkdir -p "$(TEST_RESULTS_DIR)/diagnostics" && cp -rv "${WORK_DIR}/diagnostics"/. "$(TEST_RESULTS_DIR)/diagnostics/" 2>/dev/null || true
-      echo "Ramp results collected."
-      ls -l "$(TEST_RESULTS_DIR)/"
-    else
-      echo "##vso[task.logissue type=warning;]No results found for fake-targets ramp"
-    fi
-
-    NS_PREFIX="loadtest-fake-ramp"
-    [[ -n "$RUN_LABEL" ]] && NS_PREFIX="loadtest-${RUN_LABEL}-fake-ramp"
-    kubectl --kubeconfig "$CP_KUBECONFIG" delete ns "$NS_PREFIX" --wait=false --ignore-not-found=true || true
-    kubectl --kubeconfig "$DP_KUBECONFIG" delete ns "$NS_PREFIX" --wait=false --ignore-not-found=true || true
-
-    echo ""
-    echo "All tiers complete. Results:"
-    ls -lR "$(TEST_RESULTS_DIR)/" 2>/dev/null || echo "No results."
-  displayName: "Execute VMAgent load test (parallel/fake-targets)"
-  env:
-    TIERS: $(TIERS)
-    SOAK_MINUTES: $(SOAK_MINUTES)
-    REAL_TARGETS: $(REAL_TARGETS)
-    RUN_LABEL: $(RUN_LABEL)
-    PARALLEL: $(PARALLEL)
-    COLLECT_DIAGNOSTICS: $(COLLECT_DIAGNOSTICS)
-    RATE_LIMIT: $(RATE_LIMIT)
-    MAX_BLOCK_SIZE: $(MAX_BLOCK_SIZE)
-    MEASURE_DRAIN: $(MEASURE_DRAIN)
-    DRAIN_OBSERVE_SECONDS: $(DRAIN_OBSERVE_SECONDS)
-    KONN_SERVER_IMAGE: $(KONN_SERVER_IMAGE)
-    KONN_AGENT_IMAGE: $(KONN_AGENT_IMAGE)
-    RUN_LABEL_2: $(RUN_LABEL_2)
-    KONN_SERVER_IMAGE_2: $(KONN_SERVER_IMAGE_2)
-    KONN_AGENT_IMAGE_2: $(KONN_AGENT_IMAGE_2)
+      echo ""
+      echo "All tiers complete. Results:"
+      ls -lR "$(TEST_RESULTS_DIR)/" 2>/dev/null || echo "No results."
+    displayName: "Execute VMAgent load test (parallel/fake-targets)"
+    env:
+      TIERS: $(TIERS)
+      SOAK_MINUTES: $(SOAK_MINUTES)
+      REAL_TARGETS: $(REAL_TARGETS)
+      RUN_LABEL: $(RUN_LABEL)
+      PARALLEL: $(PARALLEL)
+      MAX_CONCURRENCY: $(MAX_CONCURRENCY)
+      COLLECT_DIAGNOSTICS: $(COLLECT_DIAGNOSTICS)
+      RATE_LIMIT: $(RATE_LIMIT)
+      MAX_BLOCK_SIZE: $(MAX_BLOCK_SIZE)
+      MEASURE_DRAIN: $(MEASURE_DRAIN)
+      DRAIN_OBSERVE_SECONDS: $(DRAIN_OBSERVE_SECONDS)
+      KONN_SERVER_IMAGE: $(KONN_SERVER_IMAGE)
+      KONN_AGENT_IMAGE: $(KONN_AGENT_IMAGE)
