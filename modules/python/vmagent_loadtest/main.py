@@ -154,6 +154,16 @@ def main() -> None:
         format="[%(asctime)s] %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
+    # Azure SDK HTTP pipeline loggers (used internally by Kusto's
+    # QueuedIngestClient, which is backed by Azure Storage Queue/Blob)
+    # dump full request/response headers at INFO level otherwise --
+    # noisy and not useful for this pipeline's logs.
+    for noisy_logger in (
+        "azure.core.pipeline.policies.http_logging_policy",
+        "azure.storage.queue", "azure.storage.blob", "azure.storage.common",
+        "azure.identity", "azure.kusto.data", "urllib3.connectionpool",
+    ):
+        logging.getLogger(noisy_logger).setLevel(logging.WARNING)
 
     # --- Compare existing results: real vs fake ---
     if args.compare_results:

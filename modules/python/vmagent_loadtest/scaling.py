@@ -259,6 +259,49 @@ def scale_down_for_teardown(resource_group: str, dp_cluster_name: str, nodepool:
 
 
 
+def wait_for_dp_nodepools_settled(resource_group: str, cluster_name: str, nodepool: str,
+                                  timeout_minutes: int = 15) -> None:
+    """Wait until the base DP pool and any fan-out pools (<base>2, ...) are
+    no longer 'Scaling' on Azure's side.
+
+    wait_for_nodes_ready() only checks kubectl-visible node count, which can
+    already satisfy a *smaller* target (e.g. scaling down to a floor of 1)
+    while Azure is still mid-way through removing the other nodes in the
+    background -- so a scale-down can look "done" immediately while the
+    nodepool object itself is still busy. Issuing the NEXT scale request
+    (e.g. the following tier's scale-up) while that's still in flight hits
+    'OperationNotAllowed: in-progress operation' and _wait_for_nodepool_idle
+    silently retries for however long the original operation takes. Call
+    this after a scale-down (like the config_combinations floor reset) to
+    wait for real settlement before moving on, instead of racing it.
+    """
+    pools = [nodepool]
+    idx = 1
+    while True:
+        name = _pool_name(nodepool, idx)
+        if _get_nodepool(resource_group, cluster_name, name) is None:
+            break
+        pools.append(name)
+        idx += 1
+
+    remaining = list(pools)
+    deadline = time.time() + timeout_minutes * 60
+    while remaining and time.time() < deadline:
+        still_busy = []
+        for pool in remaining:
+            spec = _get_nodepool(resource_group, cluster_name, pool)
+            if spec is not None and spec.get("provisioningState") == "Scaling":
+                still_busy.append(pool)
+        remaining = still_busy
+        if not remaining:
+            break
+        log.info("  waiting for nodepool(s) %s to settle...", remaining)
+        time.sleep(15)
+    if remaining:
+        log.warning("Nodepool(s) %s still scaling after %dm — proceeding anyway.",
+                   remaining, timeout_minutes)
+
+
 def wait_for_nodes_ready(kubeconfig: str, expected: int,
                          timeout_minutes: int = 30, poll_interval: int = 30,
                          tolerance_pct: float = 0.0) -> int:

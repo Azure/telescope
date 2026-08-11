@@ -39,7 +39,9 @@ from .metrics import (
     collect_diagnostics, collect_metrics, collect_pprof, dwell_and_sample,
     evaluate_pass_fail, observe_remotewrite_drain, sample_step, wait_for_targets,
 )
-from .scaling import scale_cp_nodepool, scale_dp_nodepool, wait_for_nodes_ready
+from .scaling import (
+    scale_cp_nodepool, scale_dp_nodepool, wait_for_dp_nodepools_settled, wait_for_nodes_ready,
+)
 from .utils import kubectl
 
 
@@ -548,6 +550,13 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
         log.info("Resetting DP nodepool to floor (%d nodes) before ramp starts...",
                  DP_NODEPOOL_FLOOR)
         scale_dp_nodepool(resource_group, dp_cluster_name, nodepool, DP_NODEPOOL_FLOOR)
+        # wait_for_nodes_ready() only checks kubectl-visible count, which a
+        # scale-DOWN can already satisfy instantly (plenty of old nodes still
+        # Ready while Azure removes them in the background) -- wait for the
+        # nodepool object itself to settle first, or the ramp's own
+        # scale-up-to-first-tier call collides with this still-in-flight
+        # scale-down and silently blocks for however long that takes.
+        wait_for_dp_nodepools_settled(resource_group, dp_cluster_name, nodepool, timeout_minutes=20)
         wait_for_nodes_ready(dp_kubeconfig, expected=DP_NODEPOOL_FLOOR, timeout_minutes=15)
 
         # 1. Create namespaces (once for the whole ramp)
