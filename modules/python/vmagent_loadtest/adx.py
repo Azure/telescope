@@ -14,7 +14,10 @@ Env vars (any unset disables export):
 
 import io
 import os
+import time
 from datetime import datetime, timezone
+
+import requests
 
 from .config import log
 from .utils import PortForward, retry_request
@@ -440,14 +443,49 @@ def export_timeseries(cp_kubeconfig: str, namespace: str,
 
     rows: list[str] = []
     per_metric: dict[str, int] = {}
-    with PortForward(cp_kubeconfig, namespace, "deployment/vmsingle", 8428, 18428) as pf:
+    failed_metrics: list[str] = []
+    reconnects = 0
+    max_reconnects = 3
+
+    def _open_pf() -> PortForward:
+        pf = PortForward(cp_kubeconfig, namespace, "deployment/vmsingle", 8428, 18428)
+        pf.__enter__()
         retry_request(f"{pf.url}/health", retries=2, backoff=2)
+        return pf
+
+    pf = _open_pf()
+    try:
         for metric_name, promql in TIMESERIES_METRICS:
             try:
                 series_list = _query_range(pf.url, promql, start_ts, end_ts, step_seconds)
             except Exception as e:
-                log.warning("ADX export: query failed for %s: %s", metric_name, e)
-                continue
+                # A dead local port-forward surfaces as a connection error on
+                # localhost -- kubectl's process exited, so no retry of the
+                # HTTP request alone will help. Re-establish the tunnel itself
+                # and retry this one metric before giving up on it, instead
+                # of silently losing every metric for the rest of the loop
+                if isinstance(e, (ConnectionError, requests.exceptions.ConnectionError)) \
+                        and reconnects < max_reconnects:
+                    reconnects += 1
+                    log.warning("ADX export: port-forward appears dead (%s) -- "
+                               "reconnecting (%d/%d) and retrying %s",
+                               e, reconnects, max_reconnects, metric_name)
+                    try:
+                        pf.__exit__(None, None, None)
+                    except Exception:
+                        pass
+                    time.sleep(30)  # give the underlying connection time to recover
+                    try:
+                        pf = _open_pf()
+                        series_list = _query_range(pf.url, promql, start_ts, end_ts, step_seconds)
+                    except Exception as e2:
+                        log.warning("ADX export: query failed for %s after reconnect: %s", metric_name, e2)
+                        failed_metrics.append(metric_name)
+                        continue
+                else:
+                    log.warning("ADX export: query failed for %s: %s", metric_name, e)
+                    failed_metrics.append(metric_name)
+                    continue
             metric_rows = 0
             for labels, values in series_list:
                 job = labels.get("job", "")
@@ -473,6 +511,15 @@ def export_timeseries(cp_kubeconfig: str, namespace: str,
                     }))
                     metric_rows += 1
             per_metric[metric_name] = metric_rows
+    finally:
+        try:
+            pf.__exit__(None, None, None)
+        except Exception:
+            pass
+
+    if failed_metrics:
+        log.warning("ADX export: %d/%d metrics failed permanently (%d reconnect attempt(s)): %s",
+                   len(failed_metrics), len(TIMESERIES_METRICS), reconnects, ", ".join(failed_metrics))
 
     if not rows:
         log.warning("ADX export: no rows to ingest for tier %d", tier)
