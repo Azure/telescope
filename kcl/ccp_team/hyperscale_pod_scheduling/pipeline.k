@@ -22,7 +22,7 @@ CL2_IMAGE = "ghcr.io/azure/clusterloader2:v20260220"
 CL2_NAMESPACE = "clusterloader2"
 CL2_POOL = azure.NodePool {
     name = "cl2pool"
-    sku = "Standard_D8S_v4"
+    sku = "Standard_D16S_v4"
     count = 1
     taintPrefix = "cl2pool"
 }
