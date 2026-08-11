@@ -1,0 +1,37 @@
+parameters:
+- name: cloud
+  type: string
+- name: regions
+  type: object
+- name: engine
+  type: string
+
+steps:
+- template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
+  parameters:
+    role: client
+    region: ${{ parameters.regions[0] }}
+
+- ${{ if eq(parameters.cloud, 'azure') }}:
+  - template: /steps/cloud/azure/install-kubelogin.yml
+    parameters:
+      cloud: ${{ parameters.cloud }}
+      region: ${{ parameters.regions[0] }}
+
+- script: |
+    set -euo pipefail
+    set -x
+
+    # Configure the Karpenter NodePool/AKSNodeClass so scale-up produces a node of
+    # the shape the node-startup-latency measurement expects.
+    kubectl apply -f "$KARPENTER_NODEPOOL_FILE"
+
+    kubectl get aksnodeclass default -o yaml
+    kubectl get nodepool default -o yaml
+
+    # Give the managed Karpenter controller time to reconcile the NodePool before
+    # the probe pod triggers provisioning.
+    sleep "${KARPENTER_COOLDOWN:-60}"
+  displayName: "Validate NAP / Karpenter setup"
+  env:
+    KARPENTER_NODEPOOL_FILE: $(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes/karpenter_nodepool.azure.yml

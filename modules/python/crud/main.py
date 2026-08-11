@@ -182,6 +182,7 @@ def handle_autoscale_latency(node_pool_crud, args):
                     cni_blocking_taint=cni_taint,
                     pod_name=pod_name,
                     operation_timeout_in_minutes=args.step_timeout // 60 or 15,
+                    node_label_key=getattr(args, "node_label_key", "agentpool"),
                 )
                 result["iteration"] = iteration
                 result["total_iterations"] = iterations
@@ -448,6 +449,12 @@ def main():
         help="Measure node and pod startup latency via cluster autoscaler",
     )
     autoscale_parser.add_argument("--node-pool-name", required=True, help="Node pool name")
+    autoscale_parser.add_argument(
+        "--node-label-key",
+        default="agentpool",
+        help="Node label key identifying the target pool (default 'agentpool'; "
+             "use 'karpenter.sh/nodepool' for NAP/Karpenter clusters)",
+    )
     autoscale_parser.add_argument(
         "--cni-daemonset-label",
         default=None,

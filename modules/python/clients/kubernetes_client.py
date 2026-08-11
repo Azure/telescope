@@ -1263,7 +1263,8 @@ class KubernetesClient:
         return message[start + 1:end]
 
     def deploy_probe_pod(self, node_pool_name, namespace="default",
-                         pod_name="latency-probe", image="mcr.microsoft.com/oss/kubernetes/pause:3.9"):
+                         pod_name="latency-probe", image="mcr.microsoft.com/oss/kubernetes/pause:3.9",
+                         node_label_key="agentpool"):
         """
         Deploy a probe pod with anti-affinity against existing nodes in the pool.
 
@@ -1271,16 +1272,18 @@ class KubernetesClient:
         itself on the existing node, ensuring it stays Pending until a new node is added.
 
         Args:
-            node_pool_name: The node pool to target (agentpool label)
+            node_pool_name: The node pool to target (value of node_label_key)
             namespace: Namespace for the probe pod (default: "default")
             pod_name: Name of the probe pod
             image: Container image to use
+            node_label_key: Node label key identifying the pool (default "agentpool";
+                            use "karpenter.sh/nodepool" for NAP/Karpenter clusters)
 
         Returns:
             The created pod name
         """
         # Get ALL existing nodes in the pool (not just ready ones) to build anti-affinity
-        existing_nodes = self.get_nodes(label_selector=f"agentpool={node_pool_name}")
+        existing_nodes = self.get_nodes(label_selector=f"{node_label_key}={node_pool_name}")
         existing_node_names = [n.metadata.name for n in existing_nodes]
 
         logger.info("Deploying probe pod '%s' with anti-affinity against nodes: %s",
@@ -1301,7 +1304,7 @@ class KubernetesClient:
                                         values=existing_node_names,
                                     ),
                                     client.V1NodeSelectorRequirement(
-                                        key="agentpool",
+                                        key=node_label_key,
                                         operator="In",
                                         values=[node_pool_name],
                                     ),
@@ -1321,7 +1324,7 @@ class KubernetesClient:
                 labels={"app": "latency-probe"},
             ),
             spec=client.V1PodSpec(
-                node_selector={"agentpool": node_pool_name},
+                node_selector={node_label_key: node_pool_name},
                 affinity=affinity,
                 containers=[
                     client.V1Container(
@@ -1470,7 +1473,8 @@ class KubernetesClient:
     def collect_autoscale_latency(self, node_pool_name, cni_daemonset_label=None,
                                   cni_blocking_taint=None, namespace="default",
                                   pod_name="latency-probe",
-                                  operation_timeout_in_minutes=15):
+                                  operation_timeout_in_minutes=15,
+                                  node_label_key="agentpool"):
         """
         Measure node and pod startup latency via cluster autoscaler.
 
@@ -1510,11 +1514,12 @@ class KubernetesClient:
         try:
             # Snapshot existing nodes before scale-up
             existing_nodes = {n.metadata.name for n in
-                              self.get_nodes(label_selector=f"agentpool={node_pool_name}")}
+                              self.get_nodes(label_selector=f"{node_label_key}={node_pool_name}")}
 
             # Deploy probe pod — this triggers the autoscaler
             self.deploy_probe_pod(node_pool_name=node_pool_name,
-                                  namespace=namespace, pod_name=pod_name)
+                                  namespace=namespace, pod_name=pod_name,
+                                  node_label_key=node_label_key)
 
             # Get pod_created timestamp
             pod = self.api.read_namespaced_pod(name=pod_name, namespace=namespace)
@@ -1553,6 +1558,7 @@ class KubernetesClient:
                     timeout_minutes=operation_timeout_in_minutes,
                     stop_event=stop_event,
                     result=intermediate_states,
+                    node_label_key=node_label_key,
                 )
 
             watch_thread = threading.Thread(target=_run_watch, daemon=True)
@@ -1681,7 +1687,8 @@ class KubernetesClient:
 
     def _watch_node_transitions(self, existing_nodes, node_pool_name,
                                 cni_blocking_taint=None, timeout_minutes=15,
-                                stop_event=None, result=None):
+                                stop_event=None, result=None,
+                                node_label_key="agentpool"):
         """
         Watch for a new node in the pool and capture intermediate state transitions.
 
@@ -1733,7 +1740,7 @@ class KubernetesClient:
         try:
             for event in w.stream(
                 self.api.list_node,
-                label_selector=f"agentpool={node_pool_name}",
+                label_selector=f"{node_label_key}={node_pool_name}",
                 timeout_seconds=int(timeout_minutes * 60),
             ):
                 if time.time() > deadline:

@@ -6,6 +6,7 @@ parameters:
   step_time_out: 600
   cni_daemonset_label: ""
   cni_blocking_taint: ""
+  node_label_key: "agentpool"
   iterations: 5
 
 steps:
@@ -28,6 +29,7 @@ steps:
       --run-id "$RUN_ID" \
       --result-dir "$RESULT_DIR" \
       --node-pool-name "$POOL_NAME" \
+      --node-label-key "$NODE_LABEL_KEY" \
       --step-timeout "$STEP_TIME_OUT" \
       --iterations "$ITERATIONS" \
       $CNI_LABEL_ARG \
@@ -44,6 +46,7 @@ steps:
     RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
     CNI_DAEMONSET_LABEL: ${{ parameters.cni_daemonset_label }}
     CNI_BLOCKING_TAINT: ${{ parameters.cni_blocking_taint }}
+    NODE_LABEL_KEY: ${{ parameters.node_label_key }}
     ITERATIONS: ${{ parameters.iterations }}
 
 
