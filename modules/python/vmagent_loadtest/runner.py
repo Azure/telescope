@@ -13,7 +13,7 @@ from .certs import create_cert_secret, generate_certs
 from .config import (
     AGENT_CPU_REQUEST, AGENT_MEM_REQUEST_MI, DAEMONSET_POD_TARGET_ROLES,
     DAEMONSET_TARGET_ROLES, DEFAULT_CP_CLUSTER_NAME, DEFAULT_CP_NODEPOOL,
-    DEFAULT_NODEPOOL, EXPORTER_CPU_REQUEST,
+    DEFAULT_NODEPOOL, DP_NODEPOOL_FLOOR, EXPORTER_CPU_REQUEST,
     EXPORTER_MEM_REQUEST_MI, FAKE_EXPORTER_ROLES, KONN_AGENT_IMAGE,
     KONN_SERVER_IMAGE, NODE_ALLOCATABLE_CPU, NODE_ALLOCATABLE_MEM_MI,
     PODS_PER_NODE, REAL_TARGET_ROLES, SINGLETON_POD_TARGET_ROLES,
@@ -539,6 +539,17 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
         server_ip = get_server_lb_ip(cp_kubeconfig, namespace)
         dp_api_server = get_dp_api_server(dp_kubeconfig)
     else:
+        # Reset the DP nodepool to the terraform floor before this combo's
+        # ramp starts -- otherwise a combo run after a previous, larger combo
+        # (which left the pool at its last tier's node count) gets an instant
+        # nodes-ready and a target-discovery burst instead of a real
+        # cold-start ramp, breaking apples-to-apples comparison between
+        # config_combinations sharing one cluster.
+        log.info("Resetting DP nodepool to floor (%d nodes) before ramp starts...",
+                 DP_NODEPOOL_FLOOR)
+        scale_dp_nodepool(resource_group, dp_cluster_name, nodepool, DP_NODEPOOL_FLOOR)
+        wait_for_nodes_ready(dp_kubeconfig, expected=DP_NODEPOOL_FLOOR, timeout_minutes=15)
+
         # 1. Create namespaces (once for the whole ramp)
         ensure_namespace(cp_kubeconfig, namespace)
         ensure_namespace(dp_kubeconfig, namespace)
