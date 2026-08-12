@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
 scenario_name  = "clustermesh-scale"
-deletion_delay = "60h"
+deletion_delay = "168h"
 owner          = "aks"
 
 # =============================================================================

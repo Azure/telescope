@@ -23,6 +23,14 @@ RESET_SCRIPT = REUSE_DIR / "reset-fleet-overlay.sh"
 CREATE_SCRIPT = REUSE_DIR / "create-staged-fleet-overlay.sh"
 DELETE_SCRIPT = REUSE_DIR / "delete-preserved-rg.sh"
 MANIFEST_SCRIPT = REUSE_DIR / "write-resume-manifest.sh"
+N100_TFVARS_PATH = (
+    REPOSITORY_ROOT
+    / "scenarios"
+    / "perf-eval"
+    / "clustermesh-scale"
+    / "terraform-inputs"
+    / "azure-100-mock-shared.tfvars"
+)
 
 
 def _stage_block(name: str, next_name: str) -> str:
@@ -145,6 +153,12 @@ def test_resume_job_skips_terraform_and_preserves_resources():
         "${{ if and(parameters.run_workload, parameters.publish_results) }}:"
         in resume
     )
+
+
+def test_fresh_preserve_n100_lease_is_seven_days():
+    tfvars = N100_TFVARS_PATH.read_text(encoding="utf-8")
+
+    assert 'deletion_delay = "168h"' in tfvars
 
 
 def test_fleet_reset_and_resume_do_not_mutate_aks_lifecycle():
