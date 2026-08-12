@@ -288,7 +288,12 @@ def dwell_and_sample(cp_kubeconfig: str, dp_kubeconfig: str, namespace: str,
     samples: list[dict] = []
     deadline = time.time() + duration_minutes * 60
     while True:
-        samples.append(sample_step(cp_kubeconfig, dp_kubeconfig, namespace, node_count))
+        sample = sample_step(cp_kubeconfig, dp_kubeconfig, namespace, node_count)
+        samples.append(sample)
+        if sample["targets_total"] > 0 and sample["targets_up"] == sample["targets_total"]:
+            log.info("  scrape coverage at 100%% (%d/%d) — ending dwell early.",
+                     sample["targets_up"], sample["targets_total"])
+            break
         remaining = deadline - time.time()
         if remaining <= 0:
             break
@@ -811,7 +816,7 @@ def collect_metrics(cp_kubeconfig: str, dp_kubeconfig: str,
     try:
         with PortForward(cp_kubeconfig, namespace, "deployment/vmsingle", 8428, 18428) as pf:
             retry_request(f"{pf.url}/health", retries=1, backoff=1)
-            vm_resp = retry_request(f"{pf.url}/metrics")
+            vm_resp = retry_request(f"{pf.url}/metrics", timeout=30)
             vm_metrics = vm_resp.text
 
             raw_dir = work_dir / "raw" / namespace

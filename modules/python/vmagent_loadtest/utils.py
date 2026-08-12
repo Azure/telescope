@@ -148,7 +148,7 @@ def retry_request(url: str, retries: int = 3, backoff: float = 3.0,
                 resp = session.get(url, timeout=timeout, **kwargs)
             resp.raise_for_status()
             return resp
-        except (requests.ConnectionError, RemoteDisconnected) as e:
+        except (requests.ConnectionError, requests.ReadTimeout, RemoteDisconnected) as e:
             if attempt == retries:
                 raise
             log.warning("Request to %s failed (attempt %d/%d): %s — retrying in %.0fs",

@@ -404,7 +404,7 @@ def ensure_schema(cluster_uri: str, database: str) -> None:
 
 def _query_range(vm_url: str, query: str, start: float, end: float, step: int = 15):
     """Run vmsingle /api/v1/query_range. Returns list of (labels, [(ts,val)...])."""
-    resp = retry_request(f"{vm_url}/api/v1/query_range", params={
+    resp = retry_request(f"{vm_url}/api/v1/query_range", timeout=30, params={
         "query": query,
         "start": int(start),
         "end": int(end),
@@ -540,7 +540,7 @@ def export_timeseries(cp_kubeconfig: str, namespace: str,
              len(rows), len(per_metric) - len(empty), tier,
              end_ts - start_ts, len(empty))
     if empty:
-        log.debug("ADX export: empty metrics: %s", ", ".join(empty))
+        log.info("ADX export: empty metrics: %s", ", ".join(empty))
     return len(rows)
 
 

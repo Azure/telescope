@@ -79,8 +79,8 @@ spec:
               cpu: 10m
               memory: 64Mi
             limits:
-              cpu: 200m
-              memory: 128Mi
+              cpu: 500m
+              memory: 512Mi
           volumeMounts:
             - name: certs
               mountPath: /certs
