@@ -74,14 +74,15 @@ KUBELET_SA_NAME = "kubelet-scraper"
 # Default AKS nodepool name
 DEFAULT_NODEPOOL = "dataplane"
 
-# Matches terraform's baseline node_count for the dataplane pool (see
-# scenarios/perf-eval/vmagent-loadtest/terraform-inputs/azure.tfvars). Each
-# config_combinations entry scales the DP nodepool back down to this floor
-# before its own ramp starts -- otherwise a combo running after a
-# already-scaled-up combo gets a "free" instant nodes-ready and a target
-# discovery burst instead of a real cold-start ramp, breaking apples-to-apples
-# comparison between combos sharing one cluster.
-DP_NODEPOOL_FLOOR = 1
+# Terraform-provisioned system pool on the DP cluster (see
+# scenarios/perf-eval/vmagent-loadtest/terraform-inputs/azure.tfvars). The
+# "dataplane" pool itself is NOT terraform-managed -- it's created/deleted
+# directly via az cli (see scaling.py) so it can be freely deleted+recreated
+# between tiers/combos without terraform state drift or the slow
+# graceful-drain path a terraform-managed scale-down would go through. This
+# system pool's spec is used as the template when (re)creating "dataplane"
+# from scratch.
+DP_SYSTEM_NODEPOOL = "nodepool1"
 
 # AKS hard cap: a single nodepool cannot exceed 1000 nodes. To reach larger
 # tiers (2000, 5000, ...) the dataplane is fanned out across multiple nodepools

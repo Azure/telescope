@@ -4,7 +4,7 @@ import json
 import math
 import time
 
-from .config import log, MAX_NODES_PER_POOL
+from .config import log, MAX_NODES_PER_POOL, DP_SYSTEM_NODEPOOL
 from .utils import kubectl, retry, run
 
 
@@ -82,6 +82,21 @@ def _create_nodepool_like(resource_group: str, cluster_name: str, nodepool: str,
     run(args)
 
 
+def _delete_pool(resource_group: str, cluster_name: str, name: str) -> None:
+    """Fire (--no-wait) a nodepool delete, ignoring PDBs (disposable cluster).
+
+    Core CLI flag, not aks-preview's --ignore-pod-disruption-budget.
+    """
+    run([
+        "az", "aks", "nodepool", "delete",
+        "--resource-group", resource_group,
+        "--cluster-name", cluster_name,
+        "--name", name,
+        "--ignore-pdb",
+        "--no-wait",
+    ], check=False)
+
+
 def _wait_for_nodepool_idle(resource_group: str, cluster_name: str, nodepool: str,
                             timeout_minutes: int = 15, poll_interval: int = 15) -> None:
     """Wait until `nodepool` has no in-progress scale/update operation.
@@ -145,9 +160,11 @@ def scale_dp_nodepool(resource_group: str, cluster_name: str, nodepool: str,
     previous larger tier are scaled down to 0 so cores are freed.
     """
     plan = _plan_pools(node_count)
-    base_spec = _get_nodepool(resource_group, cluster_name, nodepool)
-    if base_spec is None:
-        raise RuntimeError(f"Base nodepool '{nodepool}' not found in {cluster_name}")
+    template_spec = _get_nodepool(resource_group, cluster_name, nodepool) \
+        or _get_nodepool(resource_group, cluster_name, DP_SYSTEM_NODEPOOL)
+    if template_spec is None:
+        raise RuntimeError(
+            f"Neither '{nodepool}' nor system pool '{DP_SYSTEM_NODEPOOL}' found in {cluster_name}")
 
     if len(plan) > 1:
         log.info("Tier needs %d nodes > %d/pool → fanning across %d nodepools: %s",
@@ -157,14 +174,11 @@ def scale_dp_nodepool(resource_group: str, cluster_name: str, nodepool: str,
     # Scale (creating as needed) each pool in the plan.
     for i, count in enumerate(plan):
         name = _pool_name(nodepool, i)
-        if i == 0:
-            _scale_single_pool(resource_group, cluster_name, name, count)
+        spec = _get_nodepool(resource_group, cluster_name, name)
+        if spec is None:
+            _create_nodepool_like(resource_group, cluster_name, name, template_spec, count)
         else:
-            spec = _get_nodepool(resource_group, cluster_name, name)
-            if spec is None:
-                _create_nodepool_like(resource_group, cluster_name, name, base_spec, count)
-            else:
-                _scale_single_pool(resource_group, cluster_name, name, count)
+            _scale_single_pool(resource_group, cluster_name, name, count)
 
     # Scale down any leftover pools beyond the current plan (previous larger tier).
     idx = len(plan)
@@ -186,11 +200,11 @@ def delete_fanout_nodepools(resource_group: str, cluster_name: str,
     """Delete the extra fan-out nodepools (<base>2, <base>3, ...) that the
     multi-nodepool scaling created to exceed the AKS per-nodepool cap.
 
-    The base pool (``nodepool``) is left intact — it is provisioned by
-    terraform, not by this code. Called at teardown so tiers > 1000 don't
-    leave orphaned nodepools burning cores. Returns the names deleted (each
-    fired with --no-wait -- caller decides whether/how long to wait for
-    them to actually finish).
+    The base pool (``nodepool``) is left intact here -- see
+    scale_down_for_teardown(), which deletes it separately alongside these.
+    Called at teardown so tiers > 1000 don't leave orphaned nodepools
+    burning cores. Returns the names deleted (each fired with --no-wait --
+    caller decides whether/how long to wait for them to actually finish).
     """
     deleted = []
     for idx in range(1, 16):  # base2 .. base16 (covers well past 5k)
@@ -198,13 +212,7 @@ def delete_fanout_nodepools(resource_group: str, cluster_name: str,
         if _get_nodepool(resource_group, cluster_name, name) is None:
             continue
         log.info("Deleting fan-out nodepool '%s'...", name)
-        run([
-            "az", "aks", "nodepool", "delete",
-            "--resource-group", resource_group,
-            "--cluster-name", cluster_name,
-            "--name", name,
-            "--no-wait",
-        ], check=False)
+        _delete_pool(resource_group, cluster_name, name)
         deleted.append(name)
     if deleted:
         log.info("Requested deletion of %d fan-out nodepool(s).", len(deleted))
@@ -216,22 +224,14 @@ def delete_fanout_nodepools(resource_group: str, cluster_name: str,
 def scale_down_for_teardown(resource_group: str, dp_cluster_name: str, nodepool: str,
                             cp_cluster_name: str = "", cp_nodepool: str = "",
                             wait_minutes: int = 10) -> None:
-    """Delete the fan-out nodepools this code created (dataplane2, ...),
-    then wait for EVERY nodepool this code touched to settle out of any
-    in-flight operation before the pipeline's terraform destroy /
-    `az group delete` step.
+    """Delete the base DP pool and any fan-out pools (dataplane2, ...) in
+    parallel, then wait for them (and the CP pool) to settle before
+    terraform destroy / the next combo's ramp.
 
-    The base DP pool and the CP `controlplane` pool are both provisioned by
-    terraform and are NOT resized here -- they get torn down as part of
-    normal cluster deletion regardless of node count. But the ramp's own
-    last scale-up can still be "Scaling" on Azure's side even after
-    wait_for_nodes_ready() returns: the final-tier tolerance_pct margin
-    means kubectl can report nodes Ready while Azure is still finishing the
-    last few VMs. Handing off to terraform destroy while any nodepool is
-    still mid-operation risks the same 'OperationNotAllowed: in-progress
-    operation' conflict seen with scale requests -- so every pool this code
-    could have touched (base DP pool, fan-out pools, CP pool) is waited on
-    here, not just the ones actually deleted.
+    Base pool is deleted, not scaled to a floor -- it's no longer
+    terraform-provisioned, and the next combo's scale_dp_nodepool() call
+    recreates it fresh instead of paying for a graceful scale-down (2000->1
+    nodes observed taking 45+ minutes, partly due to PDB contention).
     """
     if not (resource_group and dp_cluster_name):
         return
@@ -241,7 +241,17 @@ def scale_down_for_teardown(resource_group: str, dp_cluster_name: str, nodepool:
         log.warning("Fan-out nodepool cleanup before teardown failed (non-fatal): %s", e)
         deleted_names = []
 
-    pools = [(dp_cluster_name, nodepool)] + [(dp_cluster_name, n) for n in deleted_names]
+    base_deleted = False
+    if _get_nodepool(resource_group, dp_cluster_name, nodepool) is not None:
+        try:
+            log.info("Deleting base DP nodepool '%s'...", nodepool)
+            _delete_pool(resource_group, dp_cluster_name, nodepool)
+            base_deleted = True
+        except Exception as e:
+            log.warning("Base DP nodepool deletion before teardown failed (non-fatal): %s", e)
+
+    pools = ([(dp_cluster_name, nodepool)] if base_deleted else []) \
+        + [(dp_cluster_name, n) for n in deleted_names]
     if cp_cluster_name and cp_nodepool:
         pools.append((cp_cluster_name, cp_nodepool))
 
@@ -264,50 +274,6 @@ def scale_down_for_teardown(resource_group: str, dp_cluster_name: str, nodepool:
                    [p for _, p in remaining], wait_minutes)
     else:
         log.info("All nodepools settled — safe to proceed to teardown.")
-
-
-
-def wait_for_dp_nodepools_settled(resource_group: str, cluster_name: str, nodepool: str,
-                                  timeout_minutes: int = 15) -> None:
-    """Wait until the base DP pool and any fan-out pools (<base>2, ...) are
-    no longer 'Scaling' on Azure's side.
-
-    wait_for_nodes_ready() only checks kubectl-visible node count, which can
-    already satisfy a *smaller* target (e.g. scaling down to a floor of 1)
-    while Azure is still mid-way through removing the other nodes in the
-    background -- so a scale-down can look "done" immediately while the
-    nodepool object itself is still busy. Issuing the NEXT scale request
-    (e.g. the following tier's scale-up) while that's still in flight hits
-    'OperationNotAllowed: in-progress operation' and _wait_for_nodepool_idle
-    silently retries for however long the original operation takes. Call
-    this after a scale-down (like the config_combinations floor reset) to
-    wait for real settlement before moving on, instead of racing it.
-    """
-    pools = [nodepool]
-    idx = 1
-    while True:
-        name = _pool_name(nodepool, idx)
-        if _get_nodepool(resource_group, cluster_name, name) is None:
-            break
-        pools.append(name)
-        idx += 1
-
-    remaining = list(pools)
-    deadline = time.time() + timeout_minutes * 60
-    while remaining and time.time() < deadline:
-        still_busy = []
-        for pool in remaining:
-            spec = _get_nodepool(resource_group, cluster_name, pool)
-            if spec is not None and spec.get("provisioningState") in _BUSY_PROVISIONING_STATES:
-                still_busy.append(pool)
-        remaining = still_busy
-        if not remaining:
-            break
-        log.info("  waiting for nodepool(s) %s to settle...", remaining)
-        time.sleep(15)
-    if remaining:
-        log.warning("Nodepool(s) %s still scaling after %dm — proceeding anyway.",
-                   remaining, timeout_minutes)
 
 
 def wait_for_nodes_ready(kubeconfig: str, expected: int,
