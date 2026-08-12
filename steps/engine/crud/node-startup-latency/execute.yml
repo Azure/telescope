@@ -8,6 +8,7 @@ parameters:
   cni_blocking_taint: ""
   node_label_key: "agentpool"
   iterations: 5
+  iteration_cooldown: 0
 
 steps:
 - script: |
@@ -32,6 +33,7 @@ steps:
       --node-label-key "$NODE_LABEL_KEY" \
       --step-timeout "$STEP_TIME_OUT" \
       --iterations "$ITERATIONS" \
+      --iteration-cooldown "$ITERATION_COOLDOWN" \
       $CNI_LABEL_ARG \
       $CNI_TAINT_ARG
 
@@ -48,5 +50,6 @@ steps:
     CNI_BLOCKING_TAINT: ${{ parameters.cni_blocking_taint }}
     NODE_LABEL_KEY: ${{ parameters.node_label_key }}
     ITERATIONS: ${{ parameters.iterations }}
+    ITERATION_COOLDOWN: ${{ parameters.iteration_cooldown }}
 
 

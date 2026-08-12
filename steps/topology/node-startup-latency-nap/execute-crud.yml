@@ -20,3 +20,4 @@ steps:
     cni_daemonset_label: $(CNI_DAEMONSET_LABEL)
     cni_blocking_taint: $(CNI_BLOCKING_TAINT)
     node_label_key: "karpenter.sh/nodepool"
+    iteration_cooldown: 240
