@@ -13,16 +13,16 @@ parameters:
   - name: config_combinations
     type: object
     default:
-      - run_label: old-konnectivity-images
-        rate_limit: 2097152      # 2 MiB/s — current prod value
-        max_block_size: 524288   # .5 MiB — current prod value
-        konn_server_image: 'mcr.microsoft.com/oss/v2/kubernetes/apiserver-network-proxy/server:v0.32.1-11'
-        konn_agent_image: 'mcr.microsoft.com/oss/v2/kubernetes/apiserver-network-proxy/agent:v0.32.1-11'
       - run_label: new-konnectivity-images
         rate_limit: 2097152
         max_block_size: 524288 
         konn_server_image: 'imranpochi/proxy-server:aksmaster-holfix'
         konn_agent_image: 'imranpochi/proxy-agent:aksmaster-holfix'
+      - run_label: old-konnectivity-images
+        rate_limit: 2097152      # 2 MiB/s — current prod value
+        max_block_size: 524288   # .5 MiB — current prod value
+        konn_server_image: 'mcr.microsoft.com/oss/v2/kubernetes/apiserver-network-proxy/server:v0.32.1-11'
+        konn_agent_image: 'mcr.microsoft.com/oss/v2/kubernetes/apiserver-network-proxy/agent:v0.32.1-11'        
 
 pool:
   name: 'AKS-Telescope-Airlock'
