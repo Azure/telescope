@@ -594,10 +594,13 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
             scale_cp_nodepool(resource_group, cp_cluster_name, cp_nodepool, cp_nodes_needed)
 
         if fixed_pools:
-            # Fixed DP nodes -- just flip the tier-block regex (~10s reload).
+            # Fixed DP nodes -- flip the tier-block regex (~10s reload), then
+            # dwell so scrape coverage actually catches up (a fast regex
+            # flip, unlike a real node scale, doesn't give SD/scrape cycles
+            # time on its own -- ends early once coverage hits 100%).
             set_tier_block_regex(cp_kubeconfig, namespace, dp_api_server, tier_block_regex(tier))
-            time.sleep(15)
-            all_samples.append(sample_step(cp_kubeconfig, dp_kubeconfig, namespace, tier))
+            all_samples.extend(dwell_and_sample(cp_kubeconfig, dp_kubeconfig, namespace,
+                                                tier, duration_minutes=4))
         else:
             # Scale while sampling every 60s -- covers the whole climb.
             _, scaling_samples = scale_and_sample(cp_kubeconfig, dp_kubeconfig, namespace,
