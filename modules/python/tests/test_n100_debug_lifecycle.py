@@ -149,6 +149,10 @@ def test_resume_job_skips_terraform_and_preserves_resources():
     assert "/steps/publish-results.yml" in resume
     assert "CLUSTERMESH_DEBUG_CONFIRM_RESUME" in resume
     assert "- name: overlay_mode" in resume
+    assert "- name: target_run_id" in resume
+    assert "run_id: ${{ parameters.target_run_id }}" in resume
+    assert "RUN_ID: ${{ parameters.target_run_id }}" in resume
+    assert "run_id: $(CLUSTERMESH_DEBUG_TARGET_RUN_ID)" not in resume
     assert "CLUSTERMESH_DEBUG_MAX_REPAIR_MEMBERS" in resume
     assert "- name: expected_cluster_count" in resume
     assert "- name: run_workload" in resume

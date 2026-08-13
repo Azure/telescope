@@ -40,6 +40,8 @@ parameters:
 - name: manifest_subdir
   type: string
   default: scale-resume
+- name: target_run_id
+  type: string
 - name: overlay_mode
   type: string
   default: resume
@@ -63,7 +65,7 @@ jobs:
     parameters:
       cloud: azure
       region: ${{ parameters.region }}
-      run_id: $(CLUSTERMESH_DEBUG_TARGET_RUN_ID)
+      run_id: ${{ parameters.target_run_id }}
       credential_type: ${{ parameters.credential_type }}
       ssh_key_enabled: false
 
@@ -86,7 +88,7 @@ jobs:
     displayName: "Validate preserved scale clusters and prepare Fleet overlay"
     env:
       OVERLAY_MODE: ${{ parameters.overlay_mode }}
-      RUN_ID: $(RUN_ID)
+      RUN_ID: ${{ parameters.target_run_id }}
       CLUSTERMESH_DEBUG_TARGET_RUN_ID: $(RUN_ID)
       CLUSTERMESH_DEBUG_CONFIRM_RESUME: $(CLUSTERMESH_DEBUG_CONFIRM_RESUME)
       CLUSTERMESH_DEBUG_EXPECTED_SUBSCRIPTION_ID: ${{ parameters.expected_subscription_id }}

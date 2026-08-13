@@ -2883,6 +2883,7 @@ stages:
           run_workload: ${{ parameters.scaleDebugRunWorkload }}
           publish_results: ${{ parameters.scaleDebugRunWorkload }}
           manifest_subdir: scale-resume
+          target_run_id: ${{ parameters.debugTargetRunId }}
           overlay_mode: ${{ parameters.debugMode }}
 
   - stage: azure_eastus2euap_n100_debug_cleanup_37deca
