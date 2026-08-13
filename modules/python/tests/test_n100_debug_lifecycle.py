@@ -24,6 +24,7 @@ CREATE_SCRIPT = REUSE_DIR / "create-staged-fleet-overlay.sh"
 REPAIR_SCRIPT = REUSE_DIR / "repair-existing-fleet-overlay.sh"
 DELETE_SCRIPT = REUSE_DIR / "delete-preserved-rg.sh"
 MANIFEST_SCRIPT = REUSE_DIR / "write-resume-manifest.sh"
+SET_RUN_ID_PATH = REPOSITORY_ROOT / "steps" / "set-run-id.yml"
 N100_TFVARS_PATH = (
     REPOSITORY_ROOT
     / "scenarios"
@@ -138,6 +139,7 @@ def test_debug_stages_are_explicitly_mode_gated():
 
 def test_resume_job_skips_terraform_and_preserves_resources():
     resume = RESUME_JOB_PATH.read_text(encoding="utf-8")
+    set_run_id = SET_RUN_ID_PATH.read_text(encoding="utf-8")
 
     assert "/steps/provision-resources.yml" not in resume
     assert "/steps/cleanup-resources.yml" not in resume
@@ -154,6 +156,9 @@ def test_resume_job_skips_terraform_and_preserves_resources():
     assert "RUN_ID: ${{ parameters.target_run_id }}" in resume
     assert "run_id: $(CLUSTERMESH_DEBUG_TARGET_RUN_ID)" not in resume
     assert "CLUSTERMESH_DEBUG_MAX_REPAIR_MEMBERS" in resume
+    assert "requested_run_id='${{ parameters.run_id }}'" in set_run_id
+    assert 'elif [ -n "${RUN_ID:-}" ]' in set_run_id
+    assert "RUN_ID: ${{ parameters.run_id }}" not in set_run_id
     assert "- name: expected_cluster_count" in resume
     assert "- name: run_workload" in resume
     assert "- name: publish_results" in resume
