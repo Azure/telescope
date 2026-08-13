@@ -1262,6 +1262,29 @@ class KubernetesClient:
             return None
         return message[start + 1:end]
 
+    def wait_for_pool_scaled_to_zero(self, node_label_key, node_pool_name,
+                                     timeout_seconds=300, poll_interval=10):
+        """
+        Wait until the given node pool has zero nodes.
+
+        Used for Karpenter/NAP pools, which scale to zero when empty. Ensures the
+        previous iteration's node has been consolidated away before the next probe
+        pod is deployed, so the probe triggers a genuinely fresh node rather than
+        landing on a lingering one (which would produce stale timestamps).
+        """
+        deadline = time.time() + timeout_seconds
+        while time.time() < deadline:
+            nodes = self.get_nodes(label_selector=f"{node_label_key}={node_pool_name}")
+            if not nodes:
+                return True
+            logger.info("Waiting for pool '%s=%s' to scale to zero (currently %d node(s))...",
+                        node_label_key, node_pool_name, len(nodes))
+            time.sleep(poll_interval)
+        remaining = self.get_nodes(label_selector=f"{node_label_key}={node_pool_name}")
+        logger.warning("Pool '%s=%s' still has %d node(s) after %ds; proceeding anyway",
+                       node_label_key, node_pool_name, len(remaining), timeout_seconds)
+        return False
+
     def deploy_probe_pod(self, node_pool_name, namespace="default",
                          pod_name="latency-probe", image="mcr.microsoft.com/oss/kubernetes/pause:3.9",
                          node_label_key="agentpool"):
@@ -1282,16 +1305,20 @@ class KubernetesClient:
         Returns:
             The created pod name
         """
+        # Karpenter forbids kubernetes.io/hostname in scheduling constraints and scales
+        # its pools to zero, so host anti-affinity is neither allowed nor needed there.
+        is_karpenter = node_label_key.startswith("karpenter")
+
         # Get ALL existing nodes in the pool (not just ready ones) to build anti-affinity
         existing_nodes = self.get_nodes(label_selector=f"{node_label_key}={node_pool_name}")
         existing_node_names = [n.metadata.name for n in existing_nodes]
 
         logger.info("Deploying probe pod '%s' with anti-affinity against nodes: %s",
-                    pod_name, existing_node_names)
+                    pod_name, [] if is_karpenter else existing_node_names)
 
         # Build nodeAffinity to NOT schedule on existing nodes
         affinity = None
-        if existing_node_names:
+        if existing_node_names and not is_karpenter:
             affinity = client.V1Affinity(
                 node_affinity=client.V1NodeAffinity(
                     required_during_scheduling_ignored_during_execution=client.V1NodeSelector(
@@ -1512,6 +1539,12 @@ class KubernetesClient:
         from kubernetes import watch
 
         try:
+            # Karpenter pools scale to zero: wait for the previous node to consolidate
+            # away so the probe pod triggers a genuinely fresh node (host anti-affinity
+            # is not usable with Karpenter).
+            if node_label_key.startswith("karpenter"):
+                self.wait_for_pool_scaled_to_zero(node_label_key, node_pool_name)
+
             # Snapshot existing nodes before scale-up
             existing_nodes = {n.metadata.name for n in
                               self.get_nodes(label_selector=f"{node_label_key}={node_pool_name}")}
