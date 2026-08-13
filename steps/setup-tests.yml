@@ -230,8 +230,27 @@ steps:
         echo "Timed out waiting for dpkg configuration lock." >&2
         exit 1
       fi
-      sudo apt-get -o DPkg::Lock::Timeout=300 update
-      sudo apt-get -o DPkg::Lock::Timeout=300 -y install bc netcat
+
+      apt_retry() {
+        local description="$1"
+        shift
+        local attempt
+
+        for attempt in $(seq 1 60); do
+          if sudo "$@"; then
+            return 0
+          fi
+          echo "$description failed or is locked (attempt $attempt/60); retrying in 5s..."
+          sleep 5
+        done
+        echo "Timed out waiting for $description." >&2
+        return 1
+      }
+
+      apt_retry "apt-get update" \
+        apt-get -o DPkg::Lock::Timeout=300 update
+      apt_retry "apt-get install" \
+        apt-get -o DPkg::Lock::Timeout=300 -y install bc netcat
     displayName: "Install Dependencies"
 
   - template: /steps/cloud/${{ parameters.cloud }}/login.yml

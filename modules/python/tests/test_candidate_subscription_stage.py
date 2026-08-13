@@ -174,6 +174,15 @@ def test_setup_can_require_an_exact_subscription():
     assert "actual_subscription_id=$(az account show" in setup
 
 
+def test_setup_retries_apt_list_and_package_locks():
+    setup = SETUP_TESTS_PATH.read_text(encoding="utf-8")
+
+    assert "apt_retry()" in setup
+    assert 'apt_retry "apt-get update"' in setup
+    assert 'apt_retry "apt-get install"' in setup
+    assert "failed or is locked (attempt $attempt/60)" in setup
+
+
 def test_candidate_n100_stage_inherits_n2_findings():
     stage = _n100_stage_block()
 
