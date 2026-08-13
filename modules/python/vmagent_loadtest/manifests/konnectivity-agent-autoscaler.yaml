@@ -1,0 +1,114 @@
+# konnectivity-agent-autoscaler — the real aks-rp binary (team-provided test
+# build with --namespace/--target-* flags), watching/scaling our own agent
+# Deployment instead of a Python-computed static --replicas.
+#
+# min_replicas is read once at startup -- changing it requires restarting
+# this deployment (see update_konn_agent_autoscaler_floor()), not just a
+# ConfigMap re-apply.
+#
+# Template variables:
+#   __NAMESPACE__        — test namespace
+#   __AUTOSCALER_IMAGE__ — konnectivity-agent-autoscaler image
+#   __MIN_REPLICAS__     — replica floor for the current tier
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: konnectivity-agent-autoscaler
+  namespace: __NAMESPACE__
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: konnectivity-agent-autoscaler
+  namespace: __NAMESPACE__
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments/scale"]
+    verbs: ["get", "update"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: konnectivity-agent-autoscaler
+  namespace: __NAMESPACE__
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: konnectivity-agent-autoscaler
+subjects:
+  - kind: ServiceAccount
+    name: konnectivity-agent-autoscaler
+    namespace: __NAMESPACE__
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: konnectivity-agent-custom-autoscaler-config
+  namespace: __NAMESPACE__
+data:
+  min_replicas: "__MIN_REPLICAS__"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: konnectivity-agent-autoscaler
+  namespace: __NAMESPACE__
+  labels:
+    app: konnectivity-agent-autoscaler
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: konnectivity-agent-autoscaler
+  template:
+    metadata:
+      labels:
+        app: konnectivity-agent-autoscaler
+    spec:
+      serviceAccountName: konnectivity-agent-autoscaler
+      containers:
+        - name: konnectivity-agent-autoscaler
+          image: __AUTOSCALER_IMAGE__
+          command:
+            - /konnectivity-agent-autoscaler
+          args:
+            - --namespace=__NAMESPACE__
+            - --target-deployment=konnectivity-agent
+            - --target-pod-selector=app=konnectivity-agent
+            - --target-metrics-port=8082
+            - --target-metrics-path=/metrics
+            - --configmap-name=konnectivity-agent-custom-autoscaler-config
+            - --metrics-addr=:8080
+          ports:
+            - name: metrics
+              containerPort: 8080
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          securityContext:
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+      securityContext:
+        runAsUser: 1000
+        runAsNonRoot: true

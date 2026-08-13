@@ -23,11 +23,11 @@ from .config import (
     konnectivity_agent_replicas_for_node_count, tier_block_regex, tier_block_label_selector, log,
 )
 from .deploy import (
-    deploy_fake_exporters, deploy_konnectivity_agents,
+    deploy_fake_exporters, deploy_konnectivity_agent_autoscaler, deploy_konnectivity_agents,
     deploy_konnectivity_server, deploy_vmagent, deploy_vmsingle,
-    ensure_namespace, get_dp_api_server, get_node_ips, get_server_lb_ip,
+    ensure_namespace, get_deployment_replicas, get_dp_api_server, get_node_ips, get_server_lb_ip,
     rollout_restart, scale_fake_exporters, set_tier_block_regex, setup_dp_access,
-    wait_for_fake_exporters_gone,
+    update_konn_agent_autoscaler_floor, wait_for_fake_exporters_gone,
 )
 from .adx import (
     export_if_configured as adx_export_if_configured,
@@ -563,6 +563,8 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
                                     konnectivity_agent_replicas_for_node_count(first_tier),
                                     agent_image=konn_agent_image, dedicated_pool=fixed_pools)
         rollout_restart(dp_kubeconfig, namespace, "deployment/konnectivity-agent")
+        deploy_konnectivity_agent_autoscaler(dp_kubeconfig, namespace,
+                                             konnectivity_agent_replicas_for_node_count(first_tier))
 
         setup_dp_access(dp_kubeconfig, cp_kubeconfig, namespace)
         dp_api_server = get_dp_api_server(dp_kubeconfig)
@@ -615,15 +617,16 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
         # On resume, the "first" tier IS the one that failed and needs a
         # real reconcile attempt, so it's never skipped.
         server_count, shard_count, tier_resources = reconcile_cp_stack_sizing(tier)
-        agent_replica_count = konnectivity_agent_replicas_for_node_count(tier)
+        agent_min_replicas = konnectivity_agent_replicas_for_node_count(tier)
         if resume or tier != first_tier:
             log.info("Ensuring CP cluster has %d nodes before reconciling CP stack...", cp_nodes_needed)
             wait_for_nodes_ready(cp_kubeconfig, expected=cp_nodes_needed, timeout_minutes=15)
             deploy_konnectivity_server(cp_kubeconfig, namespace, server_count=server_count,
                                         resources=tier_resources["konn_server"], wait=True,
                                         server_image=konn_server_image)
-            deploy_konnectivity_agents(dp_kubeconfig, namespace, server_ip, agent_replica_count,
-                                        agent_image=konn_agent_image, dedicated_pool=fixed_pools)
+            # Floor only -- the autoscaler (not us) owns live replica count
+            # from here on, via its own packet-metrics reconcile loop.
+            update_konn_agent_autoscaler_floor(dp_kubeconfig, namespace, agent_min_replicas)
             deploy_vmagent(cp_kubeconfig, namespace, dp_api_server,
                            vmagent_resources=tier_resources["vmagent"],
                            proxy_resources=tier_resources["vmagent_proxy"],
@@ -631,6 +634,7 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
                            rate_limit=rate_limit,
                            max_block_size=max_block_size,
                            tier_block_regex=tier_block_regex(tier) if fixed_pools else ".*")
+        agent_replica_count = get_deployment_replicas(dp_kubeconfig, namespace, "konnectivity-agent")
 
         node_ips = get_node_ips(dp_kubeconfig,
                                 label_selector=tier_block_label_selector(tier) if fixed_pools else "")

@@ -10,7 +10,7 @@ from .config import (
     AGENT_NODE_LABEL_KEY, AGENT_NODE_LABEL_VALUE, AGENT_TAINT_EFFECT,
     AGENT_TAINT_KEY, AGENT_TAINT_VALUE,
     FAKE_EXPORTER_DIR, FAKE_EXPORTER_IMAGE, FAKE_EXPORTER_NS,
-    FAKE_EXPORTER_ROLES, KONN_AGENT_IMAGE, KONN_SERVER_IMAGE,
+    FAKE_EXPORTER_ROLES, KONN_AGENT_AUTOSCALER_IMAGE, KONN_AGENT_IMAGE, KONN_SERVER_IMAGE,
     KUBELET_SA_NAME, MANIFEST_DIR, VMAGENT_IMAGE, VMAGENT_PROXY_IMAGE, VMSINGLE_IMAGE,
     VMAGENT_RATE_LIMIT, VMAGENT_FLUSH_INTERVAL,
     log,
@@ -111,6 +111,39 @@ def deploy_konnectivity_agents(kubeconfig: str, namespace: str, server_host: str
     kubectl(kubeconfig, "-n", namespace, "rollout", "status",
             "deployment/konnectivity-agent", "--timeout=600s")
     log.info("Konnectivity agents ready in %s", namespace)
+
+
+def deploy_konnectivity_agent_autoscaler(kubeconfig: str, namespace: str, min_replicas: int) -> None:
+    """Deploy the real konnectivity-agent-autoscaler to scale konnectivity-agent
+    off live agent packet metrics + a replica floor, instead of a Python-computed
+    static --replicas.
+    """
+    log.info("Deploying konnectivity-agent-autoscaler in %s (min_replicas=%d)...",
+             namespace, min_replicas)
+    manifest = render_template(MANIFEST_DIR / "konnectivity-agent-autoscaler.yaml", {
+        "__NAMESPACE__": namespace,
+        "__AUTOSCALER_IMAGE__": KONN_AGENT_AUTOSCALER_IMAGE,
+        "__MIN_REPLICAS__": str(min_replicas),
+    })
+    kubectl_apply(kubeconfig, manifest)
+    kubectl(kubeconfig, "-n", namespace, "rollout", "status",
+            "deployment/konnectivity-agent-autoscaler", "--timeout=300s")
+    log.info("Konnectivity-agent-autoscaler ready in %s", namespace)
+
+
+def update_konn_agent_autoscaler_floor(kubeconfig: str, namespace: str, min_replicas: int) -> None:
+    """Update the replica floor for a running autoscaler and restart it to pick
+    up the change -- its ConfigMap is only read once at startup.
+    """
+    log.info("Updating konnectivity-agent-autoscaler min_replicas=%d in %s...",
+             min_replicas, namespace)
+    manifest = render_template(MANIFEST_DIR / "konnectivity-agent-autoscaler.yaml", {
+        "__NAMESPACE__": namespace,
+        "__AUTOSCALER_IMAGE__": KONN_AGENT_AUTOSCALER_IMAGE,
+        "__MIN_REPLICAS__": str(min_replicas),
+    })
+    kubectl_apply(kubeconfig, manifest)
+    rollout_restart(kubeconfig, namespace, "deployment/konnectivity-agent-autoscaler")
 
 
 def _wait_statefulsets_ready(kubeconfig: str, namespace: str,
@@ -230,6 +263,15 @@ def get_dp_api_server(dp_kubeconfig: str) -> str:
     with open(dp_kubeconfig) as f:
         kc = yaml.safe_load(f)
     return kc["clusters"][0]["cluster"]["server"]
+
+
+def get_deployment_replicas(kubeconfig: str, namespace: str, deployment: str) -> int:
+    """Live replica count -- used to report what the autoscaler actually set,
+    not just the floor we configured it with.
+    """
+    result = kubectl(kubeconfig, "-n", namespace, "get", f"deployment/{deployment}",
+                     "-o", "jsonpath={.spec.replicas}", check=False)
+    return int(result.stdout.strip()) if result.returncode == 0 and result.stdout.strip() else 0
 
 
 def get_node_ips(kubeconfig: str, label_selector: str = "") -> list[str]:

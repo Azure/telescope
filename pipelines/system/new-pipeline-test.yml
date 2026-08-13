@@ -21,33 +21,35 @@ parameters:
       - run_label: rl-2mb-baseline
         rate_limit: 2097152      # 2 MiB/s — current prod value
         max_block_size: 524288   # .5 MiB — current prod value
-      - run_label: rl-4mb
-        rate_limit: 4194304
-        max_block_size: 524288
-      - run_label: rl-6mb
-        rate_limit: 6291456
-        max_block_size: 524288
-      - run_label: rl-8mb
-        rate_limit: 8388608
-        max_block_size: 524288
-      - run_label: rl-10mb-bs-2mb
-        rate_limit: 10485760
-        max_block_size: 2097152
-      - run_label: rl-12mb
-        rate_limit: 12582912
-        max_block_size: 524288
-      - run_label: rl-14mb
-        rate_limit: 14680064
-        max_block_size: 524288
-      - run_label: rl-16mb
-        rate_limit: 16777216
-        max_block_size: 524288
-      - run_label: rl-18mb
-        rate_limit: 18874368
-        max_block_size: 524288
-      - run_label: rl-20mb-bs-10mb
-        rate_limit: 20971520
-        max_block_size: 10485760
+        konn_server_image: imranpochi/proxy-server:aksmaster-holfix  # team test build, exercising autoscaler
+        konn_agent_image: imranpochi/proxy-agent:aksmaster-holfix    # team test build, exercising autoscaler
+      # - run_label: rl-4mb
+      #   rate_limit: 4194304
+      #   max_block_size: 524288
+      # - run_label: rl-6mb
+      #   rate_limit: 6291456
+      #   max_block_size: 524288
+      # - run_label: rl-8mb
+      #   rate_limit: 8388608
+      #   max_block_size: 524288
+      # - run_label: rl-10mb-bs-2mb
+      #   rate_limit: 10485760
+      #   max_block_size: 2097152
+      # - run_label: rl-12mb
+      #   rate_limit: 12582912
+      #   max_block_size: 524288
+      # - run_label: rl-14mb
+      #   rate_limit: 14680064
+      #   max_block_size: 524288
+      # - run_label: rl-16mb
+      #   rate_limit: 16777216
+      #   max_block_size: 524288
+      # - run_label: rl-18mb
+      #   rate_limit: 18874368
+      #   max_block_size: 524288
+      # - run_label: rl-20mb-bs-10mb
+      #   rate_limit: 20971520
+      #   max_block_size: 10485760
 
 pool:
   name: 'AKS-Telescope-Airlock'

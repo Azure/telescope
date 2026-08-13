@@ -245,6 +245,13 @@ def konnectivity_agent_replicas_for_node_count(node_count: int) -> int:
     return KONN_AGENT_MIN_REPLICAS_BY_NODE_COUNT[-1][1]
 
 
+# Real konnectivity-agent-autoscaler binary (aks-rp/ccp/konnectivity-agent-autoscaler),
+# confirmed by the konnectivity team to accept --namespace/--target-* flags in
+# this build -- unlike the shipped chart, which hardcodes kube-system.
+# imranpochi/kas-dev:multiple-ns is a team-provided TEST image only; swap for
+# an official tag once one ships.
+KONN_AGENT_AUTOSCALER_IMAGE = "imranpochi/kas-dev:multiple-ns"
+
 # CP cluster node sizing. Unlike the DP nodepool (scaled purely off node
 # count), the CP cluster hosts konn-server/vmagent/vmsingle whose CPU
 # *requests* grow with tier (see TIER_RESOURCE_BUCKETS) -- terraform's fixed
