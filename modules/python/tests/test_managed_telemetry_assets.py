@@ -314,6 +314,13 @@ def test_configure_batches_two_cluster_workspaces_and_maps_manifest(tmp_path):
               mkdir -p "$(dirname "$file")"
               touch "$file"
             elif [ "${1:-} ${2:-}" = "aks update" ]; then
+              if [ -n "${CAPACITY_AFTER_AKS_UPDATE:-}" ]; then
+                tmp=$(mktemp)
+                jq --argjson value "$CAPACITY_AFTER_AKS_UPDATE" \
+                  'with_entries(.value = $value)' \
+                  "$CAPACITY_FILE" > "$tmp"
+                mv "$tmp" "$CAPACITY_FILE"
+              fi
               exit 0
             elif [ "${1:-} ${2:-}" = "aks show" ]; then
               echo true
@@ -1750,6 +1757,13 @@ def _write_rotation_fake_az(fake_bin: Path) -> None:
               mkdir -p "$(dirname "$file")"
               touch "$file"
             elif [ "${1:-} ${2:-}" = "aks update" ]; then
+              if [ -n "${CAPACITY_AFTER_AKS_UPDATE:-}" ]; then
+                tmp=$(mktemp)
+                jq --argjson value "$CAPACITY_AFTER_AKS_UPDATE" \
+                  'with_entries(.value = $value)' \
+                  "$CAPACITY_FILE" > "$tmp"
+                mv "$tmp" "$CAPACITY_FILE"
+              fi
               exit 0
             elif [ "${1:-} ${2:-}" = "aks show" ]; then
               echo true
@@ -2142,6 +2156,51 @@ def test_clusters_per_workspace_default_preserves_per_role_workspace_names(
     }
     for workspace in manifest["workspaces"]:
         assert workspace["clusters_per_workspace"] == 1
+
+
+def test_forced_shard_naming_rebalances_existing_one_cluster_workspaces(
+    tmp_path,
+):
+    existing = ["test-amw-shard-001", "test-amw-shard-002"]
+    result, manifest, _, _ = _run_rotation_configure(
+        tmp_path,
+        roles=["mesh-1", "mesh-2"],
+        existing_workspaces=existing,
+        capacity={name: 95 for name in existing},
+        env_overrides={
+            "AKS_AMW_CLUSTERS_PER_WORKSPACE": "1",
+            "AKS_AMW_FORCE_SHARD_NAMING": "true",
+            "AKS_AMW_PREFLIGHT_MAX_UTILIZATION_PERCENT": "90",
+            "AKS_MANAGED_PROMETHEUS_REBALANCE_EXISTING": "true",
+            "AKS_AMW_REBALANCE_SETTLE_SECONDS": "0",
+            "AKS_AMW_REBALANCE_WINDOW_MINUTES": "1",
+            "AKS_AMW_REBALANCE_VERIFY_ATTEMPTS": "1",
+            "AKS_AMW_REBALANCE_VERIFY_RETRY_SECONDS": "0",
+            "CAPACITY_AFTER_AKS_UPDATE": "20",
+        },
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "allowing configuration to continue" in result.stdout
+    assert "rebalance capacity verified across 2 workspace(s)" in result.stdout
+    assert {w["name"] for w in manifest["workspaces"]} == set(existing)
+    assert {w["slot"] for w in manifest["workspaces"]} == {
+        "shard-001",
+        "shard-002",
+    }
+    assert all(
+        workspace["capacity_guard"]["rebalance_override"]
+        for workspace in manifest["workspaces"]
+    )
+    cluster_by_role = {c["role"]: c for c in manifest["clusters"]}
+    assert (
+        cluster_by_role["mesh-1"]["workspace"]["name"]
+        == "test-amw-shard-001"
+    )
+    assert (
+        cluster_by_role["mesh-2"]["workspace"]["name"]
+        == "test-amw-shard-002"
+    )
 
 
 def test_sharding_100_clusters_at_cpw2_creates_50_deterministic_shards(

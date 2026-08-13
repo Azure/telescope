@@ -113,6 +113,12 @@ amw_build_id="${BUILD_ID:-unknown}"
 # a bounded number of clusters, and the regional headroom is checked before
 # any workspace is created (see the quota guard below).
 amw_clusters_per_workspace="${AKS_AMW_CLUSTERS_PER_WORKSPACE:-1}"
+amw_force_shard_naming="${AKS_AMW_FORCE_SHARD_NAMING:-false}"
+amw_rebalance_existing="${AKS_MANAGED_PROMETHEUS_REBALANCE_EXISTING:-false}"
+amw_rebalance_settle_seconds="${AKS_AMW_REBALANCE_SETTLE_SECONDS:-600}"
+amw_rebalance_window_minutes="${AKS_AMW_REBALANCE_WINDOW_MINUTES:-5}"
+amw_rebalance_verify_attempts="${AKS_AMW_REBALANCE_VERIFY_ATTEMPTS:-6}"
+amw_rebalance_verify_retry_seconds="${AKS_AMW_REBALANCE_VERIFY_RETRY_SECONDS:-60}"
 amw_default_max_active_time_series=1000000
 amw_default_max_events_per_minute=1000000
 amw_max_active_time_series="${AKS_AMW_MAX_ACTIVE_TIME_SERIES:-$amw_default_max_active_time_series}"
@@ -137,6 +143,36 @@ if ! [[ "$amw_clusters_per_workspace" =~ ^[1-9][0-9]*$ ]] ||
   echo "AKS_AMW_CLUSTERS_PER_WORKSPACE must be a positive integer no greater than 10." >&2
   exit 1
 fi
+for name_value in \
+  "AKS_AMW_FORCE_SHARD_NAMING=$amw_force_shard_naming" \
+  "AKS_MANAGED_PROMETHEUS_REBALANCE_EXISTING=$amw_rebalance_existing"; do
+  name="${name_value%%=*}"
+  value="${name_value#*=}"
+  if [ "${value,,}" != "true" ] && [ "${value,,}" != "false" ]; then
+    echo "$name must be true or false." >&2
+    exit 1
+  fi
+done
+for name_value in \
+  "AKS_AMW_REBALANCE_SETTLE_SECONDS=$amw_rebalance_settle_seconds" \
+  "AKS_AMW_REBALANCE_VERIFY_RETRY_SECONDS=$amw_rebalance_verify_retry_seconds"; do
+  name="${name_value%%=*}"
+  value="${name_value#*=}"
+  if ! [[ "$value" =~ ^[0-9]+$ ]]; then
+    echo "$name must be a non-negative integer." >&2
+    exit 1
+  fi
+done
+for name_value in \
+  "AKS_AMW_REBALANCE_WINDOW_MINUTES=$amw_rebalance_window_minutes" \
+  "AKS_AMW_REBALANCE_VERIFY_ATTEMPTS=$amw_rebalance_verify_attempts"; do
+  name="${name_value%%=*}"
+  value="${name_value#*=}"
+  if ! [[ "$value" =~ ^[1-9][0-9]*$ ]]; then
+    echo "$name must be a positive integer." >&2
+    exit 1
+  fi
+done
 if ! [[ "$amw_max_active_time_series" =~ ^[1-9][0-9]*$ ]]; then
   echo "AKS_AMW_MAX_ACTIVE_TIME_SERIES must be a positive integer." >&2
   exit 1
@@ -252,7 +288,8 @@ build_workspace_assignments() {
     if [ -n "$legacy_amw_name" ]; then
       workspace_name="$legacy_amw_name"
       slot="shared"
-    elif [ "$amw_clusters_per_workspace" -gt 1 ]; then
+    elif [ "$amw_clusters_per_workspace" -gt 1 ] ||
+         [ "${amw_force_shard_naming,,}" = "true" ]; then
       shard_number=$(( row_index / amw_clusters_per_workspace + 1 ))
       slot=$(printf 'shard-%03d' "$shard_number")
       workspace_name="${prefix}-${slot}"
@@ -633,19 +670,26 @@ while IFS= read -r workspace; do
     echo "Unable to verify capacity for Azure Monitor workspace slot $workspace_slot." >&2
     exit 1
   fi
+  rebalance_override=false
   if ! amw_capacity_preflight_ok "$preflight_summary" "$preflight_threshold"; then
-    echo "##vso[task.logissue type=error;] Azure Monitor workspace slot $workspace_slot does not have enough headroom for a new control-plane telemetry run."
-    exit 1
+    if [ "${amw_rebalance_existing,,}" != "true" ]; then
+      echo "##vso[task.logissue type=error;] Azure Monitor workspace slot $workspace_slot does not have enough headroom for a new control-plane telemetry run."
+      exit 1
+    fi
+    rebalance_override=true
+    echo "##vso[task.logissue type=warning;] Azure Monitor workspace slot $workspace_slot is over the preflight threshold before one-to-one rebalance; allowing configuration to continue, but post-rebalance capacity verification remains mandatory."
   fi
   preflight_capacity=$(cat "$preflight_summary")
   echo "$workspace" | jq -c \
     --arg threshold "$preflight_threshold" \
     --arg monitoring_window_start "$preflight_end" \
+    --argjson rebalance_override "$rebalance_override" \
     --argjson preflight "$preflight_capacity" \
     '. + {
       capacity_guard: {
         preflight_max_utilization_percent: ($threshold | tonumber),
         monitoring_window_start: $monitoring_window_start,
+        rebalance_override: $rebalance_override,
         preflight: $preflight
       }
     }' >> "$workspace_preflight_jsonl"
@@ -1037,6 +1081,51 @@ wait_batch
 if [ "$failed" -gt 0 ]; then
   echo "$failed cluster(s) failed managed Prometheus configuration." >&2
   exit 1
+fi
+
+if [ "${amw_rebalance_existing,,}" = "true" ]; then
+  if [ "$amw_rebalance_settle_seconds" -gt 0 ]; then
+    echo "Waiting ${amw_rebalance_settle_seconds}s for one-to-one Azure Monitor workspace rebalance to settle."
+    sleep "$amw_rebalance_settle_seconds"
+  fi
+  rebalance_capacity_verified=false
+  for attempt in $(seq 1 "$amw_rebalance_verify_attempts"); do
+    rebalance_end=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    rebalance_start=$(date -u \
+      -d "$amw_rebalance_window_minutes minutes ago" \
+      +%Y-%m-%dT%H:%M:%SZ)
+    rebalance_failed_slots=()
+    while IFS= read -r workspace; do
+      workspace_slot=$(echo "$workspace" | jq -r '.slot')
+      workspace_id=$(echo "$workspace" | jq -r '.id')
+      rebalance_raw="$(dirname "$MANIFEST_PATH")/amw-capacity-rebalance-${workspace_slot}-attempt-${attempt}.json"
+      rebalance_summary="$(dirname "$MANIFEST_PATH")/amw-capacity-rebalance-${workspace_slot}-attempt-${attempt}-summary.json"
+      if ! capture_amw_capacity \
+          "$workspace_id" \
+          "$rebalance_start" \
+          "$rebalance_end" \
+          "$rebalance_raw" \
+          "$rebalance_summary" ||
+         ! amw_capacity_preflight_ok "$rebalance_summary" "$preflight_threshold"; then
+        rebalance_failed_slots+=("$workspace_slot")
+      fi
+    done < <(echo "$workspace_catalog" | jq -c '.[]')
+
+    if [ "${#rebalance_failed_slots[@]}" -eq 0 ]; then
+      rebalance_capacity_verified=true
+      echo "One-to-one Azure Monitor workspace rebalance capacity verified across $(echo "$workspace_catalog" | jq 'length') workspace(s)."
+      break
+    fi
+    echo "Post-rebalance capacity verification attempt $attempt/$amw_rebalance_verify_attempts still failed for ${#rebalance_failed_slots[@]} workspace(s): ${rebalance_failed_slots[*]}" >&2
+    if [ "$attempt" -lt "$amw_rebalance_verify_attempts" ] &&
+       [ "$amw_rebalance_verify_retry_seconds" -gt 0 ]; then
+      sleep "$amw_rebalance_verify_retry_seconds"
+    fi
+  done
+  if [ "$rebalance_capacity_verified" != "true" ]; then
+    echo "##vso[task.logissue type=error;] One-to-one Azure Monitor workspace rebalance did not reach the required no-drop capacity state." >&2
+    exit 1
+  fi
 fi
 
 configured_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)

@@ -94,6 +94,10 @@ def test_debug_stages_are_explicitly_mode_gated():
     assert "standardDv3Family" in fresh
     assert "standardDSv3Family" not in fresh
     assert 'cl2_prom_snapshot_storage_account: "cmshscaleprom"' in fresh
+    assert 'AKS_AMW_CLUSTERS_PER_WORKSPACE: "1"' in fresh
+    assert 'AKS_AMW_FORCE_SHARD_NAMING: "true"' in fresh
+    assert 'AKS_AMW_PREFLIGHT_MAX_UTILIZATION_PERCENT: "90"' in fresh
+    assert 'AKS_AMW_REGIONAL_WORKSPACE_LIMIT: "100"' in fresh
     assert 'AKS_AMW_MAX_ACTIVE_TIME_SERIES: "1000000"' in fresh
     assert 'AKS_AMW_MAX_EVENTS_PER_MINUTE: "1000000"' in fresh
 
@@ -119,6 +123,12 @@ def test_debug_stages_are_explicitly_mode_gated():
     assert "parameters.scaleDebugTopology" in resume
     assert "parameters.scaleDebugRunWorkload" in resume
     assert 'cl2_prom_snapshot_storage_account: "cmshscaleprom"' in resume
+    assert 'AKS_AMW_CLUSTERS_PER_WORKSPACE: "1"' in resume
+    assert 'AKS_AMW_FORCE_SHARD_NAMING: "true"' in resume
+    assert 'AKS_AMW_PREFLIGHT_MAX_UTILIZATION_PERCENT: "90"' in resume
+    assert 'AKS_AMW_REGIONAL_WORKSPACE_LIMIT: "100"' in resume
+    assert 'AKS_MANAGED_PROMETHEUS_REBALANCE_EXISTING: "true"' in resume
+    assert 'AKS_AMW_REBALANCE_SETTLE_SECONDS: "600"' in resume
     assert 'AKS_AMW_MAX_ACTIVE_TIME_SERIES: "1000000"' in resume
     assert 'AKS_AMW_MAX_EVENTS_PER_MINUTE: "1000000"' in resume
     assert "parameters.debugMode" in resume
