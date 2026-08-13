@@ -223,7 +223,7 @@ def delete_fanout_nodepools(resource_group: str, cluster_name: str,
 
 def scale_down_for_teardown(resource_group: str, dp_cluster_name: str, nodepool: str,
                             cp_cluster_name: str = "", cp_nodepool: str = "",
-                            wait_minutes: int = 10) -> None:
+                            wait_minutes: int = 15) -> None:
     """Delete the base DP pool and any fan-out pools (dataplane2, ...) in
     parallel, then wait for them (and the CP pool) to settle before
     terraform destroy / the next combo's ramp.

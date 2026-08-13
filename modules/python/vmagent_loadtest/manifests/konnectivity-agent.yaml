@@ -7,6 +7,7 @@
 #   __SERVER_HOST__      — konnectivity server LB IP or hostname
 #   __SERVER_PORT__      — konnectivity server agent port (8081)
 #   __AGENT_REPLICAS__   — number of agent pods (simulates N nodes)
+#   __AGENT_NODE_AFFINITY__ — nodeSelector/tolerations block, or empty
 ---
 apiVersion: v1
 kind: Namespace
@@ -32,6 +33,7 @@ spec:
       labels:
         app: konnectivity-agent
     spec:
+__AGENT_NODE_AFFINITY__
       containers:
         - name: konnectivity-agent
           image: __AGENT_IMAGE__

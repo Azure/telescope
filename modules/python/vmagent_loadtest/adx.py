@@ -366,7 +366,7 @@ CREATE_LOGS_TABLE_CMD = """
     RunLabel: string,
     Namespace: string,
     Pod: string,
-    container: string,
+    ['container']: string,
     TIMESTAMP: datetime,
     log: string
 )

@@ -116,6 +116,12 @@ def main() -> None:
                              "prod is still pinned at the old 524288 = .5 MiB — this is "
                              "a pending/unvalidated recommendation this load test exists "
                              "to confirm)")
+    parser.add_argument("--fixed-pools", action="store_true",
+                        help="Real-targets only: use the pre-provisioned tier-block DP "
+                             "nodepools (azure.tfvars) instead of az-cli-scaling the base "
+                             "pool -- each --tiers step becomes a scrape-config regex "
+                             "change (~10s) instead of a node ramp, and agents schedule "
+                             "onto the dedicated dpagentpool.")
     parser.add_argument("--konn-server-image", default=KONN_SERVER_IMAGE,
                         help=f"konnectivity-server image to deploy "
                              f"(default: {KONN_SERVER_IMAGE}). Use this to load-test "
@@ -468,6 +474,7 @@ def main() -> None:
                     konn_agent_image=args.konn_agent_image,
                     resume=resume,
                     final_tier_dwell_minutes=args.final_tier_dwell_minutes,
+                    fixed_pools=args.fixed_pools,
                 )
                 all_results.append(result)
                 break
@@ -490,8 +497,10 @@ def main() -> None:
                     all_results.append(result)
                     failed_tiers.extend(tiers)
         cleanup_ramp(args.cp_kubeconfig, args.dp_kubeconfig, run_label=args.run_label, mode="real")
-        scale_down_for_teardown(args.resource_group, args.dp_cluster_name, args.nodepool_name,
-                               cp_cluster_name=args.cp_cluster_name, cp_nodepool=args.cp_nodepool_name)
+        if not args.fixed_pools:
+            # Fixed tier-block pools are terraform-managed, not torn down here.
+            scale_down_for_teardown(args.resource_group, args.dp_cluster_name, args.nodepool_name,
+                                   cp_cluster_name=args.cp_cluster_name, cp_nodepool=args.cp_nodepool_name)
     else:
         # Fake targets ramp through every tier as exporter replica counts
         # inside ONE continuous deployment (see run_fake_targets_ramp)

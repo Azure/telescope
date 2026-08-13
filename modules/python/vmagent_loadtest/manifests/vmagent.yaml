@@ -21,7 +21,9 @@
 #   __PROXY_CPU_LIM__   / __PROXY_MEM_LIM__   — vmagent-proxy limits (per shard)
 #   __VMAGENT_RATE_LIMIT__      — -remoteWrite.rateLimit bytes/sec (prod default since 2026-07-28: 2097152 = 2 MiB/s; prod's own 2k-node test found this still insufficient)
 #   __VMAGENT_MAX_BLOCK_SIZE__  — -remoteWrite.maxBlockSize bytes (prod still pinned at 524288 = .5 MiB; 8388608 = 8 MiB VM stock default is the pending/unvalidated recommendation)
-#   __VMAGENT_FLUSH_INTERVAL__  — -remoteWrite.flushInterval duration (prod default since 2026-07-28: 1s, was 30s)
+#
+# -promscrape.configCheckInterval=10s auto-picks-up scrape-config.yaml edits
+# (e.g. tier-block regex) within ~10s, no pod restart needed.
 ---
 apiVersion: apps/v1
 kind: StatefulSet
@@ -56,6 +58,7 @@ spec:
                   fieldPath: metadata.name
           args:
             - -promscrape.config=/config/prometheus.yml
+            - -promscrape.configCheckInterval=10s
             - -httpListenAddr=:8429
             - -promscrape.cluster.membersCount=__VMAGENT_REPLICAS__
             - -promscrape.cluster.memberNum=$(POD_NAME)
@@ -74,7 +77,7 @@ spec:
             - -remoteWrite.url=http://vmsingle:8428/api/v1/write
             - -remoteWrite.label=cluster_id=__NAMESPACE__
             - -remoteWrite.showURL=true
-            - -remoteWrite.flushInterval=__VMAGENT_FLUSH_INTERVAL__
+            - -remoteWrite.flushInterval=1s
             - -remoteWrite.sendTimeout=10s
             - -remoteWrite.maxDiskUsagePerURL=1073741824
             - -remoteWrite.rateLimit=__VMAGENT_RATE_LIMIT__

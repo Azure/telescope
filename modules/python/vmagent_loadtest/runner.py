@@ -20,13 +20,13 @@ from .config import (
     SYSTEM_CPU_PER_NODE, SYSTEM_MEM_PER_NODE_MI, VMAGENT_IMAGE,
     VMAGENT_PROXY_IMAGE, VMAGENT_FLUSH_INTERVAL, VMAGENT_RATE_LIMIT,
     VMSINGLE_IMAGE, compute_cp_nodes_needed, compute_resources_for_tier, compute_shard_count,
-    konnectivity_agent_replicas_for_node_count, log,
+    konnectivity_agent_replicas_for_node_count, tier_block_regex, tier_block_label_selector, log,
 )
 from .deploy import (
     deploy_fake_exporters, deploy_konnectivity_agents,
     deploy_konnectivity_server, deploy_vmagent, deploy_vmsingle,
     ensure_namespace, get_dp_api_server, get_node_ips, get_server_lb_ip,
-    rollout_restart, scale_fake_exporters, setup_dp_access,
+    rollout_restart, scale_fake_exporters, set_tier_block_regex, setup_dp_access,
     wait_for_fake_exporters_gone,
 )
 from .adx import (
@@ -476,6 +476,13 @@ def scale_fake_and_sample(cp_kubeconfig: str, dp_kubeconfig: str, namespace: str
     return samples
 
 
+def reconcile_cp_stack_sizing(tier: int) -> tuple[int, int, dict]:
+    """konn_server_count, vmagent_shard_count, tier_resources for a DP node count."""
+    proxied_targets = tier * len(FAKE_EXPORTER_ROLES) + tier + 50
+    server_count = max(3, (proxied_targets + 1999) // 2000)
+    return server_count, compute_shard_count(tier), compute_resources_for_tier(tier)
+
+
 def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[int],
                           warm_up_minutes: int,
                           work_dir: Path, results_dir: Path, run_id: str,
@@ -490,43 +497,30 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
                           konn_server_image: str = KONN_SERVER_IMAGE,
                           konn_agent_image: str = KONN_AGENT_IMAGE,
                           resume: bool = False,
-                          final_tier_dwell_minutes: int = 5) -> dict:
-    """Ramp the DP nodepool through every node count in `tiers` (ascending)
-    inside ONE continuous namespace/deployment, mirroring how a real prod
-    cluster is actually scaled up (e.g. 0->400->800->...->2000) and watched
-    the whole way -- instead of tearing down and redeploying a fresh stack
-    per checkpoint. At each step: scale the DP nodepool via scale_and_sample
-    (samples CPU/memory/restarts/OOMs/scrape health every 60s for the whole
-    scale-up window, not just after) while ALSO scaling the CP cluster's own
-    nodepool to match the CPU load konn-server/vmagent need at that tier
-    (see config.compute_cp_nodes_needed -- the CP cluster is NOT autoscaled
-    by Kubernetes/AKS itself, so without this it silently deadlocks with
-    FailedScheduling once tier-driven CPU requests outgrow the terraform
-    baseline), reconcile konnectivity-server/vmagent sizing for the new node
-    count (skipped for the first tier -- already deployed identically
-    pre-loop), then take one confirmation sample -- no separate multi-minute
-    post-scale dwell needed since the climb itself was already sampled
-    continuously.
+                          final_tier_dwell_minutes: int = 5,
+                          fixed_pools: bool = False) -> dict:
+    """Ramp DP nodes through every tier in `tiers` inside one continuous
+    namespace/deployment, sampling continuously while scaling and
+    reconciling konn-server/vmagent sizing per tier (see
+    config.compute_cp_nodes_needed for CP sizing).
 
-    If a tier's step fails, the raised exception carries a `.failed_tier`
-    attribute so the caller can retry starting AT that tier (via `resume=True`
-    with `tiers` trimmed to `[failed_tier, ...]`) instead of tearing down and
-    re-ramping from the very first tier -- avoids redoing already-passed
-    tiers and double-counting their data in ADX.
+    On failure, the exception carries `.failed_tier` so `resume=True` can
+    retry from that tier instead of redoing the whole ramp.
+
+    fixed_pools=True uses the pre-provisioned tier-block nodepools
+    (azure.tfvars) instead: each tier becomes a scrape-config regex change
+    (~10s, config.tier_block_regex) rather than a node scale, and agents
+    land on the dedicated dpagentpool.
     """
     steps = sorted(set(tiers))
     namespace = f"loadtest-{run_label}-ramp" if run_label else "loadtest-ramp"
 
     log.info("")
     log.info("=" * 60)
-    log.info("REAL-TARGETS RAMP: %d -> %d nodes (%d steps: %s)%s",
-             steps[0], steps[-1], len(steps), steps, " [RESUMED]" if resume else "")
+    log.info("REAL-TARGETS RAMP: %d -> %d nodes (%d steps: %s)%s%s",
+             steps[0], steps[-1], len(steps), steps, " [RESUMED]" if resume else "",
+             " [FIXED POOLS]" if fixed_pools else "")
     log.info("=" * 60)
-
-    def _reconcile_cp_stack(tier: int) -> tuple[int, int, dict]:
-        proxied_targets = tier * len(FAKE_EXPORTER_ROLES) + tier + 50
-        server_count = max(3, (proxied_targets + 1999) // 2000)
-        return server_count, compute_shard_count(tier), compute_resources_for_tier(tier)
 
     first_tier = steps[0]
 
@@ -539,13 +533,9 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
         server_ip = get_server_lb_ip(cp_kubeconfig, namespace)
         dp_api_server = get_dp_api_server(dp_kubeconfig)
     else:
-        # The DP base nodepool isn't terraform-provisioned (see
-        # DP_SYSTEM_NODEPOOL) -- scale_down_for_teardown() at the end of the
-        # previous combo already deleted it, so the first tier's own
-        # scale_dp_nodepool() call below creates it fresh at the correct
-        # size, instead of a combo inheriting an already-scaled-up pool and
-        # getting an instant nodes-ready / target-discovery burst that would
-        # break apples-to-apples comparison between config_combinations.
+        # Base DP pool is deleted at teardown (not terraform-managed), so
+        # each combo starts from a fresh scale-up, not an inherited one.
+        # fixed_pools=True skips this entirely -- those pools are permanent.
 
         # 1. Create namespaces (once for the whole ramp)
         ensure_namespace(cp_kubeconfig, namespace)
@@ -558,7 +548,7 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
         wait_for_nodes_ready(cp_kubeconfig, expected=cp_nodes_needed, timeout_minutes=15)
 
         # 2. Deploy konnectivity server sized for the first (smallest) step
-        server_count, shard_count, tier_resources = _reconcile_cp_stack(first_tier)
+        server_count, shard_count, tier_resources = reconcile_cp_stack_sizing(first_tier)
         deploy_konnectivity_server(cp_kubeconfig, namespace, server_count=server_count,
                                     resources=tier_resources["konn_server"], wait=False,
                                     server_image=konn_server_image)
@@ -571,7 +561,7 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
 
         deploy_konnectivity_agents(dp_kubeconfig, namespace, server_ip,
                                     konnectivity_agent_replicas_for_node_count(first_tier),
-                                    agent_image=konn_agent_image)
+                                    agent_image=konn_agent_image, dedicated_pool=fixed_pools)
         rollout_restart(dp_kubeconfig, namespace, "deployment/konnectivity-agent")
 
         setup_dp_access(dp_kubeconfig, cp_kubeconfig, namespace)
@@ -583,7 +573,8 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
                        proxy_resources=tier_resources["vmagent_proxy"],
                        replicas=shard_count,
                        rate_limit=rate_limit,
-                       max_block_size=max_block_size)
+                       max_block_size=max_block_size,
+                       tier_block_regex=tier_block_regex(first_tier) if fixed_pools else ".*")
     ramp_start_ts = time.time()
 
     all_samples: list[dict] = []
@@ -592,24 +583,27 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
     def _run_tier_step(tier: int) -> None:
         log.info("")
         log.info("-" * 60)
-        log.info("RAMP STEP: scaling DP nodepool to %d nodes", tier)
+        log.info("RAMP STEP: %s to %d nodes",
+                "setting tier-block regex" if fixed_pools else "scaling DP nodepool", tier)
         log.info("-" * 60)
         step_start_ts = time.time()
 
-        # Size the CP cluster for this tier's CPU load BEFORE scaling DP --
-        # both Azure operations run concurrently, and by the time DP nodes
-        # (and the sampler thread) finish climbing, CP capacity is usually
-        # already there so the reconcile step below doesn't deadlock.
+        # Size CP before DP so capacity is ready by the time DP finishes.
         cp_nodes_needed = compute_cp_nodes_needed(tier)
         if resume or tier != first_tier:
             scale_cp_nodepool(resource_group, cp_cluster_name, cp_nodepool, cp_nodes_needed)
 
-        # Scale while continuously sampling every 60s -- covers the whole
-        # climb instead of blocking silently on node-readiness.
-        _, scaling_samples = scale_and_sample(cp_kubeconfig, dp_kubeconfig, namespace,
-                                              resource_group, dp_cluster_name, nodepool, tier,
-                                              poll_interval=60, timeout_minutes=30)
-        all_samples.extend(scaling_samples)
+        if fixed_pools:
+            # Fixed DP nodes -- just flip the tier-block regex (~10s reload).
+            set_tier_block_regex(cp_kubeconfig, namespace, dp_api_server, tier_block_regex(tier))
+            time.sleep(15)
+            all_samples.append(sample_step(cp_kubeconfig, dp_kubeconfig, namespace, tier))
+        else:
+            # Scale while sampling every 60s -- covers the whole climb.
+            _, scaling_samples = scale_and_sample(cp_kubeconfig, dp_kubeconfig, namespace,
+                                                  resource_group, dp_cluster_name, nodepool, tier,
+                                                  poll_interval=60, timeout_minutes=30)
+            all_samples.extend(scaling_samples)
 
         # Reconcile CP-side sizing for the new node count (idempotent
         # applies). Skipped only for a fresh (non-resumed) ramp's first
@@ -617,7 +611,7 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
         # re-applying here is a redundant rollout-wait that adds nothing.
         # On resume, the "first" tier IS the one that failed and needs a
         # real reconcile attempt, so it's never skipped.
-        server_count, shard_count, tier_resources = _reconcile_cp_stack(tier)
+        server_count, shard_count, tier_resources = reconcile_cp_stack_sizing(tier)
         agent_replica_count = konnectivity_agent_replicas_for_node_count(tier)
         if resume or tier != first_tier:
             log.info("Ensuring CP cluster has %d nodes before reconciling CP stack...", cp_nodes_needed)
@@ -626,15 +620,17 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
                                         resources=tier_resources["konn_server"], wait=True,
                                         server_image=konn_server_image)
             deploy_konnectivity_agents(dp_kubeconfig, namespace, server_ip, agent_replica_count,
-                                        agent_image=konn_agent_image)
+                                        agent_image=konn_agent_image, dedicated_pool=fixed_pools)
             deploy_vmagent(cp_kubeconfig, namespace, dp_api_server,
                            vmagent_resources=tier_resources["vmagent"],
                            proxy_resources=tier_resources["vmagent_proxy"],
                            replicas=shard_count,
                            rate_limit=rate_limit,
-                           max_block_size=max_block_size)
+                           max_block_size=max_block_size,
+                           tier_block_regex=tier_block_regex(tier) if fixed_pools else ".*")
 
-        node_ips = get_node_ips(dp_kubeconfig)
+        node_ips = get_node_ips(dp_kubeconfig,
+                                label_selector=tier_block_label_selector(tier) if fixed_pools else "")
         dp_nodes = len(node_ips)
         per_node_roles = (len(REAL_TARGET_ROLES)
                          + len(DAEMONSET_TARGET_ROLES)
@@ -705,6 +701,7 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
                 "enable_tunnel_reuse": True,
                 "vmsingle_image": VMSINGLE_IMAGE,
                 "nodepool": nodepool,
+                "fixed_pools": fixed_pools,
             },
         )
 
@@ -764,6 +761,7 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
             "vmagent_proxy_image": VMAGENT_PROXY_IMAGE,
             "enable_tunnel_reuse": True,
             "vmsingle_image": VMSINGLE_IMAGE,
+            "fixed_pools": fixed_pools,
         },
         "steps": step_results,
         "resource_samples": all_samples,
@@ -845,11 +843,6 @@ def run_fake_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
              steps[0], steps[-1], len(steps), steps, " [RESUMED]" if resume else "")
     log.info("=" * 60)
 
-    def _reconcile_cp_stack(tier: int) -> tuple[int, int, dict]:
-        proxied_targets = tier * len(FAKE_EXPORTER_ROLES) + tier + 50
-        server_count = max(3, (proxied_targets + 1999) // 2000)
-        return server_count, compute_shard_count(tier), compute_resources_for_tier(tier)
-
     first_tier = steps[0]
 
     if resume:
@@ -864,7 +857,7 @@ def run_fake_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
         ensure_namespace(dp_kubeconfig, namespace)
 
         # 2. Deploy konnectivity server sized for the first (smallest) step
-        server_count, shard_count, tier_resources = _reconcile_cp_stack(first_tier)
+        server_count, shard_count, tier_resources = reconcile_cp_stack_sizing(first_tier)
         if resource_group and dp_cluster_name:
             scale_dp_nodepool(resource_group, dp_cluster_name, nodepool, compute_fake_nodes_needed(first_tier))
             wait_for_nodes_ready(dp_kubeconfig, expected=compute_fake_nodes_needed(first_tier), timeout_minutes=30)
@@ -930,7 +923,7 @@ def run_fake_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
         # Reconcile CP-side sizing for the new tier (idempotent applies).
         # Skipped only for a fresh (non-resumed) ramp's first tier --
         # already deployed identically pre-loop.
-        server_count, shard_count, tier_resources = _reconcile_cp_stack(tier)
+        server_count, shard_count, tier_resources = reconcile_cp_stack_sizing(tier)
         last_tier_resources = tier_resources
         agent_replica_count = konnectivity_agent_replicas_for_node_count(nodes_needed)
         if resume or tier != first_tier:

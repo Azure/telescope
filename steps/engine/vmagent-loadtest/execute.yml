@@ -32,6 +32,7 @@ steps:
       DP_KUBECONFIG="${{ parameters.dp_kubeconfig }}"
       TIERS="${TIERS:-150,500,1000}"
       SOAK_MINUTES="${SOAK_MINUTES:-10}"
+      FIXED_POOLS="${FIXED_POOLS:-false}"
       COLLECT_DIAGNOSTICS="${COLLECT_DIAGNOSTICS:-false}"
       MEASURE_DRAIN="${MEASURE_DRAIN:-false}"
       DRAIN_OBSERVE_SECONDS="${DRAIN_OBSERVE_SECONDS:-120}"
@@ -59,6 +60,7 @@ steps:
       [[ -n "$combo_konn_agent_image" ]] && args="$args --konn-agent-image $combo_konn_agent_image"
       [[ "$MEASURE_DRAIN" == "true" ]] && args="$args --measure-drain --drain-observe-seconds $DRAIN_OBSERVE_SECONDS"
       [[ "$COLLECT_DIAGNOSTICS" == "true" ]] && args="$args --collect-diagnostics"
+      [[ "$FIXED_POOLS" == "true" ]] && args="$args --fixed-pools"
 
       echo ""
       echo "######################################################################"
@@ -98,6 +100,7 @@ steps:
       TIERS: $(TIERS)
       SOAK_MINUTES: $(SOAK_MINUTES)
       REAL_TARGETS: $(REAL_TARGETS)
+      FIXED_POOLS: $(FIXED_POOLS)
       COLLECT_DIAGNOSTICS: $(COLLECT_DIAGNOSTICS)
       MEASURE_DRAIN: $(MEASURE_DRAIN)
       DRAIN_OBSERVE_SECONDS: $(DRAIN_OBSERVE_SECONDS)

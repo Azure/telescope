@@ -24,6 +24,35 @@ FAKE_EXPORTER_IMAGE = os.environ.get(
     "FAKE_EXPORTER_IMAGE", "fakexporter.azurecr.io/fake-exporter:v2"
 )
 
+# Fixed tier-block nodepools (see azure.tfvars): tier selection is a
+# scrape-config regex change, not a node scale. Cumulative by tier.
+TIER_BLOCK_NODE_LABEL_KEY = "loadtest.io/tier-block"
+TIER_BLOCK_REGEX = {
+    500: "a",
+    1000: "a|b",
+    1500: "a|b|c",
+    2000: "a|b|c|d",
+}
+
+# Dedicated, tainted konn-agent nodepool (see azure.tfvars) so several
+# agent image/config variants can share it.
+AGENT_NODE_LABEL_KEY = "loadtest.io/role"
+AGENT_NODE_LABEL_VALUE = "konn-agent"
+AGENT_TAINT_KEY = "dedicated"
+AGENT_TAINT_VALUE = "konn-agent"
+AGENT_TAINT_EFFECT = "NoSchedule"
+
+
+def tier_block_regex(tier: int) -> str:
+    """Cumulative tier-block regex; falls back to all blocks for unknown tiers."""
+    return TIER_BLOCK_REGEX.get(tier, "a|b|c|d")
+
+
+def tier_block_label_selector(tier: int) -> str:
+    """kubectl label selector for the nodes in scope for `tier` (excludes dpagentpool)."""
+    blocks = ",".join(tier_block_regex(tier).split("|"))
+    return f"{TIER_BLOCK_NODE_LABEL_KEY} in ({blocks})"
+
 # Fake exporter roles: (statefulset_name, app_label, port)
 FAKE_EXPORTER_ROLES = [
     ("fake-nodeexp",        "fake-nodeexp",        19100),

@@ -62,6 +62,66 @@ aks_config_list = [
       temporary_name_for_rotation  = "defaulttmp"
       max_pods                     = 250
     }
-    extra_node_pool = []
+    # Fixed tier-block pools (see config.TIER_BLOCK_REGEX) -- permanent,
+    # never scaled/deleted per run; --fixed-pools selects tiers via scrape
+    # regex instead. dpagentpool is a dedicated, tainted pool for agents.
+    extra_node_pool = [
+      {
+        name                 = "dpblocka"
+        node_count           = 500
+        auto_scaling_enabled = false
+        vm_size              = "Standard_D2_v3"
+        os_disk_type         = "Managed"
+        max_pods             = 250
+        node_labels = {
+          "loadtest.io/tier-block" = "a"
+        }
+      },
+      {
+        name                 = "dpblockb"
+        node_count           = 500
+        auto_scaling_enabled = false
+        vm_size              = "Standard_D2_v3"
+        os_disk_type         = "Managed"
+        max_pods             = 250
+        node_labels = {
+          "loadtest.io/tier-block" = "b"
+        }
+      },
+      {
+        name                 = "dpblockc"
+        node_count           = 500
+        auto_scaling_enabled = false
+        vm_size              = "Standard_D2_v3"
+        os_disk_type         = "Managed"
+        max_pods             = 250
+        node_labels = {
+          "loadtest.io/tier-block" = "c"
+        }
+      },
+      {
+        name                 = "dpblockd"
+        node_count           = 500
+        auto_scaling_enabled = false
+        vm_size              = "Standard_D2_v3"
+        os_disk_type         = "Managed"
+        max_pods             = 250
+        node_labels = {
+          "loadtest.io/tier-block" = "d"
+        }
+      },
+      {
+        name                 = "dpagentpool"
+        node_count           = 10
+        auto_scaling_enabled = false
+        vm_size              = "Standard_D2_v3"
+        os_disk_type         = "Managed"
+        max_pods             = 250
+        node_labels = {
+          "loadtest.io/role" = "konn-agent"
+        }
+        node_taints = ["dedicated=konn-agent:NoSchedule"]
+      }
+    ]
   }
 ]
