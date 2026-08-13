@@ -2560,6 +2560,13 @@ stages:
   #   Skips Terraform, recreates the staged Fleet overlay, and runs validation
   #   plus the full scenario suite. Resources remain preserved afterward.
   #
+  # resume-existing:
+  #   CLUSTERMESH_DEBUG_MODE=resume-existing
+  #   CLUSTERMESH_DEBUG_TARGET_RUN_ID=<preserved RG>
+  #   CLUSTERMESH_DEBUG_CONFIRM_RESUME=<same RG>
+  #   Surgically rejoins only non-Connected Fleet members, validates the
+  #   existing overlay, and runs the full scenario suite without resetting AKS.
+  #
   # cleanup:
   #   CLUSTERMESH_DEBUG_MODE=cleanup
   #   CLUSTERMESH_DEBUG_TARGET_RUN_ID=<preserved RG>
@@ -2751,7 +2758,12 @@ stages:
 
   - stage: azure_eastus2euap_n100_debug_resume_37deca
     dependsOn: []
-    condition: and(always(), eq(variables['Build.Reason'], 'Manual'), eq(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], ''), eq(variables['CLUSTERMESH_DEBUG_MODE'], 'resume'))
+    condition: >-
+      and(always(),
+      eq(variables['Build.Reason'], 'Manual'),
+      eq(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], ''),
+      or(eq(variables['CLUSTERMESH_DEBUG_MODE'], 'resume'),
+      eq(variables['CLUSTERMESH_DEBUG_MODE'], 'resume-existing')))
     displayName: "DEBUG EUAP scale resume preserved AKS clusters (37deca)"
     variables:
       AZURE_SUBSCRIPTION_ID: ${{ parameters.lifecycleSubscriptionId }}
@@ -2790,7 +2802,7 @@ stages:
       AKS_CONTROL_PLANE_LOG_RETENTION_DAYS: "30"
       CLUSTERMESH_QUOTA_PREFLIGHT_ENABLED: "false"
       CMP_AUTO_RECOVERY_ENABLED: "false"
-      CMP_STAGED_JOIN_ENABLED: "true"
+      CMP_STAGED_JOIN_ENABLED: ${{ eq(parameters.debugMode, 'resume') }}
       CMP_STAGED_JOIN_BATCH_SIZE: "10"
       CMP_STAGED_JOIN_BATCH_WAIT_SECONDS: "7200"
       CMP_STAGED_JOIN_TOTAL_WAIT_SECONDS: "28800"
@@ -2871,6 +2883,7 @@ stages:
           run_workload: ${{ parameters.scaleDebugRunWorkload }}
           publish_results: ${{ parameters.scaleDebugRunWorkload }}
           manifest_subdir: scale-resume
+          overlay_mode: ${{ parameters.debugMode }}
 
   - stage: azure_eastus2euap_n100_debug_cleanup_37deca
     dependsOn: []
@@ -2910,6 +2923,7 @@ stages:
       ne(variables['CLUSTERMESH_DEBUG_MODE'], 'fresh-preserve'),
       ne(variables['CLUSTERMESH_DEBUG_MODE'], 'reset-fleet'),
       ne(variables['CLUSTERMESH_DEBUG_MODE'], 'resume'),
+      ne(variables['CLUSTERMESH_DEBUG_MODE'], 'resume-existing'),
       ne(variables['CLUSTERMESH_DEBUG_MODE'], 'cleanup'))
     displayName: "INVALID scale debug mode"
     jobs:

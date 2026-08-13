@@ -40,6 +40,12 @@ parameters:
 - name: manifest_subdir
   type: string
   default: scale-resume
+- name: overlay_mode
+  type: string
+  default: resume
+  values:
+  - resume
+  - resume-existing
 
 jobs:
 - job: azure
@@ -72,9 +78,14 @@ jobs:
         "$(Pipeline.Workspace)/s/${{ parameters.tfvars_path }}" \
         | awk '{print $1}')
       bash "$(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/validate-existing-scale.sh"
-      bash "$(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/create-staged-fleet-overlay.sh"
-    displayName: "Validate preserved scale clusters and recreate staged Fleet overlay"
+      if [ "$OVERLAY_MODE" = "resume" ]; then
+        bash "$(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/create-staged-fleet-overlay.sh"
+      else
+        bash "$(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/repair-existing-fleet-overlay.sh"
+      fi
+    displayName: "Validate preserved scale clusters and prepare Fleet overlay"
     env:
+      OVERLAY_MODE: ${{ parameters.overlay_mode }}
       RUN_ID: $(RUN_ID)
       CLUSTERMESH_DEBUG_TARGET_RUN_ID: $(RUN_ID)
       CLUSTERMESH_DEBUG_CONFIRM_RESUME: $(CLUSTERMESH_DEBUG_CONFIRM_RESUME)
@@ -82,7 +93,8 @@ jobs:
       CLUSTERMESH_DEBUG_EXPECTED_REGION: ${{ parameters.region }}
       CLUSTERMESH_DEBUG_EXPECTED_CLUSTER_COUNT: "${{ parameters.expected_cluster_count }}"
       CLUSTERMESH_DEBUG_EXTEND_LEASE_HOURS: "168"
-      CLUSTERMESH_DEBUG_REQUIRE_OVERLAY_RESET: "true"
+      CLUSTERMESH_DEBUG_REQUIRE_OVERLAY_RESET: ${{ eq(parameters.overlay_mode, 'resume') }}
+      CLUSTERMESH_DEBUG_MAX_REPAIR_MEMBERS: "20"
       CLUSTERMESH_DEBUG_MANIFEST_PATH: $(Build.ArtifactStagingDirectory)/${{ parameters.manifest_subdir }}/validation.json
 
   - template: /steps/validate-resources.yml

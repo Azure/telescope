@@ -21,6 +21,7 @@ REUSE_DIR = (
 VALIDATE_SCRIPT = REUSE_DIR / "validate-existing-n100.sh"
 RESET_SCRIPT = REUSE_DIR / "reset-fleet-overlay.sh"
 CREATE_SCRIPT = REUSE_DIR / "create-staged-fleet-overlay.sh"
+REPAIR_SCRIPT = REUSE_DIR / "repair-existing-fleet-overlay.sh"
 DELETE_SCRIPT = REUSE_DIR / "delete-preserved-rg.sh"
 MANIFEST_SCRIPT = REUSE_DIR / "write-resume-manifest.sh"
 N100_TFVARS_PATH = (
@@ -104,6 +105,7 @@ def test_debug_stages_are_explicitly_mode_gated():
     assert 'CLUSTERMESH_DEBUG_EXTEND_LEASE_HOURS: "168"' in reset
 
     assert "CLUSTERMESH_DEBUG_MODE'], 'resume'" in resume
+    assert "CLUSTERMESH_DEBUG_MODE'], 'resume-existing'" in resume
     assert "clustermesh-debug-resume.yml" in resume
     assert "CLUSTERMESH_QUOTA_PREFLIGHT_ENABLED: \"false\"" in resume
     assert "eq(variables['Build.Reason'], 'Manual')" in resume
@@ -114,6 +116,7 @@ def test_debug_stages_are_explicitly_mode_gated():
     assert "parameters.scaleDebugTopology" in resume
     assert "parameters.scaleDebugRunWorkload" in resume
     assert 'cl2_prom_snapshot_storage_account: "cmshscaleprom"' in resume
+    assert "parameters.debugMode" in resume
 
     assert "CLUSTERMESH_DEBUG_MODE'], 'cleanup'" in cleanup
     assert "CLUSTERMESH_DEBUG_CONFIRM_DELETE" in cleanup
@@ -140,10 +143,13 @@ def test_resume_job_skips_terraform_and_preserves_resources():
     assert "/steps/cleanup-resources.yml" not in resume
     assert "validate-existing-scale.sh" in resume
     assert "create-staged-fleet-overlay.sh" in resume
+    assert "repair-existing-fleet-overlay.sh" in resume
     assert "/steps/validate-resources.yml" in resume
     assert "/steps/execute-tests.yml" in resume
     assert "/steps/publish-results.yml" in resume
     assert "CLUSTERMESH_DEBUG_CONFIRM_RESUME" in resume
+    assert "- name: overlay_mode" in resume
+    assert "CLUSTERMESH_DEBUG_MAX_REPAIR_MEMBERS" in resume
     assert "- name: expected_cluster_count" in resume
     assert "- name: run_workload" in resume
     assert "- name: publish_results" in resume
@@ -164,6 +170,7 @@ def test_fresh_preserve_n100_lease_is_seven_days():
 def test_fleet_reset_and_resume_do_not_mutate_aks_lifecycle():
     reset = RESET_SCRIPT.read_text(encoding="utf-8")
     create = CREATE_SCRIPT.read_text(encoding="utf-8")
+    repair = REPAIR_SCRIPT.read_text(encoding="utf-8")
 
     for forbidden in ("az aks delete", "az aks create", "az group delete"):
         assert forbidden not in reset
@@ -193,6 +200,17 @@ def test_fleet_reset_and_resume_do_not_mutate_aks_lifecycle():
     assert "az fleet create" in create
     assert "--labels \"${label_key}=${initial_value}\"" in create
     assert "Expected empty staged profile" in create
+
+    for forbidden in ("az aks delete", "az aks create", "az group delete", "az fleet delete"):
+        assert forbidden not in repair
+    assert "CLUSTERMESH_DEBUG_MAX_REPAIR_MEMBERS" in repair
+    assert "Surgically rejoining" in repair
+    assert "repair profile apply" in repair.lower()
+    assert "ResourceNotFinalState" in repair
+    assert "Fleet surgical repair completed" in repair
+    assert '--slurpfile members "$member_file"' in repair
+    assert '--slurpfile applied "$profile_member_file"' in repair
+    assert '--slurpfile clusters "$cluster_file"' in repair
 
 
 def test_preserved_rg_validation_is_fail_closed():
