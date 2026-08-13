@@ -118,6 +118,8 @@ amw_default_max_events_per_minute=1000000
 amw_max_active_time_series="${AKS_AMW_MAX_ACTIVE_TIME_SERIES:-$amw_default_max_active_time_series}"
 amw_max_events_per_minute="${AKS_AMW_MAX_EVENTS_PER_MINUTE:-$amw_default_max_events_per_minute}"
 amw_regional_workspace_limit="${AKS_AMW_REGIONAL_WORKSPACE_LIMIT:-100}"
+manifest_apply_attempts="${AKS_MANAGED_PROMETHEUS_APPLY_ATTEMPTS:-5}"
+manifest_apply_retry_seconds="${AKS_MANAGED_PROMETHEUS_APPLY_RETRY_SECONDS:-15}"
 # Shared across the metricsContainers deployment below and its ARM-level
 # verification, so both always target the same child-resource API version.
 amw_metrics_container_api_version="2025-05-03-preview"
@@ -145,6 +147,14 @@ if ! [[ "$amw_max_events_per_minute" =~ ^[1-9][0-9]*$ ]]; then
 fi
 if ! [[ "$amw_regional_workspace_limit" =~ ^[1-9][0-9]*$ ]]; then
   echo "AKS_AMW_REGIONAL_WORKSPACE_LIMIT must be a positive integer." >&2
+  exit 1
+fi
+if ! [[ "$manifest_apply_attempts" =~ ^[1-9][0-9]*$ ]]; then
+  echo "AKS_MANAGED_PROMETHEUS_APPLY_ATTEMPTS must be a positive integer." >&2
+  exit 1
+fi
+if ! [[ "$manifest_apply_retry_seconds" =~ ^[0-9]+$ ]]; then
+  echo "AKS_MANAGED_PROMETHEUS_APPLY_RETRY_SECONDS must be a non-negative integer." >&2
   exit 1
 fi
 
@@ -817,11 +827,42 @@ wait_for_managed_monitoring_convergence() {
   return 1
 }
 
+kubectl_apply_with_retry() {
+  local role="$1"
+  local kubeconfig="$2"
+  shift 2
+  local attempt output rc
+
+  for attempt in $(seq 1 "$manifest_apply_attempts"); do
+    rc=0
+    output=$(KUBECONFIG="$kubeconfig" kubectl apply "$@" 2>&1) || rc=$?
+    if [ "$rc" -eq 0 ]; then
+      if [ "$attempt" -gt 1 ]; then
+        echo "[$role] telemetry manifest apply recovered on attempt $attempt/$manifest_apply_attempts."
+      fi
+      return 0
+    fi
+
+    if ! echo "$output" | grep -Eqi \
+        'server is currently unable to handle the request|ServiceUnavailable|InternalError|TooManyRequests|timeout|timed out|connection reset|client connection lost|TLS handshake timeout|i/o timeout|unexpected EOF'; then
+      echo "[$role] telemetry manifest apply failed with a non-transient error: $output" >&2
+      return 1
+    fi
+    echo "[$role] transient telemetry manifest apply failure on attempt $attempt/$manifest_apply_attempts: $output" >&2
+    if [ "$attempt" -lt "$manifest_apply_attempts" ]; then
+      sleep "$manifest_apply_retry_seconds"
+    fi
+  done
+
+  echo "[$role] telemetry manifest apply did not recover after $manifest_apply_attempts attempts." >&2
+  return 1
+}
+
 configure_one() {
   local row="$1"
   local role name resource_group kubeconfig metrics_enabled controlplane_enabled
   local cluster_alias rendered_config cluster_id categories_file logs_file metrics_file
-  local workspace_name workspace_id cilium_policy_before
+  local workspace_name workspace_id cilium_policy_before namespace_manifest
   role=$(echo "$row" | jq -r '.role')
   name=$(echo "$row" | jq -r '.name')
   resource_group=$(echo "$row" | jq -r '.rg')
@@ -835,14 +876,23 @@ configure_one() {
     2>/dev/null || true)
 
   rendered_config=$(mktemp)
+  namespace_manifest=$(mktemp)
   sed \
     "s|cluster_alias = \"\"|cluster_alias = \"$cluster_alias\"|" \
     "$CONFIGMAP_PATH" > "$rendered_config"
-  KUBECONFIG="$kubeconfig" kubectl create namespace monitoring \
-    --dry-run=client -o yaml \
-    | KUBECONFIG="$kubeconfig" kubectl apply -f - >/dev/null
-  if ! KUBECONFIG="$kubeconfig" kubectl apply \
-      -f "$rendered_config" >/dev/null; then
+  if ! KUBECONFIG="$kubeconfig" kubectl create namespace monitoring \
+      --dry-run=client -o yaml >"$namespace_manifest"; then
+    rm -f "$namespace_manifest" "$rendered_config"
+    return 1
+  fi
+  if ! kubectl_apply_with_retry "$role" "$kubeconfig" \
+      -f "$namespace_manifest"; then
+    rm -f "$namespace_manifest" "$rendered_config"
+    return 1
+  fi
+  rm -f "$namespace_manifest"
+  if ! kubectl_apply_with_retry "$role" "$kubeconfig" \
+      -f "$rendered_config"; then
     rm -f "$rendered_config"
     return 1
   fi
@@ -874,9 +924,9 @@ configure_one() {
     crd/podmonitors.azmonitoring.coreos.com \
     crd/servicemonitors.azmonitoring.coreos.com \
     --timeout=10m >/dev/null
-  if ! KUBECONFIG="$kubeconfig" kubectl apply \
+  if ! kubectl_apply_with_retry "$role" "$kubeconfig" \
       -f "$rendered_config" \
-      -f "$CONTROL_PLANE_MONITORS_PATH" >/dev/null; then
+      -f "$CONTROL_PLANE_MONITORS_PATH"; then
     rm -f "$rendered_config"
     return 1
   fi

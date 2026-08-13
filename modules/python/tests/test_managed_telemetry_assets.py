@@ -242,6 +242,7 @@ def test_configure_batches_two_cluster_workspaces_and_maps_manifest(tmp_path):
     state_file = tmp_path / "workspaces-created"
     az_log = tmp_path / "az.log"
     kubectl_log = tmp_path / "kubectl.log"
+    kubectl_apply_failure_state = tmp_path / "kubectl-apply-failed-once"
     arm_template_copy = tmp_path / "arm-template.json"
     fake_az = fake_bin / "az"
     fake_az.write_text(
@@ -347,6 +348,13 @@ def test_configure_batches_two_cluster_workspaces_and_maps_manifest(tmp_path):
               printf '%s\\n' 'apiVersion: v1' 'kind: Namespace' 'metadata:' '  name: monitoring'
             elif [ "${1:-} ${2:-} ${3:-}" = "apply -f -" ]; then
               cat >/dev/null
+            elif [[ " $* " == *"azure-monitor-control-plane-monitors.yaml"* ]]; then
+              if [ "${FAIL_CONTROL_PLANE_APPLY_ONCE:-false}" = "true" ] &&
+                 [ ! -f "$KUBECTL_APPLY_FAILURE_STATE" ]; then
+                touch "$KUBECTL_APPLY_FAILURE_STATE"
+                echo 'error: the server is currently unable to handle the request' >&2
+                exit 1
+              fi
             elif [[ " $* " == *" -n kube-system get configmap cilium-config -o jsonpath="* ]]; then
               printf default
             elif [[ " $* " == *" -n kube-system get configmap cilium-config -o json "* ]]; then
@@ -386,6 +394,8 @@ def test_configure_batches_two_cluster_workspaces_and_maps_manifest(tmp_path):
             "AKS_MANAGED_MONITORING_CONVERGENCE_TIMEOUT_SECONDS": "5",
             "AKS_MANAGED_MONITORING_CILIUM_QUIET_SECONDS": "0",
             "AKS_MANAGED_MONITORING_POLL_SECONDS": "0",
+            "AKS_MANAGED_PROMETHEUS_APPLY_ATTEMPTS": "3",
+            "AKS_MANAGED_PROMETHEUS_APPLY_RETRY_SECONDS": "0",
             "RUN_ID": "build-123",
             "REGION": "eastus2euap",
             "CLUSTERS_FILE": str(clusters_file),
@@ -399,13 +409,15 @@ def test_configure_batches_two_cluster_workspaces_and_maps_manifest(tmp_path):
             "STATE_FILE": str(state_file),
             "FAKE_AZ_LOG": str(az_log),
             "FAKE_KUBECTL_LOG": str(kubectl_log),
+            "FAIL_CONTROL_PLANE_APPLY_ONCE": "true",
+            "KUBECTL_APPLY_FAILURE_STATE": str(kubectl_apply_failure_state),
             "ARM_TEMPLATE_COPY": str(arm_template_copy),
             "HOME": str(tmp_path),
             "PATH": f"{fake_bin}:{environment['PATH']}",
         }
     )
 
-    subprocess.run(
+    result = subprocess.run(
         ["bash", str(TELEMETRY_DIR / "configure-managed-prometheus.sh")],
         check=True,
         capture_output=True,
@@ -414,6 +426,12 @@ def test_configure_batches_two_cluster_workspaces_and_maps_manifest(tmp_path):
         timeout=30,
     )
 
+    assert kubectl_apply_failure_state.exists()
+    assert "transient telemetry manifest apply failure" in result.stderr
+    assert "telemetry manifest apply recovered on attempt 2/3" in result.stdout
+    assert kubectl_log.read_text(encoding="utf-8").count(
+        "azure-monitor-control-plane-monitors.yaml"
+    ) == 3
     arm_template = json.loads(arm_template_copy.read_text(encoding="utf-8"))
     assert {
         resource["name"] for resource in arm_template["resources"]
