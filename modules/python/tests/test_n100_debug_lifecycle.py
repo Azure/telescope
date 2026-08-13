@@ -94,6 +94,8 @@ def test_debug_stages_are_explicitly_mode_gated():
     assert "standardDv3Family" in fresh
     assert "standardDSv3Family" not in fresh
     assert 'cl2_prom_snapshot_storage_account: "cmshscaleprom"' in fresh
+    assert 'AKS_AMW_MAX_ACTIVE_TIME_SERIES: "1000000"' in fresh
+    assert 'AKS_AMW_MAX_EVENTS_PER_MINUTE: "1000000"' in fresh
 
     assert "CLUSTERMESH_DEBUG_MODE'], 'reset-fleet'" in reset
     assert "CLUSTERMESH_DEBUG_CONFIRM_RESET" in reset
@@ -117,6 +119,8 @@ def test_debug_stages_are_explicitly_mode_gated():
     assert "parameters.scaleDebugTopology" in resume
     assert "parameters.scaleDebugRunWorkload" in resume
     assert 'cl2_prom_snapshot_storage_account: "cmshscaleprom"' in resume
+    assert 'AKS_AMW_MAX_ACTIVE_TIME_SERIES: "1000000"' in resume
+    assert 'AKS_AMW_MAX_EVENTS_PER_MINUTE: "1000000"' in resume
     assert "parameters.debugMode" in resume
 
     assert "CLUSTERMESH_DEBUG_MODE'], 'cleanup'" in cleanup
