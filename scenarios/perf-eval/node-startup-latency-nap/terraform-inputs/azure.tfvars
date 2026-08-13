@@ -48,6 +48,14 @@ aks_cli_config_list = [
       {
         name  = "network-plugin-mode"
         value = "overlay"
+      },
+      {
+        name  = "service-cidr"
+        value = "192.168.0.0/16"
+      },
+      {
+        name  = "dns-service-ip"
+        value = "192.168.0.10"
       }
     ]
   }
