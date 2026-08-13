@@ -387,9 +387,43 @@ CREATE_LOGS_MAPPING_CMD = """
 ']'
 """
 
+# Raw konnectivity-server (CP) + konnectivity-agent + konnectivity-agent-autoscaler
+# (DP) container log lines -- same shape as VMAgentLogs, separate table so
+# each component's logs can be queried/retained independently.
+CREATE_KONN_LOGS_TABLE_CMD = """
+.create-merge table KonnectivityLogs (
+    RunId: string,
+    Tier: int,
+    Mode: string,
+    RunLabel: string,
+    Namespace: string,
+    Pod: string,
+    ['container']: string,
+    TIMESTAMP: datetime,
+    log: string
+)
+"""
+
+CREATE_KONN_LOGS_MAPPING_CMD = """
+.create-or-alter table KonnectivityLogs ingestion json mapping 'KonnectivityLogsMapping'
+'['
+'{"column":"RunId","Properties":{"Path":"$.RunId"}},'
+'{"column":"Tier","Properties":{"Path":"$.Tier"}},'
+'{"column":"Mode","Properties":{"Path":"$.Mode"}},'
+'{"column":"RunLabel","Properties":{"Path":"$.RunLabel"}},'
+'{"column":"Namespace","Properties":{"Path":"$.Namespace"}},'
+'{"column":"Pod","Properties":{"Path":"$.Pod"}},'
+'{"column":"container","Properties":{"Path":"$.container"}},'
+'{"column":"TIMESTAMP","Properties":{"Path":"$.TIMESTAMP"}},'
+'{"column":"log","Properties":{"Path":"$.log"}}'
+']'
+"""
+
 
 def ensure_schema(cluster_uri: str, database: str) -> None:
-    """Create VMAgentMetrics + VMAgentRunSummary + VMAgentLogs tables/mappings (idempotent)."""
+    """Create VMAgentMetrics + VMAgentRunSummary + VMAgentLogs + KonnectivityLogs
+    tables/mappings (idempotent).
+    """
     data_client, _ = _kusto_clients(cluster_uri)
     data_client.execute_mgmt(database, CREATE_TABLE_CMD)
     data_client.execute_mgmt(database, CREATE_MAPPING_CMD)
@@ -399,7 +433,11 @@ def ensure_schema(cluster_uri: str, database: str) -> None:
     data_client.execute_mgmt(database, CREATE_RESULTS_MAPPING_CMD)
     data_client.execute_mgmt(database, CREATE_LOGS_TABLE_CMD)
     data_client.execute_mgmt(database, CREATE_LOGS_MAPPING_CMD)
-    log.info("ADX schema ready: %s/{VMAgentMetrics, VMAgentRunSummary, VMAgentLogs}", database)
+    data_client.execute_mgmt(database, CREATE_KONN_LOGS_TABLE_CMD)
+    data_client.execute_mgmt(database, CREATE_KONN_LOGS_MAPPING_CMD)
+    log.info("ADX schema ready: %s/{VMAgentMetrics, VMAgentRunSummary, VMAgentLogs, "
+            "KonnectivityLogs}", database)
+
 
 
 def _query_range(vm_url: str, query: str, start: float, end: float, step: int = 15):
@@ -714,6 +752,94 @@ def export_logs_if_configured(cp_kubeconfig: str, namespace: str,
                             run_id, tier, mode, run_label=run_label)
     except Exception as e:
         log.warning("ADX log export failed (non-fatal): %s", e)
+
+
+def export_konnectivity_logs(cp_kubeconfig: str, dp_kubeconfig: str, namespace: str,
+                             cluster_uri: str, database: str,
+                             run_id: str, tier: int, mode: str,
+                             run_label: str = "", tail_lines: int = 2000) -> int:
+    """Ingest raw konnectivity-server (CP) + konnectivity-agent +
+    konnectivity-agent-autoscaler (DP) container log lines into ADX.
+
+    Returns number of rows ingested.
+    """
+    import json as _json
+    from .utils import kubectl
+    from azure.kusto.ingest import IngestionProperties, StreamDescriptor
+    from azure.kusto.data.data_format import DataFormat
+
+    _, ingest_client = _kusto_clients(cluster_uri)
+
+    # (kubeconfig, pod label selector, container name)
+    sources = [
+        (cp_kubeconfig, "app=konnectivity-server", "konnectivity-server"),
+        (dp_kubeconfig, "app=konnectivity-agent", "konnectivity-agent"),
+        (dp_kubeconfig, "app=konnectivity-agent-autoscaler", "konnectivity-agent-autoscaler"),
+    ]
+
+    rows: list[str] = []
+    pod_count = 0
+    for kubeconfig, label_selector, container_name in sources:
+        result = kubectl(kubeconfig, "-n", namespace, "get", "pods",
+                         "-l", label_selector,
+                         "-o", "jsonpath={range .items[*]}{.metadata.name}{\"\\n\"}{end}",
+                         check=False)
+        pods = [p for p in (result.stdout or "").strip().split("\n") if p.strip()]
+        pod_count += len(pods)
+        for pod in pods:
+            lr = kubectl(kubeconfig, "-n", namespace, "logs", pod,
+                        "-c", container_name, "--timestamps", f"--tail={tail_lines}",
+                        check=False)
+            if not lr.stdout:
+                continue
+            for line in lr.stdout.splitlines():
+                if not line.strip():
+                    continue
+                ts, _, message = line.partition(" ")
+                rows.append(_json.dumps({
+                    "RunId": run_id,
+                    "Tier": tier,
+                    "Mode": mode,
+                    "RunLabel": run_label or "",
+                    "Namespace": namespace,
+                    "Pod": pod,
+                    "container": container_name,
+                    "TIMESTAMP": ts,
+                    "log": message,
+                }))
+
+    if not rows:
+        log.warning("ADX konnectivity log export: no log lines collected for tier %d", tier)
+        return 0
+
+    payload = "\n".join(rows).encode("utf-8")
+    props = IngestionProperties(
+        database=database,
+        table="KonnectivityLogs",
+        data_format=DataFormat.MULTIJSON,
+        ingestion_mapping_reference="KonnectivityLogsMapping",
+    )
+    stream = StreamDescriptor(io.BytesIO(payload), is_compressed=False)
+    ingest_client.ingest_from_stream(stream, ingestion_properties=props)
+    log.info("ADX konnectivity log export: queued %d log lines across %d pod(s) for tier %d",
+             len(rows), pod_count, tier)
+    return len(rows)
+
+
+def export_konnectivity_logs_if_configured(cp_kubeconfig: str, dp_kubeconfig: str, namespace: str,
+                                           run_id: str, tier: int, mode: str,
+                                           run_label: str = "") -> None:
+    """No-op unless ADX cluster URI + database are configured (env or config)."""
+    cluster_uri = os.environ.get("ADX_CLUSTER_URI", "").strip() or _config.ADX_CLUSTER_URI
+    database = os.environ.get("ADX_DATABASE", "").strip() or _config.ADX_DATABASE
+    if not cluster_uri or not database:
+        return
+    try:
+        export_konnectivity_logs(cp_kubeconfig, dp_kubeconfig, namespace, cluster_uri, database,
+                                 run_id, tier, mode, run_label=run_label)
+    except Exception as e:
+        log.warning("ADX konnectivity log export failed (non-fatal): %s", e)
+
 
 
 def export_run_summary(cluster_uri: str, database: str, run_id: str, tier: int,

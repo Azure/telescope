@@ -33,6 +33,7 @@ from .adx import (
     export_if_configured as adx_export_if_configured,
     export_summary_if_configured as adx_export_summary_if_configured,
     export_logs_if_configured as adx_export_logs_if_configured,
+    export_konnectivity_logs_if_configured as adx_export_konnectivity_logs_if_configured,
     collect_resource_peaks as adx_collect_resource_peaks,
 )
 from .metrics import (
@@ -299,6 +300,13 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
         # 12b2. Push vmagent + vmagent-proxy log lines to ADX (always-on, like prod).
         adx_export_logs_if_configured(
             cp_kubeconfig, namespace, run_id, tier,
+            mode="real-targets" if real_targets else "fake-targets",
+            run_label=run_label or "",
+        )
+
+        # 12b3. Push konn-server/agent/autoscaler log lines to ADX.
+        adx_export_konnectivity_logs_if_configured(
+            cp_kubeconfig, dp_kubeconfig, namespace, run_id, tier,
             mode="real-targets" if real_targets else "fake-targets",
             run_label=run_label or "",
         )
@@ -678,6 +686,8 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
                                   run_label=run_label or "")
         adx_export_logs_if_configured(cp_kubeconfig, namespace, run_id, tier,
                                        mode="real-targets", run_label=run_label or "")
+        adx_export_konnectivity_logs_if_configured(cp_kubeconfig, dp_kubeconfig, namespace, run_id, tier,
+                                                   mode="real-targets", run_label=run_label or "")
         log.info("Collecting peak resource usage for summary row...")
         step_measurements.update(adx_collect_resource_peaks(cp_kubeconfig, namespace, ramp_start_ts))
 
@@ -975,6 +985,8 @@ def run_fake_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
                                   run_label=run_label or "")
         adx_export_logs_if_configured(cp_kubeconfig, namespace, run_id, tier,
                                        mode="fake-targets", run_label=run_label or "")
+        adx_export_konnectivity_logs_if_configured(cp_kubeconfig, dp_kubeconfig, namespace, run_id, tier,
+                                                   mode="fake-targets", run_label=run_label or "")
         log.info("Collecting peak resource usage for summary row...")
         step_measurements.update(adx_collect_resource_peaks(cp_kubeconfig, namespace, ramp_start_ts))
 
