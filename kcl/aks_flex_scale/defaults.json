@@ -1,0 +1,14 @@
+{
+  "nodeCount": 1000,
+  "maxPods": 110,
+  "joinTimeoutSeconds": 3600,
+  "bootstrapMode": "local-config",
+  "vmCreateConcurrency": 50,
+  "vmCreateBatchSize": 100,
+  "vmBatchDeploymentConcurrency": 2,
+  "pollIntervalSeconds": 5,
+  "retainOnFailure": false,
+  "aksKubernetesVersion": "latest",
+  "aksFlexNodeVersion": "latest",
+  "unboundedVersion": "latest"
+}

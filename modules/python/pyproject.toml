@@ -28,10 +28,11 @@ Source = "https://github.com/Azure/telescope"
 Documentation = "https://github.com/Azure/telescope/tree/main/modules/python"
 
 [tool.setuptools]
-packages = ["clients", "kwok", "utils"]
+packages = ["aks_flex_scale", "clients", "kwok", "utils"]
 
 [tool.setuptools.dynamic]
 dependencies = {file = "requirements.txt"}
 
 [project.scripts]
 telescope-kwok = "kwok.kwok:main"
+telescope-aks-flex-scale = "aks_flex_scale.cli:main"

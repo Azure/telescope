@@ -103,6 +103,16 @@ The `lib/` directory provides reusable steps you can compose into your pipeline:
 
 For a complete working example, see [`kcl/example_pipeline/pipeline.k`](kcl/example_pipeline/pipeline.k).
 
+### AKS Flex Node scale test
+
+[`kcl/aks_flex_scale`](kcl/aks_flex_scale) contains a manual pipeline for a strict
+1,000-node AKS Flex join test. It creates the environment from scratch, pre-creates
+private VMs behind an authenticated start gate, and requires all ARM Machines and
+Kubernetes Nodes to complete within the one-hour join window. The same deterministic
+Python CLI can run each phase, or the complete scenario, from a local workstation.
+See its [scenario README](kcl/aks_flex_scale/README.md) for parameters, qualification
+steps, cleanup behavior, and local commands.
+
 ## Generate Pipeline YAML
 
 Once your `.k` file is ready, generate the Azure DevOps YAML with the `/generate-yaml` skill, defined in the `.agent` folder.

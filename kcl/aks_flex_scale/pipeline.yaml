@@ -1,0 +1,373 @@
+name: AKS Flex Node 1K Join Scale
+pool: AKS-Telescope-Airlock
+trigger: []
+parameters:
+- name: subscriptionId
+  displayName: Azure subscription ID
+  type: string
+  default: '854c9ddb-fe9e-4aea-8d58-99ed88282881'
+- name: serviceConnection
+  displayName: Azure service connection
+  type: string
+  default: Azure-for-Telescope-internal
+- name: aksRegion
+  displayName: AKS region
+  type: string
+  default: canadacentral
+- name: vmRegion
+  displayName: Flex VM region
+  type: string
+  default: canadacentral
+- name: flexVmSize
+  displayName: Flex VM SKU (minimum 4 vCPU)
+  type: string
+  default: Standard_D4_v4
+- name: bootstrapMode
+  displayName: Bootstrap source (local-config or rp)
+  type: string
+  default: local-config
+- name: nodeCount
+  displayName: Flex node count
+  type: number
+  default: 1000
+- name: vmCreateConcurrency
+  displayName: Concurrent VM create requests
+  type: number
+  default: 50
+- name: vmCreateBatchSize
+  displayName: VM create batch size
+  type: number
+  default: 100
+- name: vmBatchDeploymentConcurrency
+  displayName: Concurrent ARM VM batch deployments
+  type: number
+  default: 2
+- name: aksKubernetesVersion
+  displayName: AKS version
+  type: string
+  default: latest
+- name: aksFlexNodeVersion
+  displayName: AKS Flex Node version
+  type: string
+  default: latest
+- name: unboundedVersion
+  displayName: Unbounded version
+  type: string
+  default: latest
+- name: retainOnFailure
+  displayName: Retain environment when the test fails
+  type: boolean
+  default: false
+- name: retainEnvironment
+  displayName: Always retain environment (debug only)
+  type: boolean
+  default: false
+jobs:
+- job: aks_flex_scale
+  displayName: Provision and join AKS Flex Nodes
+  timeoutInMinutes: 360
+  steps:
+  - bash: |
+      set -eo pipefail
+
+      job_id="$(System.JobId)"
+      RUN_ID=$(Build.BuildId)-${job_id:0:8}
+      echo "Run ID: $RUN_ID"
+
+      echo "##vso[task.setvariable variable=RUN_ID]$RUN_ID"
+    displayName: Set Run ID
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: ${{ parameters.serviceConnection }}
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        echo "##vso[task.setvariable variable=FLEX_TEST_FAILED]true"
+        mkdir -p "$(Pipeline.Workspace)/flex-scale"
+    displayName: Initialize scale test
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: ${{ parameters.serviceConnection }}
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |+
+        set -exo pipefail
+        export PYTHONPATH="$(Build.SourcesDirectory)/modules/python"
+        python3 -m aks_flex_scale.cli plan \
+          --config "$(Build.SourcesDirectory)/kcl/aks_flex_scale/defaults.json" \
+          --state-dir "$(Pipeline.Workspace)/flex-scale" \
+          --output /tmp/run-result.json \
+          --set runId=$(RUN_ID) \
+        --set subscriptionId=${{ parameters.subscriptionId }} \
+        --set aksRegion=${{ parameters.aksRegion }} \
+        --set vmRegion=${{ parameters.vmRegion }} \
+        --set flexVmSize=${{ parameters.flexVmSize }} \
+        --set bootstrapMode=${{ parameters.bootstrapMode }} \
+        --set nodeCount=${{ parameters.nodeCount }} \
+        --set vmCreateConcurrency=${{ parameters.vmCreateConcurrency }} \
+        --set vmCreateBatchSize=${{ parameters.vmCreateBatchSize }} \
+        --set vmBatchDeploymentConcurrency=${{ parameters.vmBatchDeploymentConcurrency }} \
+        --set aksKubernetesVersion=${{ parameters.aksKubernetesVersion }} \
+        --set aksFlexNodeVersion=${{ parameters.aksFlexNodeVersion }} \
+        --set unboundedVersion=${{ parameters.unboundedVersion }}
+
+    displayName: Plan scale test
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: ${{ parameters.serviceConnection }}
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |+
+        set -exo pipefail
+        export PYTHONPATH="$(Build.SourcesDirectory)/modules/python"
+        python3 -m aks_flex_scale.cli resolve \
+          --config "$(Build.SourcesDirectory)/kcl/aks_flex_scale/defaults.json" \
+          --state-dir "$(Pipeline.Workspace)/flex-scale" \
+          --output /tmp/run-result.json \
+          --set runId=$(RUN_ID) \
+        --set subscriptionId=${{ parameters.subscriptionId }} \
+        --set aksRegion=${{ parameters.aksRegion }} \
+        --set vmRegion=${{ parameters.vmRegion }} \
+        --set flexVmSize=${{ parameters.flexVmSize }} \
+        --set bootstrapMode=${{ parameters.bootstrapMode }} \
+        --set nodeCount=${{ parameters.nodeCount }} \
+        --set vmCreateConcurrency=${{ parameters.vmCreateConcurrency }} \
+        --set vmCreateBatchSize=${{ parameters.vmCreateBatchSize }} \
+        --set vmBatchDeploymentConcurrency=${{ parameters.vmBatchDeploymentConcurrency }} \
+        --set aksKubernetesVersion=${{ parameters.aksKubernetesVersion }} \
+        --set aksFlexNodeVersion=${{ parameters.aksFlexNodeVersion }} \
+        --set unboundedVersion=${{ parameters.unboundedVersion }}
+
+    displayName: Resolve latest versions
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: ${{ parameters.serviceConnection }}
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |+
+        set -exo pipefail
+        export PYTHONPATH="$(Build.SourcesDirectory)/modules/python"
+        python3 -m aks_flex_scale.cli preflight \
+          --config "$(Build.SourcesDirectory)/kcl/aks_flex_scale/defaults.json" \
+          --state-dir "$(Pipeline.Workspace)/flex-scale" \
+          --output /tmp/run-result.json \
+          --set runId=$(RUN_ID) \
+        --set subscriptionId=${{ parameters.subscriptionId }} \
+        --set aksRegion=${{ parameters.aksRegion }} \
+        --set vmRegion=${{ parameters.vmRegion }} \
+        --set flexVmSize=${{ parameters.flexVmSize }} \
+        --set bootstrapMode=${{ parameters.bootstrapMode }} \
+        --set nodeCount=${{ parameters.nodeCount }} \
+        --set vmCreateConcurrency=${{ parameters.vmCreateConcurrency }} \
+        --set vmCreateBatchSize=${{ parameters.vmCreateBatchSize }} \
+        --set vmBatchDeploymentConcurrency=${{ parameters.vmBatchDeploymentConcurrency }} \
+        --set aksKubernetesVersion=${{ parameters.aksKubernetesVersion }} \
+        --set aksFlexNodeVersion=${{ parameters.aksFlexNodeVersion }} \
+        --set unboundedVersion=${{ parameters.unboundedVersion }}
+
+    displayName: Run deterministic preflight
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: ${{ parameters.serviceConnection }}
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |+
+        set -exo pipefail
+        export PYTHONPATH="$(Build.SourcesDirectory)/modules/python"
+        python3 -m aks_flex_scale.cli provision \
+          --config "$(Build.SourcesDirectory)/kcl/aks_flex_scale/defaults.json" \
+          --state-dir "$(Pipeline.Workspace)/flex-scale" \
+          --output /tmp/run-result.json \
+          --set runId=$(RUN_ID) \
+        --set subscriptionId=${{ parameters.subscriptionId }} \
+        --set aksRegion=${{ parameters.aksRegion }} \
+        --set vmRegion=${{ parameters.vmRegion }} \
+        --set flexVmSize=${{ parameters.flexVmSize }} \
+        --set bootstrapMode=${{ parameters.bootstrapMode }} \
+        --set nodeCount=${{ parameters.nodeCount }} \
+        --set vmCreateConcurrency=${{ parameters.vmCreateConcurrency }} \
+        --set vmCreateBatchSize=${{ parameters.vmCreateBatchSize }} \
+        --set vmBatchDeploymentConcurrency=${{ parameters.vmBatchDeploymentConcurrency }} \
+        --set aksKubernetesVersion=${{ parameters.aksKubernetesVersion }} \
+        --set aksFlexNodeVersion=${{ parameters.aksFlexNodeVersion }} \
+        --set unboundedVersion=${{ parameters.unboundedVersion }}
+
+    displayName: Create AKS Flex environment
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: ${{ parameters.serviceConnection }}
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |+
+        set -exo pipefail
+        export PYTHONPATH="$(Build.SourcesDirectory)/modules/python"
+        python3 -m aks_flex_scale.cli prepare-vms \
+          --config "$(Build.SourcesDirectory)/kcl/aks_flex_scale/defaults.json" \
+          --state-dir "$(Pipeline.Workspace)/flex-scale" \
+          --output /tmp/run-result.json \
+          --set runId=$(RUN_ID) \
+        --set subscriptionId=${{ parameters.subscriptionId }} \
+        --set aksRegion=${{ parameters.aksRegion }} \
+        --set vmRegion=${{ parameters.vmRegion }} \
+        --set flexVmSize=${{ parameters.flexVmSize }} \
+        --set bootstrapMode=${{ parameters.bootstrapMode }} \
+        --set nodeCount=${{ parameters.nodeCount }} \
+        --set vmCreateConcurrency=${{ parameters.vmCreateConcurrency }} \
+        --set vmCreateBatchSize=${{ parameters.vmCreateBatchSize }} \
+        --set vmBatchDeploymentConcurrency=${{ parameters.vmBatchDeploymentConcurrency }} \
+        --set aksKubernetesVersion=${{ parameters.aksKubernetesVersion }} \
+        --set aksFlexNodeVersion=${{ parameters.aksFlexNodeVersion }} \
+        --set unboundedVersion=${{ parameters.unboundedVersion }}
+
+    displayName: Pre-create 1,000 Flex VMs
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: ${{ parameters.serviceConnection }}
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |+
+        set -exo pipefail
+        export PYTHONPATH="$(Build.SourcesDirectory)/modules/python"
+        python3 -m aks_flex_scale.cli join \
+          --config "$(Build.SourcesDirectory)/kcl/aks_flex_scale/defaults.json" \
+          --state-dir "$(Pipeline.Workspace)/flex-scale" \
+          --output /tmp/run-result.json \
+          --set runId=$(RUN_ID) \
+        --set subscriptionId=${{ parameters.subscriptionId }} \
+        --set aksRegion=${{ parameters.aksRegion }} \
+        --set vmRegion=${{ parameters.vmRegion }} \
+        --set flexVmSize=${{ parameters.flexVmSize }} \
+        --set bootstrapMode=${{ parameters.bootstrapMode }} \
+        --set nodeCount=${{ parameters.nodeCount }} \
+        --set vmCreateConcurrency=${{ parameters.vmCreateConcurrency }} \
+        --set vmCreateBatchSize=${{ parameters.vmCreateBatchSize }} \
+        --set vmBatchDeploymentConcurrency=${{ parameters.vmBatchDeploymentConcurrency }} \
+        --set aksKubernetesVersion=${{ parameters.aksKubernetesVersion }} \
+        --set aksFlexNodeVersion=${{ parameters.aksFlexNodeVersion }} \
+        --set unboundedVersion=${{ parameters.unboundedVersion }}
+
+    displayName: Run one-hour Flex join test
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: ${{ parameters.serviceConnection }}
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |+
+        set -exo pipefail
+        export PYTHONPATH="$(Build.SourcesDirectory)/modules/python"
+        python3 -m aks_flex_scale.cli validate \
+          --config "$(Build.SourcesDirectory)/kcl/aks_flex_scale/defaults.json" \
+          --state-dir "$(Pipeline.Workspace)/flex-scale" \
+          --output /tmp/run-result.json \
+          --set runId=$(RUN_ID) \
+        --set subscriptionId=${{ parameters.subscriptionId }} \
+        --set aksRegion=${{ parameters.aksRegion }} \
+        --set vmRegion=${{ parameters.vmRegion }} \
+        --set flexVmSize=${{ parameters.flexVmSize }} \
+        --set bootstrapMode=${{ parameters.bootstrapMode }} \
+        --set nodeCount=${{ parameters.nodeCount }} \
+        --set vmCreateConcurrency=${{ parameters.vmCreateConcurrency }} \
+        --set vmCreateBatchSize=${{ parameters.vmCreateBatchSize }} \
+        --set vmBatchDeploymentConcurrency=${{ parameters.vmBatchDeploymentConcurrency }} \
+        --set aksKubernetesVersion=${{ parameters.aksKubernetesVersion }} \
+        --set aksFlexNodeVersion=${{ parameters.aksFlexNodeVersion }} \
+        --set unboundedVersion=${{ parameters.unboundedVersion }}
+
+    displayName: Validate complete Flex fleet
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: ${{ parameters.serviceConnection }}
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |-
+        set -exo pipefail
+        echo "##vso[task.setvariable variable=FLEX_TEST_FAILED]false"
+    displayName: Mark scale test successful
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: ${{ parameters.serviceConnection }}
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |+
+        set -exo pipefail
+        export PYTHONPATH="$(Build.SourcesDirectory)/modules/python"
+        python3 -m aks_flex_scale.cli result \
+          --config "$(Build.SourcesDirectory)/kcl/aks_flex_scale/defaults.json" \
+          --state-dir "$(Pipeline.Workspace)/flex-scale" \
+          --output /tmp/run-result.json \
+          --set runId=$(RUN_ID) \
+        --set subscriptionId=${{ parameters.subscriptionId }} \
+        --set aksRegion=${{ parameters.aksRegion }} \
+        --set vmRegion=${{ parameters.vmRegion }} \
+        --set flexVmSize=${{ parameters.flexVmSize }} \
+        --set bootstrapMode=${{ parameters.bootstrapMode }} \
+        --set nodeCount=${{ parameters.nodeCount }} \
+        --set vmCreateConcurrency=${{ parameters.vmCreateConcurrency }} \
+        --set vmCreateBatchSize=${{ parameters.vmCreateBatchSize }} \
+        --set vmBatchDeploymentConcurrency=${{ parameters.vmBatchDeploymentConcurrency }} \
+        --set aksKubernetesVersion=${{ parameters.aksKubernetesVersion }} \
+        --set aksFlexNodeVersion=${{ parameters.aksFlexNodeVersion }} \
+        --set unboundedVersion=${{ parameters.unboundedVersion }}
+
+    condition: always()
+    continueOnError: true
+    displayName: Write Telescope result
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: ${{ parameters.serviceConnection }}
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        if [ -s /tmp/run-result.json ]; then
+          az storage blob upload \
+            --account-name "telescopev2" \
+            --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" \
+            --container-name "aks" \
+            --name "$(RUN_ID)/run-result.json" \
+            --file /tmp/run-result.json \
+            --auth-mode key
+        else
+          echo "No result file was produced" >&2
+          exit 1
+        fi
+    condition: always()
+    continueOnError: true
+    displayName: Upload Telescope result
+  - task: PublishPipelineArtifact@1
+    inputs:
+      targetPath: $(Pipeline.Workspace)/flex-scale
+      artifact: aks-flex-scale-$(RUN_ID)
+      publishLocation: pipeline
+    condition: always()
+    continueOnError: true
+    displayName: Publish scale test state and events
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: ${{ parameters.serviceConnection }}
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |+
+        set -exo pipefail
+        export PYTHONPATH="$(Build.SourcesDirectory)/modules/python"
+        python3 -m aks_flex_scale.cli cleanup \
+          --config "$(Build.SourcesDirectory)/kcl/aks_flex_scale/defaults.json" \
+          --state-dir "$(Pipeline.Workspace)/flex-scale" \
+          --output /tmp/run-result.json \
+          --set runId=$(RUN_ID) \
+        --set subscriptionId=${{ parameters.subscriptionId }} \
+        --set aksRegion=${{ parameters.aksRegion }} \
+        --set vmRegion=${{ parameters.vmRegion }} \
+        --set flexVmSize=${{ parameters.flexVmSize }} \
+        --set bootstrapMode=${{ parameters.bootstrapMode }} \
+        --set nodeCount=${{ parameters.nodeCount }} \
+        --set vmCreateConcurrency=${{ parameters.vmCreateConcurrency }} \
+        --set vmCreateBatchSize=${{ parameters.vmCreateBatchSize }} \
+        --set vmBatchDeploymentConcurrency=${{ parameters.vmBatchDeploymentConcurrency }} \
+        --set aksKubernetesVersion=${{ parameters.aksKubernetesVersion }} \
+        --set aksFlexNodeVersion=${{ parameters.aksFlexNodeVersion }} \
+        --set unboundedVersion=${{ parameters.unboundedVersion }}
+
+    condition: and(always(), not(${{ parameters.retainEnvironment }}), or(ne(variables['FLEX_TEST_FAILED'], 'true'), not(${{ parameters.retainOnFailure }})))
+    displayName: Delete scale-test resource groups

@@ -76,6 +76,7 @@ env/
 venv/
 modules/python/clusterloader2/*/results
 modules/python/clusterloader2/*/config/overrides.yaml
+.flex-scale-state/
 
 #Jupyter
 *-checkpoint.ipynb
