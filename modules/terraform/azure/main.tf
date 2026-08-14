@@ -78,6 +78,12 @@ locals {
   vm_config_map = { for vm in var.vm_config_list : vm.role => vm }
 
   disk_encryption_set_config_map = { for des in var.disk_encryption_set_config_list : des.name => des }
+
+  network_stabilization_required = (
+    length(local.aks_config_map) +
+    length(local.aks_cli_config_map) +
+    length(local.azapi_config_map)
+  ) > 0
 }
 
 provider "azurerm" {
@@ -112,6 +118,36 @@ module "virtual_network" {
   location            = local.region
   public_ips          = module.public_ips.pip_ids
   tags                = local.tags
+}
+
+resource "terraform_data" "network_wait_succeeded" {
+  for_each = local.network_stabilization_required ? local.network_config_map : {}
+
+  input = {
+    vnet_name = each.value.vnet_name
+    subnets = [
+      for subnet in each.value.subnet : {
+        name = subnet.name
+        requiredDelegations = [
+          for delegation in coalesce(subnet.delegations, []) :
+          delegation.service_delegation_name
+        ]
+      }
+    ]
+  }
+
+  depends_on = [module.virtual_network]
+
+  provisioner "local-exec" {
+    interpreter = ["bash", "-c"]
+    command     = "bash ${path.module}/../../../steps/terraform/wait-for-azure-network.sh"
+    environment = {
+      NETWORK_RESOURCE_GROUP             = local.run_id
+      NETWORK_VNET_NAME                  = each.value.vnet_name
+      NETWORK_SUBNET_REQUIREMENTS_JSON   = jsonencode(self.input.subnets)
+      NETWORK_STABILIZATION_WAIT_SECONDS = "1800"
+    }
+  }
 }
 
 module "acr" {
@@ -262,7 +298,7 @@ module "aks" {
   aks_aad_enabled      = local.aks_aad_enabled
   key_vaults           = local.all_key_vaults
   disk_encryption_sets = local.all_disk_encryption_sets
-  depends_on           = [module.route_table, module.virtual_network, module.disk_encryption_set]
+  depends_on           = [module.route_table, module.virtual_network, terraform_data.network_wait_succeeded, module.disk_encryption_set]
 }
 
 module "azapi" {
@@ -273,7 +309,7 @@ module "azapi" {
   location            = local.region
   azapi_config        = each.value
   tags                = local.tags
-  depends_on          = [module.route_table, module.virtual_network, module.disk_encryption_set]
+  depends_on          = [module.route_table, module.virtual_network, terraform_data.network_wait_succeeded, module.disk_encryption_set]
 }
 
 module "aks-cli" {
@@ -301,6 +337,7 @@ module "aks-cli" {
   depends_on = [
     module.route_table,
     module.virtual_network,
+    terraform_data.network_wait_succeeded,
     module.disk_encryption_set,
     module.acr,
   ]
@@ -360,6 +397,20 @@ locals {
   clustermesh_member_roles = try(var.fleet_config.enabled, false) ? {
     for m in try(var.fleet_config.members, []) : m.aks_role => m.aks_role
   } : {}
+
+  # Map each clustermesh AKS to its VNet role (the role of the VNet that hosts
+  # the AKS's node subnet). In separate-VNet mode (azure-{2,5,10,20}.tfvars)
+  # this is identity — AKS role mesh-N lives in VNet role mesh-N. In shared-
+  # VNet mode (azure-{2-shared,100}.tfvars) all clustermesh AKS share one VNet
+  # (typically role="shared") and this lookup resolves them to that one VNet.
+  # Either way, the existing subnet_to_network_role local already maps every
+  # subnet name to its parent VNet's role, so deriving the VNet via the AKS's
+  # subnet_name is universally correct and removes the prior assumption that
+  # AKS role == VNet role.
+  clustermesh_aks_to_vnet_role = {
+    for role, _ in local.clustermesh_member_roles :
+    role => local.subnet_to_network_role[local.aks_cli_config_map[role].subnet_name]
+  }
 }
 
 data "azurerm_kubernetes_cluster" "clustermesh_member" {
@@ -376,7 +427,7 @@ data "azurerm_kubernetes_cluster" "clustermesh_member" {
 resource "azurerm_role_assignment" "clustermesh_vnet_contributor" {
   for_each = local.clustermesh_member_roles
 
-  scope                = module.virtual_network[each.key].vnet_id
+  scope                = module.virtual_network[local.clustermesh_aks_to_vnet_role[each.key]].vnet_id
   role_definition_name = "Network Contributor"
   principal_id         = data.azurerm_kubernetes_cluster.clustermesh_member[each.key].identity[0].principal_id
 }
@@ -392,6 +443,10 @@ module "fleet" {
   cmp_name            = try(var.fleet_config.cmp_name, "")
   member_label_key    = try(var.fleet_config.member_label_key, "mesh")
   member_label_value  = try(var.fleet_config.member_label_value, "true")
+  member_initial_label_value = try(
+    var.fleet_config.member_initial_label_value,
+    "",
+  )
   members = [
     for m in try(var.fleet_config.members, []) : {
       member_name = m.member_name

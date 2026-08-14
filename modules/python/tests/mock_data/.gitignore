@@ -1,0 +1,8 @@
+# Mock fixture log files are intentionally checked in (synthetic content,
+# bytes-small) so test_clustermesh_scale's TestMockFixtureParity can verify
+# the mock matches what run-cl2-on-cluster.sh produces in real runs.
+# Without this exception the root *.log ignore strips them, the parity test
+# fails locally on a fresh clone, and collect_clusterloader2 tests don't
+# exercise the logs/-subdir-present shape — the exact gap that let an
+# IsADirectoryError land in CI.
+!*.log

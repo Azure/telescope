@@ -4,6 +4,8 @@
 
 {{$tuningSet := DefaultParam .tuningSet "DeploymentCreateQps"}}
 {{$interval := DefaultParam .interval "15s"}}
+{{$globalMockMode := eq (printf "%v" (DefaultParam .CL2_MOCK_MODE false)) "true"}}
+{{$mockMode := DefaultParam .mockMode $globalMockMode}}
 {{ $replicasPerNamespace := 1 }}
 
 {{if eq .actionName "create"}}
@@ -13,7 +15,7 @@
 {{end}}
 
 steps:
-  - name: {{.actionName}} ClusterMesh Pod Monitor
+  - name: {{.actionName}} ClusterMesh Pod Monitors
     phases:
       - namespaceList:
         - "monitoring"
@@ -24,3 +26,100 @@ steps:
             basename: clustermesh-apiserver
             templateFillMap:
               Interval: {{$interval}}
+          # Added 2026-06-12: explicit extra scrape targets so the local
+          # Prometheus TSDB snapshot (when CL2_PROM_SNAPSHOT_ENABLED=true)
+          # contains data needed to investigate mesh behavior offline.
+          # cilium-agent + cilium-operator are NOT added here — CL2 already
+          # scrapes them via CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT/_OPERATOR
+          # flags (see scale.py:158-159). Adding a second PodMonitor for
+          # those targets would double-scrape and distort sum() queries.
+          # Each PodMonitor below is silent if its target pods don't exist
+          # (e.g. older AKS without ACNS won't have Hubble metrics on 9965,
+          # kvstoremesh-standalone won't match when kvstoremesh runs as a
+          # sidecar of the clustermesh-apiserver pod).
+          - objectTemplatePath: "modules/clustermesh/podmonitor-hubble.yaml"
+            basename: hubble-metrics
+            templateFillMap:
+              Interval: {{$interval}}
+          - objectTemplatePath: "modules/clustermesh/podmonitor-coredns.yaml"
+            basename: coredns
+            templateFillMap:
+              Interval: {{$interval}}
+          - objectTemplatePath: "modules/clustermesh/podmonitor-kvstoremesh.yaml"
+            basename: kvstoremesh-standalone
+            templateFillMap:
+              Interval: {{$interval}}
+          {{if $mockMode}}
+          # MOCK mode: scrape the mock-cilium-agents so the cilium.yaml +
+          # clustermesh-metrics.yaml measurements capture the simulated agents.
+          - objectTemplatePath: "modules/clustermesh/podmonitor-mock-agent.yaml"
+            basename: mock-cilium-agent
+            templateFillMap:
+              Interval: {{$interval}}
+          {{end}}
+  # The API server Service load-balances across hidden HA backends. These
+  # resources expose per-backend CPU/RSS and cluster identity. Cluster-scoped
+  # RBAC must use an empty namespace, matching CL2's node-exporter pattern.
+  - name: {{.actionName}} API Server Backend Exporter Service Account
+    phases:
+      - namespaceList:
+        - "monitoring"
+        replicasPerNamespace: {{$replicasPerNamespace}}
+        tuningSet: Sequence
+        objectBundle:
+          - objectTemplatePath: "modules/apiserver-backend-exporter/serviceaccount.yaml"
+            basename: apiserver-backend-exporter
+  - name: {{.actionName}} API Server Backend Exporter Cluster Role
+    phases:
+      - namespaceList:
+        - ""
+        replicasPerNamespace: {{$replicasPerNamespace}}
+        tuningSet: Sequence
+        objectBundle:
+          - objectTemplatePath: "modules/apiserver-backend-exporter/clusterrole.yaml"
+            basename: apiserver-backend-exporter
+  - name: {{.actionName}} API Server Backend Exporter Cluster Role Binding
+    phases:
+      - namespaceList:
+        - ""
+        replicasPerNamespace: {{$replicasPerNamespace}}
+        tuningSet: Sequence
+        objectBundle:
+          - objectTemplatePath: "modules/apiserver-backend-exporter/clusterrolebinding.yaml"
+            basename: apiserver-backend-exporter
+  - name: {{.actionName}} API Server Backend Exporter Config
+    phases:
+      - namespaceList:
+        - "monitoring"
+        replicasPerNamespace: {{$replicasPerNamespace}}
+        tuningSet: Sequence
+        objectBundle:
+          - objectTemplatePath: "modules/apiserver-backend-exporter/configmap.yaml"
+            basename: apiserver-backend-exporter
+  - name: {{.actionName}} API Server Backend Exporter Service
+    phases:
+      - namespaceList:
+        - "monitoring"
+        replicasPerNamespace: {{$replicasPerNamespace}}
+        tuningSet: Sequence
+        objectBundle:
+          - objectTemplatePath: "modules/apiserver-backend-exporter/service.yaml"
+            basename: apiserver-backend-exporter
+  - name: {{.actionName}} API Server Backend Exporter Deployment
+    phases:
+      - namespaceList:
+        - "monitoring"
+        replicasPerNamespace: {{$replicasPerNamespace}}
+        tuningSet: {{$tuningSet}}
+        objectBundle:
+          - objectTemplatePath: "modules/apiserver-backend-exporter/deployment.yaml"
+            basename: apiserver-backend-exporter
+  - name: {{.actionName}} API Server Backend Exporter Pod Monitor
+    phases:
+      - namespaceList:
+        - "monitoring"
+        replicasPerNamespace: {{$replicasPerNamespace}}
+        tuningSet: {{$tuningSet}}
+        objectBundle:
+          - objectTemplatePath: "modules/apiserver-backend-exporter/podmonitor.yaml"
+            basename: apiserver-backend-exporter

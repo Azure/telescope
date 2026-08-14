@@ -1,0 +1,11 @@
+apiVersion: acn.azure.com/v1alpha1
+kind: ContainerNetworkMetric
+metadata:
+  name: container-network-metric
+spec:
+  filters:
+    - metric: dns
+      includeFilters:
+        - name: all-dns
+          protocol:
+            - dns

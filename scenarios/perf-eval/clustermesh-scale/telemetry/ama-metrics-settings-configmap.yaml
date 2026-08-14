@@ -1,0 +1,101 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ama-metrics-settings-configmap
+  namespace: kube-system
+data:
+  schema-version: v2
+  config-version: cmsh-v2
+  cluster-metrics: |-
+    default-targets-scrape-enabled: |-
+      kubelet = false
+      coredns = false
+      cadvisor = false
+      kubeproxy = false
+      apiserver = false
+      kubestate = false
+      nodeexporter = false
+      windowsexporter = false
+      windowskubeproxy = false
+      kappiebasic = false
+      networkobservabilityRetina = false
+      networkobservabilityHubble = false
+      networkobservabilityCilium = false
+      acstor-capacity-provisioner = false
+      acstor-metrics-exporter = false
+      local-csi-driver = false
+      ztunnel = false
+      istio-cni = false
+      dcgmexporter = false
+      prometheuscollectorhealth = true
+    pod-annotation-based-scraping: |-
+      podannotationnamespaceregex = "$^"
+    default-targets-metrics-keep-list: |-
+      kubelet = ""
+      coredns = ""
+      cadvisor = ""
+      kubeproxy = ""
+      apiserver = ""
+      kubestate = ""
+      nodeexporter = ""
+      windowsexporter = ""
+      windowskubeproxy = ""
+      podannotations = ""
+      kappiebasic = ""
+      networkobservabilityRetina = ""
+      networkobservabilityHubble = ""
+      networkobservabilityCilium = ""
+      acstor-capacity-provisioner = ""
+      acstor-metrics-exporter = ""
+      local-csi-driver = ""
+      ztunnel = ""
+      istio-cni = ""
+      dcgmexporter = ""
+    minimal-ingestion-profile: |-
+      enabled = false
+    default-targets-scrape-interval-settings: |-
+      kubelet = "15s"
+      coredns = "15s"
+      cadvisor = "15s"
+      kubeproxy = "15s"
+      apiserver = "15s"
+      kubestate = "15s"
+      nodeexporter = "15s"
+      windowsexporter = "15s"
+      windowskubeproxy = "15s"
+      kappiebasic = "15s"
+      networkobservabilityRetina = "15s"
+      networkobservabilityHubble = "15s"
+      networkobservabilityCilium = "15s"
+      acstor-capacity-provisioner = "15s"
+      acstor-metrics-exporter = "15s"
+      local-csi-driver = "15s"
+      ztunnel = "15s"
+      istio-cni = "15s"
+      dcgmexporter = "15s"
+      prometheuscollectorhealth = "15s"
+      podannotations = "15s"
+  controlplane-metrics: |-
+    default-targets-scrape-enabled: |-
+      apiserver = true
+      cluster-autoscaler = true
+      node-auto-provisioning = true
+      kube-scheduler = true
+      kube-controller-manager = true
+      etcd = true
+      istio = true
+    default-targets-metrics-keep-list: |-
+      apiserver = ""
+      cluster-autoscaler = ""
+      node-auto-provisioning = ""
+      kube-scheduler = ""
+      kube-controller-manager = ""
+      etcd = ""
+      istio = ""
+    minimal-ingestion-profile: |-
+      enabled = false
+  prometheus-collector-settings: |-
+    cluster_alias = ""
+    debug-mode = false
+    https_config = true
+    secrets_access_namespaces = ""

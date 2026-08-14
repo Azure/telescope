@@ -1,0 +1,122 @@
+{{$action := .action}} # start, gather
+
+{{$suffix := DefaultParam .suffix ""}}
+
+# Pod-Churn Stress Test (scale scenario #2) — slope-over-time / sustained-rate
+# measurements layered on top of clustermesh-metrics.yaml. These queries
+# surface the "growth over time" signals that point-in-time percentiles
+# can hide:
+#
+#   * Memory drift: positive nonzero value over a 10-minute churn window
+#     suggests a leak or unbounded queue. Compared head-to-head with a
+#     no-churn baseline run.
+#   * Sustained event-queue rate: max-over-time of a 1m-sliding rate. If
+#     this stays elevated while drift is positive, kvstore is falling
+#     behind the churn.
+#   * Remote-cluster failure rate: how fast does this monotonic counter
+#     accumulate under sustained churn? rate() is the counter-safe
+#     primitive (deriv() mishandles counter resets per the Prometheus
+#     docs; the rubber-duck design review caught this).
+
+steps:
+  - name: {{$action}} Pod Churn Stress Measurements
+    measurements:
+    # -----------------------------------------------------------------
+    # Cilium-agent memory drift — leak detection. Two flavors:
+    #   MaxPodDeriv: worst single agent series. Flags an outlier node.
+    #   SumDeriv:    total per-cluster memory growth across all agents.
+    #                This is the "per-cluster footprint" number — what
+    #                the scaling-curve dashboard uses.
+    # deriv() returns bytes/sec; we present as MB/s for readability.
+    # cilium_process_resident_memory_bytes is a gauge, so deriv() is
+    # well-defined (handles negative slopes correctly).
+    # -----------------------------------------------------------------
+    - Identifier: CiliumAgentMemoryDrift{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Agent Memory Drift {{$suffix}}
+        metricVersion: v1
+        unit: MB/s
+        enableViolations: false
+        queries:
+        - name: MaxPodDeriv
+          query: max(deriv(cilium_process_resident_memory_bytes[%v:])) / 1024 / 1024
+        - name: SumDeriv
+          query: sum(deriv(cilium_process_resident_memory_bytes[%v:])) / 1024 / 1024
+        - name: Perc50PodDeriv
+          query: quantile(0.50, deriv(cilium_process_resident_memory_bytes[%v:])) / 1024 / 1024
+
+    # -----------------------------------------------------------------
+    # clustermesh-apiserver memory drift — same idea, different process.
+    # Uses cAdvisor's container_memory_working_set_bytes (no cilium-side
+    # gauge for the apiserver pod exists). Filters per the design review:
+    #   namespace=kube-system  pins to the AKS-managed Cilium deployment
+    #                          (avoid duplicate scrapes from a future
+    #                          customer-installed Cilium in another ns).
+    #   container!=""         drops cAdvisor's per-pod aggregate row
+    #                          (empty container label).
+    #   container!="POD"      drops the pause container's own series.
+    # -----------------------------------------------------------------
+    - Identifier: ClustermeshApiserverMemoryDrift{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ClusterMesh Apiserver Memory Drift {{$suffix}}
+        metricVersion: v1
+        unit: MB/s
+        enableViolations: false
+        queries:
+        - name: MaxContainerDeriv
+          query: max(deriv(container_memory_working_set_bytes{namespace="kube-system",pod=~"clustermesh-apiserver-.*",container!="",container!="POD"}[%v:])) / 1024 / 1024
+        - name: SumDeriv
+          query: sum(deriv(container_memory_working_set_bytes{namespace="kube-system",pod=~"clustermesh-apiserver-.*",container!="",container!="POD"}[%v:])) / 1024 / 1024
+
+    # -----------------------------------------------------------------
+    # Sustained kvstore event-queue rate. The headline saturation signal
+    # for sustained churn — if this stays high across the run while
+    # MemoryDrift is positive, the system is queueing faster than it's
+    # draining.
+    #
+    # cilium_kvstoremesh_kvstore_events_queue_seconds_count is a counter
+    # (cumulative count of queued events) — must use rate(), not deriv().
+    # max_over_time of a 1m-sliding rate gives "worst sustained burst" —
+    # spike-tolerant unlike a point sample.
+    # -----------------------------------------------------------------
+    - Identifier: SustainedKvstoreEventRate{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Sustained Kvstore Event Rate {{$suffix}}
+        metricVersion: v1
+        unit: events/s
+        enableViolations: false
+        queries:
+        - name: Max
+          query: max(max_over_time(rate(cilium_kvstoremesh_kvstore_events_queue_seconds_count[1m])[%v:]))
+        - name: Perc50
+          query: quantile(0.50, max_over_time(rate(cilium_kvstoremesh_kvstore_events_queue_seconds_count[1m])[%v:]))
+
+    # -----------------------------------------------------------------
+    # Remote-cluster failure rate. cilium_clustermesh_remote_cluster_failures
+    # is a monotonic counter — accumulated reconnect failures from this
+    # cluster's perspective. Under sustained churn the spec line 65
+    # "missed or delayed updates" signal is whether this rate climbs
+    # above the baseline of ~4-6/run observed on green N=20 runs (see
+    # plan.md "Decisions deliberately deferred" item 6).
+    #
+    # rate() handles counter resets correctly; deriv() does not.
+    # -----------------------------------------------------------------
+    - Identifier: RemoteClusterFailureRate{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ClusterMesh Remote Cluster Failure Rate {{$suffix}}
+        metricVersion: v1
+        unit: failures/s
+        enableViolations: false
+        queries:
+        - name: Max
+          query: max(max_over_time(rate(cilium_clustermesh_remote_cluster_failures[1m])[%v:]))
+        - name: Perc50
+          query: quantile(0.50, max_over_time(rate(cilium_clustermesh_remote_cluster_failures[1m])[%v:]))

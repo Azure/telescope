@@ -602,13 +602,14 @@ variable "vnet_peering_config" {
 }
 
 variable "fleet_config" {
-  description = "Azure Fleet + ClusterMesh profile. When enabled, provisions a Fleet resource, one member per entry in members (labeled member_label_key=member_label_value), and creates+applies a clustermeshprofile via local-exec against the private-preview az fleet CLI (see modules/terraform/azure/fleet/)."
+  description = "Azure Fleet + ClusterMesh profile. When enabled, provisions a Fleet resource, one member per entry in members, and creates+applies a clustermeshprofile via local-exec against the private-preview az fleet CLI. member_initial_label_value may be nonmatching so validation can enroll a large tier in batches."
   type = object({
-    enabled            = optional(bool, false)
-    fleet_name         = optional(string, "")
-    cmp_name           = optional(string, "")
-    member_label_key   = optional(string, "mesh")
-    member_label_value = optional(string, "true")
+    enabled                    = optional(bool, false)
+    fleet_name                 = optional(string, "")
+    cmp_name                   = optional(string, "")
+    member_label_key           = optional(string, "mesh")
+    member_label_value         = optional(string, "true")
+    member_initial_label_value = optional(string, "")
     members = optional(list(object({
       member_name = string
       aks_role    = string

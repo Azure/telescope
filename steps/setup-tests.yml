@@ -23,6 +23,160 @@ steps:
       run_id: ${{ parameters.run_id }}
 
   - script: |
+      set -euo pipefail
+
+      fail_job_preflight() {
+        local message="$1"
+        echo "##vso[task.setvariable variable=SKIP_RESOURCE_MANAGEMENT]true"
+        echo "##vso[task.logissue type=error;]$message"
+        echo "$message" >&2
+        exit 1
+      }
+
+      parse_nonnegative_integer() {
+        local output_name="$1"
+        local input_name="$2"
+        local raw_value="$3"
+        local maximum="$4"
+        if ! [[ "$raw_value" =~ ^(0|[1-9][0-9]*)$ ]]; then
+          fail_job_preflight \
+            "$input_name must be a canonical non-negative integer, got '$raw_value'."
+        fi
+        if [ "${#raw_value}" -gt "${#maximum}" ] || {
+          [ "${#raw_value}" -eq "${#maximum}" ] &&
+            [[ "$raw_value" > "$maximum" ]]
+        }; then
+          fail_job_preflight "$input_name exceeds the supported maximum $maximum."
+        fi
+        printf -v "$output_name" '%d' "$raw_value"
+      }
+
+      job_start_epoch=$(date +%s)
+      echo "ClusterMesh job start epoch: $job_start_epoch"
+      echo "##vso[task.setvariable variable=CLUSTERMESH_JOB_START_EPOCH]$job_start_epoch"
+
+      parse_nonnegative_integer suite_budget_seconds \
+        SUITE_TOTAL_BUDGET_SECONDS "${SUITE_TOTAL_BUDGET_SECONDS:-0}" 2147483647
+      parse_nonnegative_integer timeout_buffer_seconds \
+        SUITE_JOB_TIMEOUT_BUFFER_SECONDS \
+        "${SUITE_JOB_TIMEOUT_BUFFER_SECONDS:-3600}" 2147483647
+      parse_nonnegative_integer job_timeout_minutes \
+        CLUSTERMESH_JOB_TIMEOUT_MINUTES \
+        "${CLUSTERMESH_JOB_TIMEOUT_MINUTES:-0}" 35790
+
+      if [ "$suite_budget_seconds" -gt 0 ]; then
+        required_timeout_seconds=$((suite_budget_seconds + timeout_buffer_seconds))
+        if [ "$job_timeout_minutes" -eq 0 ]; then
+          echo "ClusterMesh job timeout: unlimited; suite=${suite_budget_seconds}s" \
+            "required post-suite buffer=${timeout_buffer_seconds}s"
+        else
+          actual_timeout_seconds=$((job_timeout_minutes * 60))
+          required_timeout_minutes=$(((required_timeout_seconds + 59) / 60))
+          echo "ClusterMesh job timeout envelope: actual=${job_timeout_minutes}m" \
+            "required>=${required_timeout_minutes}m suite=${suite_budget_seconds}s" \
+            "post-suite buffer=${timeout_buffer_seconds}s"
+          if [ "$actual_timeout_seconds" -lt "$required_timeout_seconds" ]; then
+            fail_job_preflight \
+              "ClusterMesh job timeout is too short: need at least ${required_timeout_minutes}m, got ${job_timeout_minutes}m."
+          fi
+        fi
+      fi
+    displayName: "Record ClusterMesh job start"
+    condition: startsWith(variables['SCENARIO_NAME'], 'clustermesh')
+
+  - script: |
+      set -euo pipefail
+
+      fail_capacity_preflight() {
+        local message="$1"
+        echo "##vso[task.setvariable variable=SKIP_RESOURCE_MANAGEMENT]true"
+        echo "##vso[task.logissue type=error;]$message"
+        echo "$message" >&2
+        exit 1
+      }
+
+      parse_nonnegative_integer() {
+        local output_name="$1"
+        local input_name="$2"
+        local raw_value="$3"
+        local maximum="$4"
+        if ! [[ "$raw_value" =~ ^(0|[1-9][0-9]*)$ ]]; then
+          fail_capacity_preflight \
+            "$input_name must be a canonical non-negative integer, got '$raw_value'."
+        fi
+        if [ "${#raw_value}" -gt "${#maximum}" ] || {
+          [ "${#raw_value}" -eq "${#maximum}" ] &&
+            [[ "$raw_value" > "$maximum" ]]
+        }; then
+          fail_capacity_preflight "$input_name exceeds the supported maximum $maximum."
+        fi
+        printf -v "$output_name" '%d' "$raw_value"
+      }
+
+      cpu_cores=$(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc)
+      memory_total_kb=$(awk '/^MemTotal:/ {print $2}' /proc/meminfo)
+      memory_available_kb=$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)
+      disk_total_kb=""
+      disk_available_kb=""
+      read -r disk_total_kb disk_available_kb < <(
+        df -Pk "$PIPELINE_WORKSPACE" | awk 'NR == 2 {print $2, $4}'
+      ) || true
+
+      for name_value in \
+        "online CPU count=$cpu_cores" \
+        "total memory KiB=$memory_total_kb" \
+        "available memory KiB=$memory_available_kb" \
+        "workspace disk total KiB=$disk_total_kb" \
+        "workspace disk available KiB=$disk_available_kb"; do
+        name="${name_value%%=*}"
+        value="${name_value#*=}"
+        if ! [[ "$value" =~ ^[1-9][0-9]*$ ]]; then
+          fail_capacity_preflight "Unable to determine ClusterMesh agent $name."
+        fi
+      done
+
+      parse_nonnegative_integer minimum_disk_gi \
+        AGENT_DISK_MIN_FREE_GI "${AGENT_DISK_MIN_FREE_GI:-10}" 1048576
+      parse_nonnegative_integer minimum_memory_gi \
+        AGENT_MEMORY_MIN_FREE_GI "${AGENT_MEMORY_MIN_FREE_GI:-0}" 1048576
+
+      memory_total_mib=$((memory_total_kb / 1024))
+      memory_available_mib=$((memory_available_kb / 1024))
+      disk_total_gi=$((disk_total_kb / 1024 / 1024))
+      disk_available_gi=$((disk_available_kb / 1024 / 1024))
+      load_average=$(awk '{print $1, $2, $3}' /proc/loadavg)
+      open_file_limit=$(ulimit -n)
+      process_limit=$(ulimit -u)
+      docker_root=$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || true)
+
+      echo "ClusterMesh agent capacity:" \
+        "agent=${AGENT_NAME:-unknown} cpu=${cpu_cores} load=${load_average}"
+      echo "  memory=${memory_available_mib} MiB available /" \
+        "${memory_total_mib} MiB total; minimum=${minimum_memory_gi} GiB"
+      echo "  workspace disk=${disk_available_gi} GiB available /" \
+        "${disk_total_gi} GiB total; minimum=${minimum_disk_gi} GiB"
+      echo "  docker root=${docker_root:-unavailable}" \
+        "open-files=${open_file_limit} processes=${process_limit}"
+      echo "##vso[task.setvariable variable=CLUSTERMESH_AGENT_CPU_CORES]$cpu_cores"
+      echo "##vso[task.setvariable variable=CLUSTERMESH_AGENT_MEMORY_TOTAL_MIB]$memory_total_mib"
+      echo "##vso[task.setvariable variable=CLUSTERMESH_AGENT_MEMORY_AVAILABLE_MIB]$memory_available_mib"
+      echo "##vso[task.setvariable variable=CLUSTERMESH_AGENT_DISK_TOTAL_GI]$disk_total_gi"
+      echo "##vso[task.setvariable variable=CLUSTERMESH_AGENT_DISK_AVAILABLE_GI]$disk_available_gi"
+
+      if [ "$disk_available_kb" -lt $((minimum_disk_gi * 1024 * 1024)) ]; then
+        fail_capacity_preflight \
+          "ClusterMesh agent workspace disk is below the configured ${minimum_disk_gi} GiB watermark."
+      fi
+      if [ "$memory_available_kb" -lt $((minimum_memory_gi * 1024 * 1024)) ]; then
+        fail_capacity_preflight \
+          "ClusterMesh agent memory is below the configured ${minimum_memory_gi} GiB watermark."
+      fi
+    displayName: "Preflight ClusterMesh agent capacity"
+    condition: startsWith(variables['SCENARIO_NAME'], 'clustermesh')
+    env:
+      PIPELINE_WORKSPACE: $(Pipeline.Workspace)
+
+  - script: |
       run_url="$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=logs&j=$(System.JobId)"
       echo "Run URL: $run_url"
       echo "##vso[task.setvariable variable=RUN_URL]$run_url"
@@ -61,16 +215,327 @@ steps:
       pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
 
       echo "Install Ubuntu packages"
-      # Recover from interrupted or broken package installations. The '|| true' ensures the script continues even if dpkg returns a non-zero exit code.
-      sudo dpkg --configure -a || true
-      sudo apt-get update
-      sudo apt-get -y install bc netcat
+      # Hosted/shared agents can have an automatic package operation in flight.
+      # Wait on dpkg's lock instead of failing an otherwise healthy long run.
+      configured=false
+      for attempt in $(seq 1 60); do
+        if sudo dpkg --configure -a; then
+          configured=true
+          break
+        fi
+        echo "dpkg is busy (attempt $attempt/60); retrying in 5s..."
+        sleep 5
+      done
+      if [ "$configured" != "true" ]; then
+        echo "Timed out waiting for dpkg configuration lock." >&2
+        exit 1
+      fi
+
+      apt_retry() {
+        local description="$1"
+        shift
+        local attempt
+
+        for attempt in $(seq 1 60); do
+          if sudo "$@"; then
+            return 0
+          fi
+          echo "$description failed or is locked (attempt $attempt/60); retrying in 5s..."
+          sleep 5
+        done
+        echo "Timed out waiting for $description." >&2
+        return 1
+      }
+
+      apt_retry "apt-get update" \
+        apt-get -o DPkg::Lock::Timeout=300 update
+      apt_retry "apt-get install" \
+        apt-get -o DPkg::Lock::Timeout=300 -y install bc netcat
     displayName: "Install Dependencies"
 
   - template: /steps/cloud/${{ parameters.cloud }}/login.yml
     parameters:
       region: ${{ parameters.region }}
       credential_type: ${{ parameters.credential_type }}
+
+  - script: |
+      set -euo pipefail
+      actual_subscription_id=$(az account show --query id -o tsv)
+      if [[ "${actual_subscription_id,,}" != "${CLUSTERMESH_REQUIRED_SUBSCRIPTION_ID,,}" ]]; then
+        echo "Expected required ClusterMesh subscription ${CLUSTERMESH_REQUIRED_SUBSCRIPTION_ID}, got ${actual_subscription_id}." >&2
+        exit 1
+      fi
+      echo "Verified required ClusterMesh subscription: $actual_subscription_id"
+    displayName: "Verify required ClusterMesh subscription"
+    condition: and(${{ eq(parameters.cloud, 'azure') }},
+                   startsWith(variables['SCENARIO_NAME'], 'clustermesh'),
+                   ne(variables['CLUSTERMESH_REQUIRED_SUBSCRIPTION_ID'], ''))
+
+  - script: |
+      set -euo pipefail
+
+      required="${CLUSTERMESH_REQUIRED_MANAGED_CLUSTERS:-${CLUSTER_COUNT:?CLUSTER_COUNT is required}}"
+      headroom="${CLUSTERMESH_MANAGED_CLUSTER_QUOTA_HEADROOM:-0}"
+      for value in "$required" "$headroom"; do
+        if ! [[ "$value" =~ ^[0-9]+$ ]]; then
+          echo "ClusterMesh managed-cluster quota values must be non-negative integers: required=$required headroom=$headroom" >&2
+          exit 1
+        fi
+      done
+
+      actual_subscription_id=$(az account show --query id -o tsv)
+      if [[ "${actual_subscription_id,,}" != "${AZURE_SUBSCRIPTION_ID,,}" ]]; then
+        echo "Expected Azure subscription ${AZURE_SUBSCRIPTION_ID}, got ${actual_subscription_id}" >&2
+        exit 1
+      fi
+
+      usage=$(az rest --method get \
+        --url "https://management.azure.com/subscriptions/${actual_subscription_id}/providers/Microsoft.ContainerService/locations/${REGION}/usages?api-version=2024-01-01" \
+        -o json)
+      quota=$(echo "$usage" | jq -c \
+        '[.value[] | select(.name.value == "ManagedClusters")][0] // empty')
+      if [ -z "$quota" ]; then
+        echo "Unable to resolve Microsoft.ContainerService ManagedClusters quota in $REGION." >&2
+        exit 1
+      fi
+
+      current=$(echo "$quota" | jq -r '.currentValue')
+      limit=$(echo "$quota" | jq -r '.limit')
+      for value in "$current" "$limit"; do
+        if ! [[ "$value" =~ ^[0-9]+$ ]]; then
+          echo "ManagedClusters quota returned malformed usage: current=$current limit=$limit" >&2
+          exit 1
+        fi
+      done
+
+      required_with_headroom=$(( required + headroom ))
+      available=$(( limit - current ))
+      echo "ClusterMesh managed-cluster quota preflight: subscription=$actual_subscription_id region=$REGION"
+      echo "  current=$current limit=$limit available=$available"
+      echo "  run requirement=$required clusters + reserved headroom=$headroom clusters"
+      if [ "$available" -lt "$required_with_headroom" ]; then
+        echo "Insufficient ManagedClusters quota in $REGION: need $required_with_headroom available clusters, have $available (current=$current limit=$limit)." >&2
+        exit 1
+      fi
+    displayName: "Preflight ClusterMesh managed-cluster quota"
+    condition: and(startsWith(variables['SCENARIO_NAME'], 'clustermesh'),
+                   eq(variables['CLUSTERMESH_QUOTA_PREFLIGHT_ENABLED'], 'true'))
+    env:
+      REGION: ${{ parameters.region }}
+
+  - script: |
+      set -euo pipefail
+
+      family_name="${CLUSTERMESH_VM_FAMILY_QUOTA_NAME:?CLUSTERMESH_VM_FAMILY_QUOTA_NAME is required}"
+      required="${CLUSTERMESH_REQUIRED_FAMILY_VCPUS:?CLUSTERMESH_REQUIRED_FAMILY_VCPUS is required}"
+      headroom="${CLUSTERMESH_QUOTA_HEADROOM_VCPUS:-0}"
+      for value in "$required" "$headroom"; do
+        if ! [[ "$value" =~ ^[0-9]+$ ]]; then
+          echo "ClusterMesh quota values must be non-negative integers: required=$required headroom=$headroom" >&2
+          exit 1
+        fi
+      done
+
+      actual_subscription_id=$(az account show --query id -o tsv)
+      if [[ "${actual_subscription_id,,}" != "${AZURE_SUBSCRIPTION_ID,,}" ]]; then
+        echo "Expected Azure subscription ${AZURE_SUBSCRIPTION_ID}, got ${actual_subscription_id}" >&2
+        exit 1
+      fi
+
+      usage=$(az vm list-usage --location "$REGION" -o json)
+      family=$(echo "$usage" | jq -c --arg name "$family_name" \
+        '[.[] | select(.name.value == $name)][0] // empty')
+      regional=$(echo "$usage" | jq -c \
+        '[.[] | select(.name.value == "cores")][0] // empty')
+      if [ -z "$family" ] || [ -z "$regional" ]; then
+        echo "Unable to resolve VM quota usage for family=$family_name or regional cores in $REGION." >&2
+        exit 1
+      fi
+
+      family_current=$(echo "$family" | jq -r '.currentValue')
+      family_limit=$(echo "$family" | jq -r '.limit')
+      regional_current=$(echo "$regional" | jq -r '.currentValue')
+      regional_limit=$(echo "$regional" | jq -r '.limit')
+      required_with_headroom=$(( required + headroom ))
+      family_available=$(( family_limit - family_current ))
+      regional_available=$(( regional_limit - regional_current ))
+
+      echo "ClusterMesh quota preflight: subscription=$actual_subscription_id region=$REGION"
+      echo "  family=$family_name current=$family_current limit=$family_limit available=$family_available"
+      echo "  regional cores current=$regional_current limit=$regional_limit available=$regional_available"
+      echo "  run requirement=$required vCPU + reserved headroom=$headroom vCPU"
+      if [ "$family_available" -lt "$required_with_headroom" ]; then
+        echo "Insufficient $family_name quota: need $required_with_headroom available vCPU, have $family_available." >&2
+        exit 1
+      fi
+      if [ "$regional_available" -lt "$required_with_headroom" ]; then
+        echo "Insufficient regional core quota: need $required_with_headroom available vCPU, have $regional_available." >&2
+        exit 1
+      fi
+    displayName: "Preflight ClusterMesh VM quota"
+    condition: and(startsWith(variables['SCENARIO_NAME'], 'clustermesh'),
+                   eq(variables['CLUSTERMESH_QUOTA_PREFLIGHT_ENABLED'], 'true'))
+    env:
+      REGION: ${{ parameters.region }}
+
+  - script: |
+      # Read-only managed-telemetry checks before Terraform.
+      set -euo pipefail
+
+      cluster_count="${CLUSTER_COUNT:?CLUSTER_COUNT is required}"
+      amw_clusters_per_workspace="${AKS_AMW_CLUSTERS_PER_WORKSPACE:-1}"
+      amw_force_shard_naming="${AKS_AMW_FORCE_SHARD_NAMING:-false}"
+      amw_regional_workspace_limit="${AKS_AMW_REGIONAL_WORKSPACE_LIMIT:-100}"
+      amw_max_active_time_series="${AKS_AMW_MAX_ACTIVE_TIME_SERIES:-1000000}"
+      amw_max_events_per_minute="${AKS_AMW_MAX_EVENTS_PER_MINUTE:-1000000}"
+      for name_value in \
+        "CLUSTER_COUNT=$cluster_count" \
+        "AKS_AMW_CLUSTERS_PER_WORKSPACE=$amw_clusters_per_workspace" \
+        "AKS_AMW_REGIONAL_WORKSPACE_LIMIT=$amw_regional_workspace_limit" \
+        "AKS_AMW_MAX_ACTIVE_TIME_SERIES=$amw_max_active_time_series" \
+        "AKS_AMW_MAX_EVENTS_PER_MINUTE=$amw_max_events_per_minute"; do
+        name="${name_value%%=*}"
+        value="${name_value#*=}"
+        if ! [[ "$value" =~ ^[1-9][0-9]*$ ]]; then
+          echo "$name must be a positive integer, got '$value'." >&2
+          exit 1
+        fi
+      done
+      if [ "${amw_force_shard_naming,,}" != "true" ] &&
+         [ "${amw_force_shard_naming,,}" != "false" ]; then
+        echo "AKS_AMW_FORCE_SHARD_NAMING must be true or false." >&2
+        exit 1
+      fi
+
+      actual_subscription_id=$(az account show --query id -o tsv)
+      if [[ "${actual_subscription_id,,}" != "${AZURE_SUBSCRIPTION_ID,,}" ]]; then
+        echo "Expected Azure subscription ${AZURE_SUBSCRIPTION_ID}, got ${actual_subscription_id}" >&2
+        exit 1
+      fi
+
+      register_preview="${AKS_CONTROL_PLANE_METRICS_REGISTER_PREVIEW:-false}"
+      feature_name="AzureMonitorMetricsControlPlanePreview"
+      if [ "${register_preview,,}" = "true" ]; then
+        echo "AKS_CONTROL_PLANE_METRICS_REGISTER_PREVIEW=true; configure-managed-prometheus.sh will register $feature_name if it is not already Registered. Skipping the hard Registered-state requirement in this preflight."
+      else
+        feature_state=$(az feature show \
+          --namespace Microsoft.ContainerService \
+          --name "$feature_name" \
+          --query properties.state -o tsv 2>/dev/null || true)
+        if [ "$feature_state" != "Registered" ]; then
+          echo "##vso[task.logissue type=error;] AKS control-plane metrics preview feature $feature_name is ${feature_state:-unknown}, not Registered." >&2
+          echo "Register it once with:" >&2
+          echo "  az feature register --namespace Microsoft.ContainerService --name $feature_name" >&2
+          echo "then re-register Microsoft.ContainerService, or set AKS_CONTROL_PLANE_METRICS_REGISTER_PREVIEW=true so the configure step registers it." >&2
+          exit 1
+        fi
+        echo "Preview feature $feature_name is Registered."
+      fi
+
+      # Fetch regional AMWs once for capability and quota checks.
+      amw_existing_accounts_json=$(az monitor account list --output json)
+      amw_existing_regional_accounts_json=$(
+        printf '%s' "$amw_existing_accounts_json" \
+          | jq --arg region "$REGION" \
+            '[.[] | select((.location // "" | ascii_downcase) == ($region | ascii_downcase))]'
+      )
+      amw_existing_regional_workspace_count=$(
+        printf '%s' "$amw_existing_regional_accounts_json" | jq 'length'
+      )
+
+      # Limits above 1M require the metricsContainers preview child resource.
+      _sanitize_az_error() {
+        printf '%s' "$1" \
+          | tr '\n' ' ' \
+          | sed -E 's/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/[redacted-guid]/g' \
+          | cut -c1-300
+      }
+      required_metrics_container_api_version="2025-05-03-preview"
+      if [ "$amw_max_active_time_series" -gt 1000000 ] ||
+         [ "$amw_max_events_per_minute" -gt 1000000 ]; then
+        amw_probe_id=$(printf '%s' "$amw_existing_regional_accounts_json" | jq -r '.[0].id // empty')
+        if [ -n "$amw_probe_id" ]; then
+          amw_probe_rc=0
+          amw_probe_stderr=$(az resource show \
+              --ids "${amw_probe_id}/metricsContainers/default" \
+              --api-version "$required_metrics_container_api_version" \
+              -o none 2>&1) || amw_probe_rc=$?
+          if [ "$amw_probe_rc" -eq 0 ]; then
+            echo "Verified Microsoft.Monitor/accounts/metricsContainers api-version $required_metrics_container_api_version directly against existing AMW $amw_probe_id (required for max_active_time_series=$amw_max_active_time_series, max_events_per_minute=$amw_max_events_per_minute)."
+          else
+            case "$amw_probe_stderr" in
+              *NoRegisteredProviderFound*|*InvalidApiVersion*|*UnsupportedApiVersion*|*"not supported"*|*ResourceTypeNotSupported*)
+                echo "##vso[task.logissue type=error;] Requested Azure Monitor ingestion limits (max_active_time_series=$amw_max_active_time_series, max_events_per_minute=$amw_max_events_per_minute) exceed the 1,000,000 platform default and require Microsoft.Monitor/accounts/metricsContainers api-version $required_metrics_container_api_version, but direct ARM verification against existing AMW $amw_probe_id shows this subscription/region does not support that resource type/api-version: $(_sanitize_az_error "$amw_probe_stderr")" >&2
+                exit 1
+                ;;
+              *AuthorizationFailed*|*Forbidden*|*SubscriptionNotFound*|*InvalidSubscriptionId*|*InvalidAuthenticationToken*)
+                echo "##vso[task.logissue type=error;] Direct ARM verification of Microsoft.Monitor/accounts/metricsContainers against existing AMW $amw_probe_id failed due to an authorization/subscription error: $(_sanitize_az_error "$amw_probe_stderr"). Confirm the pipeline's service connection/identity has Reader access to $amw_probe_id and that the selected subscription is correct." >&2
+                exit 1
+                ;;
+              *ResourceNotFound*|*NotFound*|*404*)
+                echo "Direct ARM probe of Microsoft.Monitor/accounts/metricsContainers/default against existing AMW $amw_probe_id returned ResourceNotFound (informational, inconclusive): this specific AMW may never have had a metricsContainers/default child created (e.g. it was created at the 1,000,000 platform default). This does NOT indicate api-version $required_metrics_container_api_version or the metricsContainers resource type is unsupported for the subscription. Continuing without a hard failure here -- configure-managed-prometheus.sh performs the authoritative creation/verification check at configure time."
+                ;;
+              *)
+                echo "##vso[task.logissue type=error;] Unexpected error while verifying Microsoft.Monitor/accounts/metricsContainers api-version $required_metrics_container_api_version against existing AMW $amw_probe_id: $(_sanitize_az_error "$amw_probe_stderr")" >&2
+                exit 1
+                ;;
+            esac
+          fi
+        else
+          echo "No existing Azure Monitor workspace found in $REGION yet; Microsoft.Monitor/accounts/metricsContainers api-version $required_metrics_container_api_version cannot be probed until configure-managed-prometheus.sh creates the first AMW. Continuing without a hard failure here -- the configure step performs its own authoritative check at creation time."
+        fi
+      fi
+
+      # Regional AMW quota uses exact deterministic target names when possible.
+      amw_desired_workspace_count=$(( (cluster_count + amw_clusters_per_workspace - 1) / amw_clusters_per_workspace ))
+      amw_rotation_enabled="${AKS_AMW_ROTATION_ENABLED:-false}"
+      amw_name_prefix="${AKS_CONTROL_PLANE_AMW_NAME_PREFIX:-cmsh-scale-${REGION}-amw}"
+
+      if [ "${amw_rotation_enabled,,}" = "true" ]; then
+        # Rotation target is unknown here, so use the conservative upper bound.
+        amw_missing_workspace_count=$amw_desired_workspace_count
+      else
+        # Deterministic targets let reruns count only missing workspaces.
+        amw_target_workspace_names=()
+        if [ "$amw_clusters_per_workspace" -gt 1 ] ||
+           [ "${amw_force_shard_naming,,}" = "true" ]; then
+          for ((amw_i = 1; amw_i <= amw_desired_workspace_count; amw_i++)); do
+            amw_target_workspace_names+=("$(printf '%s-shard-%03d' "$amw_name_prefix" "$amw_i")")
+          done
+        else
+          for ((amw_i = 1; amw_i <= cluster_count; amw_i++)); do
+            amw_target_workspace_names+=("${amw_name_prefix}-mesh-${amw_i}")
+          done
+        fi
+
+        declare -A amw_existing_name_set=()
+        while IFS= read -r amw_existing_name; do
+          [ -n "$amw_existing_name" ] && amw_existing_name_set["$amw_existing_name"]=1
+        done < <(printf '%s' "$amw_existing_regional_accounts_json" | jq -r '.[].name')
+
+        amw_missing_workspace_count=0
+        for amw_target_name in "${amw_target_workspace_names[@]}"; do
+          if [ -z "${amw_existing_name_set[$amw_target_name]:-}" ]; then
+            amw_missing_workspace_count=$((amw_missing_workspace_count + 1))
+          fi
+        done
+      fi
+
+      amw_projected_regional_workspace_count=$((
+        amw_existing_regional_workspace_count + amw_missing_workspace_count
+      ))
+      echo "Managed-telemetry AMW preflight: subscription=$actual_subscription_id region=$REGION rotation_enabled=${amw_rotation_enabled,,}"
+      echo "  cluster_count=$cluster_count clusters_per_workspace=$amw_clusters_per_workspace desired_workspaces=$amw_desired_workspace_count"
+      echo "  existing regional Microsoft.Monitor/accounts=$amw_existing_regional_workspace_count missing_workspaces=$amw_missing_workspace_count projected_total=$amw_projected_regional_workspace_count limit=$amw_regional_workspace_limit"
+      if [ "$amw_projected_regional_workspace_count" -gt "$amw_regional_workspace_limit" ]; then
+        echo "##vso[task.logissue type=error;] Projected Azure Monitor regional workspace count ($amw_projected_regional_workspace_count = existing $amw_existing_regional_workspace_count + missing $amw_missing_workspace_count) in $REGION would exceed AKS_AMW_REGIONAL_WORKSPACE_LIMIT ($amw_regional_workspace_limit)." >&2
+        exit 1
+      fi
+    displayName: "Preflight ClusterMesh managed-telemetry (control-plane metrics)"
+    condition: and(startsWith(variables['SCENARIO_NAME'], 'clustermesh'),
+                   eq(variables['AKS_CONTROL_PLANE_METRICS_ENABLED'], 'true'))
+    env:
+      REGION: ${{ parameters.region }}
 
   - script: |
       # Install the Azure Fleet preview CLI extension required by the
@@ -92,7 +557,7 @@ steps:
       az fleet clustermeshprofile --help >/dev/null
       echo "Fleet preview CLI installed from $whl"
     displayName: "Install Fleet preview CLI (clustermesh scenarios)"
-    condition: startsWith(variables['SCENARIO_NAME'], 'clustermesh')
+    condition: and(startsWith(variables['SCENARIO_NAME'], 'clustermesh'), ne(variables['CLUSTERMESH_FLEET_ENABLED'], 'false'))
 
   - script: |
       # Install cilium-cli on the runner for richer ClusterMesh diagnostics.

@@ -1,0 +1,242 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{.Name}}
+  namespace: monitoring
+data:
+  exporter.py: |
+    import http.server
+    import os
+    import ssl
+    import threading
+    import time
+    import urllib.request
+
+    API_URL = os.environ.get(
+        "APISERVER_METRICS_URL",
+        "https://kubernetes.default.svc/metrics",
+    )
+    TOKEN_FILE = os.environ.get(
+        "SERVICE_ACCOUNT_TOKEN_FILE",
+        "/var/run/secrets/kubernetes.io/serviceaccount/token",
+    )
+    CA_FILE = os.environ.get(
+        "SERVICE_ACCOUNT_CA_FILE",
+        "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
+    )
+    REQUESTS_PER_CYCLE = int(os.environ.get("REQUESTS_PER_CYCLE", "16"))
+    POLL_INTERVAL_SECONDS = float(os.environ.get("POLL_INTERVAL_SECONDS", "15"))
+    REQUEST_TIMEOUT_SECONDS = float(os.environ.get("REQUEST_TIMEOUT_SECONDS", "10"))
+    LISTEN_PORT = int(os.environ.get("LISTEN_PORT", "9100"))
+    BACKEND_TTL_SECONDS = float(os.environ.get("BACKEND_TTL_SECONDS", "120"))
+    LABEL_OPEN = "{"
+    LABEL_CLOSE = "}"
+    IDENTITY_ENV = {
+        "run_id": "CLUSTERMESH_RUN_ID",
+        "cluster_role": "CLUSTERMESH_CLUSTER_ROLE",
+        "cluster_name": "CLUSTERMESH_CLUSTER_NAME",
+        "cluster_resource_id": "CLUSTERMESH_CLUSTER_RESOURCE_ID",
+        "subscription_id": "CLUSTERMESH_SUBSCRIPTION_ID",
+        "resource_group": "CLUSTERMESH_RESOURCE_GROUP",
+        "region": "CLUSTERMESH_REGION",
+        "prometheus_cluster_alias": "CLUSTERMESH_PROMETHEUS_CLUSTER_ALIAS",
+    }
+
+    PROCESS_METRICS = {
+        "process_cpu_seconds_total": "cpu_seconds",
+        "process_resident_memory_bytes": "rss_bytes",
+        "process_start_time_seconds": "start_time",
+    }
+
+    STATE_LOCK = threading.Lock()
+    BACKENDS = {}
+    STATS = {
+        "request_errors": 0,
+        "successful_requests": 0,
+    }
+
+
+    def escape_label_value(value):
+        return (
+            str(value)
+            .replace("\\", "\\\\")
+            .replace("\n", "\\n")
+            .replace('"', '\\"')
+        )
+
+
+    def render_labels(labels):
+        return ",".join(
+            f'{name}="{escape_label_value(value)}"'
+            for name, value in sorted(labels.items())
+        )
+
+
+    def parse_process_metrics(text):
+        values = {}
+        for line in text.splitlines():
+            parts = line.split()
+            if len(parts) == 2 and parts[0] in PROCESS_METRICS:
+                values[PROCESS_METRICS[parts[0]]] = float(parts[1])
+        if len(values) != len(PROCESS_METRICS):
+            raise ValueError(f"missing process metrics: {values}")
+        return values
+
+
+    def fetch_backend():
+        token = ""
+        if os.path.exists(TOKEN_FILE):
+            with open(TOKEN_FILE, encoding="utf-8") as token_file:
+                token = token_file.read().strip()
+        headers = {"Connection": "close"}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        request = urllib.request.Request(API_URL, headers=headers)
+        context = None
+        if API_URL.startswith("https://"):
+            context = ssl.create_default_context(cafile=CA_FILE)
+        with urllib.request.urlopen(
+            request,
+            context=context,
+            timeout=REQUEST_TIMEOUT_SECONDS,
+        ) as response:
+            return parse_process_metrics(response.read().decode("utf-8"))
+
+
+    def record_backend(values):
+        backend_id = str(int(values["start_time"] * 1000))
+        observed_at = time.time()
+        with STATE_LOCK:
+            previous = BACKENDS.get(backend_id, {})
+            BACKENDS[backend_id] = {
+                "backend_id": backend_id,
+                "cpu_seconds": values["cpu_seconds"],
+                "rss_bytes": values["rss_bytes"],
+                "start_time": values["start_time"],
+                "last_seen": observed_at,
+                "observations": previous.get("observations", 0) + 1,
+            }
+            STATS["successful_requests"] += 1
+
+
+    def poll():
+        while True:
+            cycle_start = time.time()
+            for _ in range(REQUESTS_PER_CYCLE):
+                try:
+                    record_backend(fetch_backend())
+                except Exception:  # pylint: disable=broad-exception-caught
+                    with STATE_LOCK:
+                        STATS["request_errors"] += 1
+            elapsed = time.time() - cycle_start
+            time.sleep(max(0, POLL_INTERVAL_SECONDS - elapsed))
+
+
+    def render_metrics():
+        with STATE_LOCK:
+            now = time.time()
+            for backend_id in [
+                backend_id
+                for backend_id, backend in BACKENDS.items()
+                if now - backend["last_seen"] > BACKEND_TTL_SECONDS
+            ]:
+                del BACKENDS[backend_id]
+            snapshot = list(BACKENDS.values())
+            errors = STATS["request_errors"]
+            successes = STATS["successful_requests"]
+            identity_labels = {
+                label: os.environ.get(environment, "")
+                for label, environment in IDENTITY_ENV.items()
+            }
+
+        lines = [
+            "# HELP aks_apiserver_backend_process_cpu_seconds_total "
+            "CPU seconds reported by one API server backend.",
+            "# TYPE aks_apiserver_backend_process_cpu_seconds_total counter",
+            "# HELP aks_apiserver_backend_process_resident_memory_bytes "
+            "Resident memory reported by one API server backend.",
+            "# TYPE aks_apiserver_backend_process_resident_memory_bytes gauge",
+            "# HELP aks_apiserver_backend_process_start_time_seconds "
+            "Process start time used as the backend fingerprint.",
+            "# TYPE aks_apiserver_backend_process_start_time_seconds gauge",
+            "# HELP aks_apiserver_backend_last_seen_timestamp_seconds "
+            "Last successful observation of a backend.",
+            "# TYPE aks_apiserver_backend_last_seen_timestamp_seconds gauge",
+            "# HELP aks_apiserver_backend_observations_total "
+            "Successful observations of one backend.",
+            "# TYPE aks_apiserver_backend_observations_total counter",
+            "# HELP aks_apiserver_backend_discovered "
+            "Number of API server backends discovered.",
+            "# TYPE aks_apiserver_backend_discovered gauge",
+            f"aks_apiserver_backend_discovered {len(snapshot)}",
+            "# HELP aks_apiserver_backend_exporter_requests_total "
+            "Successful API server metrics requests.",
+            "# TYPE aks_apiserver_backend_exporter_requests_total counter",
+            f"aks_apiserver_backend_exporter_requests_total {successes}",
+            "# HELP aks_apiserver_backend_exporter_request_errors_total "
+            "Failed API server metrics requests.",
+            "# TYPE aks_apiserver_backend_exporter_request_errors_total counter",
+            f"aks_apiserver_backend_exporter_request_errors_total {errors}",
+        ]
+        if all(identity_labels.values()):
+            lines.extend(
+                [
+                    "# HELP clustermesh_cluster_identity_info "
+                    "Static AKS cluster identity attached to this telemetry snapshot.",
+                    "# TYPE clustermesh_cluster_identity_info gauge",
+                    f"clustermesh_cluster_identity_info{LABEL_OPEN}"
+                    f"{render_labels(identity_labels)}{LABEL_CLOSE} 1",
+                ]
+            )
+        for backend in sorted(snapshot, key=lambda item: item["backend_id"]):
+            labels = f'backend_id="{backend["backend_id"]}"'
+            lines.extend(
+                [
+                    f"aks_apiserver_backend_process_cpu_seconds_total{LABEL_OPEN}"
+                    f"{labels}{LABEL_CLOSE} {backend['cpu_seconds']}",
+                    f"aks_apiserver_backend_process_resident_memory_bytes{LABEL_OPEN}"
+                    f"{labels}{LABEL_CLOSE} {backend['rss_bytes']}",
+                    f"aks_apiserver_backend_process_start_time_seconds{LABEL_OPEN}"
+                    f"{labels}{LABEL_CLOSE} {backend['start_time']}",
+                    f"aks_apiserver_backend_last_seen_timestamp_seconds{LABEL_OPEN}"
+                    f"{labels}{LABEL_CLOSE} {backend['last_seen']}",
+                    f"aks_apiserver_backend_observations_total{LABEL_OPEN}"
+                    f"{labels}{LABEL_CLOSE} {backend['observations']}",
+                ]
+            )
+        return "\n".join(lines) + "\n"
+
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):  # pylint: disable=invalid-name
+            if self.path == "/healthz":
+                body = b"ok\n"
+            elif self.path == "/metrics":
+                body = render_metrics().encode("utf-8")
+            else:
+                self.send_error(404)
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; version=0.0.4")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(
+            self,
+            _format,
+            *_args,
+        ):  # pylint: disable=arguments-differ
+            return
+
+
+    def main():
+        threading.Thread(target=poll, daemon=True).start()
+        http.server.ThreadingHTTPServer(
+            ("0.0.0.0", LISTEN_PORT),
+            Handler,
+        ).serve_forever()
+
+
+    if __name__ == "__main__":
+        main()

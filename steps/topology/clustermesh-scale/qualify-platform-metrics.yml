@@ -1,0 +1,32 @@
+parameters:
+  - name: cloud
+    type: string
+
+steps:
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(AZURE_SERVICE_CONNECTION)
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -euo pipefail
+        az account set --subscription "$TARGET_SUBSCRIPTION_ID"
+        actual_subscription_id=$(az account show --query id -o tsv)
+        if [[ "${actual_subscription_id,,}" != "${TARGET_SUBSCRIPTION_ID,,}" ]]; then
+          echo "Expected Azure subscription ${TARGET_SUBSCRIPTION_ID}, got ${actual_subscription_id}" >&2
+          exit 1
+        fi
+        bash "$QUALIFY_SCRIPT"
+    env:
+      TARGET_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
+      MANIFEST_PATH: $(Pipeline.Workspace)/aks-control-plane-metrics/run-manifest.json
+      OUTPUT_DIR: $(Build.ArtifactStagingDirectory)/aks-control-plane-metrics
+      RUN_ID: $(RUN_ID)
+      QUALIFY_SCRIPT: >-
+        $(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/telemetry/wait-platform-metrics-ready.sh
+    displayName: "Qualify AKS platform metrics before CL2"
+    condition: and(succeeded(),
+                   ${{ eq(parameters.cloud, 'azure') }},
+                   eq(variables['AKS_CONTROL_PLANE_METRICS_ENABLED'], 'true'),
+                   eq(variables['AKS_TELEMETRY_CONFIGURED'], 'true'),
+                   eq(variables['AKS_PLATFORM_METRICS_REQUIRED'], 'true'))

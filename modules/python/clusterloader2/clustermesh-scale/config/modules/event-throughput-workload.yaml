@@ -22,6 +22,16 @@ name: clustermesh-event-throughput-workload
 {{$replicasPerDeployment := .replicasPerDeployment}}
 {{$tuningSet := .tuningSet}}
 {{$operationTimeout := .operationTimeout}}
+# Optional suffix for measurement Identifiers. Scenario #6 (upper-bound)
+# calls this module N times per CL2 run (one per saturation rung) with
+# phaseSuffix=Rung0/Rung1/.../RungN-1 so the WaitForControlledPodsRunning
+# Identifiers don't collide across rungs. Default "" keeps existing
+# single-invocation callers (event-throughput.yaml) byte-for-byte
+# identical.
+{{$phaseSuffix := DefaultParam .phaseSuffix ""}}
+{{$mockMode := eq (printf "%v" (DefaultParam .CL2_MOCK_MODE false)) "true"}}
+{{$kwokUsageCPU := DefaultParam .CL2_KWOK_USAGE_CPU "1m"}}
+{{$kwokUsageMemory := DefaultParam .CL2_KWOK_USAGE_MEMORY "1Mi"}}
 
 # delete = bring object count to 0; create/restart keep configured count.
 {{$replicasInPhase := $deploymentsPerNamespace}}
@@ -34,9 +44,9 @@ steps:
   # Identifier keeps the create/restart/delete invocations from clobbering
   # each other's metric state across the three module calls in
   # event-throughput.yaml.
-  - name: Start tracking event-throughput pods to be {{$actionName}}d
+  - name: Start tracking event-throughput pods to be {{$actionName}}d{{if $phaseSuffix}} ({{$phaseSuffix}}){{end}}
     measurements:
-      - Identifier: WaitForControlledPodsRunning-{{$actionName}}
+      - Identifier: WaitForControlledPodsRunning-{{$actionName}}{{$phaseSuffix}}
         Method: WaitForControlledPodsRunning
         Params:
           action: start
@@ -60,14 +70,17 @@ steps:
               Replicas: {{$replicasPerDeployment}}
               Group: clustermesh-event-throughput
               RestartGeneration: {{$generation}}
+              MockMode: {{$mockMode}}
+              KwokUsageCPU: {{$kwokUsageCPU}}
+              KwokUsageMemory: {{$kwokUsageMemory}}
           - basename: et
             objectTemplatePath: /modules/event-throughput-service.yaml
             templateFillMap:
               Group: clustermesh-event-throughput
 
-  - name: Wait for event-throughput pods to be {{$actionName}}d
+  - name: Wait for event-throughput pods to be {{$actionName}}d{{if $phaseSuffix}} ({{$phaseSuffix}}){{end}}
     measurements:
-      - Identifier: WaitForControlledPodsRunning-{{$actionName}}
+      - Identifier: WaitForControlledPodsRunning-{{$actionName}}{{$phaseSuffix}}
         Method: WaitForControlledPodsRunning
         Params:
           action: gather

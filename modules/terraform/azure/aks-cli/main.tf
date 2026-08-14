@@ -1,6 +1,9 @@
 locals {
   tags_list = [
-    for key, value in merge(var.tags, { "role" = var.aks_cli_config.role }) :
+    for key, value in merge(var.tags, {
+      "role"                  = var.aks_cli_config.role
+      "telescope_provisioner" = "aks-cli"
+    }) :
     format("%s=%s", key, value)
   ]
 
@@ -9,6 +12,41 @@ locals {
   extra_pool_map = {
     for pool in var.aks_cli_config.extra_node_pool :
     pool.name => pool
+  }
+
+  # Pre-built `az aks nodepool add` command per extra pool. Pulled into a
+  # local so the terraform_data.aks_nodepool_cli heredoc body stays readable
+  # (avoids a multi-line interpolation inside the bash retry-loop heredoc,
+  # which `terraform fmt` otherwise mangles).
+  extra_pool_commands = {
+    for pool in var.aks_cli_config.extra_node_pool : pool.name => join(" ", [
+      "az",
+      "aks",
+      "nodepool",
+      "add",
+      "-g", var.resource_group_name,
+      "--cluster-name", var.aks_cli_config.aks_name,
+      "--nodepool-name", pool.name,
+      "--node-count", pool.node_count,
+      "--node-vm-size", pool.vm_size,
+      "--vm-set-type", pool.vm_set_type,
+      "--node-osdisk-type", pool.os_disk_type,
+      local.aks_custom_headers_flags,
+      # If the default pool uses --pod-subnet-id (Azure CNI dynamic IP
+      # allocation), AKS requires ALL agent pools to set it (or none).
+      # Without this, `az aks nodepool add` on extra pools fails with
+      # `InvalidParameter: All or none of the agentpools should set
+      # podsubnet`. Reuse the same pod subnet as the default pool — extra
+      # pools (e.g. prompool) host non-workload pods so the per-pool pod
+      # IP separation isn't meaningful here.
+      local.pod_subnet_id_parameter,
+      length(pool.optional_parameters) == 0 ?
+      "" :
+      join(" ", [
+        for param in pool.optional_parameters :
+        format("--%s %s", param.name, param.value)
+      ]),
+    ])
   }
 
   key_management_service = (
@@ -321,46 +359,553 @@ resource "terraform_data" "aks_cli" {
   input = {
     aks_cli_command         = var.aks_cli_config.dry_run ? "echo '${local.aks_cli_command}'" : local.aks_cli_command,
     aks_cli_destroy_command = var.aks_cli_config.dry_run ? "echo '${local.aks_cli_destroy_command}'" : local.aks_cli_destroy_command
+    aks_name                = var.aks_cli_config.aks_name
+    role                    = var.aks_cli_config.role
   }
 
   provisioner "local-exec" {
-    command = self.input.aks_cli_command
+    # Wrap `az aks create` in a retry loop for transient Azure RP errors
+    # that are recoverable by waiting:
+    #
+    #   - ReferencedResourceNotProvisioned: subnet (or other referenced
+    #     resource) is in `Updating` state when AKS tries to use it. At
+    #     shared-VNet scale (200 subnets / 100 AKS in clustermesh-scale
+    #     N=100), Azure serializes ALL subnet operations per-VNet — only
+    #     one PutSubnetOperation can be in flight at a time. With 100
+    #     concurrent AKS creates all attaching to different subnets in
+    #     the same shared VNet, the per-VNet serialization queue forces
+    #     some AKS creates to see a peer cluster's subnet PUT mid-flight
+    #     and reject with this error. Retry resolves it once the queue
+    #     drains.
+    #   - OperationNotAllowed / AnotherOperationInProgress: same race
+    #     pattern as aks_nodepool_cli below; another in-progress operation
+    #     on the AKS / VNet / RG blocks the create. Retry.
+    #   - AKSCapacityHeavyUsage: AKS explicitly rejected admission because
+    #     the fixed test region is saturated. Retrying immediately only burns
+    #     ADO task attempts, so use a multi-minute, per-cluster jittered wait.
+    #
+    # Strictly additive: first attempt = original behavior. Other
+    # Telescope scenarios hit zero retries on the happy path. Only explicit
+    # transient Network RP or regional-capacity rejections pay the retry cost.
+    #
+    # Budget: 15 attempts. Network serialization errors wait 60s; regional
+    # capacity admission waits 4-6m, for at most ~90m before ADO-level recovery.
+    interpreter = ["bash", "-c"]
+    command     = <<-EOT
+      set -uo pipefail
+      cmd=${jsonencode(self.input.aks_cli_command)}
+      rg="${var.resource_group_name}"
+      name="${var.aks_cli_config.aks_name}"
+      capacity_hash=$(printf '%s' "$name" | cksum)
+      capacity_hash="$${capacity_hash%% *}"
+      capacity_delay=$((240 + capacity_hash % 121))
+      for i in $(seq 1 15); do
+        # Idempotency precheck (build 67798 evidence): under
+        # preserve_state_on_apply_failure + AzDO retryCountOnTaskFailure,
+        # terraform may re-run this local-exec against a cluster that the
+        # previous attempt ALREADY created. Without this precheck the
+        # second `az aks create` returns "already exists" and the build
+        # fails with no recovery. Three cases:
+        #   - Cluster exists in Succeeded: nothing to do, return success
+        #   - Cluster exists in non-Succeeded (Failed/Updating/Creating):
+        #     stale half-created state from a prior attempt — delete and
+        #     re-create
+        #   - Cluster absent: proceed with create
+        existing_state=$(az aks show -g "$rg" -n "$name" --query provisioningState -o tsv --only-show-errors 2>/dev/null || echo "absent")
+        if [ "$existing_state" = "Succeeded" ]; then
+          echo "[aks_cli retry $i/15] $name already exists in Succeeded state from prior apply attempt; nothing to do"
+          exit 0
+        fi
+        if [ "$existing_state" != "absent" ]; then
+          echo "[aks_cli retry $i/15] $name exists in state '$existing_state' (stale half-created); deleting before recreate"
+          az aks delete -g "$rg" -n "$name" --yes --only-show-errors 2>&1 || \
+            echo "[aks_cli retry $i/15] az aks delete reported error; continuing anyway"
+          # Confirm delete completed (or at least no longer listable).
+          # Up to 10 min budget — typical AKS delete is 3-5 min.
+          for j in $(seq 1 30); do
+            cur=$(az aks show -g "$rg" -n "$name" --query provisioningState -o tsv --only-show-errors 2>/dev/null || echo "absent")
+            if [ "$cur" = "absent" ]; then
+              echo "[aks_cli retry $i/15] $name fully deleted; proceeding with recreate"
+              break
+            fi
+            echo "[aks_cli retry $i/15] $name still present (state=$cur), waiting 20s..."
+            sleep 20
+          done
+        fi
+
+        out=$(eval "$cmd" 2>&1) && { echo "$out"; exit 0; }
+        rc=$?
+        echo "$out"
+        # AKS regional admission pressure is explicitly transient, but retrying
+        # every cluster at once creates a thundering herd. Spread retries over
+        # a deterministic 4-6 minute window based on the cluster name.
+        if echo "$out" | grep -qiE "AKSCapacityHeavyUsage|AKS is experiencing heavy usage"; then
+          if [ "$i" -ge 15 ]; then
+            break
+          fi
+          echo "[aks_cli retry $i/15] regional AKS capacity is saturated; sleeping $${capacity_delay}s before retry"
+          sleep "$capacity_delay"
+          continue
+        fi
+        # Retryable Azure RP errors. All point to transient resource-busy
+        # / serialization conditions that recover once the queue drains.
+        # Match BOTH the CamelCase code text (in JSON details[]) AND the
+        # az CLI's friendlier English text (e.g. "already exists") via
+        # case-insensitive grep.
+        #   - ReferencedResourceNotProvisioned: subnet (or other) in Updating
+        #     state when AKS tried to use it.
+        #   - VirtualNetworkNotInSucceededState: VNet itself in Updating
+        #     state during AKS create — broader cousin of the above
+        #     (build 67775 + 67788 evidence at N=100 shared-VNet).
+        #   - OperationNotAllowed / AnotherOperationInProgress: another
+        #     in-progress op on AKS/VNet/RG blocks the create.
+        #   - RetryableError: catch-all from azure-cli's own classifier.
+        #   - Request to Subnet Handler Failed: transient AKS/Network RP
+        #     handoff failure observed repeatedly in builds 74274 and 74285.
+        #   - ListResourceSKUsFailed is retryable only when accompanied by a
+        #     network/identity timeout; structural SKU or permission failures
+        #     still fail fast.
+        #   - already exists: friendly English text for ResourceAlreadyExists
+        #     (build 67798 evidence: az CLI emits "The cluster 'X' under
+        #     resource group 'Y' already exists" not "ResourceAlreadyExists"
+        #     in stdout — original CamelCase-only grep missed this).
+        transient_sku_lookup=false
+        if echo "$out" | grep -qi "ListResourceSKUsFailed" &&
+          echo "$out" | grep -qiE "Client\\.Timeout|request canceled|unable to resolve an endpoint|timed out|temporarily unavailable|connection reset"; then
+          transient_sku_lookup=true
+        fi
+        if [ "$transient_sku_lookup" = "true" ] ||
+          echo "$out" | grep -qiE "ReferencedResourceNotProvisioned|VirtualNetworkNotInSucceededState|OperationNotAllowed|AnotherOperationInProgress|RetryableError|Request to Subnet Handler Failed|already[[:space:]]*exists"; then
+          echo "[aks_cli retry $i/15] transient Azure RP error; sleeping 60s before retry"
+          sleep 60
+          continue
+        fi
+        # OutboundConnFail at recreate-into-VNet-flux (build 68700 evidence):
+        # when our delete+recreate logic above lands a fresh VMSS during
+        # shared-VNet subnet PUT flux at N=100, CSE script can't reach
+        # outbound -> VMExtensionError_OutboundConnFail. NOT a general retry
+        # (would mask real outbound config bugs at smaller N + bleed time
+        # at N=100). Allow ONE retry only, and only on the FIRST attempt
+        # after our recreate logic — past that, fail-fast.
+        if [ "$i" -le 2 ] && echo "$out" | grep -qiE "VMExtensionError_OutboundConnFail|VMExtensionProvisioningError.*OutboundConnFail"; then
+          echo "[aks_cli retry $i/15] OutboundConnFail at fresh create; allowing 1 retry for VNet flux window; sleeping 120s"
+          # Clean up the partial cluster before retry: otherwise we hit
+          # "already exists" or compound VMSS orphans.
+          az aks delete -g "$rg" -n "$name" --yes --only-show-errors 2>&1 || \
+            echo "[aks_cli retry $i/15] partial cleanup delete reported error; continuing"
+          # 5 min budget for partial cleanup to release the bricked VMSS.
+          for k in $(seq 1 15); do
+            cur=$(az aks show -g "$rg" -n "$name" --query provisioningState -o tsv --only-show-errors 2>/dev/null || echo "absent")
+            [ "$cur" = "absent" ] && break
+            sleep 20
+          done
+          sleep 120
+          continue
+        fi
+        # Non-retryable failure (quota, invalid args, auth, etc.) — fail fast.
+        exit $rc
+      done
+      echo "[aks_cli] gave up after 15 retries — Azure RP not stabilizing" >&2
+      exit 1
+    EOT
   }
 
   provisioner "local-exec" {
-    when    = destroy
-    command = self.input.aks_cli_destroy_command
+    when        = destroy
+    interpreter = ["bash", "-c"]
+    command     = <<-EOT
+      set -uo pipefail
+      for i in 1 2 3; do
+        out=$(eval "${self.input.aks_cli_destroy_command}" 2>&1)
+        rc=$?
+        if [ "$rc" -eq 0 ]; then
+          echo "$out"
+          exit 0
+        fi
+        if echo "$out" | grep -qiE "NotFound|could not be found|ResourceNotFound|ResourceGroupNotFound"; then
+          echo "[aks_cli destroy] cluster or resource group already absent; nothing to delete"
+          exit 0
+        fi
+        if [ "$i" -lt 3 ] &&
+           echo "$out" | grep -qiE "AnotherOperationInProgress|OperationNotAllowed|Conflict"; then
+          echo "[aks_cli destroy] transient Azure operation conflict (attempt $i/3); retrying in 30s"
+          sleep 30
+          continue
+        fi
+        echo "$out" >&2
+        exit "$rc"
+      done
+      exit 1
+    EOT
+  }
+}
+
+# Gate any subsequent `az aks ...` operations (extra node pools, post-create
+# updates) on the cluster reaching a stable provisioningState=Succeeded.
+#
+# Why this exists: `az aks create --enable-acns` (and similar addon flags
+# like --enable-azure-monitor-metrics) kicks off a PutExtensionAddonHandler
+# PUT operation that runs ASYNCHRONOUSLY after `az aks create` returns. While
+# that operation is in flight, any downstream `az aks nodepool add` (e.g. our
+# extra_node_pool / prompool) fails with:
+#   ERROR: (OperationNotAllowed) Operation is not allowed because there's an
+#   in progress PutExtensionAddonHandler.PUT operation ... Please wait for it
+#   to finish before starting a new operation.
+# The race is timing-dependent and rarely manifests with 1-2 concurrent
+# cluster creates, but is deterministic at N>=5 (regional AKS RP queues the
+# extension installs and the slowest cluster's PUT lags `az aks create` return
+# by several minutes — observed in the clustermesh-scale n5 tier).
+#
+# Polling logic: require 3 consecutive Succeeded readings 20s apart, with a
+# 60s initial buffer so any queued extension install has time to transition
+# the cluster into Updating. The consecutive requirement defends against the
+# brief Succeeded window between create-finish and extension-start. Total
+# budget ~20m.
+resource "terraform_data" "aks_wait_succeeded" {
+  count = var.aks_cli_config.dry_run ? 0 : 1
+
+  depends_on = [terraform_data.aks_cli]
+
+  input = {
+    resource_group_name = var.resource_group_name
+    aks_name            = var.aks_cli_config.aks_name
+  }
+
+  provisioner "local-exec" {
+    # local-exec defaults to /bin/sh which on Ubuntu agents is dash; dash
+    # rejects `set -o pipefail` (bash-only). Explicitly select bash so the
+    # script's safety options work as written.
+    interpreter = ["bash", "-c"]
+    command     = <<-EOT
+      set -eo pipefail
+      rg="${self.input.resource_group_name}"
+      name="${self.input.aks_name}"
+      marker_dir="$HOME/.telescope/aks-recovery/$rg"
+      marker_file="$marker_dir/$name.stuck"
+      mkdir -p "$marker_dir"
+      echo "Waiting for AKS $name to reach a stable Succeeded state..."
+      sleep 60
+      required=3
+      got=0
+      # Track stuck-Updating: build 68577 mesh-44 evidence — AKS RP can
+      # park a cluster in Updating for hours with no forward progress
+      # (regional throttling under N=100 concurrency). Without fast-fail
+      # the wait burns its full 30min ceiling on each AzDO retry. Detect:
+      # if state hasn't transitioned for STUCK_THRESHOLD consecutive
+      # iterations (~20min at 20s poll), declare stuck and abort.
+      #
+      # Build 69155 evidence: stuck_threshold=30 (10min) false-positived
+      # on n=2 happy-path clusters during normal post-create ACNS
+      # reconciliation (clusters legitimately stay in Updating ~10-15min
+      # before reaching Succeeded). Bumped 30 -> 60 (20min) so the
+      # detection still saves 10min vs the 30min ceiling on genuine
+      # stuck cases but won't fire during normal reconciliation.
+      prev_state=""
+      same_state_count=0
+      stuck_threshold=60
+      # 90 attempts × 20s = 30 min budget. Bumped from 60 (20m) for N=100
+      # ClusterMesh runs — plan.md deferred #10 observed a single cluster
+      # oscillate Updating/Succeeded for ~17 min at N=20. With 100 concurrent
+      # creates we expect a handful of clusters to exceed the old 20m budget
+      # purely from AKS RP throttling under concurrency. Strictly additive
+      # — fast clusters exit early at ~1m via the 3-consecutive-Succeeded
+      # check; only slow outliers pay the longer ceiling.
+      #
+      # Fail-fast on terminal Failed state (build 67775 evidence at N=100):
+      # async ACNS addon PUTs can move a cluster from Updating → Failed AFTER
+      # `az aks create` returned. Without this fail-fast, the poll loop
+      # wastes the full 30 min before exiting 1, then preserve_state retries
+      # the wait twice more = 1.5h burned per failed cluster. Detecting
+      # Failed early lets terraform surface the error in ~1 min so the
+      # operator can react (drop parallelism, taint, etc.).
+      for i in $(seq 1 90); do
+        state=$(az aks show -g "$rg" -n "$name" --query provisioningState -o tsv 2>/dev/null || echo "Unknown")
+        if [ "$state" = "Succeeded" ]; then
+          got=$((got + 1))
+          if [ "$got" -ge "$required" ]; then
+            echo "AKS $name stable in Succeeded ($got consecutive checks). Continuing."
+            rm -f "$marker_file"
+            exit 0
+          fi
+        elif [ "$state" = "Failed" ]; then
+          # Terminal failure — no point polling further. Recovery (delete +
+          # recreate, or `az aks update` per the AKS RP error message) is
+          # outside this wait's contract; surface the error now.
+          echo "AKS $name is in terminal Failed state — fail-fast (not polling further)"
+          rm -f "$marker_file"
+          exit 1
+        else
+          if [ "$got" -gt 0 ]; then
+            echo "AKS $name re-entered '$state' after Succeeded streak; resetting counter"
+          fi
+          got=0
+        fi
+        # Stuck-state fast-fail: same non-terminal state for stuck_threshold
+        # consecutive iterations = no forward progress = abort.
+        if [ "$state" = "$prev_state" ]; then
+          same_state_count=$((same_state_count + 1))
+          if [ "$same_state_count" -ge "$stuck_threshold" ]; then
+            printf '%s\t%s\n' "$state" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$marker_file"
+            echo "AKS $name STUCK in state '$state' for $((same_state_count * 20))s with no progress — fail-fast (not polling further)"
+            exit 1
+          fi
+        else
+          same_state_count=0
+          prev_state="$state"
+        fi
+        echo "AKS $name provisioningState=$state (Succeeded streak=$got/$required, same-state=$same_state_count/$stuck_threshold)"
+        sleep 20
+      done
+      printf '%s\t%s\n' "$${state:-Unknown}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$marker_file"
+      echo "Timeout: AKS $name did not reach sustained Succeeded after ~30m"
+      exit 1
+    EOT
   }
 }
 
 resource "terraform_data" "aks_nodepool_cli" {
   depends_on = [
-    terraform_data.aks_cli
+    terraform_data.aks_cli,
+    terraform_data.aks_wait_succeeded,
   ]
 
   for_each = local.extra_pool_map
 
+  # Wrap the underlying `az aks nodepool add` (built in locals.extra_pool_commands)
+  # in a bash retry loop that handles the OperationNotAllowed / AnotherOperationInProgress
+  # AKS RP race window. Even with terraform_data.aks_wait_succeeded gating
+  # this on a stable cluster Succeeded state, the AKS RP can lazily start
+  # post-create extension PUTs (e.g. --enable-acns) AFTER the wait exits —
+  # observed at N>=5 cluster create concurrency where the regional RP queues
+  # addon installs minutes behind the parent cluster create. The retry catches
+  # that race; keeping the wait avoids noisy first-attempt failures in the
+  # common (non-lazy) case. The retry loop is wall-clock bounded so long-lived
+  # Azure operations do not accidentally consume a fixed iteration budget.
+  #
+  # Idempotency precheck (build 68577 evidence): under
+  # preserve_state_on_apply_failure + AzDO retryCountOnTaskFailure, terraform
+  # may re-run this local-exec against a cluster whose nodepool was ALREADY
+  # added by a previous apply attempt that then failed at a different step.
+  # Without precheck the next `az aks nodepool add` returns "already exists"
+  # and the build fails deterministically — observed across multiple stage
+  # retries of build 68577. Mirrors the precheck pattern used by aks_cli
+  # (above) but with state-aware recovery:
+  #   - Succeeded: idempotent success
+  #   - Creating/Updating/Deleting: wait (do NOT delete healthy in-flight ops)
+  #   - Failed: delete and recreate (terminal only)
+  #   - absent: proceed with add
+  #
+  # BRICKED-DELETE FAST-FAIL (build 69021 evidence): when nodepool is in
+  # Failed state and `az aks nodepool delete` is called, Azure should
+  # transition the state Failed -> Deleting within seconds. If state stays
+  # Failed after the delete API call, Azure RP rejected the delete and
+  # the nodepool is BRICKED — no amount of additional polling will help.
+  # Build 69021 N=50 g100 burned 13.6 HOURS because the old logic waited
+  # the full 90min overall deadline polling a Failed nodepool that would
+  # never delete. Fast-fail: if state hasn't transitioned out of Failed
+  # within DELETE_TRANSITION_BUDGET seconds after issuing delete, abort
+  # immediately rather than burning the full retry budget.
+  #
+  # META PRINCIPLE: any retry loop where the same state is observed
+  # across 5+ consecutive iterations without forward progress should
+  # escalate to fail-fast. Slow retries on terminal failures are how
+  # 14h builds happen. Cheap retries (transient API throttle, brief
+  # race window) are valuable; bricked-state retries are not.
+  #
+  # PER-CLUSTER SERIALIZATION (build 74265 evidence): Terraform starts
+  # for_each instances concurrently. On mesh-1 that launched prompool and
+  # churnpool writes within the same second. Azure accepted both operations,
+  # then churnpool failed while rolling back its VMSS. Serialize extra-pool
+  # operations with a host-local lock scoped to the resource group and
+  # cluster. Different clusters still provision in parallel at n=100.
   provisioner "local-exec" {
-    command = join(" ", [
-      "az",
-      "aks",
-      "nodepool",
-      "add",
-      "-g", var.resource_group_name,
-      "--cluster-name", var.aks_cli_config.aks_name,
-      "--nodepool-name", each.value.name,
-      "--node-count", each.value.node_count,
-      "--node-vm-size", each.value.vm_size,
-      "--vm-set-type", each.value.vm_set_type,
-      "--node-osdisk-type", each.value.os_disk_type,
-      local.aks_custom_headers_flags,
-      length(each.value.optional_parameters) == 0 ?
-      "" :
-      join(" ", [
-        for param in each.value.optional_parameters :
-        format("--%s %s", param.name, param.value)
-      ]),
-    ])
+    interpreter = ["bash", "-c"]
+    command     = <<-EOT
+      set -uo pipefail
+      cmd=${jsonencode(local.extra_pool_commands[each.key])}
+      rg="${var.resource_group_name}"
+      pool="${each.value.name}"
+      cluster="${var.aks_cli_config.aks_name}"
+      lock_file="/tmp/telescope-aks-nodepool-$rg-$cluster.lock"
+      lock_wait_seconds=5400
+
+      exec 9>"$lock_file"
+      echo "Waiting for exclusive AKS nodepool operation lock: $cluster/$pool"
+      if ! flock -x -w "$lock_wait_seconds" 9; then
+        echo "Timeout: $cluster nodepool $pool could not acquire the per-cluster operation lock within $${lock_wait_seconds}s" >&2
+        exit 1
+      fi
+      echo "Acquired exclusive AKS nodepool operation lock: $cluster/$pool"
+      # Lock contention and the actual pool operation have separate bounded
+      # budgets. A queued pool must still receive time to recover/create after
+      # the preceding same-cluster operation releases the lock.
+      operation_deadline=$((SECONDS + 7200))
+
+      i=0
+      while [ "$SECONDS" -lt "$operation_deadline" ]; do
+        i=$((i + 1))
+
+        cluster_out=$(az aks show -g "$rg" -n "$cluster" \
+          --query provisioningState -o tsv --only-show-errors 2>&1)
+        cluster_rc=$?
+        if [ "$cluster_rc" -ne 0 ]; then
+          if echo "$cluster_out" | grep -qiE "NotFound|could not be found|ResourceNotFound"; then
+            echo "[retry $i] parent cluster $cluster is absent; aborting nodepool $pool so pre-apply recovery can recreate the cluster." >&2
+            exit 1
+          fi
+          echo "[retry $i] parent cluster $cluster state query failed transiently: $cluster_out — sleeping 30s"
+          sleep 30
+          continue
+        fi
+        if [ "$cluster_out" = "Deleting" ]; then
+          echo "[retry $i] parent cluster $cluster is Deleting; aborting nodepool $pool immediately." >&2
+          exit 1
+        fi
+
+        # Precheck — classify show failures so transient throttle/auth
+        # errors don't get silently treated as "absent" (which would
+        # cause a spurious add attempt that hides the real error).
+        show_out=$(az aks nodepool show -g "$rg" --cluster-name "$cluster" -n "$pool" --query provisioningState -o tsv --only-show-errors 2>&1)
+        show_rc=$?
+        if [ "$show_rc" -eq 0 ]; then
+          existing_state="$show_out"
+        elif echo "$show_out" | grep -qiE "NotFound|could not be found|ResourceNotFound"; then
+          existing_state="absent"
+        else
+          echo "[retry $i] $cluster nodepool $pool show failed transiently: $show_out — sleeping 30s"
+          sleep 30
+          continue
+        fi
+
+        case "$existing_state" in
+          Succeeded)
+            echo "[retry $i] $cluster nodepool $pool already in Succeeded state from prior apply attempt; nothing to do"
+            exit 0
+            ;;
+          Creating|Updating|Deleting)
+            # Still converging from prior attempt. Wait rather than
+            # destructively delete — the pool may reach Succeeded on
+            # its own, and deleting an in-flight op queues a delete
+            # behind it (extra churn at N=100 AKS RP scale).
+            echo "[retry $i] $cluster nodepool $pool in transient state '$existing_state'; waiting 30s"
+            sleep 30
+            continue
+            ;;
+          Failed|Canceled)
+            # Terminal failure — delete and recreate. BRICKED-DELETE
+            # fast-fail: watch for a transition out of the terminal state
+            # within 120s of the delete call. If state stays Failed,
+            # the nodepool is bricked (Azure RP rejected delete) and
+            # no further polling will help — abort immediately rather
+            # than burning the full 60×30s retry budget (build 69021
+            # evidence: 13.6h wasted on this exact pattern).
+            terminal_state="$existing_state"
+            echo "[retry $i] $cluster nodepool $pool in terminal $terminal_state state; deleting before recreate"
+            del_out=$(az aks nodepool delete -g "$rg" --cluster-name "$cluster" -n "$pool" --no-wait --only-show-errors 2>&1)
+            del_rc=$?
+            if [ "$del_rc" -ne 0 ]; then
+              if echo "$del_out" | grep -qiE "NotFound|could not be found|ResourceNotFound"; then
+                echo "[retry $i] $cluster nodepool $pool disappeared before delete; will recreate"
+                sleep 5
+                continue
+              fi
+              if echo "$del_out" | grep -qiE "OperationNotAllowed|AnotherOperationInProgress|RetryableError"; then
+                echo "[retry $i] $cluster nodepool $pool delete hit a transient Azure RP error: $del_out — sleeping 30s"
+                sleep 30
+                continue
+              fi
+              echo "[retry $i] $cluster nodepool $pool delete failed: $del_out" >&2
+              exit "$del_rc"
+            fi
+            # Up to 10 min budget — typical AKS nodepool delete is 2-4 min.
+            deleted=false
+            transitioned=false
+            delete_started=$SECONDS
+            for j in $(seq 1 30); do
+              cur_out=$(az aks nodepool show -g "$rg" --cluster-name "$cluster" -n "$pool" --query provisioningState -o tsv --only-show-errors 2>&1)
+              cur_rc=$?
+              if [ "$cur_rc" -eq 0 ]; then
+                cur="$cur_out"
+              elif echo "$cur_out" | grep -qiE "NotFound|could not be found|ResourceNotFound"; then
+                cur="absent"
+              else
+                echo "[retry $i] $cluster nodepool $pool delete status check failed transiently: $cur_out — waiting 20s"
+                sleep 20
+                continue
+              fi
+              if [ "$cur" = "absent" ]; then
+                echo "[retry $i] $cluster nodepool $pool fully deleted; will recreate on next iteration"
+                deleted=true
+                break
+              fi
+              # Track transition out of the terminal state.
+              if [ "$cur" != "$terminal_state" ]; then
+                transitioned=true
+              fi
+              # Bricked fast-fail: 120s elapsed and state did not change.
+              if [ $((SECONDS - delete_started)) -ge 120 ] && [ "$transitioned" != "true" ] && [ "$cur" = "$terminal_state" ]; then
+                echo "[retry $i] $cluster nodepool $pool BRICKED — state still $terminal_state 120s after delete call (Azure RP rejected delete). Aborting; no further retry will help." >&2
+                exit 1
+              fi
+              echo "[retry $i] $cluster nodepool $pool still present (state=$cur), waiting 20s..."
+              sleep 20
+            done
+            if [ "$deleted" != "true" ]; then
+              echo "[retry $i] $cluster nodepool $pool delete did not complete in 10m; re-precheck on next iteration"
+              sleep 30
+            fi
+            continue
+            ;;
+          absent)
+            ;;
+          *)
+            echo "[retry $i] $cluster nodepool $pool in unknown state '$existing_state'; waiting 30s"
+            sleep 30
+            continue
+            ;;
+        esac
+
+        # Nodepool absent — attempt add.
+        out=$(eval "$cmd" 2>&1) && { echo "$out"; exit 0; }
+        rc=$?
+        echo "$out"
+        if echo "$out" |
+          grep -qiE "deletion has been initiated on the cluster|only customer action allowed now is to retry cluster deletion"; then
+          echo "[retry $i] parent cluster $cluster has entered irreversible deletion; aborting nodepool $pool immediately." >&2
+          exit "$rc"
+        fi
+        if echo "$out" | grep -qiE "Throttled|request limit has been exceeded"; then
+          retry_after=$(echo "$out" |
+            sed -nE 's/.*retry again in ([0-9]+) seconds.*/\1/p' |
+            head -1)
+          retry_after=$${retry_after:-30}
+          echo "[retry $i] $cluster nodepool $pool throttled; sleeping $${retry_after}s"
+          sleep "$retry_after"
+          continue
+        fi
+        # Retryable Azure RP errors:
+        #   - OperationNotAllowed / AnotherOperationInProgress: AKS RP busy
+        #     with another op on the cluster (e.g. lazy ACNS addon PUT
+        #     post-create). Retry once the queue drains.
+        #   - already exists: a concurrent/very-recent apply attempt
+        #     created the nodepool between our precheck and add. Retry —
+        #     next precheck will see Succeeded/Updating and resolve.
+        #   - FailedToDeleteVMSSInstances: Azure failed to clean up a partial
+        #     nodepool create. Retry through the Failed-state delete path.
+        #   - Canceled: Azure terminated a long-running nodepool operation.
+        #     Re-precheck and delete/recreate if the pool is terminal Canceled.
+        if echo "$out" | grep -qiE "OperationNotAllowed|AnotherOperationInProgress|FailedToDeleteVMSSInstances|Code:[[:space:]]*Canceled|Operation was canceled|already[[:space:]]*exists"; then
+          echo "[retry $i] $cluster nodepool $pool transient AKS RP error; sleeping 30s"
+          sleep 30
+          continue
+        fi
+        # Some other failure (quota, invalid args, etc.) — fail fast.
+        echo "$out" >&2
+        exit $rc
+      done
+      echo "Timeout: $cluster nodepool $pool — 120m operation budget reached after acquiring the lock" >&2
+      exit 1
+    EOT
   }
 }
 
@@ -419,4 +964,3 @@ resource "azurerm_role_assignment" "des_reader_cluster" {
     local.aks_system_assigned_principal_id != null ? local.aks_system_assigned_principal_id : error("Unable to determine AKS system-assigned identity principalId via azapi; cannot grant DES Reader role.")
   )
 }
-

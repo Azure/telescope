@@ -41,6 +41,12 @@ variable "member_label_value" {
   default     = "true"
 }
 
+variable "member_initial_label_value" {
+  description = "Optional initial label value set on fleet members before the profile selector is applied. Empty preserves member_label_value; a nonmatching value enables staged enrollment after Terraform."
+  type        = string
+  default     = ""
+}
+
 variable "members" {
   description = "List of fleet members. aks_name identifies the AKS cluster in the same resource group; member_name is the Fleet-side name (intentionally may differ from aks_name)."
   type = list(object({

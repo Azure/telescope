@@ -1,0 +1,103 @@
+parameters:
+  - name: cloud
+    type: string
+  - name: region
+    type: string
+
+steps:
+  - bash: mkdir -p "$(Build.ArtifactStagingDirectory)/aks-control-plane-metrics"
+    displayName: "Prepare AKS control-plane telemetry artifact"
+    condition: and(succeededOrFailed(),
+                   eq(variables['AKS_CONTROL_PLANE_METRICS_ENABLED'], 'true'))
+
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(AZURE_SERVICE_CONNECTION)
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -euo pipefail
+        az account set --subscription "$TARGET_SUBSCRIPTION_ID"
+        actual_subscription_id=$(az account show --query id -o tsv)
+        if [[ "${actual_subscription_id,,}" != "${TARGET_SUBSCRIPTION_ID,,}" ]]; then
+          echo "Expected Azure subscription ${TARGET_SUBSCRIPTION_ID}, got ${actual_subscription_id}" >&2
+          exit 1
+        fi
+        bash "$WAIT_SCRIPT"
+    env:
+      TARGET_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
+      MANIFEST_PATH: $(Pipeline.Workspace)/aks-control-plane-metrics/run-manifest.json
+      OUTPUT_DIR: $(Build.ArtifactStagingDirectory)/aks-control-plane-metrics
+      RUN_ID: $(RUN_ID)
+      WAIT_SCRIPT: >-
+        $(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/telemetry/wait-managed-prometheus.sh
+    displayName: "Wait for AKS telemetry ingestion"
+    condition: and(succeededOrFailed(),
+                   eq(variables['AKS_CONTROL_PLANE_METRICS_ENABLED'], 'true'),
+                   eq(variables['AKS_TELEMETRY_CONFIGURED'], 'true'),
+                   or(ne(variables['AKS_PLATFORM_METRICS_REQUIRED'], 'true'),
+                      eq(variables['AKS_PLATFORM_METRICS_PRE_SCENARIO_READY'], 'true')))
+
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(AZURE_SERVICE_CONNECTION)
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -euo pipefail
+        az account set --subscription "$TARGET_SUBSCRIPTION_ID"
+        actual_subscription_id=$(az account show --query id -o tsv)
+        if [[ "${actual_subscription_id,,}" != "${TARGET_SUBSCRIPTION_ID,,}" ]]; then
+          echo "Expected Azure subscription ${TARGET_SUBSCRIPTION_ID}, got ${actual_subscription_id}" >&2
+          exit 1
+        fi
+        bash "$AUDIT_PHASE_SCRIPT"
+    env:
+      TARGET_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
+      MANIFEST_PATH: $(Pipeline.Workspace)/aks-control-plane-metrics/run-manifest.json
+      AUDIT_SCRIPT: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/telemetry/audit.py
+      PLATFORM_EXPORT_SCRIPT: >-
+        $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/telemetry/aks_platform_to_openmetrics.py
+      OUTPUT_DIR: $(Build.ArtifactStagingDirectory)/aks-control-plane-metrics
+      RUN_ID: $(RUN_ID)
+      AUDIT_PHASE_SCRIPT: >-
+        $(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/telemetry/audit-managed-prometheus.sh
+    displayName: "Audit managed telemetry and export platform metrics"
+    condition: and(succeededOrFailed(),
+                   eq(variables['AKS_CONTROL_PLANE_METRICS_ENABLED'], 'true'),
+                   eq(variables['AKS_TELEMETRY_WINDOW_READY'], 'true'))
+
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(AZURE_SERVICE_CONNECTION)
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -euo pipefail
+        az account set --subscription "$TARGET_SUBSCRIPTION_ID"
+        actual_subscription_id=$(az account show --query id -o tsv)
+        if [[ "${actual_subscription_id,,}" != "${TARGET_SUBSCRIPTION_ID,,}" ]]; then
+          echo "Expected Azure subscription ${TARGET_SUBSCRIPTION_ID}, got ${actual_subscription_id}" >&2
+          exit 1
+        fi
+        bash "$UPLOAD_SCRIPT"
+    env:
+      TARGET_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
+      MANIFEST_PATH: $(Pipeline.Workspace)/aks-control-plane-metrics/run-manifest.json
+      OUTPUT_DIR: $(Build.ArtifactStagingDirectory)/aks-control-plane-metrics
+      RUN_ID: $(RUN_ID)
+      BUILD_BRANCH: $(Build.SourceBranchName)
+      UPLOAD_SCRIPT: >-
+        $(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/telemetry/upload-managed-prometheus.sh
+    displayName: "Upload managed telemetry artifacts"
+    condition: and(succeededOrFailed(),
+                   eq(variables['AKS_CONTROL_PLANE_METRICS_ENABLED'], 'true'))
+
+  - task: PublishPipelineArtifact@1
+    inputs:
+      targetPath: $(Build.ArtifactStagingDirectory)/aks-control-plane-metrics
+      artifact: aks-control-plane-metrics-$(System.JobAttempt)-$(System.JobName)
+      publishLocation: pipeline
+    displayName: "Publish AKS control-plane telemetry artifacts"
+    condition: and(succeededOrFailed(),
+                   eq(variables['AKS_CONTROL_PLANE_METRICS_ENABLED'], 'true'))

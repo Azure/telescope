@@ -30,6 +30,11 @@ locals {
   fleet_enabled = var.fleet_enabled
 
   members_by_name = { for m in var.members : m.member_name => m }
+  member_initial_label_value = (
+    var.member_initial_label_value != ""
+    ? var.member_initial_label_value
+    : var.member_label_value
+  )
 
   # Construct AKS resource IDs from known inputs. aks-cli does not emit outputs.
   # The depends_on chain on the fleet module instance ensures AKS exists before
@@ -63,10 +68,12 @@ resource "azapi_resource" "fleet" {
 }
 
 # -----------------------------------------------------------------------------
-# Step 5: Fleet members (one per AKS cluster), labeled for the mesh selector.
+# Step 5: Fleet members (one per AKS cluster).
 #
 # Implemented via local-exec for two reasons:
 # 1. Mirrors the source script exactly (`az fleet member create --labels mesh=true`).
+#    Large tiers may instead use a nonmatching initial value so validation can
+#    enroll members in bounded batches after the empty profile is stable.
 # 2. The Fleet member ARM API rejects azapi-style bodies for the `labels` field;
 #    az CLI is the supported surface for this resource shape today.
 #
@@ -82,7 +89,7 @@ locals {
       "--fleet-name", var.fleet_name,
       "--name", m.member_name,
       "--member-cluster-id", local.aks_resource_id[m.member_name],
-      "--labels", "${var.member_label_key}=${var.member_label_value}",
+      "--labels", "${var.member_label_key}=${local.member_initial_label_value}",
       "--output", "none",
     ])
   }
@@ -223,7 +230,10 @@ locals {
     "--name", var.cmp_name,
     "--query", "'length(@)'",
     "--output", "tsv",
+    "--only-show-errors",
   ]) : "echo 0"
+
+  cmp_apply_wait_seconds = length(var.members) >= 50 ? 5400 : 2700
 }
 
 resource "terraform_data" "clustermeshprofile" {
@@ -234,9 +244,10 @@ resource "terraform_data" "clustermeshprofile" {
   ]
 
   input = {
-    create_command = local.cmp_create_command
-    apply_command  = local.cmp_apply_command
-    delete_command = local.cmp_destroy_command
+    create_command     = local.cmp_create_command
+    apply_command      = local.cmp_apply_command
+    delete_command     = local.cmp_destroy_command
+    apply_wait_seconds = local.cmp_apply_wait_seconds
     # `list-members` (default mode) returns members APPLIED to the profile —
     # the same set the profile-delete API checks. We poll its count to know
     # when the relabel+apply reconcile has actually drained membership.
@@ -249,9 +260,104 @@ resource "terraform_data" "clustermeshprofile" {
 
   # create + apply are two separate az calls. Use bash with `set -euo pipefail`
   # so any failure aborts the chain.
+  #
+  # Idempotent create: under `preserve_state_on_apply_failure: true` (set on
+  # N>=20 clustermesh-scale runs), terraform may re-run this provisioner if
+  # the previous attempt failed at `apply`. `az fleet clustermeshprofile
+  # create` would then fail with "already exists" and never reach `apply`,
+  # leaving the profile unconfigured. Guard the create with a `show`
+  # precheck so retries succeed.
+  #
+  # Apply-with-retry (N=100 hardening): the `apply` operation is a Fleet RP
+  # LRO that pushes peer kubeconfigs to every selector-matched member's
+  # cilium-config. At N=20 this typically completes in 3-10 min. A tier that
+  # initially matches all 100 members can take 30-60 min because every member
+  # needs the other 99 peers. The staged n=100 topology instead creates
+  # members with a nonmatching label, so this Terraform apply stabilizes an
+  # empty profile and validation enrolls ten members at a time. The retry
+  # wrapper still handles both paths:
+  #   - Transient Fleet RP busy errors (the RP serializes profile applies
+  #     across the regional Fleet — concurrent applies from other tests
+  #     would block ours briefly)
+  #   - CLI-side LRO timeout (azure-cli default is generous but not infinite)
+  # The CLI can return success while the profile remains `Applying` for many
+  # minutes. Do not release Terraform into topology validation until the
+  # profile reaches terminal `Succeeded`; otherwise recovery races the active
+  # LRO with ResourceNotFinalState (build 74295). Small tiers get 45m; n>=50
+  # gets 90m.
   provisioner "local-exec" {
     interpreter = ["bash", "-c"]
-    command     = "set -euo pipefail; ${self.input.create_command}; ${self.input.apply_command}"
+    command     = <<-EOT
+      set -euo pipefail
+      # Idempotent create: skip if the profile already exists from a prior
+      # apply attempt that landed under preserve_state_on_apply_failure.
+      _show='az fleet clustermeshprofile show --subscription ${var.subscription_id} --resource-group ${var.resource_group_name} --fleet-name ${var.fleet_name} --name ${var.cmp_name} --only-show-errors'
+      if $_show >/dev/null 2>&1; then
+        echo "[clustermeshprofile] already exists (likely retry after preserved state); skipping create"
+      else
+        echo "[clustermeshprofile] create: ${self.input.create_command}"
+        ${self.input.create_command}
+      fi
+      apply_max=5
+      apply_deadline=$((SECONDS + ${self.input.apply_wait_seconds}))
+      for i in $(seq 1 $apply_max); do
+        if [ "$SECONDS" -ge "$apply_deadline" ]; then
+          break
+        fi
+        echo "[clustermeshprofile] apply attempt $i/$apply_max: ${self.input.apply_command}"
+        apply_rc=0
+        apply_out=$(${self.input.apply_command} 2>&1) || apply_rc=$?
+        echo "$apply_out"
+        poll_state=false
+        if [ "$apply_rc" -eq 0 ] ||
+          echo "$apply_out" | grep -qiE "ResourceNotFinalState|OperationNotAllowed|AnotherOperationInProgress"; then
+          poll_state=true
+        fi
+        if [ "$poll_state" = "true" ]; then
+          while true; do
+            state_rc=0
+            state_out=$($_show --query properties.provisioningState --output tsv 2>&1) || state_rc=$?
+            if [ "$state_rc" -ne 0 ]; then
+              echo "[clustermeshprofile] state query failed transiently: $state_out"
+            else
+              # The preview extension can emit warning text even on rc=0.
+              # Select only a standalone provisioning-state line so warning
+              # banners cannot turn "Succeeded" into an unknown state.
+              state=$(printf '%s\n' "$state_out" | awk \
+                '/^[[:space:]]*(Succeeded|Failed|Applying|Updating|Creating)[[:space:]]*$/ { value=$1 } END { print value }')
+              case "$state" in
+                Succeeded)
+                  echo "[clustermeshprofile] apply stable in Succeeded on attempt $i"
+                  exit 0
+                  ;;
+                Failed)
+                  echo "[clustermeshprofile] apply reached terminal Failed on attempt $i"
+                  break
+                  ;;
+                Applying|Updating|Creating|"")
+                  echo "[clustermeshprofile] apply still converging (state=$${state:-unknown})"
+                  ;;
+                *)
+                  echo "[clustermeshprofile] apply returned unknown state '$state'; continuing bounded wait"
+                  ;;
+              esac
+            fi
+            # Always perform the state check above once after an apply call,
+            # even if that call consumed the final seconds of the budget.
+            if [ "$SECONDS" -ge "$apply_deadline" ]; then
+              break
+            fi
+            sleep 20
+          done
+        fi
+        if [ "$i" -lt "$apply_max" ] && [ "$SECONDS" -lt "$apply_deadline" ]; then
+          echo "[clustermeshprofile] apply attempt $i failed, retrying in 60s..."
+          sleep 60
+        fi
+      done
+      echo "[clustermeshprofile] apply did not reach stable Succeeded within ${self.input.apply_wait_seconds}s" >&2
+      exit 1
+    EOT
   }
 
   # Destroy-time: Fleet's API has a chicken-and-egg between member-delete
@@ -288,29 +394,71 @@ resource "terraform_data" "clustermeshprofile" {
       # 2. Issue an apply to start the reconcile. apply is async on the Fleet
       # RP — `az fleet clustermeshprofile apply` returns when the LRO is
       # accepted, but membership reconciliation (including draining the old
-      # applied set) can lag behind by several minutes.
+      # applied set) can lag behind by several minutes. Bound the CLI wait:
+      # build 75513 showed the Fleet LRO can remain active indefinitely after
+      # all 100 members were successfully relabeled, which otherwise blocks
+      # Terraform destroy before the explicit resource-group cleanup backstop.
       echo "[apply-profile] ${self.input.apply_command}"
-      eval "${self.input.apply_command}" || true
+      timeout --foreground 300s bash -c "${self.input.apply_command}" || true
 
       # 3. Poll the profile's APPLIED member count until it reaches 0. Re-issue
       # `apply` periodically as a nudge in case the first one was a no-op
       # (e.g. Fleet RP hadn't yet observed the relabeled members).
-      # Budget: 120 x 5s = 10 min.
+      # The budget is wall-clock based so slow CLI calls and periodic nudges
+      # cannot silently stretch a nominal 30-minute wait into hours.
       drained=false
-      for i in $(seq 1 120); do
-        count=$(eval "${self.input.list_applied_count_command}" 2>/dev/null | tr -d '[:space:]')
-        echo "[poll-members] attempt $i/120: applied count='$count'"
+      drain_deadline=$((SECONDS + 1800))
+      next_nudge=$((SECONDS + 60))
+      i=0
+      while [ "$SECONDS" -lt "$drain_deadline" ]; do
+        i=$((i + 1))
+        count_out=$(timeout --foreground 60s bash -c "${self.input.list_applied_count_command}" 2>&1)
+        count_rc=$?
+        if [ "$count_rc" -ne 0 ]; then
+          if echo "$count_out" | grep -qiE "NotFound|could not be found|ResourceNotFound|ResourceGroupNotFound"; then
+            echo "[poll-members] profile or resource group already absent; teardown complete"
+            exit 0
+          fi
+          echo "[poll-members] membership query failed; skipping the remaining drain wait: $count_out"
+          break
+        fi
+        # Preview extensions can emit warning text even when the command
+        # succeeds. Select the numeric-only line instead of concatenating all
+        # output, otherwise a warning plus "0" never compares equal to zero.
+        count=$(printf '%s\n' "$count_out" | awk '/^[[:space:]]*[0-9]+[[:space:]]*$/ { value=$1 } END { print value }')
+        if ! [[ "$count" =~ ^[0-9]+$ ]]; then
+          echo "[poll-members] membership query returned no numeric count; skipping the remaining drain wait: $count_out"
+          break
+        fi
+        echo "[poll-members] attempt $i: applied count='$count'"
         if [ "$count" = "0" ]; then
           drained=true
           break
         fi
-        # Re-apply every minute (every 12 polls) to push Fleet RP if the
-        # initial apply didn't pick up the relabel.
-        if [ "$i" -gt 1 ] && [ $((i % 12)) -eq 0 ]; then
+        # Re-apply at most once per minute to push Fleet RP if the initial
+        # apply did not pick up the relabel. Each nudge is independently
+        # bounded and still constrained by the wall-clock drain deadline.
+        if [ "$SECONDS" -ge "$next_nudge" ]; then
+          remaining=$((drain_deadline - SECONDS))
+          nudge_timeout=120
+          if [ "$remaining" -lt "$nudge_timeout" ]; then
+            nudge_timeout="$remaining"
+          fi
           echo "[apply-profile] (nudge) ${self.input.apply_command}"
-          eval "${self.input.apply_command}" || true
+          if [ "$nudge_timeout" -gt 0 ]; then
+            timeout --foreground "$${nudge_timeout}s" bash -c "${self.input.apply_command}" || true
+          fi
+          next_nudge=$((SECONDS + 60))
         fi
-        sleep 5
+        remaining=$((drain_deadline - SECONDS))
+        if [ "$remaining" -le 0 ]; then
+          break
+        fi
+        if [ "$remaining" -lt 5 ]; then
+          sleep "$remaining"
+        else
+          sleep 5
+        fi
       done
       if [ "$drained" != "true" ]; then
         echo "[poll-members] timed out waiting for applied set to drain; will still attempt delete"
@@ -318,18 +466,36 @@ resource "terraform_data" "clustermeshprofile" {
 
       # 4. Delete the profile. Brief retry as a backstop in case there's still
       # propagation lag between list-members showing 0 and delete being allowed.
+      # Use a ten-minute wall-clock deadline and bound each delete CLI call;
+      # an accepted-but-stuck Fleet LRO must not prevent downstream member,
+      # AKS, and resource-group cleanup from starting.
       echo "[delete-profile] ${self.input.delete_command}"
-      for i in $(seq 1 30); do
-        if eval "${self.input.delete_command}"; then
+      delete_deadline=$((SECONDS + 600))
+      i=0
+      while [ "$SECONDS" -lt "$delete_deadline" ]; do
+        i=$((i + 1))
+        remaining=$((delete_deadline - SECONDS))
+        delete_timeout=120
+        if [ "$remaining" -lt "$delete_timeout" ]; then
+          delete_timeout="$remaining"
+        fi
+        delete_out=$(timeout --foreground "$${delete_timeout}s" bash -c "${self.input.delete_command}" 2>&1)
+        delete_rc=$?
+        if [ "$delete_rc" -eq 0 ]; then
           echo "[delete-profile] succeeded on attempt $i"
           exit 0
         fi
-        if [ "$i" -lt 30 ]; then
-          echo "[delete-profile] retry $i/30 in 5s"
+        if echo "$delete_out" | grep -qiE "NotFound|could not be found|ResourceNotFound|ResourceGroupNotFound"; then
+          echo "[delete-profile] profile or resource group already absent; teardown complete"
+          exit 0
+        fi
+        echo "[delete-profile] attempt $i failed: $delete_out"
+        if [ "$SECONDS" -lt "$delete_deadline" ]; then
+          echo "[delete-profile] retrying within the 600s wall-clock budget"
           sleep 5
         fi
       done
-      echo "[delete-profile] gave up after 30 attempts; downstream cleanup will proceed"
+      echo "[delete-profile] gave up after the 600s wall-clock budget; downstream cleanup will proceed"
       exit 0
     EOT
   }

@@ -1,0 +1,135 @@
+parameters:
+- name: region
+  type: string
+  default: eastus2
+- name: topology
+  type: string
+  default: clustermesh-scale-mock
+- name: engine
+  type: string
+  default: clusterloader2
+- name: engine_input
+  type: object
+  default: {}
+- name: matrix
+  type: object
+  default: {}
+- name: timeout_in_minutes
+  type: number
+  default: 3000
+- name: cancel_timeout_in_minutes
+  type: number
+  default: 120
+- name: credential_type
+  type: string
+  default: service_connection
+- name: tfvars_path
+  type: string
+  default: scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-100-mock-shared.tfvars
+- name: expected_subscription_id
+  type: string
+- name: expected_cluster_count
+  type: number
+  default: 100
+- name: run_workload
+  type: boolean
+  default: true
+- name: publish_results
+  type: boolean
+  default: true
+- name: manifest_subdir
+  type: string
+  default: scale-resume
+- name: target_run_id
+  type: string
+- name: overlay_mode
+  type: string
+  default: resume
+  values:
+  - resume
+  - resume-existing
+
+jobs:
+- job: azure
+  variables:
+    CLUSTERMESH_JOB_TIMEOUT_MINUTES: ${{ parameters.timeout_in_minutes }}
+    CLUSTERMESH_JOB_CANCEL_TIMEOUT_MINUTES: ${{ parameters.cancel_timeout_in_minutes }}
+  strategy:
+    maxParallel: 1
+    matrix:
+      ${{ parameters.matrix }}
+  timeoutInMinutes: ${{ parameters.timeout_in_minutes }}
+  cancelTimeoutInMinutes: ${{ parameters.cancel_timeout_in_minutes }}
+  steps:
+  - template: /steps/setup-tests.yml
+    parameters:
+      cloud: azure
+      region: ${{ parameters.region }}
+      run_id: ${{ parameters.target_run_id }}
+      credential_type: ${{ parameters.credential_type }}
+      ssh_key_enabled: false
+
+  - script: |
+      set -euo pipefail
+      if [ "$CLUSTERMESH_DEBUG_CONFIRM_RESUME" != "$RUN_ID" ]; then
+        echo "CLUSTERMESH_DEBUG_CONFIRM_RESUME must equal $RUN_ID." >&2
+        exit 1
+      fi
+      export CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256
+      CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256=$(sha256sum \
+        "$(Pipeline.Workspace)/s/${{ parameters.tfvars_path }}" \
+        | awk '{print $1}')
+      bash "$(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/validate-existing-scale.sh"
+      if [ "$OVERLAY_MODE" = "resume" ]; then
+        bash "$(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/create-staged-fleet-overlay.sh"
+      else
+        bash "$(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/repair-existing-fleet-overlay.sh"
+      fi
+    displayName: "Validate preserved scale clusters and prepare Fleet overlay"
+    env:
+      OVERLAY_MODE: ${{ parameters.overlay_mode }}
+      RUN_ID: ${{ parameters.target_run_id }}
+      CLUSTERMESH_DEBUG_TARGET_RUN_ID: $(RUN_ID)
+      CLUSTERMESH_DEBUG_CONFIRM_RESUME: $(CLUSTERMESH_DEBUG_CONFIRM_RESUME)
+      CLUSTERMESH_DEBUG_EXPECTED_SUBSCRIPTION_ID: ${{ parameters.expected_subscription_id }}
+      CLUSTERMESH_DEBUG_EXPECTED_REGION: ${{ parameters.region }}
+      CLUSTERMESH_DEBUG_EXPECTED_CLUSTER_COUNT: "${{ parameters.expected_cluster_count }}"
+      CLUSTERMESH_DEBUG_EXTEND_LEASE_HOURS: "168"
+      CLUSTERMESH_DEBUG_REQUIRE_OVERLAY_RESET: ${{ eq(parameters.overlay_mode, 'resume') }}
+      CLUSTERMESH_DEBUG_MAX_REPAIR_MEMBERS: "20"
+      CLUSTERMESH_DEBUG_MANIFEST_PATH: $(Build.ArtifactStagingDirectory)/${{ parameters.manifest_subdir }}/validation.json
+
+  - template: /steps/validate-resources.yml
+    parameters:
+      cloud: azure
+      regions:
+      - ${{ parameters.region }}
+      topology: ${{ parameters.topology }}
+      engine: ${{ parameters.engine }}
+
+  - ${{ if parameters.run_workload }}:
+    - template: /steps/execute-tests.yml
+      parameters:
+        cloud: azure
+        topology: ${{ parameters.topology }}
+        engine: ${{ parameters.engine }}
+        regions:
+        - ${{ parameters.region }}
+        engine_input: ${{ parameters.engine_input }}
+
+  - ${{ if and(parameters.run_workload, parameters.publish_results) }}:
+    - template: /steps/publish-results.yml
+      parameters:
+        cloud: azure
+        topology: ${{ parameters.topology }}
+        engine: ${{ parameters.engine }}
+        regions:
+        - ${{ parameters.region }}
+        engine_input: ${{ parameters.engine_input }}
+        credential_type: ${{ parameters.credential_type }}
+
+  - template: /steps/topology/clustermesh-scale/reuse/write-resume-manifest.yml
+    parameters:
+      enabled: true
+      region: ${{ parameters.region }}
+      tfvars_path: ${{ parameters.tfvars_path }}
