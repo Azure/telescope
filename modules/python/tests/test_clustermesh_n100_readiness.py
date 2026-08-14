@@ -125,3 +125,17 @@ def test_fleet_recovery_treats_unavailable_deployment_as_stuck():
     assert "describe deployment clustermesh-apiserver" in validate
     assert "get pods \\" in validate
     assert 'az aks show --resource-group "$FLEET_RG" --name "$name"' in validate
+
+
+def test_node_readiness_has_final_recovery_grace_before_failure():
+    validate = VALIDATE_RESOURCES_PATH.read_text(encoding="utf-8")
+
+    assert "CLUSTERMESH_NODE_READY_TIMEOUT_SECONDS:-900" in validate
+    assert "CLUSTERMESH_NODE_READY_GRACE_SECONDS:-300" in validate
+    grace = validate.index("initial node readiness budget exhausted")
+    recovered = validate.index("all nodes recovered during final readiness grace")
+    failure = validate.index(
+        "node readiness timeout after ${node_ready_total_seconds}s"
+    )
+    assert grace < recovered < failure
+    assert '--timeout="${node_ready_grace_seconds}s"' in validate

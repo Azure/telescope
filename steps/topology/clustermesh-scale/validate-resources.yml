@@ -1068,6 +1068,14 @@ steps:
         fi
       fi
 
+      node_ready_timeout_seconds="${CLUSTERMESH_NODE_READY_TIMEOUT_SECONDS:-900}"
+      node_ready_grace_seconds="${CLUSTERMESH_NODE_READY_GRACE_SECONDS:-300}"
+      if ! [[ "$node_ready_timeout_seconds" =~ ^[1-9][0-9]*$ ]] ||
+         ! [[ "$node_ready_grace_seconds" =~ ^[0-9]+$ ]]; then
+        echo "ClusterMesh node readiness timeout/grace values must be positive/non-negative integers." >&2
+        exit 1
+      fi
+
       failures=0
       for row in $(echo "$clusters" | jq -c '.[]'); do
         name=$(echo "$row" | jq -r '.name')
@@ -1105,7 +1113,7 @@ steps:
         # wait timed out, validate step failed, CL2 skipped (~30min
         # of provisioned infra wasted).
         #
-        # New behavior: retry-with-resample loop, 15min budget, 30s
+        # New behavior: retry-with-resample loop, bounded budget, 30s
         # rechecks. Exits as soon as all nodes are Ready; gives a
         # final diag dump on timeout (which clusters/nodes are still
         # NotReady).
@@ -1127,7 +1135,7 @@ steps:
           kdiag -n kube-system get pod "$_cil" \
             -o jsonpath='{range .status.containerStatuses[*]}{"    "}{.name}: ready={.ready} restarts={.restartCount} state={.state}{"\n"}{end}' || true
         }
-        node_ready_deadline=$(( $(date +%s) + 900 ))
+        node_ready_deadline=$(( $(date +%s) + node_ready_timeout_seconds ))
         _iter=0
         while true; do
           if kubectl wait --for=condition=Ready nodes --all --timeout=30s >/dev/null 2>&1; then
@@ -1135,10 +1143,19 @@ steps:
             break
           fi
           if [ "$(date +%s)" -ge "$node_ready_deadline" ]; then
+            if [ "$node_ready_grace_seconds" -gt 0 ]; then
+              echo "$role: initial node readiness budget exhausted; allowing ${node_ready_grace_seconds}s final recovery grace"
+              if kubectl wait --for=condition=Ready nodes --all \
+                  --timeout="${node_ready_grace_seconds}s" >/dev/null 2>&1; then
+                echo "$role: all nodes recovered during final readiness grace"
+                break
+              fi
+            fi
+            node_ready_total_seconds=$((node_ready_timeout_seconds + node_ready_grace_seconds))
             if [ "$node_readiness_required" = "true" ]; then
-              echo "##vso[task.logissue type=error;] $role: node readiness timeout after 15 min"
+              echo "##vso[task.logissue type=error;] $role: node readiness timeout after ${node_ready_total_seconds}s"
             else
-              echo "##vso[task.logissue type=warning;] $role: node readiness timeout after 15 min; continuing because node readiness is warning-only for this Fleet threshold stage"
+              echo "##vso[task.logissue type=warning;] $role: node readiness timeout after ${node_ready_total_seconds}s; continuing because node readiness is warning-only for this Fleet threshold stage"
             fi
             # Best-effort, apiserver-flakiness-resilient diagnostics. The previous
             # dump did ONE `get nodes`/`describe` with no request-timeout and no
