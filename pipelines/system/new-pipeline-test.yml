@@ -10,46 +10,44 @@ parameters:
   # default to current prod values; konn_server_image/konn_agent_image
   # default to prod's current resolved tag.
   #
-  # Current sweep: rateLimit 2->20 MiB/s (block size at .5 MiB baseline
-  # unless called out), each combo at a single 2000-node tier (see TIERS
-  # below) with a 5-minute dwell -- trimmed to 1 tier for a first pass.
-  # Judge results from ADX's full metrics set (dropped packets, pending
-  # backlog, etc.), not a single bespoke check.
+  # Current sweep: rateLimit 2->20 MiB/s, maxBlockSize scaled alongside it
+  # (2/4/6/10 MiB in step with the rate limit, not flat) -- each combo at a
+  # single 2000-node tier (see TIERS below) with a 5-minute dwell. Judge
+  # results from ADX's full metrics set (dropped packets, pending backlog,
+  # drain-observation rows, etc.), not a single bespoke check.
   - name: config_combinations
     type: object
     default:
       - run_label: rl-2mb-baseline
         rate_limit: 2097152      # 2 MiB/s — current prod value
         max_block_size: 524288   # .5 MiB — current prod value
-        konn_server_image: imranpochi/proxy-server:aksmaster-holfix  # team test build, exercising autoscaler
-        konn_agent_image: imranpochi/proxy-agent:aksmaster-holfix    # team test build, exercising autoscaler
-      # - run_label: rl-4mb
-      #   rate_limit: 4194304
-      #   max_block_size: 524288
-      # - run_label: rl-6mb
-      #   rate_limit: 6291456
-      #   max_block_size: 524288
-      # - run_label: rl-8mb
-      #   rate_limit: 8388608
-      #   max_block_size: 524288
-      # - run_label: rl-10mb-bs-2mb
-      #   rate_limit: 10485760
-      #   max_block_size: 2097152
-      # - run_label: rl-12mb
-      #   rate_limit: 12582912
-      #   max_block_size: 524288
-      # - run_label: rl-14mb
-      #   rate_limit: 14680064
-      #   max_block_size: 524288
-      # - run_label: rl-16mb
-      #   rate_limit: 16777216
-      #   max_block_size: 524288
-      # - run_label: rl-18mb
-      #   rate_limit: 18874368
-      #   max_block_size: 524288
-      # - run_label: rl-20mb-bs-10mb
-      #   rate_limit: 20971520
-      #   max_block_size: 10485760
+      - run_label: rl-4mb-bs-2mb
+        rate_limit: 4194304
+        max_block_size: 2097152
+      - run_label: rl-6mb-bs-2mb
+        rate_limit: 6291456
+        max_block_size: 2097152
+      - run_label: rl-8mb-bs-2mb
+        rate_limit: 8388608
+        max_block_size: 2097152
+      - run_label: rl-10mb-bs-4mb
+        rate_limit: 10485760
+        max_block_size: 4194304
+      - run_label: rl-12mb-bs-4mb
+        rate_limit: 12582912
+        max_block_size: 4194304
+      - run_label: rl-14mb-bs-6mb
+        rate_limit: 14680064
+        max_block_size: 6291456
+      - run_label: rl-16mb-bs-6mb
+        rate_limit: 16777216
+        max_block_size: 6291456
+      - run_label: rl-18mb-bs-10mb
+        rate_limit: 18874368
+        max_block_size: 10485760
+      - run_label: rl-20mb-bs-10mb
+        rate_limit: 20971520
+        max_block_size: 10485760
 
 pool:
   name: 'AKS-Telescope-Airlock'
