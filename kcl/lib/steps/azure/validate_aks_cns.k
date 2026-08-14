@@ -13,8 +13,7 @@ fail() { echo "FAILED AZURE-CNS CHECK: $*"; failures=$((failures + 1)); }
 pod="aks-validation-cns-$RANDOM"
 trap 'kubectl delete pod "$pod" --ignore-not-found >/dev/null 2>&1' EXIT
 kubectl run "$pod" --image=mcr.microsoft.com/azurelinux/busybox:1.36 --restart=Never --command -- sleep 300
-kubectl wait --for=condition=Ready pod/"$pod" --timeout=120s
-if [ $? -ne 0 ]; then
+if ! kubectl wait --for=condition=Ready pod/"$pod" --timeout=120s; then
   fail "test pod did not become Ready (IP allocation may have failed)"
   echo "azure-cns validation failed with $failures error(s)"; exit 1
 fi
