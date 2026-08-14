@@ -139,3 +139,15 @@ def test_node_readiness_has_final_recovery_grace_before_failure():
     )
     assert grace < recovered < failure
     assert '--timeout="${node_ready_grace_seconds}s"' in validate
+
+
+def test_cilium_status_exec_has_wall_clock_and_command_timeouts():
+    validate = VALIDATE_RESOURCES_PATH.read_text(encoding="utf-8")
+
+    assert "CLUSTERMESH_PEER_CONVERGENCE_TIMEOUT_SECONDS:-1800" in validate
+    assert "CLUSTERMESH_STATUS_COMMAND_TIMEOUT_SECONDS:-45" in validate
+    assert 'while [ "$(date +%s)" -lt "$mesh_status_deadline" ]' in validate
+    assert "timeout --signal=TERM --kill-after=10s" in validate
+    assert 'kubectl --request-timeout="${mesh_status_command_timeout}s"' in validate
+    assert "cilium-dbg status timed out" in validate
+    assert "for i in $(seq 1 120)" not in validate

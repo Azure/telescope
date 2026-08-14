@@ -1243,38 +1243,38 @@ steps:
         echo
 
         echo "--- cilium-dbg status (ClusterMesh section) ---"
-        # Retry up to ~5 minutes — the mesh propagation can lag a few seconds
-        # past az fleet clustermeshprofile apply's return.
-        # We use `cilium-dbg status` (in-pod debug binary) rather than the
-        # external `cilium clustermesh status` so we don't require cilium-cli
-        # on the agent. cilium-dbg status includes a "ClusterMesh:" block of
-        # the form:
-        #   ClusterMesh:   2/2 remote clusters ready, 0 global-services
-        #      mesh-2: ready, ...
-        # Retry up to ~10 minutes — the AKS-managed Cilium operator publishes
-        # the per-agent `cilium-clustermesh` Secret asynchronously after Fleet
-        # finishes profile apply, and the clustermesh-apiserver may be
-        # recreated mid-validation (cert/config rotation), bumping the wait
-        # another ~30s for agents to reload. Empirically 5 min was too tight
-        # for whichever cluster gets validated first; 10 min covers it with
-        # margin.
-        #
-        # Note: `cilium-dbg status` (in-pod, agent's local view) and
-        # `cilium clustermesh status` (CLI, queries clustermesh-apiserver) can
-        # disagree for several minutes during this window — the CLI flips to
-        # "configured/connected" first because it counts apiserver clients,
-        # while the in-pod view requires the Secret to be reloaded. We gate on
-        # the in-pod view because the data path needs the agent's local state.
-        # Mesh convergence retry budget. At N=20 we observed mesh-2 +
-        # mesh-6 take ~24 min to reach 19/19 connected (initial-sync + Fleet
-        # member-secret reload at scale). Budget of 120 * 15s = 30 min
-        # accommodates that slowest-cluster tail. Smaller N (2/5/10) finish
-        # in <5 min and exit the loop early via the break, so no cost on
-        # green runs at small N.
+        # Gate on the agent's local ClusterMesh view. Bound both the complete
+        # convergence window and each streaming kubectl exec so one wedged
+        # SPDY/WebSocket session cannot hang the entire n=100 job.
+        mesh_convergence_timeout_seconds="${CLUSTERMESH_PEER_CONVERGENCE_TIMEOUT_SECONDS:-1800}"
+        mesh_status_command_timeout_seconds="${CLUSTERMESH_STATUS_COMMAND_TIMEOUT_SECONDS:-45}"
+        mesh_status_poll_seconds="${CLUSTERMESH_STATUS_POLL_SECONDS:-15}"
+        if ! [[ "$mesh_convergence_timeout_seconds" =~ ^[1-9][0-9]*$ ]] ||
+           ! [[ "$mesh_status_command_timeout_seconds" =~ ^[1-9][0-9]*$ ]] ||
+           ! [[ "$mesh_status_poll_seconds" =~ ^[0-9]+$ ]]; then
+          echo "ClusterMesh peer convergence timeout values must be positive/positive/non-negative integers." >&2
+          exit 1
+        fi
         connected=0
-        for i in $(seq 1 120); do
-          out=$(kubectl -n kube-system exec ds/cilium -- cilium-dbg status 2>&1 || true)
+        mesh_status_attempt=0
+        mesh_status_deadline=$(( $(date +%s) + mesh_convergence_timeout_seconds ))
+        while [ "$(date +%s)" -lt "$mesh_status_deadline" ]; do
+          mesh_status_attempt=$((mesh_status_attempt + 1))
+          mesh_status_remaining=$((mesh_status_deadline - $(date +%s)))
+          mesh_status_command_timeout="$mesh_status_command_timeout_seconds"
+          if [ "$mesh_status_command_timeout" -gt "$mesh_status_remaining" ]; then
+            mesh_status_command_timeout="$mesh_status_remaining"
+          fi
+          mesh_status_rc=0
+          out=$(timeout --signal=TERM --kill-after=10s \
+            "${mesh_status_command_timeout}s" \
+            kubectl --request-timeout="${mesh_status_command_timeout}s" \
+            -n kube-system exec ds/cilium -- cilium-dbg status 2>&1) ||
+            mesh_status_rc=$?
           echo "$out"
+          if [ "$mesh_status_rc" -eq 124 ] || [ "$mesh_status_rc" -eq 137 ]; then
+            echo "  cilium-dbg status timed out after ${mesh_status_command_timeout}s; retrying within the convergence deadline"
+          fi
           # Parse "<ready>/<total> remote clusters ready" line.
           ready=$(echo "$out" | sed -nE 's/.*ClusterMesh:[[:space:]]+([0-9]+)\/[0-9]+ remote clusters ready.*/\1/p' | head -1)
           ready=${ready:-0}
@@ -1283,8 +1283,18 @@ steps:
             break
           fi
 
-          echo "  waiting for $expected_remote remote clusters to be ready (got $ready), retry $i/120..."
-          sleep 15
+          mesh_status_remaining=$((mesh_status_deadline - $(date +%s)))
+          echo "  waiting for $expected_remote remote clusters to be ready (got $ready), attempt $mesh_status_attempt, remaining=${mesh_status_remaining}s..."
+          if [ "$mesh_status_remaining" -le 0 ]; then
+            break
+          fi
+          mesh_status_sleep="$mesh_status_poll_seconds"
+          if [ "$mesh_status_sleep" -gt "$mesh_status_remaining" ]; then
+            mesh_status_sleep="$mesh_status_remaining"
+          fi
+          if [ "$mesh_status_sleep" -gt 0 ]; then
+            sleep "$mesh_status_sleep"
+          fi
         done
 
         if [ "$connected" -ne 1 ]; then
@@ -1309,7 +1319,9 @@ steps:
             | python3 -c "import sys,json; d=json.loads(sys.stdin.read()) if sys.stdin else {}; [print(f'  key: {k}') for k in sorted(d.keys())]" 2>&1 \
             || echo "(cilium-clustermesh secret not present)"
           echo "--- cilium-dbg status REMOTE CLUSTERS (full output, not just summary) ---"
-          kubectl -n kube-system exec ds/cilium -- cilium-dbg status --verbose 2>&1 \
+          timeout --signal=TERM --kill-after=10s 60s \
+            kubectl --request-timeout=45s -n kube-system exec ds/cilium -- \
+              cilium-dbg status --verbose 2>&1 \
             | grep -A 4 -E '^[[:space:]]+(mesh-|remote-)' | head -80 || true
           echo "--- end PEER-LIST DEBUG DUMP for $role ---"
         fi
