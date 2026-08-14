@@ -585,6 +585,8 @@ def test_native_snapshots_are_relabelled_before_publish_and_upload():
     assert "/telemetry/acns/" in template
     assert 'blob_name="${BUILD_BRANCH}/acns/' in template
     assert 'blob_name="${BUILD_BRANCH}/lifecycle/' in template
+    assert "CL2_PROM_RELABEL_TIMEOUT_SECONDS" in template
+    assert "timeout --signal=TERM --kill-after=30s" in template
 
 
 def test_acns_probe_runs_before_snapshot_and_is_collected_before_teardown():
@@ -611,6 +613,9 @@ def test_acns_probe_runs_before_snapshot_and_is_collected_before_teardown():
     assert "readiness-final.json" in worker
     assert "accepted_telemetry_gaps" in worker
     assert "acns_gap_accepted" in worker
+    assert "CL2_PROM_SNAPSHOT_COPY_ATTEMPTS" in worker
+    assert "snapshot_copy_attempt" in worker
+    assert 'tar -tzf "$snap_tar_partial"' in worker
     assert 'cl2_config_file" = "policy-scale.yaml' in worker
     assert "accept_cilium_policy_gap=false" in worker
     assert "exit 10" in worker
@@ -627,6 +632,9 @@ def test_cilium_policy_guard_runs_before_each_scenario():
     assert execute.index(guard_call) < execute.index(mock_reconcile)
     assert execute.index(guard_call) < execute.index(scenario_banner)
     assert "ensure-cilium-policy.sh" in execute
+    assert 'CL2_HEALTH_GATE_TIMEOUT_BUFFER_SECONDS="${' in execute
+    assert "HEALTH_GATE_TIMEOUT_BUFFER_SECONDS:-1800" in execute
+    assert 'CL2_HEALTH_GATE_CYCLE_TIMEOUT_SECONDS:-900' in execute
 
 
 def test_upper_bound_collection_uses_execution_defaults():
@@ -661,6 +669,11 @@ def test_required_platform_metrics_fail_the_wait_task():
     assert "AKS_PLATFORM_METRICS_MIN_COVERAGE_PERCENT" in wait_script
     assert "Required AKS platform CPU/memory metrics did not cover" in wait_script
     assert '[ "$platform_metrics_ready" != "true" ]' in wait_script
+    assert "--slurpfile managed_readiness_arr" in wait_script
+    assert "--slurpfile capacity_audits_arr" in wait_script
+    assert "--slurpfile scenario_windows_arr" in wait_script
+    assert "--argjson managed_readiness" not in wait_script
+    assert "--argjson capacity_audits" not in wait_script
 
 
 def test_managed_monitoring_convergence_blocks_policy_disable_rollout():

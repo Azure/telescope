@@ -139,7 +139,7 @@ steps:
       export CL2_AGENT_MEMORY_MIN_FREE_GI="${AGENT_MEMORY_MIN_FREE_GI:-0}"
       export CL2_SUITE_TOTAL_BUDGET_SECONDS="${SUITE_TOTAL_BUDGET_SECONDS:-0}"
       export CL2_SUITE_FINALIZATION_RESERVE_SECONDS="${SUITE_FINALIZATION_RESERVE_SECONDS:-0}"
-      export CL2_HEALTH_GATE_TIMEOUT_BUFFER_SECONDS="${HEALTH_GATE_TIMEOUT_BUFFER_SECONDS:-900}"
+      export CL2_HEALTH_GATE_TIMEOUT_BUFFER_SECONDS="${HEALTH_GATE_TIMEOUT_BUFFER_SECONDS:-1800}"
       # Phase 4b — Scenario #6 (Upper Bound / Saturation) knobs.
       # upper-bound.yaml consumes these via CL2's DefaultParam template
       # func; non-saturation scenarios ignore them. Defaults mirror
@@ -438,8 +438,12 @@ steps:
       }
 
       scenario_artifact_budget_seconds() {
+        if [ -n "${CL2_SCENARIO_ARTIFACT_BUDGET_SECONDS:-}" ]; then
+          echo "$CL2_SCENARIO_ARTIFACT_BUDGET_SECONDS"
+          return
+        fi
         if [ "$cluster_count" -ge 50 ]; then
-          echo 1800
+          echo 10800
         else
           echo 600
         fi
@@ -473,8 +477,12 @@ steps:
           echo 0
           return
         fi
+        if [ -n "${CL2_MOCK_RECONCILE_BUDGET_SECONDS:-}" ]; then
+          echo "$CL2_MOCK_RECONCILE_BUDGET_SECONDS"
+          return
+        fi
         if [ "$cluster_count" -ge 50 ]; then
-          echo 600
+          echo 1800
         else
           echo 300
         fi
@@ -560,22 +568,7 @@ steps:
         return 1
       }
 
-      # Reconciles the shared mock (KWOK node + bare Cilium agent) layer's
-      # actual state back to its declared desired state. Runs twice per
-      # scenario in mock mode:
-      #   - "before": repairs drift left over from the PREVIOUS scenario/run
-      #     so this scenario starts from a known-good shared-infra baseline.
-      #     A failure here means the shared mock infra itself is unsafe —
-      #     NOT a scenario measurement failure — so the caller stops the
-      #     whole suite rather than attributing it to this scenario.
-      #   - "after": repairs missing/deleted/Failed bare mock agents,
-      #     missing/NotReady KWOK nodes, and agents stranded on NotReady
-      #     real nodes that this scenario's stimulus may have left behind,
-      #     before the health gate proves baseline recovery.
-      # No-op (returns 0, writes nothing) outside mock mode.
-      # mock_layer_reconcile.py has no built-in outer-timeout flag, only
-      # bounded per-cluster attempts/settle/request timeouts — the outer
-      # `timeout` wrapper here is what bounds the whole pass.
+      # Reconcile the persisted mock layer before and after each scenario.
       run_mock_layer_reconcile() {
         local _label="$1" _output="$2"
         if [ "${CL2_MOCK_MODE:-false}" != "true" ]; then
@@ -590,6 +583,14 @@ steps:
         fi
         local _budget
         _budget=$(scenario_mock_reconcile_budget_seconds)
+        local _attempts _settle_seconds
+        if [ "$cluster_count" -ge 50 ]; then
+          _attempts="${CL2_MOCK_RECONCILE_ATTEMPTS:-10}"
+          _settle_seconds="${CL2_MOCK_RECONCILE_SETTLE_SECONDS:-30}"
+        else
+          _attempts="${CL2_MOCK_RECONCILE_ATTEMPTS:-5}"
+          _settle_seconds="${CL2_MOCK_RECONCILE_SETTLE_SECONDS:-15}"
+        fi
         local _rc=0
         timeout --signal=TERM --kill-after=30s "${_budget}s" \
           python3 "$MOCK_RECONCILER_SCRIPT" \
@@ -598,8 +599,8 @@ steps:
           --run-id "${RUN_ID}" \
           --expected-mock-count "${CL2_MOCK_NODE_COUNT}" \
           --max-concurrent "$_concurrency" \
-          --attempts 5 \
-          --settle-seconds 15 \
+          --attempts "$_attempts" \
+          --settle-seconds "$_settle_seconds" \
           --request-timeout-seconds 30 \
           --summary-file "$_output" || _rc=$?
         # Always persist an authoritative summary after an outer timeout.
@@ -2063,13 +2064,7 @@ steps:
             echo "##vso[task.logissue type=warning;] ${SCENARIO}: scenario-cleanup-reconcile did not fully converge; deferring to the post-scenario health gate"
           fi
 
-          # B.5: post-scenario shared-infra recovery (mock mode only), run
-          # AFTER diagnostics but BEFORE the health gate so the gate proves
-          # the layer this reconcile pass just repaired. Repairs
-          # missing/deleted/Failed bare mock agents, missing/NotReady KWOK
-          # nodes, and agents stranded on NotReady real nodes. A failure
-          # here is a shared-infra failure (mock_reconcile_valid=false)
-          # and MUST stop later scenarios.
+          # Repair the mock layer before the proof-only health gate.
           mock_reconcile_after_output="${CL2_REPORT_DIR}/${SCENARIO}/mock-layer-reconcile-after.json"
           mock_reconcile_valid=true
           if ! run_mock_layer_reconcile "after" "$mock_reconcile_after_output"; then
@@ -2079,7 +2074,7 @@ steps:
           cleanup_quiet_seconds=$(scenario_quiet_window_seconds "$SCENARIO")
           cleanup_timeout_seconds=$(( cleanup_quiet_seconds + CL2_HEALTH_GATE_TIMEOUT_BUFFER_SECONDS ))
           if [ "$cluster_count" -ge 50 ]; then
-            cleanup_cycle_timeout_seconds=300
+            cleanup_cycle_timeout_seconds="${CL2_HEALTH_GATE_CYCLE_TIMEOUT_SECONDS:-900}"
             cleanup_concurrency=12
           else
             cleanup_cycle_timeout_seconds=60

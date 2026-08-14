@@ -89,6 +89,10 @@ state = (
     else {}
 )
 if args[:3] == ["storage", "blob", "upload"]:
+    sleep_seconds = float(os.environ.get("FAKE_AZ_UPLOAD_SLEEP_SECONDS", "0"))
+    if sleep_seconds > 0:
+        import time
+        time.sleep(sleep_seconds)
     blob_name = option("--name")
     fail_pattern = os.environ.get("FAKE_AZ_FAIL_UPLOAD_PATTERN", "")
     if fail_pattern and fail_pattern in blob_name:
@@ -142,6 +146,8 @@ def _run_helper(
     fail_upload_pattern: str = "",
     relabel_should_fail: bool = False,
     lifecycle_only: bool = False,
+    upload_sleep_seconds: str = "0",
+    outer_timeout_seconds: int | None = None,
 ) -> subprocess.CompletedProcess[str]:
     fake_bin, az_log, relabel_log = _setup_fakes(
         tmp_path, relabel_should_fail=relabel_should_fail
@@ -167,12 +173,22 @@ def _run_helper(
             "FAKE_AZ_STATE": str(tmp_path / "az-state.json"),
             "FAKE_AZ_SUBSCRIPTION_ID": "subscription-1",
             "FAKE_AZ_FAIL_UPLOAD_PATTERN": fail_upload_pattern,
+            "FAKE_AZ_UPLOAD_SLEEP_SECONDS": upload_sleep_seconds,
             "FAKE_RELABEL_LOG": str(relabel_log),
             "PRESERVE_LIFECYCLE_ONLY": "true" if lifecycle_only else "false",
         }
     )
+    command = ["bash", str(SCRIPT)]
+    if outer_timeout_seconds is not None:
+        command = [
+            "timeout",
+            "--signal=TERM",
+            "--kill-after=5s",
+            f"{outer_timeout_seconds}s",
+            *command,
+        ]
     return subprocess.run(
-        ["bash", str(SCRIPT)],
+        command,
         env=env,
         text=True,
         capture_output=True,
@@ -525,6 +541,31 @@ def test_snapshot_upload_failure_is_also_infrastructure_failure(tmp_path):
     )
     assert summary["success"] is False
     assert summary["infrastructure_failure"] is True
+
+
+def test_outer_timeout_still_writes_authoritative_summary(tmp_path):
+    scenario_dir = tmp_path / "share-infra-1"
+    worker_summary = scenario_dir / "worker-summary.json"
+    _create_snapshot(scenario_dir / "mesh-1", "snapshot-a")
+    _write_worker_summary(worker_summary, ["mesh-1"])
+
+    result = _run_helper(
+        tmp_path,
+        scenario_dir,
+        worker_summary,
+        upload_sleep_seconds="2",
+        outer_timeout_seconds=1,
+    )
+
+    assert result.returncode == 124
+    summary = json.loads(
+        (scenario_dir / "artifact-preservation-summary.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert summary["success"] is False
+    assert summary["infrastructure_failure"] is True
+    assert any("interrupted by TERM" in error for error in summary["errors"])
 
 
 # --- Fix: PRESERVE_LIFECYCLE_ONLY final-lifecycle-upload mode --------------

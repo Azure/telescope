@@ -253,6 +253,10 @@ def test_acns_setup_and_host_log_collection_smoke(tmp_path):
               {"metadata":{"name":"collector-b"},"spec":{"nodeName":"node-b"}}
             ]}
             JSON
+            elif [[ " $* " == *" exec collector-b -c collector -- tar "* ]] &&
+                 [ ! -f "$ARCHIVE_FAIL_ONCE_MARKER" ]; then
+              touch "$ARCHIVE_FAIL_ONCE_MARKER"
+              exit 1
             elif [[ " $* " == *" exec collector-"* ]]; then
               tar czf - -C "$FAKE_LOG_DIR" .
             elif [ "${1:-}" = "delete" ] || [[ " $* " == *" delete "* ]]; then
@@ -276,11 +280,13 @@ def test_acns_setup_and_host_log_collection_smoke(tmp_path):
             "KUBECONFIG": str(tmp_path / "kubeconfig"),
             "KUBECTL_LOG": str(kubectl_log),
             "TRAFFIC_MARKER": str(traffic_marker),
+            "ARCHIVE_FAIL_ONCE_MARKER": str(tmp_path / "archive-failed-once"),
             "FAKE_LOG_DIR": str(fake_logs),
             "OUTPUT_DIR": str(output_dir),
             "ACNS_READINESS_OUTPUT": str(output_dir / "readiness.json"),
             "ACNS_WINDOW_START_TIMESTAMP": "2026-07-31T20:00:00Z",
             "CL2_ACNS_METRIC_PROBE_SETTLE_SECONDS": "0",
+            "CL2_ACNS_ARCHIVE_RETRY_SECONDS": "0",
             "PATH": f"{fake_bin}:{environment['PATH']}",
         }
     )
@@ -329,6 +335,12 @@ def test_acns_setup_and_host_log_collection_smoke(tmp_path):
     assert summary["fresh_event_archives"] == 2
     assert summary["window_start"] == "2026-07-31T20:00:00Z"
     assert summary["metric_config_captured"] is True
+    assert (
+        kubectl_log.read_text(encoding="utf-8").count(
+            "exec collector-b -c collector -- tar"
+        )
+        == 2
+    )
     assert (output_dir / "container-network-metric.json").exists()
     readiness = json.loads(
         (output_dir / "readiness.json").read_text(encoding="utf-8")

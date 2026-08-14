@@ -735,6 +735,8 @@ if [ "${CL2_PROM_SNAPSHOT_ENABLED:-false}" = "true" ]; then
       snapshot_max_attempts="${CL2_PROM_SNAPSHOT_MAX_ATTEMPTS:-5}"
       snapshot_retry_seconds="${CL2_PROM_SNAPSHOT_RETRY_SECONDS:-2}"
       snapshot_error_retry_seconds="${CL2_PROM_SNAPSHOT_ERROR_RETRY_SECONDS:-10}"
+      snapshot_copy_attempts="${CL2_PROM_SNAPSHOT_COPY_ATTEMPTS:-3}"
+      snapshot_copy_retry_seconds="${CL2_PROM_SNAPSHOT_COPY_RETRY_SECONDS:-5}"
       if ! [[ "$snapshot_max_attempts" =~ ^[1-9][0-9]*$ ]]; then
         snapshot_max_attempts=5
       elif [ "$snapshot_max_attempts" -gt 10 ]; then
@@ -745,6 +747,14 @@ if [ "${CL2_PROM_SNAPSHOT_ENABLED:-false}" = "true" ]; then
       fi
       if ! [[ "$snapshot_error_retry_seconds" =~ ^(0|[1-9][0-9]*)$ ]]; then
         snapshot_error_retry_seconds=10
+      fi
+      if ! [[ "$snapshot_copy_attempts" =~ ^[1-9][0-9]*$ ]]; then
+        snapshot_copy_attempts=3
+      elif [ "$snapshot_copy_attempts" -gt 5 ]; then
+        snapshot_copy_attempts=5
+      fi
+      if ! [[ "$snapshot_copy_retry_seconds" =~ ^(0|[1-9][0-9]*)$ ]]; then
+        snapshot_copy_retry_seconds=5
       fi
       list_prom_snapshot_dirs() {
         timeout 15s env KUBECONFIG="$kubeconfig" \
@@ -881,14 +891,30 @@ if [ "${CL2_PROM_SNAPSHOT_ENABLED:-false}" = "true" ]; then
         # No -i / -t so kubectl pipes binary cleanly without TTY mangling.
         # Write to .partial then validate gzip before renaming, so a
         # corrupt mid-stream truncation doesn't get uploaded as if good.
-        if KUBECONFIG="$kubeconfig" kubectl -n monitoring exec "$prom_pod" -c prometheus -- \
-            tar czf - -C /prometheus/snapshots "$snap_name" > "$snap_tar_partial" 2>/dev/null \
-          && gzip -t "$snap_tar_partial" 2>/dev/null; then
+        snapshot_copy_ok=false
+        for snapshot_copy_attempt in $(seq 1 "$snapshot_copy_attempts"); do
+          rm -f "$snap_tar_partial"
+          if KUBECONFIG="$kubeconfig" kubectl -n monitoring exec \
+              "$prom_pod" -c prometheus -- \
+              tar czf - -C /prometheus/snapshots "$snap_name" \
+              > "$snap_tar_partial" 2>/dev/null &&
+             gzip -t "$snap_tar_partial" 2>/dev/null &&
+             tar -tzf "$snap_tar_partial" >/dev/null 2>&1; then
+            snapshot_copy_ok=true
+            break
+          fi
+          echo "  $role: prom-snapshot: copy attempt ${snapshot_copy_attempt}/${snapshot_copy_attempts} failed"
+          if [ "$snapshot_copy_attempt" -lt "$snapshot_copy_attempts" ] &&
+             [ "$snapshot_copy_retry_seconds" -gt 0 ]; then
+            sleep "$snapshot_copy_retry_seconds"
+          fi
+        done
+        if [ "$snapshot_copy_ok" = "true" ]; then
           mv "$snap_tar_partial" "$snap_tar"
           snap_size=$(stat -c%s "$snap_tar" 2>/dev/null || echo "?")
           echo "  $role: prom-snapshot: wrote ${snap_size} bytes to $snap_tar (gzip OK)"
         else
-          echo "##vso[task.logissue type=warning;] $role: prom-snapshot: tar of snapshot dir failed or gzip integrity check failed; dropping partial $snap_tar_partial"
+          echo "##vso[task.logissue type=warning;] $role: prom-snapshot: tar of snapshot dir failed or gzip integrity check failed after ${snapshot_copy_attempts} attempt(s); dropping partial $snap_tar_partial"
           rm -f "$snap_tar_partial"
         fi
       fi

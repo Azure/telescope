@@ -1735,13 +1735,22 @@ def test_mock_reconcile_budget_is_300s_below_50_clusters():
     assert out == "300"
 
 
-def test_mock_reconcile_budget_is_600s_at_or_above_50_clusters():
+def test_mock_reconcile_budget_is_1800s_at_or_above_50_clusters():
     out = _run_budget_function(
         ["scenario_mock_reconcile_budget_seconds"],
         "cluster_count=50 scenario_mock_reconcile_budget_seconds",
         env={"PATH": "/usr/bin:/bin", "CL2_MOCK_MODE": "true"},
     )
-    assert out == "600"
+    assert out == "1800"
+
+
+def test_artifact_budget_is_10800s_at_or_above_50_clusters():
+    out = _run_budget_function(
+        ["scenario_artifact_budget_seconds"],
+        "cluster_count=100 scenario_artifact_budget_seconds",
+        env={"PATH": "/usr/bin:/bin"},
+    )
+    assert out == "10800"
 
 
 def test_mock_reconcile_budget_is_zero_outside_mock_mode():
@@ -1793,3 +1802,5 @@ def test_run_mock_layer_reconcile_timeout_fallback_is_syntactically_wired():
     assert ".timed_out = true" in function_src or "timed_out: true" in function_src
     assert "phase" in function_src
     assert "mock-layer-reconcile[<role>] phase:" in function_src
+    assert 'CL2_MOCK_RECONCILE_ATTEMPTS:-10' in function_src
+    assert 'CL2_MOCK_RECONCILE_SETTLE_SECONDS:-30' in function_src

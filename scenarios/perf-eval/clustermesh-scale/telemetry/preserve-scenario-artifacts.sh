@@ -220,6 +220,19 @@ write_summary() {
   mv -f -- "$summary_tmp" "$summary_file"
 }
 
+handle_termination() {
+  local signal_name="$1"
+  trap - TERM INT
+  add_error \
+    "Artifact preservation interrupted by $signal_name before completion" \
+    infra
+  write_summary false || true
+  exit 124
+}
+
+trap 'handle_termination TERM' TERM
+trap 'handle_termination INT' INT
+
 upload_and_verify() {
   local file="$1"
   local blob_name="$2"

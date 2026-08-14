@@ -369,7 +369,14 @@ steps:
   #     prom/prometheus --storage.tsdb.path=/prometheus
   - bash: |
       set -euo pipefail
-      bash "$RELABEL_SCRIPT"
+      relabel_timeout_seconds="${CL2_PROM_RELABEL_TIMEOUT_SECONDS:-10800}"
+      if ! [[ "$relabel_timeout_seconds" =~ ^[1-9][0-9]*$ ]]; then
+        echo "CL2_PROM_RELABEL_TIMEOUT_SECONDS must be a positive integer." >&2
+        exit 1
+      fi
+      timeout --signal=TERM --kill-after=30s \
+        "${relabel_timeout_seconds}s" \
+        bash "$RELABEL_SCRIPT"
     env:
       CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/results
       RUN_ID: $(RUN_ID)

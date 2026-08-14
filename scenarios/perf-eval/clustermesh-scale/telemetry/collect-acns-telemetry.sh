@@ -10,6 +10,16 @@ fi
 : "${OUTPUT_DIR:?OUTPUT_DIR is required}"
 mkdir -p "$OUTPUT_DIR"
 window_start="${ACNS_WINDOW_START_TIMESTAMP:-}"
+archive_attempts="${CL2_ACNS_ARCHIVE_ATTEMPTS:-3}"
+archive_retry_seconds="${CL2_ACNS_ARCHIVE_RETRY_SECONDS:-5}"
+if ! [[ "$archive_attempts" =~ ^[1-9][0-9]*$ ]]; then
+  echo "CL2_ACNS_ARCHIVE_ATTEMPTS must be a positive integer." >&2
+  exit 1
+fi
+if ! [[ "$archive_retry_seconds" =~ ^[0-9]+$ ]]; then
+  echo "CL2_ACNS_ARCHIVE_RETRY_SECONDS must be a non-negative integer." >&2
+  exit 1
+fi
 
 kubectl get containernetworklog clustermesh-scale-acns -o json \
   > "$OUTPUT_DIR/container-network-log.json"
@@ -38,9 +48,23 @@ while IFS=$'\t' read -r pod node; do
   safe_node=$(printf '%s' "$node" | sed -E 's/[^a-zA-Z0-9_.-]+/_/g')
   archive="$OUTPUT_DIR/cnl-${safe_node}.tar.gz"
   partial="${archive}.partial"
-  if kubectl -n acns-telemetry exec "$pod" -c collector -- \
-      tar czf - -C /host-acns . > "$partial" 2>/dev/null &&
-     gzip -t "$partial"; then
+  archive_ok=false
+  for attempt in $(seq 1 "$archive_attempts"); do
+    rm -f "$partial"
+    if kubectl -n acns-telemetry exec "$pod" -c collector -- \
+        tar czf - -C /host-acns . > "$partial" 2>/dev/null &&
+       gzip -t "$partial" 2>/dev/null &&
+       tar -tzf "$partial" >/dev/null 2>&1; then
+      archive_ok=true
+      break
+    fi
+    echo "ACNS archive attempt $attempt/$archive_attempts failed for $pod on $node." >&2
+    if [ "$attempt" -lt "$archive_attempts" ] &&
+       [ "$archive_retry_seconds" -gt 0 ]; then
+      sleep "$archive_retry_seconds"
+    fi
+  done
+  if [ "$archive_ok" = "true" ]; then
     mv "$partial" "$archive"
     size=$(stat -c%s "$archive")
     contains_events=false
