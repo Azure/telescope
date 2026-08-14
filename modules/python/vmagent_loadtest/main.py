@@ -475,6 +475,8 @@ def main() -> None:
                     resume=resume,
                     final_tier_dwell_minutes=args.final_tier_dwell_minutes,
                     fixed_pools=args.fixed_pools,
+                    measure_drain=args.measure_drain,
+                    drain_observe_seconds=args.drain_observe_seconds,
                 )
                 all_results.append(result)
                 break

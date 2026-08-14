@@ -195,6 +195,20 @@ TIMESERIES_METRICS = [
      'sum(vmagent_remotewrite_requests_total) by (url,status_code)'),
     ("vmagent_remote_write_retries_total",
      'sum(vmagent_remotewrite_retries_count_total) by (url)'),
+    # Data-loss signals prod's own "Data Loss" dashboard checks
+    # (aks-operator/.../teams/veritas/vmagent/vmagent/data_loss.k) that
+    # weren't previously covered here -- packets_dropped/retries above are
+    # NOT the same signal as these; a rate-limit sizing conclusion needs all of them.
+    ("vmagent_remote_write_samples_dropped_total",
+     'sum(vmagent_remotewrite_samples_dropped_total) by (url)'),
+    ("vmagent_remote_write_rate_limit_reached_total",
+     'sum(vmagent_remotewrite_rate_limit_reached_total) by (url)'),
+    ("vmagent_rows_invalid_total",
+     'vm_rows_invalid_total'),
+    ("vmagent_persistentqueue_bytes_dropped_total",
+     'vm_persistentqueue_bytes_dropped_total'),
+    ("vmagent_persistentqueue_bytes_pending",
+     'vm_persistentqueue_bytes_pending'),
 
     # ---------------- vmsingle (storage receiver, for sanity) ------------
     ("vmsingle_rows_inserted_total",

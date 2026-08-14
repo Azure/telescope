@@ -96,8 +96,9 @@ def extract_histogram_percentiles(metrics_text: str, metric_name: str,
 def observe_remotewrite_drain(cp_kubeconfig: str, namespace: str, work_dir: Path,
                                duration_seconds: int = 120,
                                interval_seconds: int = 10,
-                               pod: str = "vmagent-0") -> dict:
-    """Poll vmagent_remotewrite_pending_data_bytes on a live pod over a fixed
+                               pod: str = "vmagent-0",
+                               pods: list[str] | None = None) -> dict:
+    """Poll vmagent_remotewrite_pending_data_bytes on live pod(s) over a fixed
     window, to directly measure backlog drain rate under continued normal
     operation (i.e. the preStop-hook scenario: vmagent keeps scraping AND
     draining its fq queue at -remoteWrite.rateLimit bytes/sec, without any
@@ -105,27 +106,49 @@ def observe_remotewrite_drain(cp_kubeconfig: str, namespace: str, work_dir: Path
     shrink drain time" than a single before/after snapshot, since the queue
     balance point shifts continuously as new scrapes keep landing.
 
+    `pods` overrides the single-pod default -- pass every vmagent shard pod
+    (list_vmagent_pods()) when sharded, so the summed pending-bytes figure
+    reflects the whole fleet's backlog rather than just one shard's.
+
     Returns a dict with the raw time series plus derived summary stats:
     initial/final pending bytes, percent reduced, and (if it ever dropped to
     <1% of the initial value) seconds elapsed to reach that point.
     """
+    target_pods = pods if pods else [pod]
     samples = []
+    opened: list[PortForward] = []
     try:
-        with PortForward(cp_kubeconfig, namespace, pod, 8429, 18429) as pf:
-            deadline = time.time() + duration_seconds
-            t0 = time.time()
-            while time.time() < deadline:
+        for p in target_pods:
+            try:
+                pf = PortForward(cp_kubeconfig, namespace, p, 8429, 0)
+                pf.__enter__()
+                opened.append(pf)
+            except Exception as e:
+                log.warning("drain-observe: could not port-forward to %s: %s", p, e)
+
+        deadline = time.time() + duration_seconds
+        t0 = time.time()
+        while time.time() < deadline:
+            total = 0.0
+            any_ok = False
+            for pf in opened:
                 try:
                     metrics_text = retry_request(f"{pf.url}/metrics").text
                     pending = extract_prom_sum(
                         metrics_text, r"^vmagent_remotewrite_pending_data_bytes\{")
+                    if pending is not None:
+                        total += pending
+                        any_ok = True
                 except Exception as e:
                     log.debug("drain-observe sample failed: %s", e)
-                    pending = None
-                samples.append({"t": round(time.time() - t0, 1), "pending_bytes": pending})
-                time.sleep(interval_seconds)
-    except Exception as e:
-        log.warning("Failed to observe VMAgent remote-write drain: %s", e)
+            samples.append({"t": round(time.time() - t0, 1), "pending_bytes": total if any_ok else None})
+            time.sleep(interval_seconds)
+    finally:
+        for pf in opened:
+            try:
+                pf.__exit__(None, None, None)
+            except Exception:
+                pass
 
     raw_dir = work_dir / "raw" / namespace
     raw_dir.mkdir(parents=True, exist_ok=True)

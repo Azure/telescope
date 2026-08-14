@@ -38,7 +38,7 @@ from .adx import (
 )
 from .metrics import (
     collect_diagnostics, collect_metrics, collect_pprof, dwell_and_sample,
-    evaluate_pass_fail, observe_remotewrite_drain, sample_step, wait_for_targets,
+    evaluate_pass_fail, list_vmagent_pods, observe_remotewrite_drain, sample_step, wait_for_targets,
 )
 from .scaling import scale_cp_nodepool, scale_dp_nodepool, wait_for_nodes_ready
 from .utils import kubectl
@@ -506,7 +506,9 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
                           konn_agent_image: str = KONN_AGENT_IMAGE,
                           resume: bool = False,
                           final_tier_dwell_minutes: int = 5,
-                          fixed_pools: bool = False) -> dict:
+                          fixed_pools: bool = False,
+                          measure_drain: bool = False,
+                          drain_observe_seconds: int = 120) -> dict:
     """Ramp DP nodes through every tier in `tiers` inside one continuous
     namespace/deployment, sampling continuously while scaling and
     reconciling konn-server/vmagent sizing per tier (see
@@ -519,6 +521,12 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
     (azure.tfvars) instead: each tier becomes a scrape-config regex change
     (~10s, config.tier_block_regex) rather than a node scale, and agents
     land on the dedicated dpagentpool.
+
+    measure_drain=True observes remote-write drain once, at the final tier,
+    mirroring a real SIGTERM: new scrapes are paused (tier-block regex set
+    to a value no node label ever matches, since real targets have no
+    fake-exporter replicas to scale to 0) and the existing backlog's drain
+    is measured across every vmagent shard, not just one.
     """
     steps = sorted(set(tiers))
     namespace = f"loadtest-{run_label}-ramp" if run_label else "loadtest-ramp"
@@ -745,6 +753,52 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
             e.failed_tier = tier
             raise
 
+    # Measure remote-write drain once, at the final (largest) tier reached --
+    # pauses new scrapes, observes drain across every shard, then resumes.
+    drain_stats = {}
+    if measure_drain:
+        paused = False
+        no_match_regex = "none"  # never matches a real tier-block label (a/b/c/d)
+        try:
+            log.info("Pausing new scrapes (tier-block regex -> no-match) before drain observation...")
+            set_tier_block_regex(cp_kubeconfig, namespace, dp_api_server, no_match_regex)
+            settle_seconds = max(35, _flush_interval_seconds(VMAGENT_FLUSH_INTERVAL) + 15)
+            log.info("Settling %ds after pausing scrapes before drain observation...", settle_seconds)
+            time.sleep(settle_seconds)
+            paused = True
+        except Exception as e:
+            log.warning("Failed to pause scrapes before drain observation "
+                       "(will measure with targets still live): %s", e)
+        log.info("Observing remote-write drain for %ds...", drain_observe_seconds)
+        try:
+            drain_stats = observe_remotewrite_drain(
+                cp_kubeconfig, namespace, work_dir, duration_seconds=drain_observe_seconds,
+                pods=list_vmagent_pods(cp_kubeconfig, namespace))
+            drain_stats["remotewrite_drain_scrapes_paused"] = paused
+            log.info("Drain observation: initial=%.0fB final=%.0fB reduced=%.1f%% "
+                     "seconds_to_empty=%s scrapes_paused=%s",
+                     drain_stats["remotewrite_drain_initial_bytes"],
+                     drain_stats["remotewrite_drain_final_bytes"],
+                     drain_stats["remotewrite_drain_pct_reduced"],
+                     drain_stats["remotewrite_drain_seconds_to_empty"], paused)
+        finally:
+            if paused:
+                try:
+                    set_tier_block_regex(cp_kubeconfig, namespace, dp_api_server,
+                                        tier_block_regex(steps[-1]) if fixed_pools else ".*")
+                except Exception as e:
+                    log.warning("Failed to resume scrapes after drain observation: %s", e)
+        # Own ADX row (trial_label distinguishes it) so drain results are
+        # queryable/comparable across configs the same way step rows are.
+        adx_export_summary_if_configured(
+            run_id=run_id, tier=steps[-1], mode="real-targets",
+            result="success" if drain_stats else "failure",
+            measurements=drain_stats, pass_criteria={},
+            run_label=run_label or "", trial_label="drain-observation",
+            wall_time_seconds=float(drain_observe_seconds),
+            config={"rate_limit": rate_limit, "max_block_size": max_block_size},
+        )
+
     diagnostics = {}
     if not skip_diagnostics:
         try:
@@ -782,6 +836,7 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
         },
         "steps": step_results,
         "resource_samples": all_samples,
+        "drain": drain_stats,
         "diagnostics": diagnostics,
         "result": overall_result,
         "status": "completed",

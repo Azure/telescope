@@ -80,12 +80,19 @@ stages:
             # FIXED_POOLS=true uses the terraform-provisioned tier-block
             # pools (dpblocka-d + dpagentpool) instead of az-cli-scaling
             # nodepool1 per combo -- no re-ramp/teardown between combos.
+            # MEASURE_DRAIN=true: at the final tier, pause new scrapes and
+            # observe remote-write backlog drain for DRAIN_OBSERVE_SECONDS
+            # (120s, matching build 73770's precedent methodology) --
+            # needed for a real rate-limit/max-block-size sizing verdict,
+            # not just steady-state pass/fail.
             real_targets_sweep:
               TIERS: "500,1000,1500,2000"
               SOAK_MINUTES: 5
               REAL_TARGETS: "true"
               PARALLEL: "false"
               FIXED_POOLS: "true"
+              MEASURE_DRAIN: "true"
+              DRAIN_OBSERVE_SECONDS: 120
           max_parallel: 1
           timeout_in_minutes: 2500
           credential_type: service_connection
