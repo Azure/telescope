@@ -201,6 +201,35 @@ def _fetch_targets_all_replicas(kubeconfig: str, namespace: str) -> list[dict]:
     return active
 
 
+def wait_for_scrapes_paused(cp_kubeconfig: str, namespace: str,
+                            timeout_seconds: int = 90, poll_interval: int = 5) -> bool:
+    """Poll vmagent's own /api/v1/targets across every shard until active
+    targets actually reach 0, after a tier-block-regex flip meant to pause
+    real-target scraping (no fake-exporter pods to wait_for_gone() on).
+
+    A flat sleep isn't reliable here -- config reload (~10s) plus in-flight
+    scrapes across multiple shards can outlast a short fixed settle window,
+    so a drain observation started too early would still see new samples
+    landing in the queue. Returns True if targets reached 0 in time, False
+    otherwise (caller should proceed anyway -- best-effort, not a hard gate).
+    """
+    deadline = time.time() + timeout_seconds
+    last_count = -1
+    while time.time() < deadline:
+        try:
+            active = _fetch_targets_all_replicas(cp_kubeconfig, namespace)
+            last_count = len(active)
+            if last_count == 0:
+                log.info("Scrapes paused: 0 active targets across all vmagent shards.")
+                return True
+        except Exception as e:
+            log.debug("wait_for_scrapes_paused: targets check failed: %s", e)
+        time.sleep(poll_interval)
+    log.warning("Timed out waiting for scrapes to pause after %ds (%d active targets remain)",
+               timeout_seconds, last_count)
+    return False
+
+
 def get_pod_resources(kubeconfig: str, namespace: str, label: str) -> dict:
     result = kubectl(kubeconfig, "-n", namespace, "top", "pods",
                      "-l", label, "--no-headers", check=False)
@@ -586,6 +615,21 @@ def collect_metrics(cp_kubeconfig: str, dp_kubeconfig: str,
             measurements["vmagent_remotewrite_pending_data_bytes"] = extract_prom_sum(
                 vmagent_metrics, r"^vmagent_remotewrite_pending_data_bytes\{"
             )
+            # Real data-loss signals (prod's data_loss.k dashboard checks these
+            # same counters) -- distinct from pending_data_bytes above, which
+            # is backlog *size*, not whether anything was actually dropped.
+            measurements["vmagent_remote_write_samples_dropped_total"] = extract_prom_sum(
+                vmagent_metrics, r"^vmagent_remotewrite_samples_dropped_total"
+            )
+            measurements["vmagent_remote_write_rate_limit_reached_total"] = extract_prom_sum(
+                vmagent_metrics, r"^vmagent_remotewrite_rate_limit_reached_total"
+            )
+            measurements["vmagent_rows_invalid_total"] = extract_prom_sum(
+                vmagent_metrics, r"^vm_rows_invalid_total"
+            )
+            measurements["vmagent_persistentqueue_bytes_dropped_total"] = extract_prom_sum(
+                vmagent_metrics, r"^vm_persistentqueue_bytes_dropped_total"
+            )
     except Exception as e:
         log.warning("Failed to collect VMAgent self-metrics: %s", e)
         for key in ["vmagent_goroutines", "vmagent_scrape_duration_sum_seconds",
@@ -595,7 +639,11 @@ def collect_metrics(cp_kubeconfig: str, dp_kubeconfig: str,
                     "vmagent_tcpdialer_dials_total", "vmagent_tcpdialer_dial_sum_seconds",
                     "vmagent_tcpdialer_dial_count", "vmagent_tcpdialer_dial_mean_seconds",
                     "vmagent_resident_memory_bytes",
-                    "vmagent_remotewrite_pending_data_bytes"]:
+                    "vmagent_remotewrite_pending_data_bytes",
+                    "vmagent_remote_write_samples_dropped_total",
+                    "vmagent_remote_write_rate_limit_reached_total",
+                    "vmagent_rows_invalid_total",
+                    "vmagent_persistentqueue_bytes_dropped_total"]:
             measurements.setdefault(key, 0)
 
     # --- Konnectivity server metrics (port 8096) ---

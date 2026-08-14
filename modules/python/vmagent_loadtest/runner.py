@@ -38,7 +38,8 @@ from .adx import (
 )
 from .metrics import (
     collect_diagnostics, collect_metrics, collect_pprof, dwell_and_sample,
-    evaluate_pass_fail, list_vmagent_pods, observe_remotewrite_drain, sample_step, wait_for_targets,
+    evaluate_pass_fail, list_vmagent_pods, observe_remotewrite_drain, sample_step,
+    wait_for_scrapes_paused, wait_for_targets,
 )
 from .scaling import scale_cp_nodepool, scale_dp_nodepool, wait_for_nodes_ready
 from .utils import kubectl
@@ -762,8 +763,14 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
         try:
             log.info("Pausing new scrapes (tier-block regex -> no-match) before drain observation...")
             set_tier_block_regex(cp_kubeconfig, namespace, dp_api_server, no_match_regex)
-            settle_seconds = max(35, _flush_interval_seconds(VMAGENT_FLUSH_INTERVAL) + 15)
-            log.info("Settling %ds after pausing scrapes before drain observation...", settle_seconds)
+            # Active confirmation, not a flat sleep -- config reload + in-flight
+            # scrapes across multiple shards can outlast a short fixed settle
+            # window, which previously let new samples keep landing during
+            # the "drain" observation itself (backlog grew instead of shrank).
+            targets_gone = wait_for_scrapes_paused(cp_kubeconfig, namespace, timeout_seconds=90)
+            settle_seconds = max(20, _flush_interval_seconds(VMAGENT_FLUSH_INTERVAL) + 15)
+            log.info("Settling %ds for any already-scraped samples to flush before "
+                    "drain observation (targets_gone=%s)...", settle_seconds, targets_gone)
             time.sleep(settle_seconds)
             paused = True
         except Exception as e:
