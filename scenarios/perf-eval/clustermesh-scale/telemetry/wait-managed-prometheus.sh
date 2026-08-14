@@ -340,6 +340,12 @@ if [ -n "${SHARE_INFRA_META:-}" ] &&
    [ -s "$SHARE_INFRA_META" ]; then
   scenario_windows=$(cat "$SHARE_INFRA_META")
 fi
+managed_readiness_file=$(mktemp)
+capacity_audits_file=$(mktemp)
+scenario_windows_file=$(mktemp)
+printf '%s' "$managed_readiness" >"$managed_readiness_file"
+printf '%s' "$capacity_audits" >"$capacity_audits_file"
+printf '%s' "$scenario_windows" >"$scenario_windows_file"
 jq \
   --arg collected_at "$end_time" \
   --arg audit_window_start "$audit_start" \
@@ -348,16 +354,19 @@ jq \
   --argjson managed_prometheus_ready "$managed_prometheus_ready" \
   --argjson managed_prometheus_throttled "$managed_prometheus_throttled" \
   --argjson amw_capacity_verified "$amw_capacity_verified" \
-  --argjson managed_readiness "$managed_readiness" \
-  --argjson capacity_audits "$capacity_audits" \
-  --argjson scenario_windows "$scenario_windows" \
+  --slurpfile managed_readiness_arr "$managed_readiness_file" \
+  --slurpfile capacity_audits_arr "$capacity_audits_file" \
+  --slurpfile scenario_windows_arr "$scenario_windows_file" \
   --arg platform_window_start "$platform_window_start" \
   --arg platform_window_end "$platform_window_end" \
   --argjson platform_wait_enabled "$platform_wait_enabled_json" \
   --argjson platform_window_coverage_required \
     "$platform_window_coverage_required_json" \
   --argjson platform_min_coverage_percent "$platform_min_coverage_percent" \
-  '. + {
+  '($managed_readiness_arr[0]) as $managed_readiness |
+  ($capacity_audits_arr[0]) as $capacity_audits |
+  ($scenario_windows_arr[0]) as $scenario_windows |
+  . + {
     collected_at: $collected_at,
     platform_metrics_ready: $platform_metrics_ready,
     managed_prometheus_ready: $managed_prometheus_ready,
@@ -389,6 +398,10 @@ jq \
     }
   }' "$MANIFEST_PATH" > "$collection_manifest_tmp"
 mv "$collection_manifest_tmp" "$collection_manifest"
+rm -f \
+  "$managed_readiness_file" \
+  "$capacity_audits_file" \
+  "$scenario_windows_file"
 
 echo "Managed telemetry collection window: $audit_start .. $end_time"
 amw_capacity_ok=false

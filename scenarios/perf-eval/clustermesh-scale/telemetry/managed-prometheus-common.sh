@@ -319,6 +319,24 @@ amw_capacity_preflight_ok() {
   fi
 }
 
+amw_capacity_rebalance_ok() {
+  local summary_path="${1:?AMW capacity summary path is required}"
+  local threshold="${2:-${AKS_AMW_PREFLIGHT_MAX_UTILIZATION_PERCENT:-50}}"
+
+  if ! amw_capacity_preflight_ok "$summary_path" "$threshold"; then
+    return 1
+  fi
+  if ! jq -e '
+      .has_capacity_samples == true and
+      .capacity_samples_complete == true and
+      .capacity_samples.active_series == true and
+      .capacity_samples.events_per_minute == true
+    ' "$summary_path" >/dev/null; then
+    echo "AMW has not emitted complete post-rebalance capacity samples yet." >&2
+    return 1
+  fi
+}
+
 amw_capacity_runtime_ok() {
   local summary_path="${1:?AMW capacity summary path is required}"
   log_amw_capacity_summary "$summary_path"

@@ -119,6 +119,9 @@ amw_rebalance_settle_seconds="${AKS_AMW_REBALANCE_SETTLE_SECONDS:-600}"
 amw_rebalance_window_minutes="${AKS_AMW_REBALANCE_WINDOW_MINUTES:-5}"
 amw_rebalance_verify_attempts="${AKS_AMW_REBALANCE_VERIFY_ATTEMPTS:-6}"
 amw_rebalance_verify_retry_seconds="${AKS_AMW_REBALANCE_VERIFY_RETRY_SECONDS:-60}"
+amw_rebalance_assignment_timeout_seconds="${AKS_AMW_REBALANCE_ASSIGNMENT_TIMEOUT_SECONDS:-3600}"
+amw_rebalance_assignment_poll_seconds="${AKS_AMW_REBALANCE_ASSIGNMENT_POLL_SECONDS:-60}"
+amw_rebalance_assignment_request_timeout_seconds="${AKS_AMW_REBALANCE_ASSIGNMENT_REQUEST_TIMEOUT_SECONDS:-15}"
 amw_default_max_active_time_series=1000000
 amw_default_max_events_per_minute=1000000
 amw_max_active_time_series="${AKS_AMW_MAX_ACTIVE_TIME_SERIES:-$amw_default_max_active_time_series}"
@@ -129,6 +132,7 @@ manifest_apply_retry_seconds="${AKS_MANAGED_PROMETHEUS_APPLY_RETRY_SECONDS:-15}"
 # Shared across the metricsContainers deployment below and its ARM-level
 # verification, so both always target the same child-resource API version.
 amw_metrics_container_api_version="2025-05-03-preview"
+monitor_dcr_api_version="2023-03-11"
 
 if ! [[ "$amw_arm_batch_size" =~ ^[1-9][0-9]*$ ]]; then
   echo "AKS_AMW_ARM_BATCH_SIZE must be a positive integer." >&2
@@ -155,7 +159,9 @@ for name_value in \
 done
 for name_value in \
   "AKS_AMW_REBALANCE_SETTLE_SECONDS=$amw_rebalance_settle_seconds" \
-  "AKS_AMW_REBALANCE_VERIFY_RETRY_SECONDS=$amw_rebalance_verify_retry_seconds"; do
+  "AKS_AMW_REBALANCE_VERIFY_RETRY_SECONDS=$amw_rebalance_verify_retry_seconds" \
+  "AKS_AMW_REBALANCE_ASSIGNMENT_TIMEOUT_SECONDS=$amw_rebalance_assignment_timeout_seconds" \
+  "AKS_AMW_REBALANCE_ASSIGNMENT_POLL_SECONDS=$amw_rebalance_assignment_poll_seconds"; do
   name="${name_value%%=*}"
   value="${name_value#*=}"
   if ! [[ "$value" =~ ^[0-9]+$ ]]; then
@@ -165,7 +171,8 @@ for name_value in \
 done
 for name_value in \
   "AKS_AMW_REBALANCE_WINDOW_MINUTES=$amw_rebalance_window_minutes" \
-  "AKS_AMW_REBALANCE_VERIFY_ATTEMPTS=$amw_rebalance_verify_attempts"; do
+  "AKS_AMW_REBALANCE_VERIFY_ATTEMPTS=$amw_rebalance_verify_attempts" \
+  "AKS_AMW_REBALANCE_ASSIGNMENT_REQUEST_TIMEOUT_SECONDS=$amw_rebalance_assignment_request_timeout_seconds"; do
   name="${name_value%%=*}"
   value="${name_value#*=}"
   if ! [[ "$value" =~ ^[1-9][0-9]*$ ]]; then
@@ -503,10 +510,17 @@ while IFS= read -r workspace_spec; do
   workspace_id=$(echo "$workspace_json" | jq -r '.id')
   workspace_query_endpoint=$(echo "$workspace_json" | jq -r \
     '.metrics.prometheusQueryEndpoint // .properties.metrics.prometheusQueryEndpoint // empty')
+  workspace_account_id=$(echo "$workspace_json" | jq -r \
+    '.accountId // .properties.accountId // empty')
+  if [ -z "$workspace_account_id" ]; then
+    echo "Azure Monitor workspace $workspace_name did not expose accountId." >&2
+    exit 1
+  fi
   jq -cn \
     --arg slot "$workspace_slot" \
     --arg name "$workspace_name" \
     --arg id "$workspace_id" \
+    --arg account_id "$workspace_account_id" \
     --arg resource_group "$amw_resource_group" \
     --arg query_endpoint "$workspace_query_endpoint" \
     --arg generation "$amw_generation" \
@@ -518,6 +532,7 @@ while IFS= read -r workspace_spec; do
       slot: $slot,
       name: $name,
       id: $id,
+      account_id: $account_id,
       resource_group: $resource_group,
       prometheus_query_endpoint: $query_endpoint,
       persistent_after_run: true,
@@ -902,16 +917,260 @@ kubectl_apply_with_retry() {
   return 1
 }
 
+normalize_resource_id() {
+  tr '[:upper:]' '[:lower:]' <<<"$1"
+}
+
+configure_managed_prometheus_route() {
+  local role="$1"
+  local name="$2"
+  local resource_group="$3"
+  local cluster_id="$4"
+  local workspace_name="$5"
+  local workspace_id="$6"
+  local workspace_account_id="$7"
+  local associations association_count dcr_id dcr_url
+  local dcr_file dcr_body current_workspace_id verified_workspace_id
+
+  associations=$(az rest \
+    --method get \
+    --url "https://management.azure.com${cluster_id}/providers/Microsoft.Insights/dataCollectionRuleAssociations?api-version=${monitor_dcr_api_version}" \
+    --output json)
+  association_count=$(jq '
+    [
+      .value[]?
+      | select(
+          .name == "ContainerInsightsMetricsExtension" or
+          ((.properties.dataCollectionRuleId // "") | contains("/MSProm-"))
+        )
+    ]
+    | length
+  ' <<<"$associations")
+  if [ "$association_count" -gt 1 ]; then
+    echo "[$role] found $association_count managed-Prometheus DCR associations; refusing an ambiguous workspace migration." >&2
+    return 1
+  fi
+  if [ "$association_count" -eq 0 ]; then
+    echo "[$role] enabling managed Prometheus -> $workspace_name"
+    az aks update \
+      --resource-group "$resource_group" \
+      --name "$name" \
+      --enable-azure-monitor-metrics \
+      --azure-monitor-workspace-resource-id "$workspace_id" \
+      --only-show-errors \
+      --output none
+    return
+  fi
+
+  dcr_id=$(jq -r '
+    [
+      .value[]?
+      | select(
+          .name == "ContainerInsightsMetricsExtension" or
+          ((.properties.dataCollectionRuleId // "") | contains("/MSProm-"))
+        )
+      | .properties.dataCollectionRuleId
+    ][0] // empty
+  ' <<<"$associations")
+  if [ -z "$dcr_id" ]; then
+    echo "[$role] managed-Prometheus DCR association did not expose a DCR resource ID." >&2
+    return 1
+  fi
+
+  dcr_url="https://management.azure.com${dcr_id}?api-version=${monitor_dcr_api_version}"
+  dcr_file=$(mktemp)
+  dcr_body=$(mktemp)
+  if ! az rest --method get --url "$dcr_url" --output json >"$dcr_file"; then
+    rm -f "$dcr_file" "$dcr_body"
+    return 1
+  fi
+  if ! jq -e '
+      (.properties.destinations.monitoringAccounts | length) == 1 and
+      (.properties.dataFlows | length) >= 1 and
+      any(
+        .properties.dataFlows[];
+        (.streams // []) | index("Microsoft-PrometheusMetrics")
+      )
+    ' "$dcr_file" >/dev/null; then
+    echo "[$role] DCR $dcr_id does not have one unambiguous managed-Prometheus destination." >&2
+    rm -f "$dcr_file" "$dcr_body"
+    return 1
+  fi
+
+  current_workspace_id=$(jq -r \
+    '.properties.destinations.monitoringAccounts[0].accountResourceId // empty' \
+    "$dcr_file")
+  if [ "$(normalize_resource_id "$current_workspace_id")" != \
+       "$(normalize_resource_id "$workspace_id")" ]; then
+    echo "[$role] migrating managed Prometheus DCR destination: ${current_workspace_id:-missing} -> $workspace_id"
+    if ! jq \
+        --arg workspace_id "$workspace_id" \
+        --arg workspace_account_id "$workspace_account_id" \
+        '{
+          location,
+          kind,
+          tags,
+          properties: (
+            .properties
+            | .destinations.monitoringAccounts[0].accountResourceId = $workspace_id
+            | .destinations.monitoringAccounts[0].accountId = $workspace_account_id
+          )
+        }
+        | if .tags == null then del(.tags) else . end' \
+        "$dcr_file" >"$dcr_body" ||
+       ! az rest \
+          --method put \
+          --url "$dcr_url" \
+          --body "@$dcr_body" \
+          --output none; then
+      rm -f "$dcr_file" "$dcr_body"
+      return 1
+    fi
+  else
+    echo "[$role] managed Prometheus DCR already targets $workspace_name"
+  fi
+
+  if ! az rest --method get --url "$dcr_url" --output json >"$dcr_file"; then
+    rm -f "$dcr_file" "$dcr_body"
+    return 1
+  fi
+  verified_workspace_id=$(jq -r \
+    '.properties.destinations.monitoringAccounts[0].accountResourceId // empty' \
+    "$dcr_file")
+  rm -f "$dcr_file" "$dcr_body"
+  if [ "$(normalize_resource_id "$verified_workspace_id")" != \
+       "$(normalize_resource_id "$workspace_id")" ]; then
+    echo "[$role] DCR destination verification failed: expected=$workspace_id actual=${verified_workspace_id:-missing}" >&2
+    return 1
+  fi
+}
+
+verify_rebalanced_workspace_assignments() {
+  local summary_path="$1"
+  local expected_count="${#cluster_rows[@]}"
+  local deadline token results_jsonl role cluster_alias cluster_id
+  local workspace_name query_endpoint query response ready ready_count
+  local remaining request_timeout sleep_seconds
+
+  jq -n \
+    --argjson expected_count "$expected_count" \
+    '{
+      enabled: true,
+      verified: false,
+      verified_at: null,
+      expected_count: $expected_count,
+      ready_count: 0,
+      results: []
+    }' >"$summary_path"
+  deadline=$(( $(date +%s) + amw_rebalance_assignment_timeout_seconds ))
+  while [ "$(date +%s)" -lt "$deadline" ]; do
+    token=$(az account get-access-token \
+      --resource https://prometheus.monitor.azure.com \
+      --query accessToken -o tsv 2>/dev/null || true)
+    results_jsonl=$(mktemp)
+    ready_count=0
+    while IFS= read -r row; do
+      role=$(echo "$row" | jq -r '.role')
+      cluster_alias=$(echo "$row" | jq -r '.prometheus_cluster_alias')
+      cluster_id=$(echo "$row" | jq -r '.id')
+      workspace_name=$(echo "$row" | jq -r '.workspace.name')
+      query_endpoint=$(echo "$row" | jq -r \
+        '.workspace.prometheus_query_endpoint // empty')
+      if [ -z "$query_endpoint" ]; then
+        query_endpoint="https://query.${REGION}.prometheus.monitor.azure.com"
+      fi
+      ready=false
+      response=""
+      remaining=$((deadline - $(date +%s)))
+      if [ "$remaining" -gt 0 ] &&
+         [ -n "$token" ] &&
+         [ -n "$query_endpoint" ]; then
+        request_timeout="$amw_rebalance_assignment_request_timeout_seconds"
+        if [ "$request_timeout" -gt "$remaining" ]; then
+          request_timeout="$remaining"
+        fi
+        query="count(apiserver_request_total{cluster=\"$cluster_alias\"})"
+        response=$(curl -fsS -G \
+          "${query_endpoint%/}/api/v1/query" \
+          --connect-timeout 10 \
+          --max-time "$request_timeout" \
+          -H "Authorization: Bearer $token" \
+          -H "x-ms-azure-scoping: $cluster_id" \
+          --data-urlencode "query=$query" \
+          2>/dev/null || true)
+        if [ -z "$response" ]; then
+          response='{}'
+        fi
+        if jq -e '
+            any(
+              .data.result[]?;
+              ((.value // []) | length) > 1 and
+              (.value[1] | tonumber? // 0) > 0
+            )
+          ' <<<"$response" >/dev/null 2>&1; then
+          ready=true
+          ready_count=$((ready_count + 1))
+        fi
+      fi
+      jq -cn \
+        --arg role "$role" \
+        --arg workspace "$workspace_name" \
+        --argjson ready "$ready" \
+        '{role: $role, workspace: $workspace, ready: $ready}' \
+        >>"$results_jsonl"
+    done < <(printf '%s\n' "${cluster_rows[@]}")
+
+    jq -n \
+      --arg verified_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+      --argjson expected_count "$expected_count" \
+      --argjson ready_count "$ready_count" \
+      --slurpfile results "$results_jsonl" \
+      '{
+        enabled: true,
+        verified: ($ready_count == $expected_count),
+        verified_at: $verified_at,
+        expected_count: $expected_count,
+        ready_count: $ready_count,
+        results: $results
+      }' >"$summary_path"
+    rm -f "$results_jsonl"
+
+    if [ "$ready_count" -eq "$expected_count" ]; then
+      echo "One-to-one Azure Monitor workspace routing verified for all $expected_count cluster aliases."
+      return 0
+    fi
+    echo "Waiting for one-to-one Azure Monitor workspace routing ($ready_count/$expected_count cluster aliases ready)..."
+    remaining=$((deadline - $(date +%s)))
+    if [ "$remaining" -le 0 ]; then
+      break
+    fi
+    sleep_seconds="$amw_rebalance_assignment_poll_seconds"
+    if [ "$sleep_seconds" -gt "$remaining" ]; then
+      sleep_seconds="$remaining"
+    fi
+    if [ "$sleep_seconds" -gt 0 ]; then
+      sleep "$sleep_seconds"
+    fi
+  done
+
+  echo "One-to-one Azure Monitor workspace routing did not converge before timeout." >&2
+  jq -r '.results[] | select(.ready != true) | "  \(.role) -> \(.workspace)"' \
+    "$summary_path" >&2
+  return 1
+}
+
 configure_one() {
   local row="$1"
   local role name resource_group kubeconfig metrics_enabled controlplane_enabled
   local cluster_alias rendered_config cluster_id categories_file logs_file metrics_file
-  local workspace_name workspace_id cilium_policy_before namespace_manifest
+  local workspace_name workspace_id workspace_account_id
+  local cilium_policy_before namespace_manifest
   role=$(echo "$row" | jq -r '.role')
   name=$(echo "$row" | jq -r '.name')
   resource_group=$(echo "$row" | jq -r '.rg')
   workspace_name=$(echo "$row" | jq -r '.workspace.name')
   workspace_id=$(echo "$row" | jq -r '.workspace.id')
+  workspace_account_id=$(echo "$row" | jq -r '.workspace.account_id')
   kubeconfig="$HOME/.kube/$role.config"
   cluster_alias=$(echo "$row" | jq -r '.prometheus_cluster_alias')
   cluster_id=$(echo "$row" | jq -r '.id')
@@ -941,14 +1200,14 @@ configure_one() {
     return 1
   fi
 
-  echo "[$role] enabling managed Prometheus -> $workspace_name"
-  if ! az aks update \
-      --resource-group "$resource_group" \
-      --name "$name" \
-      --enable-azure-monitor-metrics \
-      --azure-monitor-workspace-resource-id "$workspace_id" \
-      --only-show-errors \
-      --output none; then
+  if ! configure_managed_prometheus_route \
+      "$role" \
+      "$name" \
+      "$resource_group" \
+      "$cluster_id" \
+      "$workspace_name" \
+      "$workspace_id" \
+      "$workspace_account_id"; then
     rm -f "$rendered_config"
     return 1
   fi
@@ -1083,10 +1342,16 @@ if [ "$failed" -gt 0 ]; then
   exit 1
 fi
 
+rebalance_assignment_summary="$(dirname "$MANIFEST_PATH")/amw-rebalance-assignment.json"
 if [ "${amw_rebalance_existing,,}" = "true" ]; then
   if [ "$amw_rebalance_settle_seconds" -gt 0 ]; then
     echo "Waiting ${amw_rebalance_settle_seconds}s for one-to-one Azure Monitor workspace rebalance to settle."
     sleep "$amw_rebalance_settle_seconds"
+  fi
+  if ! verify_rebalanced_workspace_assignments \
+      "$rebalance_assignment_summary"; then
+    echo "##vso[task.logissue type=error;] One-to-one Azure Monitor workspace routing did not converge." >&2
+    exit 1
   fi
   rebalance_capacity_verified=false
   for attempt in $(seq 1 "$amw_rebalance_verify_attempts"); do
@@ -1106,7 +1371,7 @@ if [ "${amw_rebalance_existing,,}" = "true" ]; then
           "$rebalance_end" \
           "$rebalance_raw" \
           "$rebalance_summary" ||
-         ! amw_capacity_preflight_ok "$rebalance_summary" "$preflight_threshold"; then
+         ! amw_capacity_rebalance_ok "$rebalance_summary" "$preflight_threshold"; then
         rebalance_failed_slots+=("$workspace_slot")
       fi
     done < <(echo "$workspace_catalog" | jq -c '.[]')
@@ -1126,6 +1391,15 @@ if [ "${amw_rebalance_existing,,}" = "true" ]; then
     echo "##vso[task.logissue type=error;] One-to-one Azure Monitor workspace rebalance did not reach the required no-drop capacity state." >&2
     exit 1
   fi
+else
+  jq -n '{
+    enabled: false,
+    verified: true,
+    verified_at: null,
+    expected_count: 0,
+    ready_count: 0,
+    results: []
+  }' >"$rebalance_assignment_summary"
 fi
 
 configured_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -1158,9 +1432,11 @@ fi
 manifest_workspaces_file=$(mktemp)
 manifest_diagnostics_file=$(mktemp)
 manifest_clusters_file=$(mktemp)
+manifest_rebalance_assignment_file=$(mktemp)
 printf '%s' "$workspace_catalog" >"$manifest_workspaces_file"
 printf '%s' "$diagnostics_json" >"$manifest_diagnostics_file"
 printf '%s' "$clusters_with_ids" >"$manifest_clusters_file"
+cat "$rebalance_assignment_summary" >"$manifest_rebalance_assignment_file"
 
 jq -n \
   --arg run_id "$RUN_ID" \
@@ -1177,6 +1453,7 @@ jq -n \
   --slurpfile workspaces_arr "$manifest_workspaces_file" \
   --slurpfile diagnostics_arr "$manifest_diagnostics_file" \
   --slurpfile clusters_arr "$manifest_clusters_file" \
+  --slurpfile rebalance_assignment_arr "$manifest_rebalance_assignment_file" \
   --arg amw_base_prefix "$amw_base_prefix" \
   --arg amw_selected_prefix "$amw_name_prefix" \
   --arg amw_generation "$amw_generation" \
@@ -1194,6 +1471,7 @@ jq -n \
   '($workspaces_arr[0]) as $workspaces |
   ($diagnostics_arr[0]) as $diagnostics |
   ($clusters_arr[0]) as $clusters |
+  ($rebalance_assignment_arr[0]) as $rebalance_assignment |
   {
     schema_version: 2,
     run_id: $run_id,
@@ -1217,6 +1495,7 @@ jq -n \
       cluster_count: ($clusters | length),
       workspace_count: ($workspaces | length)
     },
+    workspace_rebalance_assignment: $rebalance_assignment,
     workspace_ingestion_limits: {
       max_active_time_series: $amw_max_active_time_series,
       max_events_per_minute: $amw_max_events_per_minute,
@@ -1272,6 +1551,12 @@ jq -n \
     },
     clusters: $clusters
   }' > "$MANIFEST_PATH"
+
+rm -f \
+  "$manifest_workspaces_file" \
+  "$manifest_diagnostics_file" \
+  "$manifest_clusters_file" \
+  "$manifest_rebalance_assignment_file"
 
 echo "Managed Prometheus configured for ${#cluster_rows[@]} cluster(s)."
 echo "Persistent workspaces: $(echo "$workspace_catalog" | jq -r 'map(.name) | join(", ")')"

@@ -268,6 +268,8 @@ def test_configure_batches_two_cluster_workspaces_and_maps_manifest(tmp_path):
               echo Registered
             elif [ "${1:-} ${2:-}" = "account show" ]; then
               echo sub-1
+            elif [ "${1:-} ${2:-}" = "account get-access-token" ]; then
+              echo fake-token
             elif [ "${1:-} ${2:-}" = "group show" ]; then
               exit 0
             elif [ "${1:-} ${2:-} ${3:-}" = "monitor account show" ]; then
@@ -276,6 +278,7 @@ def test_configure_batches_two_cluster_workspaces_and_maps_manifest(tmp_path):
               if [[ " $* " == *" --output json "* ]]; then
                 cat <<JSON
             {"id":"/subscriptions/sub-1/resourceGroups/telemetry-rg/providers/Microsoft.Monitor/accounts/$name",
+             "accountId":"account-$name",
              "metrics":{"prometheusQueryEndpoint":"https://$name.example"}}
             JSON
               fi
@@ -326,6 +329,8 @@ def test_configure_batches_two_cluster_workspaces_and_maps_manifest(tmp_path):
               echo true
             elif [ "${1:-} ${2:-}" = "resource show" ]; then
               echo Succeeded
+            elif [ "${1:-}" = "rest" ]; then
+              echo '{"value":[]}'
             elif [[ " $* " == *" diagnostic-settings categories list "* ]]; then
               cat <<'JSON'
             {"value":[
@@ -603,6 +608,22 @@ def test_amw_capacity_guard_accepts_headroom_and_rejects_throttling(tmp_path):
     assert summary["capacity_samples"]["events_per_minute"] is False
     assert summary["capacity_samples_complete"] is True
     assert summary["capacity_ok"] is True
+    rebalance_command = (
+        f'source "{common_script}"; '
+        f'capture_amw_capacity test-amw start end "{raw_path}" '
+        f'"{summary_path}"; '
+        f'amw_capacity_rebalance_ok "{summary_path}" 50'
+    )
+    rebalance_idle = subprocess.run(
+        ["bash", "-c", rebalance_command],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=environment,
+        timeout=10,
+    )
+    assert rebalance_idle.returncode != 0
+    assert "has not emitted complete post-rebalance" in rebalance_idle.stderr
 
     environment["IDLE"] = "false"
     environment["HIGH_UTILIZATION"] = "true"
@@ -1264,6 +1285,13 @@ def test_scripts_use_current_aks_profile_and_full_export():
     assert "ensure_azure_provider_registered" in configure
     assert "capture_amw_capacity" in configure
     assert "amw_capacity_preflight_ok" in configure
+    assert "amw_capacity_rebalance_ok" in configure
+    assert "dataCollectionRuleAssociations" in configure
+    assert "migrating managed Prometheus DCR destination" in configure
+    assert "verify_rebalanced_workspace_assignments" in configure
+    assert 'query_endpoint="https://query.${REGION}.prometheus.monitor.azure.com"' in (
+        configure
+    )
     assert "AKS_AMW_PREFLIGHT_MAX_UTILIZATION_PERCENT:-40" in configure
     assert "AKS_AMW_ARM_BATCH_SIZE:-10" in configure
     assert "az deployment group create" in configure
@@ -1273,8 +1301,9 @@ def test_scripts_use_current_aks_profile_and_full_export():
     assert "CONTROL_PLANE_MONITORS_PATH" in configure
     assert "CUSTOM_SCRAPES_PATH" not in configure
     assert "MOCK_MONITOR_PATH" not in configure
-    assert configure.index('-f "$rendered_config"') < configure.index(
-        "--enable-azure-monitor-metrics"
+    configure_one = configure[configure.index("configure_one()") :]
+    assert configure_one.index('-f "$rendered_config"') < configure_one.index(
+        "configure_managed_prometheus_route"
     )
     assert 'ensure_azure_provider_registered "$namespace" true' in configure
     assert 'force_container_service_reregistration=true' in configure
@@ -1491,7 +1520,7 @@ def test_split_collection_scripts_handoff_and_preserve_outputs(tmp_path):
             "BUILD_BRANCH": "test-branch",
             "FAKE_AZ_LOG": str(az_log),
             "AKS_PLATFORM_METRICS_TIMEOUT_SECONDS": "0",
-            "AKS_MANAGED_PROMETHEUS_TIMEOUT_SECONDS": "5",
+            "AKS_MANAGED_PROMETHEUS_TIMEOUT_SECONDS": "60",
             "AKS_MANAGED_PROMETHEUS_POLL_SECONDS": "0",
             "AKS_AMW_METRICS_QUERY_ATTEMPTS": "1",
             "AKS_AMW_METRICS_QUERY_RETRY_SECONDS": "0",
@@ -1553,6 +1582,130 @@ def test_split_collection_scripts_handoff_and_preserve_outputs(tmp_path):
     uploads = az_log.read_text(encoding="utf-8")
     assert "storage blob upload" in uploads
     assert "workspace-mesh-1/amw-capacity-summary.json" in uploads
+
+
+def test_wait_manifest_assembly_is_scale_safe(tmp_path):
+    output_dir = tmp_path / "output"
+    manifest_path = tmp_path / "run-manifest.json"
+    workspaces = []
+    clusters = []
+    for index in range(1, 101):
+        slot = f"shard-{index:03d}"
+        workspace = {
+            "slot": slot,
+            "name": f"test-amw-{slot}",
+            "id": f"workspace-{index}",
+            "prometheus_query_endpoint": "https://example",
+            "capacity_guard": {
+                "monitoring_window_start": "2026-07-14T00:00:00Z"
+            },
+        }
+        workspaces.append(workspace)
+        clusters.append(
+            {
+                "role": f"mesh-{index}",
+                "id": f"cluster-{index}",
+                "prometheus_cluster_alias": f"test_run_mesh_{index}",
+                "workspace": workspace,
+            }
+        )
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "run_id": "test-run",
+                "configured_at": "2026-07-14T00:00:00Z",
+                "workspace": {"mode": "per-cluster"},
+                "workspaces": workspaces,
+                "query": {
+                    "resource_endpoint": "https://example",
+                    "resource_scope": "/subscriptions/test",
+                },
+                "logs": {"workspace": {"customer_id": "law-id"}},
+                "clusters": clusters,
+            }
+        ),
+        encoding="utf-8",
+    )
+    scenario_meta = tmp_path / "scenario-meta.json"
+    scenario_meta.write_text(
+        json.dumps(
+            [
+                {
+                    "scenario": f"scenario-{index}",
+                    "start_timestamp": "2026-07-14T00:00:00Z",
+                    "end_timestamp": "2026-07-14T00:10:00Z",
+                    "padding": "x" * 2000,
+                }
+                for index in range(100)
+            ]
+        ),
+        encoding="utf-8",
+    )
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_az = fake_bin / "az"
+    fake_az.write_text(
+        textwrap.dedent(
+            """\
+            #!/usr/bin/env bash
+            set -euo pipefail
+            if [ "${1:-} ${2:-}" = "account get-access-token" ]; then
+              echo fake-token
+            elif [[ " $* " == *" TimeSeriesSamplesDropped "* ]]; then
+              echo '{"value":[{"name":{"value":"TimeSeriesSamplesDropped"},"timeseries":[]},{"name":{"value":"EventsDropped"},"timeseries":[]}]}'
+            elif [ "${1:-} ${2:-} ${3:-}" = "monitor metrics list" ]; then
+              echo '{"value":[]}'
+            else
+              echo "Unexpected az command: $*" >&2
+              exit 1
+            fi
+            """
+        ),
+        encoding="utf-8",
+    )
+    fake_az.chmod(fake_az.stat().st_mode | stat.S_IXUSR)
+    fake_curl = fake_bin / "curl"
+    fake_curl.write_text(
+        "#!/usr/bin/env bash\n"
+        "echo '{\"status\":\"success\",\"data\":{\"result\":["
+        "{\"value\":[1,\"1\"],\"values\":[[1,\"1\"]]}]}}'\n",
+        encoding="utf-8",
+    )
+    fake_curl.chmod(fake_curl.stat().st_mode | stat.S_IXUSR)
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "AKS_CONTROL_PLANE_METRICS_ENABLED": "true",
+            "MANIFEST_PATH": str(manifest_path),
+            "OUTPUT_DIR": str(output_dir),
+            "RUN_ID": "test-run",
+            "SHARE_INFRA_META": str(scenario_meta),
+            "AKS_PLATFORM_METRICS_TIMEOUT_SECONDS": "0",
+            "AKS_MANAGED_PROMETHEUS_TIMEOUT_SECONDS": "5",
+            "AKS_MANAGED_PROMETHEUS_POLL_SECONDS": "0",
+            "AKS_AMW_METRICS_QUERY_ATTEMPTS": "1",
+            "AKS_AMW_METRICS_QUERY_RETRY_SECONDS": "0",
+            "PATH": f"{fake_bin}:{environment['PATH']}",
+        }
+    )
+
+    result = subprocess.run(
+        ["bash", str(TELEMETRY_DIR / "wait-managed-prometheus.sh")],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=environment,
+        timeout=180,
+    )
+
+    assert result.returncode == 0, result.stderr
+    collection = json.loads(
+        (output_dir / "run-manifest.json").read_text(encoding="utf-8")
+    )
+    assert len(collection["managed_readiness"]) == 100
+    assert len(collection["capacity_audits"]) == 100
+    assert len(collection["scenario_windows"]) == 100
 
 
 def test_reconstruction_skips_when_managed_samples_are_not_ready(tmp_path):
@@ -1654,6 +1807,8 @@ def _write_rotation_fake_az(fake_bin: Path) -> None:
               echo Registered
             elif [ "${1:-} ${2:-}" = "account show" ]; then
               echo sub-1
+            elif [ "${1:-} ${2:-}" = "account get-access-token" ]; then
+              echo fake-token
             elif [ "${1:-} ${2:-}" = "group show" ]; then
               exit 0
             elif [ "${1:-} ${2:-} ${3:-}" = "monitor account show" ]; then
@@ -1662,6 +1817,7 @@ def _write_rotation_fake_az(fake_bin: Path) -> None:
               if [[ " $* " == *" --output json "* ]]; then
                 cat <<JSON
             {"id":"/subscriptions/sub-1/resourceGroups/telemetry-rg/providers/Microsoft.Monitor/accounts/$name",
+             "accountId":"account-$name",
              "metrics":{"prometheusQueryEndpoint":"https://$name.example"}}
             JSON
               fi
@@ -1702,8 +1858,10 @@ def _write_rotation_fake_az(fake_bin: Path) -> None:
               else
                 cat <<JSON
             {"value":[
+              {"name":{"value":"ActiveTimeSeries"},"timeseries":[{"data":[{"maximum":$((capacity_value * 10000))}]}]},
               {"name":{"value":"ActiveTimeSeriesLimit"},"timeseries":[{"data":[{"maximum":1000000}]}]},
               {"name":{"value":"ActiveTimeSeriesPercentUtilization"},"timeseries":[{"data":[{"maximum":$capacity_value}]}]},
+              {"name":{"value":"EventsPerMinuteIngested"},"timeseries":[{"data":[{"maximum":$((capacity_value * 10000))}]}]},
               {"name":{"value":"EventsPerMinuteIngestedLimit"},"timeseries":[{"data":[{"maximum":1000000}]}]},
               {"name":{"value":"EventsPerMinuteIngestedPercentUtilization"},"timeseries":[{"data":[{"maximum":$capacity_value}]}]}
             ]}
@@ -1746,6 +1904,73 @@ def _write_rotation_fake_az(fake_bin: Path) -> None:
               fi
               jq -n --argjson active "$active_limit" --argjson events "$events_limit" \
                 '{properties:{limits:{maxActiveTimeSeries:$active,maxEventsPerMinute:$events}}}'
+            elif [ "${1:-}" = "rest" ]; then
+              method=$(arg_value --method "$@")
+              url=$(arg_value --url "$@")
+              if [[ "$url" == *"/dataCollectionRuleAssociations?"* ]]; then
+                if [ "${FAKE_EXISTING_DCR:-false}" = "true" ]; then
+                  cluster=$(echo "$url" | sed -E 's#.*managedClusters/([^/]+)/providers/.*#\\1#')
+                  dcr_name="MSProm-eastus2euap-$cluster"
+                  jq -n --arg dcr "/subscriptions/sub-1/resourceGroups/run-rg/providers/Microsoft.Insights/dataCollectionRules/$dcr_name" \
+                    '{value:[{name:"ContainerInsightsMetricsExtension",properties:{dataCollectionRuleId:$dcr}}]}'
+                else
+                  echo '{"value":[]}'
+                fi
+              elif [[ "$url" == *"/dataCollectionRules/MSProm-"* ]]; then
+                dcr_name=$(echo "$url" | sed -E 's#.*dataCollectionRules/([^?]+).*#\\1#')
+                cluster=${dcr_name#MSProm-eastus2euap-aks-}
+                role_number=${cluster#mesh-}
+                state_file="$DCR_STATE_DIR/$cluster"
+                if [ "$method" = "put" ]; then
+                  body=$(arg_value --body "$@")
+                  body=${body#@}
+                  workspace_id=$(jq -r '.properties.destinations.monitoringAccounts[0].accountResourceId' "$body")
+                  basename "$workspace_id" > "$state_file"
+                  if [ -n "${CAPACITY_AFTER_DCR_UPDATE:-}" ]; then
+                    tmp=$(mktemp)
+                    jq --argjson value "$CAPACITY_AFTER_DCR_UPDATE" \
+                      'with_entries(.value = $value)' \
+                      "$CAPACITY_FILE" > "$tmp"
+                    mv "$tmp" "$CAPACITY_FILE"
+                  fi
+                fi
+                if [ -s "$state_file" ]; then
+                  workspace_name=$(cat "$state_file")
+                else
+                  cpw="${FAKE_DCR_LEGACY_CLUSTERS_PER_WORKSPACE:-2}"
+                  shard=$(( (role_number - 1) / cpw + 1 ))
+                  workspace_name=$(printf 'test-amw-shard-%03d' "$shard")
+                fi
+                workspace_id="/subscriptions/sub-1/resourceGroups/telemetry-rg/providers/Microsoft.Monitor/accounts/$workspace_name"
+                jq -n \
+                  --arg workspace_id "$workspace_id" \
+                  --arg account_id "account-$workspace_name" \
+                  '{
+                    location:"eastus2euap",
+                    kind:"Linux",
+                    tags:null,
+                    properties:{
+                      description:"DCR description",
+                      destinations:{monitoringAccounts:[{
+                        accountId:$account_id,
+                        accountResourceId:$workspace_id,
+                        name:"MonitoringAccount1"
+                      }]},
+                      dataFlows:[{
+                        destinations:["MonitoringAccount1"],
+                        streams:["Microsoft-PrometheusMetrics"]
+                      }],
+                      dataSources:{prometheusForwarder:[{
+                        labelIncludeFilter:{},
+                        name:"PrometheusDataSource",
+                        streams:["Microsoft-PrometheusMetrics"]
+                      }]}
+                    }
+                  }'
+              else
+                echo "Unexpected az rest URL: $url" >&2
+                exit 1
+              fi
             elif [ "${1:-} ${2:-} ${3:-}" = "monitor log-analytics workspace" ]; then
               if [ "${4:-}" = "show" ]; then
                 cat <<'JSON'
@@ -1806,6 +2031,22 @@ def _write_rotation_fake_kubectl(fake_bin: Path) -> None:
         encoding="utf-8",
     )
     fake_kubectl.chmod(fake_kubectl.stat().st_mode | stat.S_IXUSR)
+    fake_curl = fake_bin / "curl"
+    fake_curl.write_text(
+        textwrap.dedent(
+            """\
+            #!/usr/bin/env bash
+            set -euo pipefail
+            if [ "${FAKE_PROMETHEUS_READY:-true}" = "true" ]; then
+              echo '{"status":"success","data":{"result":[{"value":[1,"1"]}]}}'
+            else
+              echo '{"status":"success","data":{"result":[]}}'
+            fi
+            """
+        ),
+        encoding="utf-8",
+    )
+    fake_curl.chmod(fake_curl.stat().st_mode | stat.S_IXUSR)
 
 
 def _run_rotation_configure(
@@ -1836,6 +2077,8 @@ def _run_rotation_configure(
     az_log = tmp_path / "az.log"
     arm_template_copy = tmp_path / "arm-template.json"
     limits_arm_template_copy = tmp_path / "limits-arm-template.json"
+    dcr_state_dir = tmp_path / "dcr-state"
+    dcr_state_dir.mkdir()
 
     clusters_file = tmp_path / "clusters.json"
     clusters_file.write_text(
@@ -1879,6 +2122,7 @@ def _run_rotation_configure(
             "REGIONAL_ACCOUNTS_EXTRA": str(regional_accounts_extra),
             "ARM_TEMPLATE_COPY": str(arm_template_copy),
             "LIMITS_ARM_TEMPLATE_COPY": str(limits_arm_template_copy),
+            "DCR_STATE_DIR": str(dcr_state_dir),
             "HOME": str(tmp_path),
             "PATH": f"{fake_bin}:{environment['PATH']}",
         }
@@ -2176,12 +2420,19 @@ def test_forced_shard_naming_rebalances_existing_one_cluster_workspaces(
             "AKS_AMW_REBALANCE_WINDOW_MINUTES": "1",
             "AKS_AMW_REBALANCE_VERIFY_ATTEMPTS": "1",
             "AKS_AMW_REBALANCE_VERIFY_RETRY_SECONDS": "0",
-            "CAPACITY_AFTER_AKS_UPDATE": "20",
+            "AKS_AMW_REBALANCE_ASSIGNMENT_TIMEOUT_SECONDS": "10",
+            "AKS_AMW_REBALANCE_ASSIGNMENT_POLL_SECONDS": "0",
+            "AKS_AMW_REBALANCE_ASSIGNMENT_REQUEST_TIMEOUT_SECONDS": "1",
+            "FAKE_EXISTING_DCR": "true",
+            "FAKE_DCR_LEGACY_CLUSTERS_PER_WORKSPACE": "2",
+            "CAPACITY_AFTER_DCR_UPDATE": "20",
         },
     )
 
     assert result.returncode == 0, result.stderr
     assert "allowing configuration to continue" in result.stdout
+    assert "migrating managed Prometheus DCR destination" in result.stdout
+    assert "routing verified for all 2 cluster aliases" in result.stdout
     assert "rebalance capacity verified across 2 workspace(s)" in result.stdout
     assert {w["name"] for w in manifest["workspaces"]} == set(existing)
     assert {w["slot"] for w in manifest["workspaces"]} == {
@@ -2201,6 +2452,41 @@ def test_forced_shard_naming_rebalances_existing_one_cluster_workspaces(
         cluster_by_role["mesh-2"]["workspace"]["name"]
         == "test-amw-shard-002"
     )
+    assert manifest["workspace_rebalance_assignment"]["verified"] is True
+    assert (tmp_path / "dcr-state" / "mesh-2").read_text(
+        encoding="utf-8"
+    ).strip() == "test-amw-shard-002"
+    assert "rest --method put" in (tmp_path / "az.log").read_text(
+        encoding="utf-8"
+    )
+
+
+def test_rebalance_fails_when_expected_workspace_has_no_cluster_samples(
+    tmp_path,
+):
+    existing = ["test-amw-shard-001", "test-amw-shard-002"]
+    result, manifest, _, _ = _run_rotation_configure(
+        tmp_path,
+        roles=["mesh-1", "mesh-2"],
+        existing_workspaces=existing,
+        capacity={name: 20 for name in existing},
+        env_overrides={
+            "AKS_AMW_CLUSTERS_PER_WORKSPACE": "1",
+            "AKS_AMW_FORCE_SHARD_NAMING": "true",
+            "AKS_MANAGED_PROMETHEUS_REBALANCE_EXISTING": "true",
+            "AKS_AMW_REBALANCE_SETTLE_SECONDS": "0",
+            "AKS_AMW_REBALANCE_ASSIGNMENT_TIMEOUT_SECONDS": "1",
+            "AKS_AMW_REBALANCE_ASSIGNMENT_POLL_SECONDS": "0",
+            "AKS_AMW_REBALANCE_ASSIGNMENT_REQUEST_TIMEOUT_SECONDS": "1",
+            "FAKE_EXISTING_DCR": "true",
+            "FAKE_DCR_LEGACY_CLUSTERS_PER_WORKSPACE": "2",
+            "FAKE_PROMETHEUS_READY": "false",
+        },
+    )
+
+    assert result.returncode != 0
+    assert manifest is None
+    assert "workspace routing did not converge" in result.stderr
 
 
 def test_sharding_100_clusters_at_cpw2_creates_50_deterministic_shards(
