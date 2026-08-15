@@ -56,9 +56,9 @@ parameters:
   # triggers instead of paying for terraform apply/destroy every time --
   # see aks-vm-extension CloudNativeCompute wiki's Telescope Best-Practices
   # doc, "BYO resources"/SKIP_RESOURCE_MANAGEMENT.
-  - name: run_id
-    type: string
-    default: ''
+  # - name: run_id
+  #   type: string
+  #   default: ' '
 
 pool:
   name: 'AKS-Telescope-Airlock'
