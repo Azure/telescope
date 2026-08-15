@@ -82,7 +82,7 @@ stages:
             - eastus
           topology: vmagent-loadtest
           engine: vmagent-loadtest
-          run_id: ${{ parameters.run_id }}
+          # run_id: ${{ parameters.run_id }}
           engine_input:
             config_combinations: ${{ parameters.config_combinations }}
           matrix:
