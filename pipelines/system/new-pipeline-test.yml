@@ -49,12 +49,27 @@ parameters:
         rate_limit: 20971520
         max_block_size: 10485760
 
+  # Empty by default -- every normal trigger still gets a fresh, unique
+  # per-build resource group/clusters as today. Set this (e.g. to
+  # "vmagent-loadtest-persistent") ONLY together with the SKIP_RESOURCE_MANAGEMENT
+  # runtime variable, to reuse the SAME persistent CP/DP clusters across
+  # triggers instead of paying for terraform apply/destroy every time --
+  # see aks-vm-extension CloudNativeCompute wiki's Telescope Best-Practices
+  # doc, "BYO resources"/SKIP_RESOURCE_MANAGEMENT.
+  - name: run_id
+    type: string
+    default: ''
+
 pool:
   name: 'AKS-Telescope-Airlock'
 
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: vmagent-loadtest
+  # Needed by validate-resources.yml whenever a trigger sets
+  # SKIP_RESOURCE_MANAGEMENT=true (BYO mode) -- matches terraform-inputs'
+  # own "owner" value, harmless when terraform is provisioning normally.
+  OWNER: aks
 
 stages:
   - stage: eastus_real
@@ -67,6 +82,7 @@ stages:
             - eastus
           topology: vmagent-loadtest
           engine: vmagent-loadtest
+          run_id: ${{ parameters.run_id }}
           engine_input:
             config_combinations: ${{ parameters.config_combinations }}
           matrix:
