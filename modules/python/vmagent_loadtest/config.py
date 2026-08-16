@@ -13,6 +13,10 @@ KONN_AGENT_IMAGE = "mcr.microsoft.com/oss/v2/kubernetes/apiserver-network-proxy/
 VMAGENT_IMAGE = "mcr.microsoft.com/oss/v2/victoriametrics/vmagent:v1.127.0-1"
 # Real Go vmagent-proxy (prometheus-extensions) — matches prod's adx-vmagent kustomization.
 VMAGENT_PROXY_IMAGE = "mcr.microsoft.com/aks/hcp/vmagent-proxy:1.522.0-master.260728-f125952f"
+# Real, unmodified Prometheus -- used only as the per-node aggregator prototype
+# (vmagent itself is push-only and can't expose a combined pull/federate
+# endpoint; Prometheus's real /federate is the equivalent capability).
+NODE_AGGREGATOR_IMAGE = "mcr.microsoft.com/oss/v2/prometheus/prometheus:v2.55.1-5"
 VMSINGLE_IMAGE = "mcr.microsoft.com/oss/v2/victoriametrics/victoria-metrics:v1.125.1-7"
 # -remoteWrite.rateLimit / -remoteWrite.flushInterval — both merged to prod
 # 2026-07-28, fixed here rather than CLI-configurable (see wiki

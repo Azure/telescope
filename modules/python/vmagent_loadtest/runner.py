@@ -24,7 +24,7 @@ from .config import (
 )
 from .deploy import (
     deploy_fake_exporters, deploy_konnectivity_agent_autoscaler, deploy_konnectivity_agents,
-    deploy_konnectivity_server, deploy_vmagent, deploy_vmsingle,
+    deploy_konnectivity_server, deploy_node_aggregator, deploy_vmagent, deploy_vmsingle,
     ensure_namespace, get_deployment_replicas, get_dp_api_server, get_node_ips, get_server_lb_ip,
     rollout_restart, scale_fake_exporters, set_tier_block_regex, setup_dp_access,
     wait_for_fake_exporters_gone,
@@ -509,7 +509,8 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
                           final_tier_dwell_minutes: int = 5,
                           fixed_pools: bool = False,
                           measure_drain: bool = False,
-                          drain_observe_seconds: int = 120) -> dict:
+                          drain_observe_seconds: int = 120,
+                          node_aggregator: bool = False) -> dict:
     """Ramp DP nodes through every tier in `tiers` inside one continuous
     namespace/deployment, sampling continuously while scaling and
     reconciling konn-server/vmagent sizing per tier (see
@@ -528,6 +529,11 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
     to a value no node label ever matches, since real targets have no
     fake-exporter replicas to scale to 0) and the existing backlog's drain
     is measured across every vmagent shard, not just one.
+
+    node_aggregator=True (prototype) deploys a real Prometheus DaemonSet on
+    DP nodes that pre-scrapes/filters the 6 real-target endpoints locally;
+    central vmagent then scrapes one combined /federate endpoint per node
+    instead of 6 direct scrapes.
     """
     steps = sorted(set(tiers))
     namespace = f"loadtest-{run_label}-ramp" if run_label else "loadtest-ramp"
@@ -586,6 +592,9 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
         setup_dp_access(dp_kubeconfig, cp_kubeconfig, namespace)
         dp_api_server = get_dp_api_server(dp_kubeconfig)
 
+        if node_aggregator:
+            deploy_node_aggregator(dp_kubeconfig, namespace)
+
         deploy_vmsingle(cp_kubeconfig, namespace)
         deploy_vmagent(cp_kubeconfig, namespace, dp_api_server,
                        vmagent_resources=tier_resources["vmagent"],
@@ -593,7 +602,8 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
                        replicas=shard_count,
                        rate_limit=rate_limit,
                        max_block_size=max_block_size,
-                       tier_block_regex=tier_block_regex(first_tier) if fixed_pools else ".*")
+                       tier_block_regex=tier_block_regex(first_tier) if fixed_pools else ".*",
+                       node_aggregator=node_aggregator)
     ramp_start_ts = time.time()
 
     all_samples: list[dict] = []
@@ -617,7 +627,8 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
             # dwell so scrape coverage actually catches up (a fast regex
             # flip, unlike a real node scale, doesn't give SD/scrape cycles
             # time on its own -- ends early once coverage hits 100%).
-            set_tier_block_regex(cp_kubeconfig, namespace, dp_api_server, tier_block_regex(tier))
+            set_tier_block_regex(cp_kubeconfig, namespace, dp_api_server, tier_block_regex(tier),
+                                 node_aggregator=node_aggregator)
             all_samples.extend(dwell_and_sample(cp_kubeconfig, dp_kubeconfig, namespace,
                                                 tier, duration_minutes=4))
         else:
@@ -652,7 +663,8 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
                            replicas=shard_count,
                            rate_limit=rate_limit,
                            max_block_size=max_block_size,
-                           tier_block_regex=tier_block_regex(tier) if fixed_pools else ".*")
+                           tier_block_regex=tier_block_regex(tier) if fixed_pools else ".*",
+                           node_aggregator=node_aggregator)
         agent_replica_count = get_deployment_replicas(dp_kubeconfig, namespace, "konnectivity-agent")
 
         node_ips = get_node_ips(dp_kubeconfig,
@@ -794,7 +806,8 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
             if paused:
                 try:
                     set_tier_block_regex(cp_kubeconfig, namespace, dp_api_server,
-                                        tier_block_regex(steps[-1]) if fixed_pools else ".*")
+                                        tier_block_regex(steps[-1]) if fixed_pools else ".*",
+                                        node_aggregator=node_aggregator)
                 except Exception as e:
                     log.warning("Failed to resume scrapes after drain observation: %s", e)
         # Own ADX row (trial_label distinguishes it) so drain results are

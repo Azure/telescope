@@ -1,0 +1,134 @@
+# node-aggregator — real, unmodified Prometheus running as a DaemonSet on
+# DP nodes, prototype for pre-filtering/combining the 6 real-target scrapes
+# (kubelet, cadvisor, kube-proxy, azure-cns, node-exporter, node-runtime)
+# node-locally instead of vmagent scraping each of them individually through
+# konnectivity. Central vmagent then scrapes ONE combined endpoint per node
+# via this Prometheus's real /federate -- vmagent itself is push-only and
+# has no equivalent pull/federation capability of its own.
+#
+# hostNetwork: true so it can reach the node's real kubelet/cadvisor/etc. on
+# localhost, exactly like a genuine node-level daemon would.
+#
+# Template variables:
+#   __NAMESPACE__            — test namespace
+#   __NODE_AGGREGATOR_IMAGE__ — Prometheus image
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: node-aggregator
+  namespace: __NAMESPACE__
+---
+# kubelet-api-admin: nodes/proxy, nodes/metrics -- same access setup_dp_access()
+# grants kubelet-scraper, needed here too since this pod scrapes the node's
+# own kubelet/cadvisor directly.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: node-aggregator-kubelet
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:kubelet-api-admin
+subjects:
+  - kind: ServiceAccount
+    name: node-aggregator
+    namespace: __NAMESPACE__
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: node-aggregator-config
+  namespace: __NAMESPACE__
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 30s
+      scrape_timeout: 10s
+
+    scrape_configs:
+      # All 6 targets reached via localhost (hostNetwork) -- no konnectivity
+      # tunnel, no vmagent-proxy sidecar needed for the local hop.
+      - job_name: kubelet
+        scheme: https
+        metrics_path: /metrics
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        tls_config:
+          insecure_skip_verify: true
+        static_configs:
+          - targets: ["localhost:10250"]
+
+      - job_name: cadvisor
+        scheme: https
+        metrics_path: /metrics/cadvisor
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        tls_config:
+          insecure_skip_verify: true
+        static_configs:
+          - targets: ["localhost:10250"]
+
+      - job_name: kubeproxy
+        metrics_path: /metrics
+        static_configs:
+          - targets: ["localhost:10249"]
+
+      - job_name: azure-cns
+        metrics_path: /metrics
+        static_configs:
+          - targets: ["localhost:10092"]
+
+      - job_name: node-exporter
+        metrics_path: /metrics
+        static_configs:
+          - targets: ["localhost:19100"]
+
+      - job_name: node-runtime
+        metrics_path: /v1/metrics
+        static_configs:
+          - targets: ["localhost:10257"]
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: node-aggregator
+  namespace: __NAMESPACE__
+  labels:
+    app: node-aggregator
+spec:
+  selector:
+    matchLabels:
+      app: node-aggregator
+  template:
+    metadata:
+      labels:
+        app: node-aggregator
+    spec:
+      serviceAccountName: node-aggregator
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: prometheus
+          image: __NODE_AGGREGATOR_IMAGE__
+          args:
+            - --config.file=/etc/prometheus/prometheus.yml
+            - --storage.tsdb.path=/tmp/prometheus-data
+            - --storage.tsdb.retention.time=15m
+            - --web.listen-address=0.0.0.0:9090
+            - --web.enable-remote-write-receiver=false
+          ports:
+            - name: federate
+              containerPort: 9090
+          resources:
+            requests:
+              cpu: 20m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus
+      volumes:
+        - name: config
+          configMap:
+            name: node-aggregator-config

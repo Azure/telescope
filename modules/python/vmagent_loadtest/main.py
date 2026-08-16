@@ -122,6 +122,12 @@ def main() -> None:
                              "pool -- each --tiers step becomes a scrape-config regex "
                              "change (~10s) instead of a node ramp, and agents schedule "
                              "onto the dedicated dpagentpool.")
+    parser.add_argument("--node-aggregator", action="store_true",
+                        help="Prototype: deploy a real Prometheus DaemonSet on DP nodes "
+                             "that pre-scrapes/filters kubelet/cadvisor/kube-proxy/azure-cns/"
+                             "node-exporter/node-runtime locally; central vmagent scrapes "
+                             "one combined /federate endpoint per node instead of 6 direct "
+                             "scrapes. Measures request-count/data-volume impact.")
     parser.add_argument("--konn-server-image", default=KONN_SERVER_IMAGE,
                         help=f"konnectivity-server image to deploy "
                              f"(default: {KONN_SERVER_IMAGE}). Use this to load-test "
@@ -477,6 +483,7 @@ def main() -> None:
                     fixed_pools=args.fixed_pools,
                     measure_drain=args.measure_drain,
                     drain_observe_seconds=args.drain_observe_seconds,
+                    node_aggregator=args.node_aggregator,
                 )
                 all_results.append(result)
                 break

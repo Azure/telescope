@@ -46,6 +46,7 @@ steps:
       combo_run_label="${{ combo.run_label }}"
       combo_konn_server_image="${{ combo.konn_server_image }}"
       combo_konn_agent_image="${{ combo.konn_agent_image }}"
+      combo_node_aggregator="${{ combo.node_aggregator }}"
       combo_rate_limit="${combo_rate_limit:-2097152}"       # 2 MiB/s — current prod value
       combo_max_block_size="${combo_max_block_size:-524288}" # .5 MiB — current prod value
       if [[ -z "$combo_run_label" ]]; then
@@ -61,6 +62,8 @@ steps:
       [[ "$MEASURE_DRAIN" == "true" ]] && args="$args --measure-drain --drain-observe-seconds $DRAIN_OBSERVE_SECONDS"
       [[ "$COLLECT_DIAGNOSTICS" == "true" ]] && args="$args --collect-diagnostics"
       [[ "$FIXED_POOLS" == "true" ]] && args="$args --fixed-pools"
+      [[ "$combo_node_aggregator" == "true" ]] && args="$args --node-aggregator"
+      [[ "$NODE_AGGREGATOR" == "true" ]] && args="$args --node-aggregator"
 
       echo ""
       echo "######################################################################"

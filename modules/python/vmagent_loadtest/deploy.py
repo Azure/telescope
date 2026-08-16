@@ -11,7 +11,8 @@ from .config import (
     AGENT_TAINT_KEY, AGENT_TAINT_VALUE,
     FAKE_EXPORTER_DIR, FAKE_EXPORTER_IMAGE, FAKE_EXPORTER_NS,
     FAKE_EXPORTER_ROLES, KONN_AGENT_AUTOSCALER_IMAGE, KONN_AGENT_IMAGE, KONN_SERVER_IMAGE,
-    KUBELET_SA_NAME, MANIFEST_DIR, VMAGENT_IMAGE, VMAGENT_PROXY_IMAGE, VMSINGLE_IMAGE,
+    KUBELET_SA_NAME, MANIFEST_DIR, NODE_AGGREGATOR_IMAGE, VMAGENT_IMAGE, VMAGENT_PROXY_IMAGE,
+    VMSINGLE_IMAGE,
     VMAGENT_RATE_LIMIT, VMAGENT_FLUSH_INTERVAL,
     log,
 )
@@ -144,6 +145,24 @@ def update_konn_agent_autoscaler_floor(kubeconfig: str, namespace: str, min_repl
     })
     kubectl_apply(kubeconfig, manifest)
     rollout_restart(kubeconfig, namespace, "deployment/konnectivity-agent-autoscaler")
+
+
+def deploy_node_aggregator(dp_kubeconfig: str, namespace: str) -> None:
+    """Deploy the real per-node Prometheus aggregator DaemonSet (prototype).
+
+    Scrapes kubelet/cadvisor/kube-proxy/azure-cns/node-exporter/node-runtime
+    locally on each DP node and exposes them combined via /federate, so
+    central vmagent can scrape one target per node instead of six.
+    """
+    log.info("Deploying node-aggregator DaemonSet in %s...", namespace)
+    manifest = render_template(MANIFEST_DIR / "node-aggregator.yaml", {
+        "__NAMESPACE__": namespace,
+        "__NODE_AGGREGATOR_IMAGE__": NODE_AGGREGATOR_IMAGE,
+    })
+    kubectl_apply(dp_kubeconfig, manifest)
+    kubectl(dp_kubeconfig, "-n", namespace, "rollout", "status",
+            "daemonset/node-aggregator", "--timeout=300s")
+    log.info("node-aggregator ready in %s", namespace)
 
 
 def _wait_statefulsets_ready(kubeconfig: str, namespace: str,
@@ -357,27 +376,218 @@ def deploy_vmsingle(kubeconfig: str, namespace: str) -> None:
     log.info("vmsingle ready in %s", namespace)
 
 
+# Default: 6 direct per-node-per-role jobs, each scraping through
+# konnectivity (kubelet/cadvisor) or the vmagent-proxy sidecar (the rest).
+_REAL_TARGET_JOBS_DIRECT = """\
+      - job_name: real-kubelet
+        stream_parse: true
+        proxy_url: "https://konnectivity-server:8083"
+        proxy_tls_config:
+          insecure_skip_verify: true
+          ca_file: /certs/ca.crt
+          cert_file: /certs/client.crt
+          key_file: /certs/client.key
+        scheme: https
+        metrics_path: /metrics
+        authorization:
+          type: Bearer
+          credentials_file: /var/run/secrets/kubelet/token
+        tls_config:
+          insecure_skip_verify: true
+        kubernetes_sd_configs:
+          - role: node
+            api_server: "__DP_API_SERVER__"
+            bearer_token_file: /var/run/secrets/kubelet/token
+            tls_config:
+              insecure_skip_verify: true
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_node_label_loadtest_io_tier_block]
+            regex: '__TIER_BLOCK_REGEX__'
+            action: keep
+          - source_labels: [__meta_kubernetes_node_address_InternalIP]
+            target_label: __address__
+            replacement: $1:10250
+          - source_labels: [__address__]
+            target_label: instance
+
+      - job_name: real-cadvisor
+        stream_parse: true
+        proxy_url: "https://konnectivity-server:8083"
+        proxy_tls_config:
+          insecure_skip_verify: true
+          ca_file: /certs/ca.crt
+          cert_file: /certs/client.crt
+          key_file: /certs/client.key
+        scheme: https
+        metrics_path: /metrics/cadvisor
+        authorization:
+          type: Bearer
+          credentials_file: /var/run/secrets/kubelet/token
+        tls_config:
+          insecure_skip_verify: true
+        kubernetes_sd_configs:
+          - role: node
+            api_server: "__DP_API_SERVER__"
+            bearer_token_file: /var/run/secrets/kubelet/token
+            tls_config:
+              insecure_skip_verify: true
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_node_label_loadtest_io_tier_block]
+            regex: '__TIER_BLOCK_REGEX__'
+            action: keep
+          - source_labels: [__meta_kubernetes_node_address_InternalIP]
+            target_label: __address__
+            replacement: $1:10250
+          - source_labels: [__address__]
+            target_label: instance
+
+      - job_name: real-kubeproxy
+        stream_parse: true
+        proxy_url: "http://localhost:8080"
+        metrics_path: /metrics
+        kubernetes_sd_configs:
+          - role: node
+            api_server: "__DP_API_SERVER__"
+            bearer_token_file: /var/run/secrets/kubelet/token
+            tls_config:
+              insecure_skip_verify: true
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_node_label_loadtest_io_tier_block]
+            regex: '__TIER_BLOCK_REGEX__'
+            action: keep
+          - source_labels: [__meta_kubernetes_node_address_InternalIP]
+            target_label: __address__
+            replacement: $1:10249
+          - source_labels: [__address__]
+            target_label: instance
+
+      - job_name: real-azure-cns
+        stream_parse: true
+        proxy_url: "http://localhost:8080"
+        metrics_path: /metrics
+        kubernetes_sd_configs:
+          - role: node
+            api_server: "__DP_API_SERVER__"
+            bearer_token_file: /var/run/secrets/kubelet/token
+            tls_config:
+              insecure_skip_verify: true
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_node_label_loadtest_io_tier_block]
+            regex: '__TIER_BLOCK_REGEX__'
+            action: keep
+          - source_labels: [__meta_kubernetes_node_address_InternalIP]
+            target_label: __address__
+            replacement: $1:10092
+          - source_labels: [__address__]
+            target_label: instance
+
+      - job_name: node-exporter
+        stream_parse: true
+        proxy_url: "http://localhost:8080"
+        metrics_path: /metrics
+        kubernetes_sd_configs:
+          - role: node
+            api_server: "__DP_API_SERVER__"
+            bearer_token_file: /var/run/secrets/kubelet/token
+            tls_config:
+              insecure_skip_verify: true
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_node_label_loadtest_io_tier_block]
+            regex: '__TIER_BLOCK_REGEX__'
+            action: keep
+          - source_labels: [__meta_kubernetes_node_label_kubernetes_io_os]
+            action: keep
+            regex: linux
+          - source_labels: [__meta_kubernetes_node_address_InternalIP]
+            target_label: __address__
+            replacement: $1:19100
+          - source_labels: [__address__]
+            target_label: instance
+
+      - job_name: node-runtime
+        stream_parse: true
+        proxy_url: "http://localhost:8080"
+        metrics_path: /v1/metrics
+        kubernetes_sd_configs:
+          - role: node
+            api_server: "__DP_API_SERVER__"
+            bearer_token_file: /var/run/secrets/kubelet/token
+            tls_config:
+              insecure_skip_verify: true
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_node_label_loadtest_io_tier_block]
+            regex: '__TIER_BLOCK_REGEX__'
+            action: keep
+          - source_labels: [__meta_kubernetes_node_address_InternalIP]
+            target_label: __address__
+            replacement: $1:10257
+          - source_labels: [__address__]
+            target_label: instance"""
+
+# Prototype: 1 job per node, scraping the node-aggregator DaemonSet's real
+# Prometheus /federate instead of 6 direct scrapes. attach_metadata.node
+# recovers the tier-block label (role:pod SD has no node labels otherwise).
+_REAL_TARGET_JOBS_AGGREGATOR = """\
+      - job_name: real-node-aggregator
+        stream_parse: true
+        proxy_url: "http://localhost:8080"
+        metrics_path: /federate
+        params:
+          'match[]': ['{__name__!=""}']
+        honor_labels: true
+        kubernetes_sd_configs:
+          - role: pod
+            api_server: "__DP_API_SERVER__"
+            bearer_token_file: /var/run/secrets/kubelet/token
+            tls_config:
+              insecure_skip_verify: true
+            attach_metadata:
+              node: true
+            namespaces:
+              names: ["__NAMESPACE__"]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: node-aggregator
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_node_label_loadtest_io_tier_block]
+            regex: '__TIER_BLOCK_REGEX__'
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_ip]
+            target_label: __address__
+            replacement: $1:9090
+          - source_labels: [__address__]
+            target_label: instance"""
+
+
+def _scrape_config_replacements(namespace: str, dp_api_server: str, tier_block_regex: str,
+                                node_aggregator: bool) -> dict:
+    return {
+        "__NAMESPACE__": namespace,
+        "__DP_API_SERVER__": dp_api_server,
+        "__DP_API_SERVER_HOST__": urlparse(dp_api_server).netloc or dp_api_server,
+        "__TIER_BLOCK_REGEX__": tier_block_regex,
+        "__REAL_TARGET_JOBS__": _REAL_TARGET_JOBS_AGGREGATOR if node_aggregator else _REAL_TARGET_JOBS_DIRECT,
+    }
+
+
 def deploy_vmagent(kubeconfig: str, namespace: str, dp_api_server: str,
                    vmagent_resources: dict | None = None,
                    proxy_resources: dict | None = None,
                    replicas: int = 1,
                    rate_limit: int = VMAGENT_RATE_LIMIT,
                    max_block_size: int = 8388608,
-                   tier_block_regex: str = ".*") -> None:
+                   tier_block_regex: str = ".*",
+                   node_aggregator: bool = False) -> None:
     log.info("Deploying VMAgent in %s (SD via %s, %d shard(s), rateLimit=%d, maxBlockSize=%d, "
-             "flushInterval=%s, tierBlockRegex=%s)...",
+             "flushInterval=%s, tierBlockRegex=%s, nodeAggregator=%s)...",
              namespace, dp_api_server, replicas, rate_limit, max_block_size,
-             VMAGENT_FLUSH_INTERVAL, tier_block_regex)
+             VMAGENT_FLUSH_INTERVAL, tier_block_regex, node_aggregator)
     vm = vmagent_resources or {"cpu_req": "500m", "mem_req": "1Gi",
                                "cpu_lim": "2", "mem_lim": "4Gi"}
     px = proxy_resources or {"cpu_req": "500m", "mem_req": "256Mi",
                              "cpu_lim": "4", "mem_lim": "1Gi"}
-    scrape_replacements = {
-        "__NAMESPACE__": namespace,
-        "__DP_API_SERVER__": dp_api_server,
-        "__DP_API_SERVER_HOST__": urlparse(dp_api_server).netloc or dp_api_server,
-        "__TIER_BLOCK_REGEX__": tier_block_regex,
-    }
+    scrape_replacements = _scrape_config_replacements(namespace, dp_api_server, tier_block_regex,
+                                                       node_aggregator)
     scrape_manifest = render_template(MANIFEST_DIR / "scrape-config.yaml", scrape_replacements)
     kubectl_apply(kubeconfig, scrape_manifest)
 
@@ -405,16 +615,12 @@ def deploy_vmagent(kubeconfig: str, namespace: str, dp_api_server: str,
 
 
 def set_tier_block_regex(kubeconfig: str, namespace: str, dp_api_server: str,
-                         tier_block_regex: str) -> None:
+                         tier_block_regex: str, node_aggregator: bool = False) -> None:
     """Re-apply just the scrape-config ConfigMap to switch tier-block scope --
     no vmagent restart, no node scaling.
     """
-    scrape_replacements = {
-        "__NAMESPACE__": namespace,
-        "__DP_API_SERVER__": dp_api_server,
-        "__DP_API_SERVER_HOST__": urlparse(dp_api_server).netloc or dp_api_server,
-        "__TIER_BLOCK_REGEX__": tier_block_regex,
-    }
+    scrape_replacements = _scrape_config_replacements(namespace, dp_api_server, tier_block_regex,
+                                                       node_aggregator)
     scrape_manifest = render_template(MANIFEST_DIR / "scrape-config.yaml", scrape_replacements)
     kubectl_apply(kubeconfig, scrape_manifest)
     log.info("Tier-block regex set to %r in %s (vmagent picks it up within ~10s)",
