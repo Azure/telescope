@@ -27,7 +27,7 @@ from .deploy import (
     deploy_konnectivity_server, deploy_vmagent, deploy_vmsingle,
     ensure_namespace, get_deployment_replicas, get_dp_api_server, get_node_ips, get_server_lb_ip,
     rollout_restart, scale_fake_exporters, set_tier_block_regex, setup_dp_access,
-    update_konn_agent_autoscaler_floor, wait_for_fake_exporters_gone,
+    wait_for_fake_exporters_gone,
 )
 from .adx import (
     export_if_configured as adx_export_if_configured,
@@ -634,16 +634,18 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
         # On resume, the "first" tier IS the one that failed and needs a
         # real reconcile attempt, so it's never skipped.
         server_count, shard_count, tier_resources = reconcile_cp_stack_sizing(tier)
-        agent_min_replicas = konnectivity_agent_replicas_for_node_count(tier)
         if resume or tier != first_tier:
             log.info("Ensuring CP cluster has %d nodes before reconciling CP stack...", cp_nodes_needed)
             wait_for_nodes_ready(cp_kubeconfig, expected=cp_nodes_needed, timeout_minutes=15)
             deploy_konnectivity_server(cp_kubeconfig, namespace, server_count=server_count,
                                         resources=tier_resources["konn_server"], wait=True,
                                         server_image=konn_server_image)
-            # Floor only -- the autoscaler (not us) owns live replica count
-            # from here on, via its own packet-metrics reconcile loop.
-            update_konn_agent_autoscaler_floor(dp_kubeconfig, namespace, agent_min_replicas)
+            # konnectivity-agent itself and its autoscaler are deployed once,
+            # at bootstrap -- not touched per tier. The autoscaler owns live
+            # replica count from here via its own packet-metrics reconcile
+            # loop; restarting it every tier would wipe that state (smoothing
+            # window, downscale baseline) instead of letting it react to
+            # rising traffic across the ramp.
             deploy_vmagent(cp_kubeconfig, namespace, dp_api_server,
                            vmagent_resources=tier_resources["vmagent"],
                            proxy_resources=tier_resources["vmagent_proxy"],
