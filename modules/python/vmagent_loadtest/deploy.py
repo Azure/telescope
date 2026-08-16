@@ -561,12 +561,18 @@ _REAL_TARGET_JOBS_AGGREGATOR = """\
 
 def _scrape_config_replacements(namespace: str, dp_api_server: str, tier_block_regex: str,
                                 node_aggregator: bool) -> dict:
+    # __REAL_TARGET_JOBS__ must be substituted FIRST: its own value (the
+    # aggregator job block) contains literal __NAMESPACE__/__DP_API_SERVER__/
+    # __TIER_BLOCK_REGEX__ tokens, and render_template does a single
+    # ordered pass over this dict -- if those keys ran first, their turn
+    # would already be over by the time this substitution inserts more of
+    # the same tokens, leaving them unresolved in the rendered output.
     return {
+        "__REAL_TARGET_JOBS__": _REAL_TARGET_JOBS_AGGREGATOR if node_aggregator else _REAL_TARGET_JOBS_DIRECT,
         "__NAMESPACE__": namespace,
         "__DP_API_SERVER__": dp_api_server,
         "__DP_API_SERVER_HOST__": urlparse(dp_api_server).netloc or dp_api_server,
         "__TIER_BLOCK_REGEX__": tier_block_regex,
-        "__REAL_TARGET_JOBS__": _REAL_TARGET_JOBS_AGGREGATOR if node_aggregator else _REAL_TARGET_JOBS_DIRECT,
     }
 
 

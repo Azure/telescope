@@ -670,7 +670,12 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
         node_ips = get_node_ips(dp_kubeconfig,
                                 label_selector=tier_block_label_selector(tier) if fixed_pools else "")
         dp_nodes = len(node_ips)
-        per_node_roles = (len(REAL_TARGET_ROLES)
+        # node_aggregator collapses REAL_TARGET_ROLES's 6 direct per-node
+        # jobs into 1 combined real-node-aggregator job -- the expected
+        # scrape-coverage count must follow, or the run spuriously fails
+        # its coverage gate even when the aggregator is working correctly.
+        real_target_role_count = 1 if node_aggregator else len(REAL_TARGET_ROLES)
+        per_node_roles = (real_target_role_count
                          + len(DAEMONSET_TARGET_ROLES)
                          + len(DAEMONSET_POD_TARGET_ROLES))
         singleton_roles = len(SINGLETON_POD_TARGET_ROLES)

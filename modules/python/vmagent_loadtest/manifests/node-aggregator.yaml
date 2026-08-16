@@ -120,7 +120,6 @@ spec:
             - --storage.tsdb.path=/tmp/prometheus-data
             - --storage.tsdb.retention.time=15m
             - --web.listen-address=0.0.0.0:9090
-            - --web.enable-remote-write-receiver=false
           ports:
             - name: federate
               containerPort: 9090
