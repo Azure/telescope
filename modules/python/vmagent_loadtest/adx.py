@@ -150,6 +150,19 @@ TIMESERIES_METRICS = [
     ("konn_agent_stream_errors_total",
      'sum(konnectivity_network_proxy_agent_stream_errors_total) by (pod,packet_type,segment)'),
 
+    # ---------------- node-aggregator prototype (one series per node) ----
+    # Its own footprint -- the cost side of the aggregator's cost/benefit
+    # comparison, otherwise invisible since only the 6 real-target scrapes
+    # it performs locally are federated upstream (see manifests/
+    # node-aggregator.yaml's "prometheus" self-scrape job). Absent (no
+    # rows) whenever node_aggregator=False.
+    ("node_aggregator_memory_bytes",
+     'process_resident_memory_bytes{job="prometheus"}'),
+    ("node_aggregator_cpu_seconds_total",
+     'process_cpu_seconds_total{job="prometheus"}'),
+    ("node_aggregator_goroutines",
+     'go_goroutines{job="prometheus"}'),
+
     # ---------------- vmagent (the system-under-test) --------------------
     ("vmagent_memory_bytes",
      'process_resident_memory_bytes{job="vmagent-self"}'),

@@ -86,6 +86,12 @@ data:
         metrics_path: /v1/metrics
         static_configs:
           - targets: ["localhost:10257"]
+
+      # Self-scrape -- its own CPU/memory footprint, otherwise invisible
+      # since only the 6 targets above are federated upstream by default.
+      - job_name: prometheus
+        static_configs:
+          - targets: ["localhost:9090"]
 ---
 apiVersion: apps/v1
 kind: DaemonSet
