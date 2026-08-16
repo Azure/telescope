@@ -23,8 +23,9 @@ runkperf -v 3 bench \\
 }
 
 # RunKperfRunnerGroup runs `kperf rg run` with the specified runner image, runner
-# group manifest, and optional affinity selector.
-RunKperfRunnerGroup = lambda runnerImage: str, runnerGroup: str, affinity: str = "", target: str = None -> steps.Step {
+# group manifest, optional flow control setting, and optional affinity selector.
+RunKperfRunnerGroup = lambda runnerImage: str, runnerGroup: str, flowcontrol: str = "", affinity: str = "", target: str = None -> steps.Step {
+    flowcontrolFlag = "--runner-flowcontrol=\"${flowcontrol}\" \\\n  " if flowcontrol else ""
     affinityFlag = "--affinity=\"${affinity}\" \\\n  " if affinity else ""
     steps.Script {
         script = """
@@ -36,7 +37,7 @@ kperf rg delete
 kperf rg run \\
   --runner-image=${runnerImage} \\
   --runnergroup="${runnerGroup}" \\
-  ${affinityFlag}
+  ${flowcontrolFlag}${affinityFlag}
 """
         displayName = "Run kperf runner group"
         target = target
