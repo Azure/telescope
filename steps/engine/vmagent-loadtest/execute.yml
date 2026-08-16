@@ -63,7 +63,6 @@ steps:
       [[ "$COLLECT_DIAGNOSTICS" == "true" ]] && args="$args --collect-diagnostics"
       [[ "$FIXED_POOLS" == "true" ]] && args="$args --fixed-pools"
       [[ "$combo_node_aggregator" == "true" ]] && args="$args --node-aggregator"
-      [[ "$NODE_AGGREGATOR" == "true" ]] && args="$args --node-aggregator"
 
       echo ""
       echo "######################################################################"
