@@ -29,7 +29,7 @@ parameters:
       - run_label: node-aggregator-proto
         rate_limit: 2097152
         max_block_size: 524288
-        node_aggregator: true
+        node_aggregator: "true"
 
   # Empty by default -- every normal trigger still gets a fresh, unique
   # per-build resource group/clusters as today. Set this (e.g. to
