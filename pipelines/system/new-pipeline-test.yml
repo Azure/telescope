@@ -106,7 +106,7 @@ stages:
               PARALLEL: "false"
               FIXED_POOLS: "true"
               MEASURE_DRAIN: "true"
-              DRAIN_OBSERVE_SECONDS: 120
+              DRAIN_OBSERVE_SECONDS: 180
           max_parallel: 1
           timeout_in_minutes: 2500
           credential_type: service_connection
