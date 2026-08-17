@@ -530,6 +530,7 @@ _REAL_TARGET_JOBS_DIRECT = """\
 _REAL_TARGET_JOBS_AGGREGATOR = """\
       - job_name: real-node-aggregator
         stream_parse: true
+        scrape_timeout: 25s
         proxy_url: "http://localhost:8080"
         metrics_path: /federate
         params:
@@ -549,7 +550,7 @@ _REAL_TARGET_JOBS_AGGREGATOR = """\
           - source_labels: [__meta_kubernetes_pod_label_app]
             regex: node-aggregator
             action: keep
-          - source_labels: [__meta_kubernetes_pod_node_label_loadtest_io_tier_block]
+          - source_labels: [__meta_kubernetes_node_label_loadtest_io_tier_block]
             regex: '__TIER_BLOCK_REGEX__'
             action: keep
           - source_labels: [__meta_kubernetes_pod_ip]
