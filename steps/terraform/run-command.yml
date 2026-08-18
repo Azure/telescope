@@ -41,6 +41,23 @@ steps:
         fi
 
         set +e
+        # An Azure-initiated VM Agent Rolling Upgrade rejects VMSS updates with
+        # OperationNotAllowed, which can cause AKS node resource group deletion to fail.
+        # Cancel it first so Terraform destroy can proceed.
+        if [[ ${{ parameters.command }} == "destroy" && "$CLOUD" == "azure" ]]; then
+          node_resource_groups=$(az aks list --resource-group $RUN_ID --query "[].nodeResourceGroup" -o tsv)
+          if [[ -z "$node_resource_groups" ]]; then
+            # The cluster resource may already be gone while its node resource group lingers.
+            node_resource_groups=$(az group list --query "[?starts_with(name, 'MC_${RUN_ID}_')].name" -o tsv)
+          fi
+          for node_resource_group in $node_resource_groups; do
+            for vmss in $(az vmss list --resource-group $node_resource_group --query "[].name" -o tsv); do
+              echo "Cancelling any in-progress rolling upgrade on VMSS $vmss in $node_resource_group"
+              az vmss rolling-upgrade cancel --resource-group $node_resource_group --name $vmss
+            done
+          done
+        fi
+
         terraform ${{ parameters.command }} --auto-approve ${{ parameters.arguments }} -var-file $terraform_input_file -var json_input="$terraform_input_variables" 2>&1 | tee terraform_${{ parameters.command }}.log
         exit_code=${PIPESTATUS[0]}
         if [[ $exit_code -ne 0 ]]; then
@@ -49,6 +66,13 @@ steps:
             ids=$(az resource list --location $region --resource-group $RUN_ID --query [*].id -o tsv)
             az resource delete --ids $ids --verbose
             rm -r terraform.tfstate.d/$region
+          fi
+          if [[ ${{ parameters.command }} == "destroy" && "$CLOUD" == "azure" ]]; then
+            # Space out retries because Azure may restart the rolling upgrade after cancellation.
+            if grep -q "Rolling Upgrade in progress" terraform_${{ parameters.command }}.log; then
+              echo "VMSS rolling upgrade still in progress. Backing off for 300 seconds before retrying."
+              sleep 300
+            fi
           fi
           if [[ ${{ parameters.command }} == "destroy" && "$CLOUD" == "aws" ]]; then
             echo "Delete all the network interfaces before retrying"
