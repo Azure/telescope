@@ -440,6 +440,29 @@ _REAL_TARGET_JOBS_DIRECT = """\
             replacement: $1:10250
           - source_labels: [__address__]
             target_label: instance
+        # Mirrors prod's cadvisor metric_relabel_configs verbatim (aks-operator
+        # config/channels/packages/adx-vmagent/full-mode/scale_scrape_configs.yaml)
+        # -- cadvisor emits thousands of per-container metrics; prod only keeps
+        # a curated metric-name allowlist for containers/pods matching known
+        # system workloads.
+        metric_relabel_configs:
+          - action: keep
+            if: '{__name__=~"container_cpu_cfs_throttled_seconds_total|container_cpu_cfs_throttled_periods_total|container_cpu_cfs_periods_total|container_cpu_load_average_10s|container_cpu_system_seconds_total|container_cpu_usage_seconds_total|container_cpu_user_seconds_total|container_memory_cache|container_memory_failcnt|container_memory_failures_total|container_memory_mapped_file|container_memory_rss|container_memory_swap|container_memory_usage_bytes|container_memory_working_set_bytes|container_oom_events_total|container_spec_memory_limit_bytes|container_spec_memory_reservation_limit_bytes|container_spec_memory_swap_limit_bytes|container_network_transmit_errors_total|container_network_receive_errors_total|container_network_transmit_packets_dropped_total|container_network_receive_packets_dropped_total|container_network_receive_packets_total|container_network_transmit_packets_total|container_fs_reads_bytes_total|container_fs_writes_bytes_total|container_scrape_error|container_tasks_state|go_memstats_heap_alloc_bytes|go_memstats_heap_idle_bytes|go_memstats_heap_inuse_bytes|go_memstats_heap_objects|go_memstats_alloc_bytes_total|go_gc_duration_seconds($|_count|_sum)|go_gc_pauses_seconds_(bucket|count|sum)|go_gc_cycles_automatic_gc_cycles_total|go_goroutines|go_threads|process_open_fds|process_cpu_seconds_total"}'
+          - action: keep
+            if: '{namespace=~"(aks-istio-ingress|aks-istio-system|app-routing-system|applink-system|eno-system|gatekeeper-system|kube-system|tigera-operator|^$)"}'
+          - target_label: cadvisor_keep_label
+            replacement: keep_metric
+            if: '{container=~"(alb-controller|app-monitoring-webhook|keda-admission-webhooks|keda-operator|keda-operator-metrics-apiserver|konnectivity-agent|updater|recommender|admission-controller|cilium-agent|istio-proxy|cilium-envoy|fqdn-policy|kube-proxy|retina|cns-container|blob|azuredisk|azurefile|coredns|gatekeeper-controller-container|workspace|kaito_workload|eviction-autoscaler|discovery|daemon|cluster-health-monitor)"}'
+          - target_label: cadvisor_keep_label
+            replacement: keep_metric
+            if: '{pod=~"(alb-controller.*|app-monitoring-webhook.*|keda-admission-webhooks.*|keda-operator.*|keda-operator-metrics-apiserver.*|konnectivity-agent.*|vpa-updater.*|vpa-recommender.*|vpa-admission-controller.*|cilium-agent.*|ztunnel.*|acns-security-agent.*|acns-security-agent.*|kube-proxy.*|retina_basic.*|azure-cns.*|blob.*|csi-azuredisk-node.*|csi-azurefile-node.*|coredns.*|gatekeeper-controller.*|kaito-workspace.*|kaito_workload.*|eviction-autoscaler.*|istiod.*|kube-egress-gateway-daemon-manager.*|cluster-health-monitor.*)"}'
+          - source_labels: [cadvisor_keep_label]
+            action: keep
+            regex: (.*)
+          - action: labeldrop
+            regex: cadvisor_keep_label
+          - action: labeldrop
+            regex: id|image
 
       - job_name: real-kubeproxy
         stream_parse: true

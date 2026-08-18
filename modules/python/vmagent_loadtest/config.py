@@ -92,9 +92,14 @@ DAEMONSET_TARGET_ROLES = [
 ]
 
 # DaemonSet target roles scraped via pod role (1 per node): (job_name, namespace)
-# csi-azuredisk-node pods exist but their relabel filter (port name "metrics")
-# does not match in stock AKS, so only csi-azurefile-node contributes.
+# csi-azuredisk-node/csi-azurefile-node both confirmed scraping successfully
+# on stock AKS test clusters (live target check: both report active targets
+# at their real metrics ports). csi-blob-node's scrape job is defined too
+# but NOT counted here -- Blob CSI isn't installed by default on the
+# terraform-provisioned test clusters, so its targets would always be 0,
+# same caution as localdns/kube-state-metrics/node-problem-detector below.
 DAEMONSET_POD_TARGET_ROLES = [
+    ("csi-azuredisk-node", "kube-system"),
     ("csi-azurefile-node", "kube-system"),
 ]
 
