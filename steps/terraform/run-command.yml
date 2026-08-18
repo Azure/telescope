@@ -41,7 +41,9 @@ steps:
         fi
 
         set +e
-        # Cancel VMSS rolling upgrades that can block AKS node resource group deletion.
+        # An Azure-initiated VM Agent Rolling Upgrade rejects VMSS updates with
+        # OperationNotAllowed, which can cause AKS node resource group deletion to fail.
+        # Cancel it first so Terraform destroy can proceed.
         if [[ ${{ parameters.command }} == "destroy" && "$CLOUD" == "azure" ]]; then
           node_resource_groups=$(az aks list --resource-group $RUN_ID --query "[].nodeResourceGroup" -o tsv)
           if [[ -z "$node_resource_groups" ]]; then
