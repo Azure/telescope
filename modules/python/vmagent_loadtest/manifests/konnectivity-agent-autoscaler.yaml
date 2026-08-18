@@ -94,6 +94,12 @@ spec:
             - --target-metrics-path=/metrics
             - --configmap-name=konnectivity-agent-custom-autoscaler-config
             - --metrics-addr=:8080
+            # v2 test build: the real handoff guard checks kube-system for the
+            # OLD cluster-proportional-autoscaler regardless of --namespace,
+            # so on our real AKS test clusters it always finds the genuine
+            # prod one and holds forever. Disable it here only -- prod's
+            # default build keeps the guard on.
+            - --disable-old-cpa-handoff-guard=true
           ports:
             - name: metrics
               containerPort: 8080

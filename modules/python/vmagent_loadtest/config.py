@@ -255,7 +255,7 @@ def konnectivity_agent_replicas_for_node_count(node_count: int) -> int:
 # this build -- unlike the shipped chart, which hardcodes kube-system.
 # imranpochi/kas-dev:multiple-ns is a team-provided TEST image only; swap for
 # an official tag once one ships.
-KONN_AGENT_AUTOSCALER_IMAGE = "imranpochi/kas-dev:multiple-ns"
+KONN_AGENT_AUTOSCALER_IMAGE = "imranpochi/kas-dev:multiple-ns-v2"
 
 # CP cluster node sizing. Unlike the DP nodepool (scaled purely off node
 # count), the CP cluster hosts konn-server/vmagent/vmsingle whose CPU
