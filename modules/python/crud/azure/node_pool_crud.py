@@ -55,10 +55,10 @@ class NodePoolCRUD:
     def __init__(
         self,
         resource_group,
-        cluster_name=None,
         kube_config_file=None,
         result_dir=None,
         step_timeout=600,
+        cluster_name=None,
         exclude_managed_identity=False,
     ):
         """Initialize with Azure resource identifiers"""

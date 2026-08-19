@@ -83,6 +83,26 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
             credential=self.mock_credential,
         )
 
+    def test_existing_positional_arguments_remain_compatible(self):
+        """New options do not change the existing positional argument order."""
+        self.mock_aks_client_cls.reset_mock()
+
+        NodePoolCRUD(
+            "fake-resource-group",
+            "/tmp/fake-kubeconfig",
+            "/tmp/fake-results",
+            300,
+        )
+
+        self.mock_aks_client_cls.assert_called_once_with(
+            resource_group="fake-resource-group",
+            cluster_name=None,
+            exclude_managed_identity=False,
+            kube_config_file="/tmp/fake-kubeconfig",
+            result_dir="/tmp/fake-results",
+            operation_timeout_minutes=5.0,
+        )
+
     def test_create_node_pool_success(self):
         """Test successful node pool creation"""
         # Setup
