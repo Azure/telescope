@@ -83,7 +83,6 @@ spec:
             - -remoteWrite.rateLimit=__VMAGENT_RATE_LIMIT__
             - -remoteWrite.maxBlockSize=__VMAGENT_MAX_BLOCK_SIZE__
             - -remoteWrite.tmpDataPath=/tmp/vmagent-remotewrite-data
-            - -remoteWrite.dropSamplesOnOverload=true
           ports:
             - name: http
               containerPort: 8429
