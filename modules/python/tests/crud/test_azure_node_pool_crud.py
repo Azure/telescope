@@ -49,15 +49,36 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
         except OSError:
             pass
 
-    def test_init_injects_configured_credential(self):
-        """Test that the configured credential is passed to AKSClient."""
+    def test_authentication_configuration(self):
+        """Credential configuration is injected with the requested MI behavior."""
+        self.mock_configure_credential.assert_called_once_with(
+            default_credential_exclude_mi=False
+        )
+        self.mock_aks_client_cls.assert_called_once_with(
+            resource_group="fake-resource-group",
+            cluster_name=None,
+            kube_config_file=None,
+            result_dir=self.test_result_dir,
+            operation_timeout_minutes=10.0,
+            credential=self.mock_credential,
+        )
+
+        self.mock_configure_credential.reset_mock()
+        self.mock_aks_client_cls.reset_mock()
+        NodePoolCRUD(
+            resource_group="fake-resource-group",
+            cluster_name="fake-cluster",
+            exclude_managed_identity=True,
+        )
+
         self.mock_configure_credential.assert_called_once_with(
             default_credential_exclude_mi=True
         )
         self.mock_aks_client_cls.assert_called_once_with(
             resource_group="fake-resource-group",
+            cluster_name="fake-cluster",
             kube_config_file=None,
-            result_dir=self.test_result_dir,
+            result_dir=None,
             operation_timeout_minutes=10.0,
             credential=self.mock_credential,
         )

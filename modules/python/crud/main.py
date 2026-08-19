@@ -413,6 +413,11 @@ def main():
     )
     common_parser.add_argument("--run-id", required=True, help="Unique run identifier")
     common_parser.add_argument(
+        "--cluster-name",
+        default=None,
+        help="AKS cluster name; Azure discovers the first cluster when omitted",
+    )
+    common_parser.add_argument(
         "--result-dir", default=".", help="Directory to save results"
     )
     common_parser.add_argument("--kube-config", help="Path to kubeconfig file")
@@ -448,6 +453,11 @@ def main():
         choices=["ON_DEMAND", "SPOT", "CAPACITY_BLOCK"],
         default="ON_DEMAND",
         help="Capacity type for AWS/Azure node pool",
+    )
+    common_parser.add_argument(
+        "--exclude-managed-identity",
+        action="store_true",
+        help="Exclude managed identity from DefaultAzureCredential",
     )
 
     # Create command
@@ -667,9 +677,11 @@ def main():
         if args.cloud == "azure":
             node_pool_crud = NodePoolCRUD(
                 resource_group=args.run_id,
+                cluster_name=args.cluster_name,
                 kube_config_file=args.kube_config,
                 result_dir=args.result_dir,
                 step_timeout=args.step_timeout,
+                exclude_managed_identity=args.exclude_managed_identity,
             )
         elif args.cloud == "aws":
             node_pool_crud = NodePoolCRUD(

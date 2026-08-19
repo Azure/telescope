@@ -53,16 +53,25 @@ class NodePoolCRUD:
     """Performs AKS node pool operations - metrics collection is handled directly by AKSClient"""
 
     def __init__(
-        self, resource_group, kube_config_file=None, result_dir=None, step_timeout=600
+        self,
+        resource_group,
+        cluster_name=None,
+        kube_config_file=None,
+        result_dir=None,
+        step_timeout=600,
+        exclude_managed_identity=False,
     ):
         """Initialize with Azure resource identifiers"""
         self.resource_group = resource_group
         self.aks_client = AKSClient(
             resource_group=resource_group,
+            cluster_name=cluster_name,
             kube_config_file=kube_config_file,
             result_dir=result_dir,
             operation_timeout_minutes=step_timeout / 60,  # Convert seconds to minutes
-            credential=configure_credential(default_credential_exclude_mi=True),
+            credential=configure_credential(
+                default_credential_exclude_mi=exclude_managed_identity
+            ),
         )
 
         if not self.aks_client:
