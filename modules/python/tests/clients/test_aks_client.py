@@ -507,9 +507,14 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
             returncode=0, stdout="", stderr=""
         )
         mock_node_pool = mock.MagicMock()
-        mock_node_pool.count = 1
-        mock_node_pool.vm_size = None
-        mock_node_pool.as_dict.return_value = {"count": 1}
+        mock_node_pool.virtual_machines_profile = {
+            "scale": {
+                "manual": [{"size": "Standard_D2s_v3", "count": 1}]
+            }
+        }
+        mock_node_pool.as_dict.return_value = {
+            "virtual_machines_profile": mock_node_pool.virtual_machines_profile
+        }
         self.aks_client.get_node_pool = mock.MagicMock(return_value=mock_node_pool)
         self.aks_client.get_cluster_data = mock.MagicMock(
             return_value={"name": "fake-cluster"}

@@ -8,6 +8,56 @@ from utils.logger_config import get_logger
 logger = get_logger(__name__)
 
 
+def get_node_pool_scale_state(node_pool, node_pool_type):
+    """Return current node count and VM size for VMSS or VirtualMachines pools."""
+    if node_pool_type != "VirtualMachines":
+        return node_pool.count, node_pool.vm_size
+
+    profile = node_pool.virtual_machines_profile
+    scale = profile.get("scale") if isinstance(profile, dict) else profile.scale
+    manual = scale.get("manual") if isinstance(scale, dict) else scale.manual
+    if not manual:
+        raise ValueError("VirtualMachines node pool has no manual scale profile")
+
+    def read(entry, field):
+        return entry.get(field) if isinstance(entry, dict) else getattr(entry, field)
+
+    counts = [read(entry, "count") for entry in manual]
+    if any(count is None for count in counts):
+        raise ValueError("VirtualMachines manual scale profile has no node count")
+    return sum(counts), read(manual[0], "size")
+
+
+def build_add_virtual_machines_command(
+    resource_group, cluster_name, node_pool_name, node_count, vm_size
+):
+    """Build the Azure CLI command that creates a VirtualMachines node pool."""
+    return [
+        "az", "aks", "nodepool", "add",
+        "--resource-group", resource_group,
+        "--cluster-name", cluster_name,
+        "--name", node_pool_name,
+        "--node-count", str(node_count),
+        "--vm-sizes", vm_size,
+        "--vm-set-type", "VirtualMachines",
+        "--mode", "User",
+        "--node-osdisk-type", "Managed",
+    ]
+
+
+def build_scale_virtual_machines_command(
+    resource_group, cluster_name, node_pool_name, node_count
+):
+    """Build the Azure CLI command that scales a VirtualMachines node pool."""
+    return [
+        "az", "aks", "nodepool", "scale",
+        "--resource-group", resource_group,
+        "--cluster-name", cluster_name,
+        "--name", node_pool_name,
+        "--node-count", str(node_count),
+    ]
+
+
 def run_node_pool_cli(
     cmd,
     node_pool_name,

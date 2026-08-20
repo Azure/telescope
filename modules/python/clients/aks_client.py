@@ -28,6 +28,9 @@ from utils.logger_config import get_logger, setup_logging
 from utils.common import get_env_vars
 from utils.azure_node_pool_cli import (
     add_managed_gpu_node_pool as add_managed_gpu_node_pool_cli,
+    build_add_virtual_machines_command,
+    build_scale_virtual_machines_command,
+    get_node_pool_scale_state,
     run_node_pool_cli,
 )
 from utils.provisioning_instrumentation import (
@@ -476,17 +479,13 @@ class AKSClient:
                 else:
                     arm_callable = None
                     if node_pool_type == "VirtualMachines":
-                        cmd = [
-                            "az", "aks", "nodepool", "add",
-                            "--resource-group", self.resource_group,
-                            "--cluster-name", cluster_name,
-                            "--name", node_pool_name,
-                            "--node-count", str(node_count),
-                            "--vm-sizes", vm_size,
-                            "--vm-set-type", node_pool_type,
-                            "--mode", "User",
-                            "--node-osdisk-type", "Managed",
-                        ]
+                        cmd = build_add_virtual_machines_command(
+                            self.resource_group,
+                            cluster_name,
+                            node_pool_name,
+                            node_count,
+                            vm_size,
+                        )
 
                         arm_callable = partial(
                             run_node_pool_cli, cmd, node_pool_name, "add"
@@ -602,7 +601,9 @@ class AKSClient:
         self._log_gpu_mode(metadata)
         node_pool = self.get_node_pool(node_pool_name, cluster_name)
 
-        current_count = node_pool.count
+        current_count, current_vm_size = get_node_pool_scale_state(
+            node_pool, node_pool_type
+        )
         if node_count > current_count:
             operation_type = "scale_up"
         elif node_count < current_count:
@@ -637,7 +638,7 @@ class AKSClient:
         ) as op:
             try:
                 # Store VM size for metrics
-                self.vm_size = node_pool.vm_size
+                self.vm_size = current_vm_size
                 op.name = operation_type
                 op.add_metadata("vm_size", self.vm_size)
                 op.add_metadata("current_count", current_count)
@@ -652,13 +653,12 @@ class AKSClient:
 
                 # For direct scaling, update the node count
                 if node_pool_type == "VirtualMachines":
-                    cmd = [
-                        "az", "aks", "nodepool", "scale",
-                        "--resource-group", self.resource_group,
-                        "--cluster-name", cluster_name,
-                        "--name", node_pool_name,
-                        "--node-count", str(node_count),
-                    ]
+                    cmd = build_scale_virtual_machines_command(
+                        self.resource_group,
+                        cluster_name,
+                        node_pool_name,
+                        node_count,
+                    )
 
                     arm_callable = partial(
                         run_node_pool_cli, cmd, node_pool_name, "scale"
@@ -901,13 +901,12 @@ class AKSClient:
                         "cluster_info", self.get_cluster_data(cluster_name)
                     )
                     if node_pool_type == "VirtualMachines":
-                        cmd = [
-                            "az", "aks", "nodepool", "scale",
-                            "--resource-group", self.resource_group,
-                            "--cluster-name", cluster_name,
-                            "--name", node_pool_name,
-                            "--node-count", str(step),
-                        ]
+                        cmd = build_scale_virtual_machines_command(
+                            self.resource_group,
+                            cluster_name,
+                            node_pool_name,
+                            step,
+                        )
                         arm_callable = partial(
                             run_node_pool_cli, cmd, node_pool_name, "scale"
                         )

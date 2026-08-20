@@ -1021,9 +1021,10 @@ class TestMainFunctionIntegration(unittest.TestCase):
         ]
 
         with mock.patch("sys.argv", test_args):
-            main()  # Use the imported main function
+            with self.assertRaises(SystemExit) as context:
+                main()
 
-        # Verify error is logged but sys.exit is not called
+        self.assertEqual(context.exception.code, 1)
         mock_logger.error.assert_called_with("Operation failed with exit code: 1")
 
     @mock.patch("sys.exit")
@@ -1620,9 +1621,10 @@ class TestMainErrorHandlingEdgeCases(unittest.TestCase):
             with mock.patch(
                 "crud.main.handle_node_pool_operation", mock_handle_operation
             ):
-                main()
+                with self.assertRaises(SystemExit) as context:
+                    main()
 
-        # Should log error with the specific exit code but not call sys.exit
+        self.assertEqual(context.exception.code, 42)
         mock_logger.error.assert_called_with("Operation failed with exit code: 42")
 
     @mock.patch("crud.main.logger")
@@ -1686,9 +1688,10 @@ class TestMainErrorHandlingEdgeCases(unittest.TestCase):
             with mock.patch(
                 "crud.main.handle_node_pool_operation", mock_handle_operation
             ):
-                main()
+                with self.assertRaises(SystemExit) as context:
+                    main()
 
-        # Should log error but not call sys.exit
+        self.assertEqual(context.exception.code, 1)
         mock_logger.error.assert_called_with("Operation failed with exit code: 1")
 
 
