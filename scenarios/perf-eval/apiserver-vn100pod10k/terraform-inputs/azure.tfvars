@@ -17,8 +17,8 @@ aks_cli_config_list = [
     extra_node_pool = [
       {
         name       = "virtualnodes"
-        node_count = 5
-        vm_size    = "Standard_D8s_v3"
+        node_count = 1
+        vm_size    = "Standard_D4s_v3"
       },
       {
         name       = "runner"
