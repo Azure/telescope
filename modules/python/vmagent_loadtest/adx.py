@@ -470,6 +470,26 @@ def ensure_schema(cluster_uri: str, database: str) -> None:
             "KonnectivityLogs}", database)
 
 
+def ensure_schema_if_configured() -> None:
+    """No-op unless ADX cluster URI + database are configured (env or config).
+
+    Was previously never called anywhere -- new columns added to the
+    CREATE_*_TABLE_CMD strings never actually reached the live table, so
+    ingest_from_stream calls referencing them silently populated
+    ConfigJson/Measurements only. Call this once at process start so schema
+    changes take effect on the very next run.
+    """
+    cluster_uri = os.environ.get("ADX_CLUSTER_URI", "").strip() or _config.ADX_CLUSTER_URI
+    database = os.environ.get("ADX_DATABASE", "").strip() or _config.ADX_DATABASE
+    if not cluster_uri or not database:
+        return
+    try:
+        ensure_schema(cluster_uri, database)
+    except Exception as e:
+        log.warning("ADX ensure_schema failed (non-fatal, ingestion may reject "
+                   "new columns until fixed): %s", e)
+
+
 
 def _query_range(vm_url: str, query: str, start: float, end: float, step: int = 15):
     """Run vmsingle /api/v1/query_range. Returns list of (labels, [(ts,val)...])."""

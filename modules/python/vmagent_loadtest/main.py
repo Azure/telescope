@@ -177,6 +177,12 @@ def main() -> None:
     ):
         logging.getLogger(noisy_logger).setLevel(logging.WARNING)
 
+    # Idempotent; no-op unless ADX_CLUSTER_URI/ADX_DATABASE are configured.
+    # Must run before any export_*_if_configured call below, otherwise newly
+    # added columns silently fail to reach the live table.
+    from vmagent_loadtest import adx as _adx
+    _adx.ensure_schema_if_configured()
+
     # --- Compare existing results: real vs fake ---
     if args.compare_results:
         real_path, fake_path = args.compare_results
