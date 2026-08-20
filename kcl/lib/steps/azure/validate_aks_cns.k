@@ -1,4 +1,5 @@
 import azure_pipelines.ap.steps
+import lib.const
 
 # azure-cns: a new pod gets an IP from the CNI IPAM, and the pod dataplane can
 # reach in-cluster services. For daemonset/pod health, pair with
@@ -14,7 +15,7 @@ trap 'kubectl delete pod "$pod" --ignore-not-found >/dev/null 2>&1' EXIT
 # Verify CNI IP allocation and routing to the kubernetes API ClusterIP.
 # Kubernetes provides the API service address through KUBERNETES_SERVICE_HOST
 # and KUBERNETES_SERVICE_PORT.
-reach_out=$(kubectl run "$pod" --image=mcr.microsoft.com/azurelinux/busybox:1.36 --restart=Never -i --rm --pod-running-timeout=120s \
+reach_out=$(kubectl run "$pod" --image=${const.BUSYBOX_IMAGE} --restart=Never -i --rm --pod-running-timeout=120s \
   --command -- sh -c 'nc -w5 "$KUBERNETES_SERVICE_HOST" "$KUBERNETES_SERVICE_PORT" && echo REACHABLE' 2>&1)
 echo "dataplane check: $reach_out"
 if ! echo "$reach_out" | grep -q 'REACHABLE'; then

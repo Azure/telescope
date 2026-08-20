@@ -1,4 +1,5 @@
 import azure_pipelines.ap.steps
+import lib.const
 
 # coredns: a DNS query resolves the in-cluster kubernetes API service to a
 # valid ClusterIP. For pod/controller health, pair with
@@ -10,7 +11,7 @@ set +e
 
 pod="aks-validation-dns-$RANDOM"
 trap 'kubectl delete pod "$pod" --ignore-not-found >/dev/null 2>&1' EXIT
-out=$(kubectl run "$pod" --image=mcr.microsoft.com/azurelinux/busybox:1.36 --restart=Never -i --rm --pod-running-timeout=120s \
+out=$(kubectl run "$pod" --image=${const.BUSYBOX_IMAGE} --restart=Never -i --rm --pod-running-timeout=120s \
   --command -- nslookup kubernetes.default.svc.cluster.local 2>&1)
 echo "$out"
 # busybox nslookup prints the resolved name followed by an Address line.
