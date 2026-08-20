@@ -1,95 +1,28 @@
 trigger: none
 
-parameters:
-  # Each entry is a full vmagent/konnectivity config to run SEQUENTIALLY
-  # against the SAME provisioned CP/DP clusters (see
-  # steps/engine/vmagent-loadtest/execute.yml's config_combinations
-  # each-loop) -- add/remove/edit entries here to sweep rateLimit,
-  # maxBlockSize, or konnectivity images without paying for a separate
-  # terraform apply/destroy per combination. rate_limit/max_block_size
-  # default to current prod values; konn_server_image/konn_agent_image
-  # default to prod's current resolved tag.
-  #
-  # Current sweep: rateLimit 2->20 MiB/s, maxBlockSize scaled alongside it
-  # (2/4/6/10 MiB in step with the rate limit, not flat) -- each combo at a
-  # single 2000-node tier (see TIERS below) with a 5-minute dwell. Judge
-  # results from ADX's full metrics set (dropped packets, pending backlog,
-  # drain-observation rows, etc.), not a single bespoke check.
-  - name: config_combinations
-    type: object
-    default:
-      - run_label: baseline-without-node-aggregator
-        rate_limit: 2097152      # 2 MiB/s — current prod value
-        max_block_size: 524288   # .5 MiB — current prod value
-      # Node-aggregator prototype: same baseline rate_limit/max_block_size as
-      # rl-2mb-baseline above (the direct-comparison control), but with a
-      # per-node Prometheus DaemonSet pre-filtering real targets instead of
-      # 6 direct scrapes per node -- runs sequentially in this SAME
-      # provisioned cluster rather than paying for a whole new one.
-      - run_label: node-aggregator-proto
-        rate_limit: 2097152
-        max_block_size: 524288
-        node_aggregator: "true"
-
-  # Empty by default -- every normal trigger still gets a fresh, unique
-  # per-build resource group/clusters as today. Set this (e.g. to
-  # "vmagent-loadtest-persistent") ONLY together with the SKIP_RESOURCE_MANAGEMENT
-  # runtime variable, to reuse the SAME persistent CP/DP clusters across
-  # triggers instead of paying for terraform apply/destroy every time --
-  # see aks-vm-extension CloudNativeCompute wiki's Telescope Best-Practices
-  # doc, "BYO resources"/SKIP_RESOURCE_MANAGEMENT.
-  # - name: run_id
-  #   type: string
-  #   default: ' '
-
 pool:
   name: 'AKS-Telescope-Airlock'
 
 variables:
-  SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: vmagent-loadtest
-  # Needed by validate-resources.yml whenever a trigger sets
-  # SKIP_RESOURCE_MANAGEMENT=true (BYO mode) -- matches terraform-inputs'
-  # own "owner" value, harmless when terraform is provisioning normally.
-  OWNER: aks
+  SCENARIO_TYPE: <scenario-type>
+  SCENARIO_NAME: <scenario-name>
 
 stages:
-  - stage: eastus_real
+  - stage: <stage-name> # format: <cloud>[_<region>]+ (e.g. azure_eastus2, aws_eastus_westus)
     dependsOn: []
     jobs:
-      - template: /jobs/competitive-test.yml
+      - template: /jobs/competitive-test.yml # must keep as is
         parameters:
-          cloud: azure
-          regions:
-            - eastus
-          topology: vmagent-loadtest
-          engine: vmagent-loadtest
-          # run_id: ${{ parameters.run_id }}
-          engine_input:
-            config_combinations: ${{ parameters.config_combinations }}
-          matrix:
-            # Single leg, ONE provisioned cluster pair -- every entry in
-            # config_combinations runs sequentially against it (see
-            # engine_input above); TIERS/SOAK_MINUTES/REAL_TARGETS/PARALLEL
-            # are shared/global across all combinations. SOAK_MINUTES=5 is
-            # the dwell per tier for every combo in the sweep above.
-            # FIXED_POOLS=true uses the terraform-provisioned tier-block
-            # pools (dpblocka-d + dpagentpool) instead of az-cli-scaling
-            # nodepool1 per combo -- no re-ramp/teardown between combos.
-            # MEASURE_DRAIN=true: at the final tier, pause new scrapes and
-            # observe remote-write backlog drain for DRAIN_OBSERVE_SECONDS
-            # (120s, matching build 73770's precedent methodology) --
-            # needed for a real rate-limit/max-block-size sizing verdict,
-            # not just steady-state pass/fail.
-            real_targets_sweep:
-              TIERS: "500,1000,1500,2000"
-              SOAK_MINUTES: 5
-              REAL_TARGETS: "true"
-              PARALLEL: "false"
-              FIXED_POOLS: "true"
-              MEASURE_DRAIN: "true"
-              DRAIN_OBSERVE_SECONDS: 180
-          max_parallel: 1
-          timeout_in_minutes: 2500
-          credential_type: service_connection
+          cloud: <cloud> # e.g. azure, aws
+          regions: # list of regions
+            - region1 # e.g. eastus2
+          topology: <topology> # e.g. cluster-autoscaler
+          engine: <engine> # e.g. clusterloader2
+          matrix: # list of test parameters to customize the provisioned resources
+            <case-name>:
+              <key1>: <value1>
+              <key2>: <value2>
+          max_parallel: <number of concurrent jobs> # required
+          credential_type: service_connection # required
           ssh_key_enabled: false
+          timeout_in_minutes: 60 # if not specified, default is 60
