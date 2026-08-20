@@ -829,6 +829,9 @@ class TestMainFunctionIntegration(unittest.TestCase):
             "azure",
             "--run-id",
             "test-run",
+            "--cluster-name",
+            "test-cluster",
+            "--exclude-managed-identity",
             "--node-pool-name",
             "test-pool",
             "--vm-size",
@@ -841,8 +844,55 @@ class TestMainFunctionIntegration(unittest.TestCase):
             main()  # Use the imported main function
 
         # Verify
-        mock_azure_crud_class.assert_called_once()
+        call_kwargs = mock_azure_crud_class.call_args.kwargs
+        self.assertEqual(call_kwargs["cluster_name"], "test-cluster")
+        self.assertTrue(call_kwargs["exclude_managed_identity"])
         mock_node_pool_crud.create_node_pool.assert_called_once()
+
+    def test_main_machine_command_rejects_node_pool_azure_options(self):
+        """Machine commands must not accept node-pool-only Azure options."""
+        test_args = [
+            "crud.py",
+            "create-machine",
+            "--cloud",
+            "azure",
+            "--run-id",
+            "test-run",
+            "--node-pool-name",
+            "test-pool",
+            "--vm-size",
+            "Standard_D2s_v3",
+            "--cluster-name",
+            "test-cluster",
+        ]
+
+        with mock.patch("sys.argv", test_args):
+            with self.assertRaises(SystemExit) as context:
+                main()
+
+        self.assertEqual(context.exception.code, 2)
+
+    def test_main_aws_rejects_azure_only_options(self):
+        """AWS node-pool commands must reject Azure-only options."""
+        test_args = [
+            "crud.py",
+            "create",
+            "--cloud",
+            "aws",
+            "--run-id",
+            "test-run",
+            "--node-pool-name",
+            "test-pool",
+            "--vm-size",
+            "m6i.2xlarge",
+            "--exclude-managed-identity",
+        ]
+
+        with mock.patch("sys.argv", test_args):
+            with self.assertRaises(SystemExit) as context:
+                main()
+
+        self.assertEqual(context.exception.code, 2)
 
     @mock.patch("crud.main.OperationContext")
     @mock.patch("crud.main.AzureNodePoolCRUD")

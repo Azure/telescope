@@ -413,11 +413,6 @@ def main():
     )
     common_parser.add_argument("--run-id", required=True, help="Unique run identifier")
     common_parser.add_argument(
-        "--cluster-name",
-        default=None,
-        help="AKS cluster name; Azure discovers the first cluster when omitted",
-    )
-    common_parser.add_argument(
         "--result-dir", default=".", help="Directory to save results"
     )
     common_parser.add_argument("--kube-config", help="Path to kubeconfig file")
@@ -454,7 +449,14 @@ def main():
         default="ON_DEMAND",
         help="Capacity type for AWS/Azure node pool",
     )
-    common_parser.add_argument(
+
+    azure_node_pool_parser = argparse.ArgumentParser(add_help=False)
+    azure_node_pool_parser.add_argument(
+        "--cluster-name",
+        default=None,
+        help="AKS cluster name; Azure discovers the first cluster when omitted",
+    )
+    azure_node_pool_parser.add_argument(
         "--exclude-managed-identity",
         action="store_true",
         help="Exclude managed identity from DefaultAzureCredential",
@@ -462,7 +464,9 @@ def main():
 
     # Create command
     create_parser = subparsers.add_parser(
-        "create", parents=[common_parser], help="Create a node pool"
+        "create",
+        parents=[common_parser, azure_node_pool_parser],
+        help="Create a node pool",
     )
     create_parser.add_argument("--node-pool-name", required=True, help="Node pool name")
     create_parser.add_argument(
@@ -477,7 +481,9 @@ def main():
 
     # Scale command
     scale_parser = subparsers.add_parser(
-        "scale", parents=[common_parser], help="Scale a node pool"
+        "scale",
+        parents=[common_parser, azure_node_pool_parser],
+        help="Scale a node pool",
     )
     scale_parser.add_argument("--node-pool-name", required=True, help="Node pool name")
     scale_parser.add_argument(
@@ -500,7 +506,9 @@ def main():
 
     # Delete command
     delete_parser = subparsers.add_parser(
-        "delete", parents=[common_parser], help="Delete a node pool"
+        "delete",
+        parents=[common_parser, azure_node_pool_parser],
+        help="Delete a node pool",
     )
     delete_parser.add_argument("--node-pool-name", required=True, help="Node pool name")
     delete_parser.set_defaults(func=handle_node_pool_operation)
@@ -508,7 +516,7 @@ def main():
     # All CRUD Operations command
     all_parser = subparsers.add_parser(
         "all",
-        parents=[common_parser],
+        parents=[common_parser, azure_node_pool_parser],
         help="Run full lifecycle: create, scale-up, scale-down, delete a node pool",
     )
     all_parser.add_argument("--node-pool-name", required=True, help="Node pool name")
@@ -575,7 +583,7 @@ def main():
     # Deployment command
     deployment_parser = subparsers.add_parser(
         "deployment",
-        parents=[common_parser, workload_common_parser],
+        parents=[common_parser, azure_node_pool_parser, workload_common_parser],
         help="create deployments"
     )
     deployment_parser.set_defaults(func=handle_workload_operations)
@@ -583,7 +591,7 @@ def main():
     # StatefulSet command
     statefulset_parser = subparsers.add_parser(
         "statefulset",
-        parents=[common_parser, workload_common_parser],
+        parents=[common_parser, azure_node_pool_parser, workload_common_parser],
         help="create statefulsets"
     )
     statefulset_parser.set_defaults(func=handle_workload_operations)
@@ -591,7 +599,7 @@ def main():
     # Job command
     job_parser = subparsers.add_parser(
         "job",
-        parents=[common_parser, workload_common_parser],
+        parents=[common_parser, azure_node_pool_parser, workload_common_parser],
         help="create jobs"
     )
     job_parser.add_argument(
@@ -642,6 +650,15 @@ def main():
             else:
                 logger.error(f"Operation failed with exit code: {exit_code}")
             sys.exit(exit_code)
+
+        if args.cloud != "azure" and (
+            getattr(args, "cluster_name", None)
+            or getattr(args, "exclude_managed_identity", False)
+        ):
+            parser.error(
+                "--cluster-name and --exclude-managed-identity are supported only "
+                "with --cloud azure"
+            )
 
         # Validate required arguments are present for node pool operations
         if args.command in ["create", "scale", "delete", "all"] and not hasattr(
