@@ -97,10 +97,10 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
         self.mock_aks_client_cls.assert_called_once_with(
             resource_group="fake-resource-group",
             cluster_name=None,
-            exclude_managed_identity=False,
             kube_config_file="/tmp/fake-kubeconfig",
             result_dir="/tmp/fake-results",
             operation_timeout_minutes=5.0,
+            credential=self.mock_credential,
         )
 
     def test_create_node_pool_success(self):

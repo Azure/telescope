@@ -13,6 +13,8 @@ from utils.azure_node_pool_cli import (
     build_add_virtual_machines_command,
     build_scale_virtual_machines_command,
     get_node_pool_scale_state,
+    prepare_create_operation,
+    prepare_scale_operation,
 )
 
 
@@ -83,6 +85,64 @@ class TestAzureNodePoolCLI(unittest.TestCase):
                 "--node-count", "3",
             ],
         )
+
+    def test_prepare_create_operation_configures_vmss(self):
+        parameters = {}
+
+        operation = prepare_create_operation(
+            parameters,
+            "VirtualMachineScaleSets",
+            False,
+            "test-rg",
+            "test-cluster",
+            "test-pool",
+            2,
+            "Standard_D2s_v3",
+        )
+
+        self.assertIsNone(operation)
+        self.assertEqual(parameters, {"count": 2, "vm_size": "Standard_D2s_v3"})
+
+    def test_prepare_create_operation_returns_virtual_machines_callable(self):
+        operation = prepare_create_operation(
+            {},
+            "VirtualMachines",
+            False,
+            "test-rg",
+            "test-cluster",
+            "test-pool",
+            2,
+            "Standard_D2s_v3",
+        )
+
+        self.assertTrue(callable(operation))
+
+    def test_prepare_scale_operation_configures_vmss(self):
+        node_pool = mock.MagicMock()
+
+        operation = prepare_scale_operation(
+            node_pool,
+            "VirtualMachineScaleSets",
+            "test-rg",
+            "test-cluster",
+            "test-pool",
+            3,
+        )
+
+        self.assertIsNone(operation)
+        self.assertEqual(node_pool.count, 3)
+
+    def test_prepare_scale_operation_returns_virtual_machines_callable(self):
+        operation = prepare_scale_operation(
+            mock.MagicMock(),
+            "VirtualMachines",
+            "test-rg",
+            "test-cluster",
+            "test-pool",
+            3,
+        )
+
+        self.assertTrue(callable(operation))
 
 
 if __name__ == "__main__":

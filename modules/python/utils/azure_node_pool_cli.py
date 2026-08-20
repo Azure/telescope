@@ -2,6 +2,7 @@
 
 import subprocess
 import time
+from functools import partial
 
 from utils.logger_config import get_logger
 
@@ -104,6 +105,74 @@ def run_node_pool_cli(
             f"(rc={result.returncode}): {detail}"
         )
     return retry_occurred
+
+
+def create_virtual_machines_node_pool(
+    resource_group, cluster_name, node_pool_name, node_count, vm_size
+):
+    """Create a VirtualMachines node pool and return whether a retry occurred."""
+    command = build_add_virtual_machines_command(
+        resource_group, cluster_name, node_pool_name, node_count, vm_size
+    )
+    return run_node_pool_cli(command, node_pool_name, "add")
+
+
+def scale_virtual_machines_node_pool(
+    resource_group, cluster_name, node_pool_name, node_count
+):
+    """Scale a VirtualMachines node pool and return whether a retry occurred."""
+    command = build_scale_virtual_machines_command(
+        resource_group, cluster_name, node_pool_name, node_count
+    )
+    return run_node_pool_cli(command, node_pool_name, "scale")
+
+
+def prepare_create_operation(
+    parameters,
+    node_pool_type,
+    gpu_node_pool,
+    resource_group,
+    cluster_name,
+    node_pool_name,
+    node_count,
+    vm_size,
+):
+    """Configure VMSS parameters or return a VirtualMachines create callable."""
+    if node_pool_type != "VirtualMachines":
+        parameters["count"] = node_count
+        parameters["vm_size"] = vm_size
+        return None
+    if gpu_node_pool:
+        raise ValueError("GPU node pools with type VirtualMachines are not supported")
+    return partial(
+        create_virtual_machines_node_pool,
+        resource_group,
+        cluster_name,
+        node_pool_name,
+        node_count,
+        vm_size,
+    )
+
+
+def prepare_scale_operation(
+    node_pool,
+    node_pool_type,
+    resource_group,
+    cluster_name,
+    node_pool_name,
+    node_count,
+):
+    """Configure VMSS count or return a VirtualMachines scale callable."""
+    if node_pool_type != "VirtualMachines":
+        node_pool.count = node_count
+        return None
+    return partial(
+        scale_virtual_machines_node_pool,
+        resource_group,
+        cluster_name,
+        node_pool_name,
+        node_count,
+    )
 
 
 def add_managed_gpu_node_pool(

@@ -14,7 +14,6 @@ and troubleshooting.
 import logging
 import os
 import time
-from functools import partial
 from typing import Dict, Optional, Any
 
 # Third party imports
@@ -28,10 +27,9 @@ from utils.logger_config import get_logger, setup_logging
 from utils.common import get_env_vars
 from utils.azure_node_pool_cli import (
     add_managed_gpu_node_pool as add_managed_gpu_node_pool_cli,
-    build_add_virtual_machines_command,
-    build_scale_virtual_machines_command,
     get_node_pool_scale_state,
-    run_node_pool_cli,
+    prepare_create_operation,
+    prepare_scale_operation,
 )
 from utils.provisioning_instrumentation import (
     instrument_aks_nodepool_provisioning,
@@ -439,14 +437,16 @@ class AKSClient:
                     "nodeLabels": {"gpu": "true"} if gpu_node_pool else {},
                 }
 
-                if node_pool_type == "VirtualMachines":
-                    if gpu_node_pool:
-                        raise ValueError(
-                            "GPU node pools with type VirtualMachines are not supported"
-                        )
-                else:
-                    parameters["count"] = node_count
-                    parameters["vm_size"] = vm_size
+                arm_callable = prepare_create_operation(
+                    parameters,
+                    node_pool_type,
+                    gpu_node_pool,
+                    self.resource_group,
+                    cluster_name,
+                    node_pool_name,
+                    node_count,
+                    vm_size,
+                )
 
                 if gpu_node_pool and not enable_managed_gpu:
                     # Managed GPU (driver bootstrap only): driver install, no NVIDIA management
@@ -477,19 +477,6 @@ class AKSClient:
                         label_selector=label_selector,
                     )
                 else:
-                    arm_callable = None
-                    if node_pool_type == "VirtualMachines":
-                        cmd = build_add_virtual_machines_command(
-                            self.resource_group,
-                            cluster_name,
-                            node_pool_name,
-                            node_count,
-                            vm_size,
-                        )
-
-                        arm_callable = partial(
-                            run_node_pool_cli, cmd, node_pool_name, "add"
-                        )
                     ready_nodes = self._instrument_nodepool_provisioning(
                         node_pool_name,
                         cluster_name,
@@ -652,20 +639,14 @@ class AKSClient:
                 )
 
                 # For direct scaling, update the node count
-                if node_pool_type == "VirtualMachines":
-                    cmd = build_scale_virtual_machines_command(
-                        self.resource_group,
-                        cluster_name,
-                        node_pool_name,
-                        node_count,
-                    )
-
-                    arm_callable = partial(
-                        run_node_pool_cli, cmd, node_pool_name, "scale"
-                    )
-                else:
-                    node_pool.count = node_count
-                    arm_callable = None
+                arm_callable = prepare_scale_operation(
+                    node_pool,
+                    node_pool_type,
+                    self.resource_group,
+                    cluster_name,
+                    node_pool_name,
+                    node_count,
+                )
 
                 logger.info(f"Scaling node pool {node_pool_name} to {node_count} nodes")
 
@@ -900,19 +881,14 @@ class AKSClient:
                     op.add_metadata(
                         "cluster_info", self.get_cluster_data(cluster_name)
                     )
-                    if node_pool_type == "VirtualMachines":
-                        cmd = build_scale_virtual_machines_command(
-                            self.resource_group,
-                            cluster_name,
-                            node_pool_name,
-                            step,
-                        )
-                        arm_callable = partial(
-                            run_node_pool_cli, cmd, node_pool_name, "scale"
-                        )
-                    else:
-                        node_pool.count = step
-                        arm_callable = None
+                    arm_callable = prepare_scale_operation(
+                        node_pool,
+                        node_pool_type,
+                        self.resource_group,
+                        cluster_name,
+                        node_pool_name,
+                        step,
+                    )
 
                     # Run ARM and K8s readiness concurrently to capture both timings
                     ready_nodes = self._instrument_nodepool_provisioning(
