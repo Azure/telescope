@@ -1,0 +1,120 @@
+"""Azure CLI helpers for AKS node-pool operations."""
+
+import subprocess
+import time
+
+from utils.logger_config import get_logger
+
+logger = get_logger(__name__)
+
+
+def run_node_pool_cli(
+    cmd,
+    node_pool_name,
+    action,
+    retries=10,
+    retry_wait=30,
+    timeout=1800,
+):
+    """Run an az node-pool command with bounded retries for AKS conflicts."""
+    retry_occurred = False
+    for attempt in range(retries):
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=timeout,
+        )
+        if result.returncode == 0:
+            return retry_occurred
+        detail = " | ".join(
+            line
+            for line in (result.stdout + result.stderr).splitlines()
+            if line.strip()
+        )
+        if (
+            any(code in detail for code in ("OperationNotAllowed", "EtagMismatch"))
+            and attempt < retries - 1
+        ):
+            retry_occurred = True
+            logger.warning(
+                "Cluster has an in-progress operation, retrying %s for %s in %ss "
+                "(attempt %s/%s)",
+                action,
+                node_pool_name,
+                retry_wait,
+                attempt + 1,
+                retries,
+            )
+            time.sleep(retry_wait)
+            continue
+        raise RuntimeError(
+            f"az aks nodepool {action} failed for {node_pool_name} "
+            f"(rc={result.returncode}): {detail}"
+        )
+    return retry_occurred
+
+
+def add_managed_gpu_node_pool(
+    resource_group,
+    node_pool_name,
+    cluster_name,
+    vm_size,
+    node_count,
+    gpu_instance_profile=None,
+    gpu_mig_strategy=None,
+    node_pool_type="VirtualMachineScaleSets",
+):
+    """Create a fully managed GPU node pool through the aks-preview CLI."""
+    subprocess.run(
+        [
+            "az",
+            "extension",
+            "add",
+            "--name",
+            "aks-preview",
+            "--upgrade",
+            "--allow-preview",
+            "true",
+            "--yes",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    cmd = [
+        "az",
+        "aks",
+        "nodepool",
+        "add",
+        "--resource-group",
+        resource_group,
+        "--cluster-name",
+        cluster_name,
+        "--name",
+        node_pool_name,
+        "--node-count",
+        str(node_count),
+        "--node-vm-size",
+        vm_size,
+        "--vm-set-type",
+        node_pool_type,
+        "--mode",
+        "User",
+        "--node-osdisk-type",
+        "Managed",
+        "--labels",
+        "gpu=true",
+        "--enable-managed-gpu",
+        "true",
+    ]
+    if gpu_instance_profile:
+        cmd += ["--gpu-instance-profile", gpu_instance_profile]
+    if gpu_mig_strategy:
+        cmd += ["--gpu-mig-strategy", gpu_mig_strategy]
+
+    logger.info("Running: %s", " ".join(cmd))
+    run_node_pool_cli(cmd, node_pool_name, "add")
+    logger.info("az aks nodepool add succeeded for '%s'", node_pool_name)

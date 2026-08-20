@@ -235,6 +235,53 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         self.mock_operation.add_metadata.assert_any_call("node_readiness_time", 30)
         self.mock_operation.add_metadata.assert_any_call("command_execution_time", 50)
 
+    @mock.patch("utils.azure_node_pool_cli.subprocess.run")
+    @mock.patch.object(AKSClient, "_instrument_nodepool_provisioning")
+    def test_create_virtual_machines_node_pool(
+        self, mock_instrument, mock_subprocess_run
+    ):
+        """VirtualMachines pools are created with the explicit Azure CLI type."""
+        mock_created_node_pool = mock.MagicMock()
+        mock_created_node_pool.as_dict.return_value = {"name": "test-pool"}
+        self.aks_client.get_node_pool = mock.MagicMock(
+            return_value=mock_created_node_pool
+        )
+        mock_subprocess_run.return_value = mock.MagicMock(
+            returncode=0, stdout="", stderr=""
+        )
+
+        def run_arm_callable(*_args, **kwargs):
+            kwargs["arm_callable"]()
+            return []
+
+        mock_instrument.side_effect = run_arm_callable
+
+        result = self.aks_client.create_node_pool(
+            node_pool_name="test-pool",
+            vm_size="Standard_D2s_v3",
+            node_count=2,
+            node_pool_type="VirtualMachines",
+        )
+
+        self.assertTrue(result)
+        mock_subprocess_run.assert_called_once_with(
+            [
+                "az", "aks", "nodepool", "add",
+                "--resource-group", "fake-resource-group",
+                "--cluster-name", "fake-cluster",
+                "--name", "test-pool",
+                "--node-count", "2",
+                "--vm-sizes", "Standard_D2s_v3",
+                "--vm-set-type", "VirtualMachines",
+                "--mode", "User",
+                "--node-osdisk-type", "Managed",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=1800,
+        )
+
     @mock.patch("utils.provisioning_instrumentation.time")
     @mock.patch("clients.aks_client.time")
     def test_create_node_pool_retry_occurred_metadata(self, _mock_time, mock_instr_time):
@@ -349,7 +396,7 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         # Check that NVIDIA verification was performed
         self.mock_k8s.verify_nvidia_smi_on_node.assert_called_once_with(ready_nodes)
 
-    @mock.patch("clients.aks_client.subprocess.run")
+    @mock.patch("utils.azure_node_pool_cli.subprocess.run")
     @mock.patch("clients.aks_client.time")
     def test_create_node_pool_fully_managed_gpu(self, mock_time, mock_subprocess_run):
         """Test creating a fully managed GPU node pool uses az CLI, verifies systemd services and nvidia-smi"""
@@ -447,6 +494,60 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         # command_execution_time = arm_done_time - start_time = 150 - 100 = 50
         self.mock_operation.add_metadata.assert_any_call("node_readiness_time", 30)
         self.mock_operation.add_metadata.assert_any_call("command_execution_time", 50)
+
+    @mock.patch("utils.azure_node_pool_cli.subprocess.run")
+    @mock.patch("clients.aks_client.time")
+    @mock.patch.object(AKSClient, "_instrument_nodepool_provisioning")
+    def test_progressive_scale_virtual_machines_node_pool(
+        self, mock_instrument, mock_time, mock_subprocess_run
+    ):
+        """VirtualMachines progressive scaling uses Azure CLI for each step."""
+        mock_time.sleep = mock.MagicMock()
+        mock_subprocess_run.return_value = mock.MagicMock(
+            returncode=0, stdout="", stderr=""
+        )
+        mock_node_pool = mock.MagicMock()
+        mock_node_pool.count = 1
+        mock_node_pool.vm_size = None
+        mock_node_pool.as_dict.return_value = {"count": 1}
+        self.aks_client.get_node_pool = mock.MagicMock(return_value=mock_node_pool)
+        self.aks_client.get_cluster_data = mock.MagicMock(
+            return_value={"name": "fake-cluster"}
+        )
+        def run_arm_callable(*_args, **kwargs):
+            kwargs["arm_callable"]()
+            return []
+
+        mock_instrument.side_effect = run_arm_callable
+
+        result = self.aks_client.scale_node_pool(
+            node_pool_name="test-pool",
+            node_count=3,
+            progressive=True,
+            scale_step_size=1,
+            node_pool_type="VirtualMachines",
+        )
+
+        self.assertTrue(result)
+        self.assertEqual(
+            [call.args[0] for call in mock_subprocess_run.call_args_list],
+            [
+                [
+                    "az", "aks", "nodepool", "scale",
+                    "--resource-group", "fake-resource-group",
+                    "--cluster-name", "fake-cluster",
+                    "--name", "test-pool",
+                    "--node-count", "2",
+                ],
+                [
+                    "az", "aks", "nodepool", "scale",
+                    "--resource-group", "fake-resource-group",
+                    "--cluster-name", "fake-cluster",
+                    "--name", "test-pool",
+                    "--node-count", "3",
+                ],
+            ],
+        )
 
     @mock.patch("clients.aks_client.time")
     def test_scale_node_pool_down(self, mock_time):

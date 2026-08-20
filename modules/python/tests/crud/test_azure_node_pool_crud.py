@@ -117,6 +117,7 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
             node_pool_name=node_pool_name,
             vm_size=vm_size,
             node_count=node_count,
+            node_pool_type="VirtualMachineScaleSets",
             gpu_node_pool=False,
         )
 
@@ -126,6 +127,7 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
             node_pool_name=node_pool_name,
             vm_size=vm_size,
             node_count=node_count,
+            node_pool_type="VirtualMachineScaleSets",
             gpu_node_pool=False,
             enable_managed_gpu=False,
             gpu_instance_profile=None,
@@ -171,6 +173,7 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
         self.mock_aks_client.scale_node_pool.assert_called_once_with(
             node_pool_name=node_pool_name,
             node_count=node_count,
+            node_pool_type="VirtualMachineScaleSets",
             gpu_node_pool=False,
             enable_managed_gpu=False,
             progressive=False,
@@ -201,6 +204,7 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
         self.mock_aks_client.scale_node_pool.assert_called_once_with(
             node_pool_name=node_pool_name,
             node_count=node_count,
+            node_pool_type="VirtualMachineScaleSets",
             gpu_node_pool=False,
             enable_managed_gpu=False,
             progressive=False,
@@ -266,6 +270,7 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
             node_pool_name=node_pool_name,
             vm_size=vm_size,
             node_count=node_count,
+            node_pool_type="VirtualMachineScaleSets",
             gpu_node_pool=True,
             enable_managed_gpu=False,
             gpu_instance_profile=None,

@@ -72,6 +72,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         mock_args.node_pool_name = "test-np"
         mock_args.vm_size = "Standard_D2s_v3"
         mock_args.node_count = 3
+        mock_args.node_pool_type = "VirtualMachines"
         mock_args.gpu_node_pool = False
         mock_args.enable_managed_gpu = False
 
@@ -87,6 +88,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
             node_pool_name="test-np",
             vm_size="Standard_D2s_v3",
             node_count=3,
+            node_pool_type="VirtualMachines",
             gpu_node_pool=False,
             enable_managed_gpu=False,
             gpu_instance_profile=mock_args.gpu_instance_profile,
@@ -102,6 +104,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         mock_args.cloud = "azure"
         mock_args.node_pool_name = "test-np"
         mock_args.target_count = 5
+        mock_args.node_pool_type = "VirtualMachines"
         mock_args.scale_step_size = (
             1  # scale_step_size != target_count, so progressive=True
         )
@@ -119,6 +122,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         mock_azure_crud.scale_node_pool.assert_called_once_with(
             node_pool_name="test-np",
             node_count=5,
+            node_pool_type="VirtualMachines",
             progressive=True,  # Should be True because scale_step_size != target_count
             scale_step_size=1,
             gpu_node_pool=False,
@@ -136,6 +140,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         mock_args.cloud = "azure"
         mock_args.node_pool_name = "test-np"
         mock_args.target_count = 3
+        mock_args.node_pool_type = "VirtualMachineScaleSets"
         mock_args.scale_step_size = (
             3  # scale_step_size == target_count, so progressive=False
         )
@@ -153,6 +158,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         mock_azure_crud.scale_node_pool.assert_called_once_with(
             node_pool_name="test-np",
             node_count=3,
+            node_pool_type="VirtualMachineScaleSets",
             progressive=False,  # Should be False because scale_step_size == target_count
             scale_step_size=3,
             gpu_node_pool=False,
@@ -178,6 +184,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         mock_args.cloud = "azure"
         mock_args.node_pool_name = "test-np"
         mock_args.target_count = 10
+        mock_args.node_pool_type = "VirtualMachineScaleSets"
         mock_args.scale_step_size = 2  # Progressive scaling
         mock_args.gpu_node_pool = False
         mock_args.enable_managed_gpu = False
@@ -193,6 +200,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         mock_azure_crud.scale_node_pool.assert_called_once_with(
             node_pool_name="test-np",
             node_count=10,
+            node_pool_type="VirtualMachineScaleSets",
             progressive=True,
             scale_step_size=2,
             gpu_node_pool=False,
@@ -269,6 +277,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         mock_args.vm_size = "Standard_D2s_v3"
         mock_args.node_count = 1
         mock_args.target_count = 3
+        mock_args.node_pool_type = "VirtualMachines"
         mock_args.scale_step_size = 1
         mock_args.gpu_node_pool = True
         mock_args.enable_managed_gpu = False
@@ -287,6 +296,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
             vm_size="Standard_D2s_v3",
             node_count=1,
             target_count=3,
+            node_pool_type="VirtualMachines",
             progressive=True,  # Should be True because scale_step_size != target_count
             scale_step_size=1,
             gpu_node_pool=True,
@@ -316,6 +326,8 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         call_kwargs = mock_crud.scale_node_pool.call_args.kwargs
         self.assertNotIn("gpu_instance_profile", call_kwargs)
         self.assertNotIn("gpu_mig_strategy", call_kwargs)
+        self.assertNotIn("node_pool_type", call_kwargs)
+        self.assertNotIn("vm_size", call_kwargs)
 
     @mock.patch("crud.main.AzureNodePoolCRUD")
     def test_handle_node_pool_operation_failure(self, mock_azure_crud):
@@ -834,6 +846,8 @@ class TestMainFunctionIntegration(unittest.TestCase):
             "--exclude-managed-identity",
             "--node-pool-name",
             "test-pool",
+            "--node-pool-type",
+            "VirtualMachines",
             "--vm-size",
             "Standard_D2s_v3",
             "--node-count",
@@ -847,7 +861,8 @@ class TestMainFunctionIntegration(unittest.TestCase):
         call_kwargs = mock_azure_crud_class.call_args.kwargs
         self.assertEqual(call_kwargs["cluster_name"], "test-cluster")
         self.assertTrue(call_kwargs["exclude_managed_identity"])
-        mock_node_pool_crud.create_node_pool.assert_called_once()
+        create_kwargs = mock_node_pool_crud.create_node_pool.call_args.kwargs
+        self.assertEqual(create_kwargs["node_pool_type"], "VirtualMachines")
 
     def test_main_machine_command_rejects_node_pool_azure_options(self):
         """Machine commands must not accept node-pool-only Azure options."""
@@ -886,6 +901,29 @@ class TestMainFunctionIntegration(unittest.TestCase):
             "--vm-size",
             "m6i.2xlarge",
             "--exclude-managed-identity",
+            "--node-pool-type",
+            "VirtualMachines",
+        ]
+
+        with mock.patch("sys.argv", test_args):
+            with self.assertRaises(SystemExit) as context:
+                main()
+
+        self.assertEqual(context.exception.code, 2)
+
+    def test_main_workload_rejects_node_pool_type(self):
+        """Workload commands must not accept node-pool shape options."""
+        test_args = [
+            "crud.py",
+            "deployment",
+            "--cloud",
+            "azure",
+            "--run-id",
+            "test-run",
+            "--node-pool-name",
+            "test-pool",
+            "--node-pool-type",
+            "VirtualMachines",
         ]
 
         with mock.patch("sys.argv", test_args):

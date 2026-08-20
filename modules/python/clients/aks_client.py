@@ -13,8 +13,8 @@ and troubleshooting.
 
 import logging
 import os
-import subprocess
 import time
+from functools import partial
 from typing import Dict, Optional, Any
 
 # Third party imports
@@ -26,9 +26,12 @@ from azure.mgmt.containerservice import ContainerServiceClient
 # Local imports
 from utils.logger_config import get_logger, setup_logging
 from utils.common import get_env_vars
+from utils.azure_node_pool_cli import (
+    add_managed_gpu_node_pool as add_managed_gpu_node_pool_cli,
+    run_node_pool_cli,
+)
 from utils.provisioning_instrumentation import (
-    begin_create_or_update_with_retry,
-    instrument_nodepool_provisioning,
+    instrument_aks_nodepool_provisioning,
 )
 from .kubernetes_client import KubernetesClient
 
@@ -71,29 +74,20 @@ class AKSClient:
         node_count: int,
         op,
         label: str = "",
+        arm_callable=None,
     ) -> list:
-        """
-        Run ARM operation and K8s node readiness check concurrently using threads.
-        Delegates to provisioning_instrumentation.instrument_nodepool_provisioning.
-        """
-        def arm_callable():
-            return begin_create_or_update_with_retry(
-                self.aks_client, self.resource_group,
-                cluster_name, node_pool_name, parameters, label=label,
-            )
-
-        def k8s_wait_callable():
-            return self.k8s_client.wait_for_nodes_ready(
-                node_count=node_count,
-                operation_timeout_in_minutes=self.operation_timeout_minutes,
-                label_selector=f"agentpool={node_pool_name}",
-            )
-
-        return instrument_nodepool_provisioning(
+        """Instrument ARM and Kubernetes node readiness for an AKS node pool."""
+        return instrument_aks_nodepool_provisioning(
+            aks_sdk_client=self.aks_client,
+            resource_group=self.resource_group,
+            k8s_client=self.k8s_client,
+            operation_timeout_minutes=self.operation_timeout_minutes,
             node_pool_name=node_pool_name,
+            cluster_name=cluster_name,
+            parameters=parameters,
+            node_count=node_count,
             op=op,
             arm_callable=arm_callable,
-            k8s_wait_callable=k8s_wait_callable,
             label=label,
         )
 
@@ -294,54 +288,19 @@ class AKSClient:
         node_count: int,
         gpu_instance_profile: Optional[str] = None,
         gpu_mig_strategy: Optional[str] = None,
+        node_pool_type: str = "VirtualMachineScaleSets",
     ) -> None:
-        """
-        Create a fully managed GPU node pool via az CLI (aks-preview extension).
-        Used because the stable Python SDK doesn't expose gpuProfile.nvidia.managementMode.
-        """
-        # Ensure aks-preview extension is installed/upgraded (required for --enable-managed-gpu)
-        subprocess.run(
-            ["az", "extension", "add", "--name", "aks-preview", "--upgrade",
-             "--allow-preview", "true", "--yes"],
-            capture_output=True, text=True, check=False,
+        """Create a fully managed GPU node pool through the aks-preview CLI."""
+        add_managed_gpu_node_pool_cli(
+            resource_group=self.resource_group,
+            node_pool_name=node_pool_name,
+            cluster_name=cluster_name,
+            vm_size=vm_size,
+            node_count=node_count,
+            gpu_instance_profile=gpu_instance_profile,
+            gpu_mig_strategy=gpu_mig_strategy,
+            node_pool_type=node_pool_type,
         )
-
-        cmd = [
-            "az", "aks", "nodepool", "add",
-            "--resource-group", self.resource_group,
-            "--cluster-name", cluster_name,
-            "--name", node_pool_name,
-            "--node-count", str(node_count),
-            "--node-vm-size", vm_size,
-            "--mode", "User",
-            "--node-osdisk-type", "Managed",
-            "--labels", "gpu=true",
-            "--enable-managed-gpu", "true",
-        ]
-        if gpu_instance_profile:
-            cmd += ["--gpu-instance-profile", gpu_instance_profile]
-        if gpu_mig_strategy:
-            cmd += ["--gpu-mig-strategy", gpu_mig_strategy]
-        logger.info(f"Running: {' '.join(cmd)}")
-        retries = 10
-        retry_wait = 30
-        for attempt in range(retries):
-            result = subprocess.run(cmd, capture_output=True, text=True, check=False)
-            if result.returncode == 0:
-                break
-            detail = " | ".join(
-                line for line in (result.stdout + result.stderr).splitlines() if line.strip()
-            )
-            if "OperationNotAllowed" in detail and attempt < retries - 1:
-                logger.warning(
-                    f"Cluster has an in-progress operation, retrying in {retry_wait}s (attempt {attempt + 1}/{retries})"
-                )
-                time.sleep(retry_wait)
-            else:
-                raise RuntimeError(
-                    f"az aks nodepool add failed (rc={result.returncode}): {detail}"
-                )
-        logger.info(f"az aks nodepool add succeeded for '{node_pool_name}'")
 
     @staticmethod
     def _gpu_mode_metadata(
@@ -417,6 +376,7 @@ class AKSClient:
         enable_managed_gpu: bool = False,
         gpu_instance_profile: Optional[str] = None,
         gpu_mig_strategy: Optional[str] = None,
+        node_pool_type: str = "VirtualMachineScaleSets",
     ) -> Any:
         """
         Create a new node pool in the AKS cluster.
@@ -452,6 +412,7 @@ class AKSClient:
             "cluster_name": cluster_name,
             "vm_size": vm_size,
             "node_count": node_count,
+            "node_pool_type": node_pool_type,
             "gpu_node_pool": gpu_node_pool,
             **self._gpu_mode_metadata(
                 gpu_node_pool,
@@ -469,13 +430,20 @@ class AKSClient:
             try:
                 # Build parameters for node pool creation
                 parameters = {
-                    "count": node_count,
-                    "vm_size": vm_size,
                     "os_type": "Linux",
                     "mode": "User",
                     "os_disk_type": "Managed",
                     "nodeLabels": {"gpu": "true"} if gpu_node_pool else {},
                 }
+
+                if node_pool_type == "VirtualMachines":
+                    if gpu_node_pool:
+                        raise ValueError(
+                            "GPU node pools with type VirtualMachines are not supported"
+                        )
+                else:
+                    parameters["count"] = node_count
+                    parameters["vm_size"] = vm_size
 
                 if gpu_node_pool and not enable_managed_gpu:
                     # Managed GPU (driver bootstrap only): driver install, no NVIDIA management
@@ -495,6 +463,7 @@ class AKSClient:
                         cluster_name=cluster_name,
                         vm_size=vm_size,
                         node_count=node_count,
+                        node_pool_type=node_pool_type,
                         gpu_instance_profile=gpu_instance_profile,
                         gpu_mig_strategy=gpu_mig_strategy,
                     )
@@ -505,9 +474,30 @@ class AKSClient:
                         label_selector=label_selector,
                     )
                 else:
-                    # Run ARM and K8s readiness concurrently to capture both timings
+                    arm_callable = None
+                    if node_pool_type == "VirtualMachines":
+                        cmd = [
+                            "az", "aks", "nodepool", "add",
+                            "--resource-group", self.resource_group,
+                            "--cluster-name", cluster_name,
+                            "--name", node_pool_name,
+                            "--node-count", str(node_count),
+                            "--vm-sizes", vm_size,
+                            "--vm-set-type", node_pool_type,
+                            "--mode", "User",
+                            "--node-osdisk-type", "Managed",
+                        ]
+
+                        arm_callable = partial(
+                            run_node_pool_cli, cmd, node_pool_name, "add"
+                        )
                     ready_nodes = self._instrument_nodepool_provisioning(
-                        node_pool_name, cluster_name, parameters, node_count, op
+                        node_pool_name,
+                        cluster_name,
+                        parameters,
+                        node_count,
+                        op,
+                        arm_callable=arm_callable,
                     )
 
                 logger.info(
@@ -567,6 +557,7 @@ class AKSClient:
         scale_step_size: int = 1,
         gpu_instance_profile: Optional[str] = None,
         gpu_mig_strategy: Optional[str] = None,
+        node_pool_type: str = "VirtualMachineScaleSets",
     ) -> Any:
         """
         Scale a node pool to the specified node count.
@@ -597,6 +588,7 @@ class AKSClient:
         metadata = {
             "cluster_name": cluster_name,
             "node_count": node_count,
+            "node_pool_type": node_pool_type,
             "gpu_node_pool": gpu_node_pool,
             "progressive_scaling": progressive,
             "scale_step_size": scale_step_size,
@@ -634,6 +626,7 @@ class AKSClient:
                 gpu_node_pool=gpu_node_pool,
                 enable_managed_gpu=enable_managed_gpu,
                 node_pool=node_pool,
+                node_pool_type=node_pool_type,
                 gpu_instance_profile=gpu_instance_profile,
                 gpu_mig_strategy=gpu_mig_strategy,
             )
@@ -658,7 +651,21 @@ class AKSClient:
                 )
 
                 # For direct scaling, update the node count
-                node_pool.count = node_count
+                if node_pool_type == "VirtualMachines":
+                    cmd = [
+                        "az", "aks", "nodepool", "scale",
+                        "--resource-group", self.resource_group,
+                        "--cluster-name", cluster_name,
+                        "--name", node_pool_name,
+                        "--node-count", str(node_count),
+                    ]
+
+                    arm_callable = partial(
+                        run_node_pool_cli, cmd, node_pool_name, "scale"
+                    )
+                else:
+                    node_pool.count = node_count
+                    arm_callable = None
 
                 logger.info(f"Scaling node pool {node_pool_name} to {node_count} nodes")
 
@@ -668,7 +675,12 @@ class AKSClient:
 
                 # Run ARM and K8s readiness concurrently to capture both timings
                 ready_nodes = self._instrument_nodepool_provisioning(
-                    node_pool_name, cluster_name, node_pool, node_count, op,
+                    node_pool_name,
+                    cluster_name,
+                    node_pool,
+                    node_count,
+                    op,
+                    arm_callable=arm_callable,
                 )
 
                 logger.info(
@@ -797,6 +809,7 @@ class AKSClient:
         node_pool: Optional[Any] = None,
         gpu_instance_profile: Optional[str] = None,
         gpu_mig_strategy: Optional[str] = None,
+        node_pool_type: str = "VirtualMachineScaleSets",
     ) -> Any:
         """
         Scale a node pool progressively with specified step size
@@ -887,12 +900,26 @@ class AKSClient:
                     op.add_metadata(
                         "cluster_info", self.get_cluster_data(cluster_name)
                     )
-                    node_pool.count = step  # Update node count in the node pool object
+                    if node_pool_type == "VirtualMachines":
+                        cmd = [
+                            "az", "aks", "nodepool", "scale",
+                            "--resource-group", self.resource_group,
+                            "--cluster-name", cluster_name,
+                            "--name", node_pool_name,
+                            "--node-count", str(step),
+                        ]
+                        arm_callable = partial(
+                            run_node_pool_cli, cmd, node_pool_name, "scale"
+                        )
+                    else:
+                        node_pool.count = step
+                        arm_callable = None
 
                     # Run ARM and K8s readiness concurrently to capture both timings
                     ready_nodes = self._instrument_nodepool_provisioning(
                         node_pool_name, cluster_name, node_pool, step, op,
                         label=f"step {step} ",
+                        arm_callable=arm_callable,
                     )
 
                     logger.info(f"All {step} nodes in pool {node_pool_name} are ready")

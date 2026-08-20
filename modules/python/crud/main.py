@@ -110,11 +110,12 @@ def handle_node_pool_operation(node_pool_crud, args):
     # gpu_instance_profile / gpu_mig_strategy are Azure-only MIG inputs. The AWS
     # CRUD does not accept these kwargs (and has no **kwargs), so passing them for
     # --cloud aws would raise TypeError. Only forward them on Azure.
-    azure_gpu_kwargs = {}
+    azure_kwargs = {}
     if args.cloud == "azure":
-        azure_gpu_kwargs = {
+        azure_kwargs = {
             "gpu_instance_profile": args.gpu_instance_profile,
             "gpu_mig_strategy": args.gpu_mig_strategy,
+            "node_pool_type": args.node_pool_type,
         }
 
     try:
@@ -126,7 +127,7 @@ def handle_node_pool_operation(node_pool_crud, args):
                 "node_count": args.node_count,
                 "gpu_node_pool": args.gpu_node_pool,
                 "enable_managed_gpu": args.enable_managed_gpu,
-                **azure_gpu_kwargs,
+                **azure_kwargs,
             }
 
             result = node_pool_crud.create_node_pool(**create_kwargs)
@@ -140,7 +141,7 @@ def handle_node_pool_operation(node_pool_crud, args):
                 "scale_step_size": args.scale_step_size,
                 "gpu_node_pool": args.gpu_node_pool,
                 "enable_managed_gpu": args.enable_managed_gpu,
-                **azure_gpu_kwargs,
+                **azure_kwargs,
             }
 
             result = node_pool_crud.scale_node_pool(**scale_kwargs)
@@ -160,7 +161,7 @@ def handle_node_pool_operation(node_pool_crud, args):
                 "gpu_node_pool": args.gpu_node_pool,
                 "enable_managed_gpu": args.enable_managed_gpu,
                 "step_wait_time": args.step_wait_time,
-                **azure_gpu_kwargs,
+                **azure_kwargs,
             }
 
             result = node_pool_crud.all(**all_kwargs)
@@ -450,22 +451,29 @@ def main():
         help="Capacity type for AWS/Azure node pool",
     )
 
-    azure_node_pool_parser = argparse.ArgumentParser(add_help=False)
-    azure_node_pool_parser.add_argument(
+    azure_client_parser = argparse.ArgumentParser(add_help=False)
+    azure_client_parser.add_argument(
         "--cluster-name",
         default=None,
         help="AKS cluster name; Azure discovers the first cluster when omitted",
     )
-    azure_node_pool_parser.add_argument(
+    azure_client_parser.add_argument(
         "--exclude-managed-identity",
         action="store_true",
         help="Exclude managed identity from DefaultAzureCredential",
+    )
+    azure_node_pool_parser = argparse.ArgumentParser(add_help=False)
+    azure_node_pool_parser.add_argument(
+        "--node-pool-type",
+        choices=["VirtualMachineScaleSets", "VirtualMachines"],
+        default="VirtualMachineScaleSets",
+        help="Azure node pool type (default: VirtualMachineScaleSets)",
     )
 
     # Create command
     create_parser = subparsers.add_parser(
         "create",
-        parents=[common_parser, azure_node_pool_parser],
+        parents=[common_parser, azure_client_parser, azure_node_pool_parser],
         help="Create a node pool",
     )
     create_parser.add_argument("--node-pool-name", required=True, help="Node pool name")
@@ -482,7 +490,7 @@ def main():
     # Scale command
     scale_parser = subparsers.add_parser(
         "scale",
-        parents=[common_parser, azure_node_pool_parser],
+        parents=[common_parser, azure_client_parser, azure_node_pool_parser],
         help="Scale a node pool",
     )
     scale_parser.add_argument("--node-pool-name", required=True, help="Node pool name")
@@ -507,7 +515,7 @@ def main():
     # Delete command
     delete_parser = subparsers.add_parser(
         "delete",
-        parents=[common_parser, azure_node_pool_parser],
+        parents=[common_parser, azure_client_parser],
         help="Delete a node pool",
     )
     delete_parser.add_argument("--node-pool-name", required=True, help="Node pool name")
@@ -516,7 +524,7 @@ def main():
     # All CRUD Operations command
     all_parser = subparsers.add_parser(
         "all",
-        parents=[common_parser, azure_node_pool_parser],
+        parents=[common_parser, azure_client_parser, azure_node_pool_parser],
         help="Run full lifecycle: create, scale-up, scale-down, delete a node pool",
     )
     all_parser.add_argument("--node-pool-name", required=True, help="Node pool name")
@@ -583,7 +591,7 @@ def main():
     # Deployment command
     deployment_parser = subparsers.add_parser(
         "deployment",
-        parents=[common_parser, azure_node_pool_parser, workload_common_parser],
+        parents=[common_parser, azure_client_parser, workload_common_parser],
         help="create deployments"
     )
     deployment_parser.set_defaults(func=handle_workload_operations)
@@ -591,7 +599,7 @@ def main():
     # StatefulSet command
     statefulset_parser = subparsers.add_parser(
         "statefulset",
-        parents=[common_parser, azure_node_pool_parser, workload_common_parser],
+        parents=[common_parser, azure_client_parser, workload_common_parser],
         help="create statefulsets"
     )
     statefulset_parser.set_defaults(func=handle_workload_operations)
@@ -599,7 +607,7 @@ def main():
     # Job command
     job_parser = subparsers.add_parser(
         "job",
-        parents=[common_parser, azure_node_pool_parser, workload_common_parser],
+        parents=[common_parser, azure_client_parser, workload_common_parser],
         help="create jobs"
     )
     job_parser.add_argument(
@@ -654,10 +662,12 @@ def main():
         if args.cloud != "azure" and (
             getattr(args, "cluster_name", None)
             or getattr(args, "exclude_managed_identity", False)
+            or getattr(args, "node_pool_type", "VirtualMachineScaleSets")
+            != "VirtualMachineScaleSets"
         ):
             parser.error(
-                "--cluster-name and --exclude-managed-identity are supported only "
-                "with --cloud azure"
+                "--cluster-name, --exclude-managed-identity, and non-default "
+                "--node-pool-type values are supported only with --cloud azure"
             )
 
         # Validate required arguments are present for node pool operations
