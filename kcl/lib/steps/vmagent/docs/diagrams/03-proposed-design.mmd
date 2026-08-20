@@ -1,0 +1,32 @@
+flowchart TB
+    subgraph PipelineK["Any kcl/&lt;benchmark&gt;/pipeline.k"]
+        Decl["vmagent.ScrapeTarget {\n namespace, labelSelector,\n port, path, metric_relabel }"]
+    end
+
+    Decl --> Renderer["telescope.lib.steps.vmagent\nscrape_config.k renderer\n(mirrors aks-operator's scrape_configs.k)"]
+    Renderer --> Manifest["vmagent + scrape-config YAML\n(ported from vmagent.yaml /\nscrape-config.yaml)"]
+    Manifest --> Deploy["kubectl apply, alongside the\nbenchmark's own CL2/kperf workload"]
+    Deploy --> VMSingle[("vmsingle\n(scrapes the benchmark's\nown targets)")]
+
+    VMSingle --> PathA["Path A: summary query\nat end of run"]
+    VMSingle --> PathB["Path B: rich time-series export\n(reuse adx.py ingest_from_stream)"]
+
+    PathA --> ResultJson["fold into /tmp/run-result.json\n(existing util.formatResult convention)"]
+    ResultJson --> Storage2[("telescopev2 storage &rarr;\ntelescope_runs (no new infra)")]
+
+    PathB --> DedicatedADX[("dedicated ADX db, e.g. vmagentloadtest\n(VMAgentMetrics / VMAgentLogs schema)")]
+
+    Storage2 --> DashA["ADX dashboard on telescope_runs\n(1 row per run)"]
+    DedicatedADX --> DashB["Rich time-series dashboard\n(drill down per instant,\nlike our own harness)"]
+
+    Renderer -.same declared model.-> KCLDash["telescope.lib.steps.vmagent\nasi_dashboard.k renderer\n(mirrors aks-operator's asi_dashboard.k)"]
+    KCLDash --> ASI2[("ASI dashboard, KCL-generated\nfrom the same ScrapeTarget declarations")]
+
+    style PipelineK fill:#e8f0fe,stroke:#4285f4
+    style Renderer fill:#f0e6ff,stroke:#8e44ad
+    style KCLDash fill:#f0e6ff,stroke:#8e44ad
+    style PathA fill:#fff3cd,stroke:#e0a800
+    style PathB fill:#fff3cd,stroke:#e0a800
+    style Storage2 fill:#d4edda,stroke:#28a745
+    style DedicatedADX fill:#d4edda,stroke:#28a745
+    style ASI2 fill:#d4edda,stroke:#28a745

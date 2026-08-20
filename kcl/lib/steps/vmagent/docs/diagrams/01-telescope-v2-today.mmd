@@ -1,0 +1,18 @@
+flowchart LR
+    subgraph Author["kcl/&lt;pipeline&gt;/pipeline.k"]
+        A1["azure.Login /\nCreateResourceGroup"]
+        A2["azure.AzCli:\ncreate cluster"]
+        A3["k8s.RunClusterLoader2 /\nkperf.RunKperfBenchmark"]
+        A4["azure.AzCli: collect result\n&rarr; /tmp/run-result.json"]
+        A5["common.UploadResult"]
+    end
+
+    A1 --> A2 --> A3 --> A4 --> A5
+    A5 -->|blob upload| Storage[("telescopev2 storage account\ncontainer: aks")]
+    Storage -->|auto data connection| Kusto[("telescopev2.westus2.kusto.windows.net\ndb: aks, table: telescope_runs")]
+    Kusto --> Dash["ADX Dashboard\n(one row per run,\n`result` dynamic column)"]
+
+    style Author fill:#e8f0fe,stroke:#4285f4
+    style Storage fill:#fff3cd,stroke:#e0a800
+    style Kusto fill:#fff3cd,stroke:#e0a800
+    style Dash fill:#d4edda,stroke:#28a745

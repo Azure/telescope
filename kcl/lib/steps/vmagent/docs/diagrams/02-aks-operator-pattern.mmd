@@ -1,0 +1,17 @@
+flowchart TB
+    Model["configs/teams/&lt;team&gt;/&lt;service&gt;\nmetav1.Container { scrape_config = {...} }"]
+
+    Model --> R1["scrape_configs.k\n(configs/pkg/render/per_team)"]
+    Model --> R2["asi_dashboard.k\n(configs/pkg/render/per_service)"]
+
+    R1 --> Y1["out/scrape_configs/.../*.yaml\n(vmagent ConfigMap)"]
+    R2 --> Y2["out/asi/services/*.json\n(ASI dashboard definition)"]
+
+    Y1 --> Prod["Deployed to prod vmagent"]
+    Y2 --> ASI[("ASI dashboard platform\n(asi.models.v2 tiles/queries)")]
+
+    style Model fill:#e8f0fe,stroke:#4285f4
+    style R1 fill:#f0e6ff,stroke:#8e44ad
+    style R2 fill:#f0e6ff,stroke:#8e44ad
+    style ASI fill:#d4edda,stroke:#28a745
+    style Prod fill:#d4edda,stroke:#28a745
