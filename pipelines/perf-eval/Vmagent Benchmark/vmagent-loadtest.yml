@@ -16,11 +16,7 @@ parameters:
     type: object
     default:
       - run_label: baseline-without-node-aggregator
-        rate_limit: 2097152      # 2 MiB/s — current prod value
-        max_block_size: 524288   # .5 MiB — current prod value
       - run_label: node-aggregator-proto
-        rate_limit: 2097152
-        max_block_size: 524288
         node_aggregator: "true"
 
   # BYO/persistent mode: nodepools for this run are pre-provisioned outside

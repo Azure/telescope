@@ -21,8 +21,10 @@ VMSINGLE_IMAGE = "mcr.microsoft.com/oss/v2/victoriametrics/victoria-metrics:v1.1
 # -remoteWrite.rateLimit / -remoteWrite.flushInterval — both merged to prod
 # 2026-07-28, fixed here rather than CLI-configurable (see wiki
 # VMAgent-Konnectivity-Complete-Scale-Analysis.md). maxBlockSize remains
-# configurable in main.py — still pending validation.
-VMAGENT_RATE_LIMIT = 2097152
+# configurable in main.py — still pending validation. rateLimit bumped to
+# prod's current 10 MiB/s (aks-operator statefulset.yaml, "5x canary
+# increase to remove the 2 MiB/s bottleneck observed in large clusters").
+VMAGENT_RATE_LIMIT = 10485760
 VMAGENT_FLUSH_INTERVAL = "1s"
 FAKE_EXPORTER_IMAGE = os.environ.get(
     "FAKE_EXPORTER_IMAGE", "fakexporter.azurecr.io/fake-exporter:v2"

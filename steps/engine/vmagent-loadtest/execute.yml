@@ -47,7 +47,7 @@ steps:
       combo_konn_server_image="${{ combo.konn_server_image }}"
       combo_konn_agent_image="${{ combo.konn_agent_image }}"
       combo_node_aggregator="${{ combo.node_aggregator }}"
-      combo_rate_limit="${combo_rate_limit:-2097152}"       # 2 MiB/s — current prod value
+      combo_rate_limit="${combo_rate_limit:-10485760}"     # 10 MiB/s — current prod value
       combo_max_block_size="${combo_max_block_size:-524288}" # .5 MiB — current prod value
       if [[ -z "$combo_run_label" ]]; then
         echo "##vso[task.logissue type=error;]config_combinations entry is missing required run_label"
@@ -134,7 +134,7 @@ steps:
       combo_run_label="${{ combo.run_label }}"
       combo_konn_server_image="${{ combo.konn_server_image }}"
       combo_konn_agent_image="${{ combo.konn_agent_image }}"
-      combo_rate_limit="${combo_rate_limit:-2097152}"       # 2 MiB/s — current prod value
+      combo_rate_limit="${combo_rate_limit:-10485760}"     # 10 MiB/s — current prod value
       combo_max_block_size="${combo_max_block_size:-524288}" # .5 MiB — current prod value
       if [[ -z "$combo_run_label" ]]; then
         echo "##vso[task.logissue type=error;]config_combinations entry is missing required run_label"

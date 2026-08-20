@@ -253,6 +253,38 @@ def get_all_pod_resources(kubeconfig: str, namespace: str, label: str) -> list[d
     return pods
 
 
+def get_dp_node_pressure_summary(dp_kubeconfig: str) -> dict:
+    """Check DP-cluster node conditions for MemoryPressure/DiskPressure/PIDPressure
+    == True -- surfaces whether the node-aggregator DaemonSet (or anything
+    else running on every DP node) is starving the nodes themselves, not
+    just its own pod.
+    """
+    result = kubectl(dp_kubeconfig, "get", "nodes", "-o", "json", check=False)
+    summary = {"dp_nodes_total": 0, "dp_nodes_memory_pressure": 0,
+               "dp_nodes_disk_pressure": 0, "dp_nodes_pid_pressure": 0,
+               "dp_nodes_under_pressure": []}
+    if result.returncode != 0:
+        return summary
+    try:
+        nodes = json.loads(result.stdout).get("items", [])
+    except (json.JSONDecodeError, ValueError):
+        return summary
+    summary["dp_nodes_total"] = len(nodes)
+    for node in nodes:
+        name = node.get("metadata", {}).get("name", "")
+        pressures = [c["type"] for c in node.get("status", {}).get("conditions", [])
+                    if c.get("status") == "True" and c.get("type", "").endswith("Pressure")]
+        if "MemoryPressure" in pressures:
+            summary["dp_nodes_memory_pressure"] += 1
+        if "DiskPressure" in pressures:
+            summary["dp_nodes_disk_pressure"] += 1
+        if "PIDPressure" in pressures:
+            summary["dp_nodes_pid_pressure"] += 1
+        if pressures:
+            summary["dp_nodes_under_pressure"].append({"name": name, "conditions": pressures})
+    return summary
+
+
 def get_pod_restarts(kubeconfig: str, namespace: str, label: str) -> list[dict]:
     """Return restart count and status for pods matching a label."""
     result = kubectl(kubeconfig, "-n", namespace, "get", "pods",
@@ -836,6 +868,8 @@ def collect_metrics(cp_kubeconfig: str, dp_kubeconfig: str,
         ("app=konnectivity-server", "konn_server", cp_kubeconfig),
         ("app=vmagent", "vmagent", cp_kubeconfig),
         ("app=konnectivity-agent", "konn_agent", dp_kubeconfig),
+        # Absent (0 pods, harmless) whenever node_aggregator=False.
+        ("app=node-aggregator", "node_aggregator", dp_kubeconfig),
     ]:
         pods = get_pod_restarts(kc, namespace, label)
         restarts = sum(p["restarts"] for p in pods)
@@ -855,6 +889,10 @@ def collect_metrics(cp_kubeconfig: str, dp_kubeconfig: str,
         oom_lines = [l for l in result.stdout.strip().split("\n") if l.strip()]
         oom_events += len(oom_lines)
     measurements["oom_events"] = oom_events
+
+    # --- DP node conditions (node-aggregator runs on every DP node, so this
+    # is the check for whether it's starving the nodes themselves) ---
+    measurements.update(get_dp_node_pressure_summary(dp_kubeconfig))
 
     # --- Container CPU/memory from vmsingle (cadvisor data for DP pods) ---
     log.info("  querying container cpu/memory from vmsingle...")
@@ -1021,6 +1059,9 @@ def evaluate_pass_fail(measurements: dict, expected_targets: int = 0) -> dict:
     stream_errors = measurements.get("konn_server_stream_errors_total", 0)
     stream_packets = measurements.get("konn_server_stream_packets_total", 0)
     agent_dial_failures = measurements.get("konn_agent_endpoint_dial_failures", 0)
+    nodes_memory_pressure = measurements.get("dp_nodes_memory_pressure", 0)
+    nodes_disk_pressure = measurements.get("dp_nodes_disk_pressure", 0)
+    nodes_pid_pressure = measurements.get("dp_nodes_pid_pressure", 0)
 
     # If expected_targets is set, pass when up >= expected (other SD-discovered
     # targets like DaemonSet services may not be running on the test cluster).
@@ -1041,9 +1082,10 @@ def evaluate_pass_fail(measurements: dict, expected_targets: int = 0) -> dict:
     stream_error_rate = stream_errors / stream_packets if stream_packets > 0 else 0.0
     stream_errors_pass = stream_error_rate < 0.10
     agent_dial_pass = agent_dial_failures == 0
+    node_pressure_pass = (nodes_memory_pressure + nodes_disk_pressure + nodes_pid_pressure) == 0
     overall = (scrape_pass and oom_pass and restarts_pass and dial_pass
                and rw_errors_pass and rw_rows_pass and dial_failures_pass
-               and stream_errors_pass and agent_dial_pass)
+               and stream_errors_pass and agent_dial_pass and node_pressure_pass)
 
     def _r(b): return "success" if b else "failure"
 
@@ -1060,6 +1102,9 @@ def evaluate_pass_fail(measurements: dict, expected_targets: int = 0) -> dict:
                                    "detail": f"{stream_errors:.0f}/{stream_packets:.0f} packets",
                                    "result": _r(stream_errors_pass)},
         "konn_agent_dial_failures": {"threshold": 0, "actual": agent_dial_failures, "result": _r(agent_dial_pass)},
+        "dp_node_pressure": {"threshold": 0, "actual": nodes_memory_pressure + nodes_disk_pressure + nodes_pid_pressure,
+                             "detail": f"memory={nodes_memory_pressure} disk={nodes_disk_pressure} pid={nodes_pid_pressure}",
+                             "result": _r(node_pressure_pass)},
         "remote_write_errors": {"threshold": 0, "actual": rw_errors, "result": _r(rw_errors_pass)},
         "remote_write_rows_inserted": {"threshold": ">0", "actual": rw_rows, "result": _r(rw_rows_pass)},
         "overall": _r(overall),

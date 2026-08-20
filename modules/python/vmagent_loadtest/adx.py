@@ -334,6 +334,8 @@ CREATE_RESULTS_TABLE_CMD = """
     KonnServerCpuMaxCores: real,
     VmagentMemMaxBytes: long,
     VmagentCpuMaxCores: real,
+    NodeAggregatorMemMaxBytes: long,
+    NodeAggregatorCpuMaxCores: real,
     Source: string,
     BuildId: string,
     ConfigJson: dynamic
@@ -373,6 +375,8 @@ CREATE_RESULTS_MAPPING_CMD = """
 '{"column":"KonnServerCpuMaxCores","Properties":{"Path":"$.KonnServerCpuMaxCores"}},'
 '{"column":"VmagentMemMaxBytes","Properties":{"Path":"$.VmagentMemMaxBytes"}},'
 '{"column":"VmagentCpuMaxCores","Properties":{"Path":"$.VmagentCpuMaxCores"}},'
+'{"column":"NodeAggregatorMemMaxBytes","Properties":{"Path":"$.NodeAggregatorMemMaxBytes"}},'
+'{"column":"NodeAggregatorCpuMaxCores","Properties":{"Path":"$.NodeAggregatorCpuMaxCores"}},'
 '{"column":"Source","Properties":{"Path":"$.Source"}},'
 '{"column":"BuildId","Properties":{"Path":"$.BuildId"}},'
 '{"column":"ConfigJson","Properties":{"Path":"$.ConfigJson"}}'
@@ -625,18 +629,23 @@ def metric_count_summary(rows: list[str]) -> str:
 
 def collect_resource_peaks(cp_kubeconfig: str, namespace: str,
                            start_ts: float, end_ts: float | None = None) -> dict:
-    """Query vmsingle for peak konn-server/vmagent memory & CPU over the window.
+    """Query vmsingle for peak konn-server/vmagent/node-aggregator memory & CPU
+    over the window.
 
     Returns dict with keys:
       konn_server_mem_max_bytes, konn_server_cpu_max_cores,
-      vmagent_mem_max_bytes, vmagent_cpu_max_cores
+      vmagent_mem_max_bytes, vmagent_cpu_max_cores,
+      node_aggregator_mem_max_bytes, node_aggregator_cpu_max_cores
     Missing values default to 0 on any query failure (caller treats as N/A).
+    node_aggregator_* stays 0 whenever node_aggregator=False (job absent).
     """
     out = {
         "konn_server_mem_max_bytes": 0,
         "konn_server_cpu_max_cores": 0.0,
         "vmagent_mem_max_bytes": 0,
         "vmagent_cpu_max_cores": 0.0,
+        "node_aggregator_mem_max_bytes": 0,
+        "node_aggregator_cpu_max_cores": 0.0,
     }
     if end_ts is None:
         end_ts = datetime.now(timezone.utc).timestamp()
@@ -653,6 +662,12 @@ def collect_resource_peaks(cp_kubeconfig: str, namespace: str,
             'max(process_resident_memory_bytes{job="vmagent-self"})',
         "vmagent_cpu_max_cores":
             'max(rate(process_cpu_seconds_total{job="vmagent-self"}[1m]))',
+        # Worst-case node, not any single instance -- max() across every
+        # node-aggregator DaemonSet pod's own /metrics.
+        "node_aggregator_mem_max_bytes":
+            'max(process_resident_memory_bytes{job="prometheus"})',
+        "node_aggregator_cpu_max_cores":
+            'max(rate(process_cpu_seconds_total{job="prometheus"}[1m]))',
     }
     try:
         with PortForward(cp_kubeconfig, namespace, "deployment/vmsingle", 8428, 18428) as pf:
@@ -928,6 +943,8 @@ def export_run_summary(cluster_uri: str, database: str, run_id: str, tier: int,
         "KonnServerCpuMaxCores": float(m.get("konn_server_cpu_max_cores", 0.0) or 0.0),
         "VmagentMemMaxBytes": int(m.get("vmagent_mem_max_bytes", 0) or 0),
         "VmagentCpuMaxCores": float(m.get("vmagent_cpu_max_cores", 0.0) or 0.0),
+        "NodeAggregatorMemMaxBytes": int(m.get("node_aggregator_mem_max_bytes", 0) or 0),
+        "NodeAggregatorCpuMaxCores": float(m.get("node_aggregator_cpu_max_cores", 0.0) or 0.0),
         # Distinguish ADO pipeline runs from local devbox runs. ADO sets
         # TF_BUILD=True and BUILD_BUILDID on every agent job.
         "Source": ("pipeline" if (os.environ.get("TF_BUILD") or os.environ.get("BUILD_BUILDID")) else "local"),
