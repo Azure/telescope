@@ -115,7 +115,6 @@ def handle_node_pool_operation(node_pool_crud, args):
         azure_kwargs = {
             "gpu_instance_profile": args.gpu_instance_profile,
             "gpu_mig_strategy": args.gpu_mig_strategy,
-            "node_pool_type": args.node_pool_type,
         }
 
     try:
@@ -129,6 +128,8 @@ def handle_node_pool_operation(node_pool_crud, args):
                 "enable_managed_gpu": args.enable_managed_gpu,
                 **azure_kwargs,
             }
+            if args.cloud == "azure":
+                create_kwargs["node_pool_type"] = args.node_pool_type
 
             result = node_pool_crud.create_node_pool(**create_kwargs)
 
@@ -143,6 +144,8 @@ def handle_node_pool_operation(node_pool_crud, args):
                 "enable_managed_gpu": args.enable_managed_gpu,
                 **azure_kwargs,
             }
+            if args.cloud == "azure":
+                scale_kwargs["node_pool_type"] = args.node_pool_type
 
             result = node_pool_crud.scale_node_pool(**scale_kwargs)
 
@@ -163,6 +166,8 @@ def handle_node_pool_operation(node_pool_crud, args):
                 "step_wait_time": args.step_wait_time,
                 **azure_kwargs,
             }
+            if args.cloud == "azure":
+                all_kwargs["node_pool_type"] = args.node_pool_type
 
             result = node_pool_crud.all(**all_kwargs)
         else:

@@ -887,6 +887,35 @@ class TestMainFunctionIntegration(unittest.TestCase):
 
         self.assertEqual(context.exception.code, 2)
 
+    @mock.patch("crud.main.AzureNodePoolCRUD")
+    def test_main_delete_does_not_require_node_pool_type(
+        self, mock_azure_crud_class
+    ):
+        """Delete must run without create/scale-only node-pool arguments."""
+        mock_node_pool_crud = mock.MagicMock()
+        mock_azure_crud_class.return_value = mock_node_pool_crud
+        mock_node_pool_crud.delete_node_pool.return_value = True
+        test_args = [
+            "crud.py",
+            "delete",
+            "--cloud",
+            "azure",
+            "--run-id",
+            "test-run",
+            "--cluster-name",
+            "test-cluster",
+            "--exclude-managed-identity",
+            "--node-pool-name",
+            "test-pool",
+        ]
+
+        with mock.patch("sys.argv", test_args):
+            main()
+
+        mock_node_pool_crud.delete_node_pool.assert_called_once_with(
+            node_pool_name="test-pool"
+        )
+
     def test_main_aws_rejects_azure_only_options(self):
         """AWS node-pool commands must reject Azure-only options."""
         test_args = [
