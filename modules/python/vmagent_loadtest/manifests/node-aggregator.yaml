@@ -113,8 +113,11 @@ data:
         static_configs:
           - targets: ["localhost:10257"]
 
-      # Self-scrape -- its own CPU/memory footprint, otherwise invisible
-      # since only the 6 targets above are federated upstream by default.
+      # Self-scrape -- its own CPU/memory footprint, otherwise invisible.
+      # Excluded from the upstream /federate match[] (see deploy.py's
+      # _REAL_TARGET_JOBS_AGGREGATOR) so it's readable via vmsingle for our
+      # own resource-peak queries without inflating ingested row count with
+      # ~800 internal Prometheus engine metrics per node.
       - job_name: prometheus
         static_configs:
           - targets: ["localhost:9090"]

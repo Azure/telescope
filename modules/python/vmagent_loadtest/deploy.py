@@ -557,7 +557,18 @@ _REAL_TARGET_JOBS_AGGREGATOR = """\
         proxy_url: "http://localhost:8080"
         metrics_path: /federate
         params:
-          'match[]': ['{__name__!=""}']
+          # Two selectors (federate matches the union of all match[]
+          # values): the 6 real targets in full, plus ONLY the 3 specific
+          # self-metrics adx.py's resource-peak queries need from the
+          # node-aggregator's own self-scrape (job="prometheus") -- not
+          # that job's full ~800 internal engine metrics, which used to
+          # get swept in by a bare '{__name__!=""}' selector and roughly
+          # doubled ingested row count vs direct mode for the same 6 real
+          # targets (an apples-vs-oranges cardinality mismatch, not a
+          # genuine aggregator overhead).
+          'match[]':
+            - '{job!="prometheus"}'
+            - '{job="prometheus",__name__=~"process_resident_memory_bytes|process_cpu_seconds_total|go_goroutines"}'
         honor_labels: true
         kubernetes_sd_configs:
           - role: pod
