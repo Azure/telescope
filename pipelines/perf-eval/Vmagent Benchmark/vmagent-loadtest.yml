@@ -1,5 +1,8 @@
 trigger: none
 
+pool:
+  name: 'AKS-Telescope-Airlock'
+
 parameters:
   # Each entry is a full vmagent/konnectivity config to run SEQUENTIALLY
   # against the SAME provisioned CP/DP clusters (see
