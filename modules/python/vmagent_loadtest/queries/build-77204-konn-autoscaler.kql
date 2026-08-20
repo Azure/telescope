@@ -1,0 +1,74 @@
+// Build 77204 -- konn-old-images (20260818-203543) vs konn-new-images-with-autoscaler (20260818-211031)
+// Cluster: https://vmagent-loadtesting.eastus2.kusto.windows.net   Database: vmagentloadtest
+//
+// Run via:
+//   bash /home/schinnapulla/aks/aks-operator/.claude/skills/vmagent-scrape-health/scripts/kusto-query.sh \
+//     "https://vmagent-loadtesting.eastus2.kusto.windows.net" "vmagentloadtest" - <<'KQL'
+//   <paste one query below>
+//   KQL
+
+// 1. Tier-by-tier run summary (pass/fail, scrape success, konn/vmagent replicas)
+VMAgentRunSummary
+| where RunId in ("20260818-203543", "20260818-211031")
+| project RunLabel, Tier, TrialLabel, Result, ScrapeSuccessRate, ScrapeTargetsUp, ScrapeTargetsExpected,
+          KonnAgentReplicas, VmagentReplicas, KonnDialFailures, KonnAgentDialFailures, KonnStreamErrorRate,
+          OomEvents, PodRestarts, Timestamp
+| order by Timestamp asc
+
+// 2. Autoscaler scale-decision timeline (dedup'd, action + block_reason + key packet stats)
+KonnectivityLogs
+| where RunId in ("20260818-203543", "20260818-211031")
+| where container == "konnectivity-agent-autoscaler"
+| where log has "\"msg\":\"scale decision\""
+| distinct RunId, TIMESTAMP, log
+| extend d = parse_json(log)
+| project RunId, TIMESTAMP, action=d.action, block_reason=d.block_reason,
+          spec_replicas=d.spec_replicas, desired_now=d.desired_now, desired_smooth=d.desired_smooth,
+          total_pkt_now=d.total_pkt_now, packet_idle_fraction=d.packet_idle_fraction
+| order by TIMESTAMP asc
+
+// 3. Konnectivity server/agent dial + stream error rate over time
+VMAgentMetrics
+| where RunId in ("20260818-203543", "20260818-211031")
+| where Metric in ("konn_server_dial_count_total", "konn_server_stream_errors_total",
+                    "konn_agent_stream_errors_total", "konn_agent_server_connection_failures_total")
+| summarize max(Value) by RunId, Tier, Metric
+| order by RunId, Tier, Metric
+
+// 4. Scrape success rate (Up) per job, per tier
+VMAgentMetrics
+| where RunId in ("20260818-203543", "20260818-211031")
+| where Metric == "scrape_up"
+| summarize avg_up=avg(Value), samples=count() by RunId, Tier, Job
+| order by RunId, Tier, avg_up asc
+
+// 5. Resource peaks (CPU/memory) for konn-server, konn-agent, vmagent
+VMAgentMetrics
+| where RunId in ("20260818-203543", "20260818-211031")
+| where Metric in ("konn_server_memory_bytes", "konn_agent_memory_bytes", "vmagent_memory_bytes",
+                    "konn_server_cpu_seconds_total", "konn_agent_cpu_seconds_total", "vmagent_cpu_seconds_total")
+| summarize peak=max(Value) by RunId, Tier, Metric, Pod
+| order by RunId, Tier, Metric, peak desc
+
+// 6. Remote-write backlog / drop rate (rate-limit / drain health)
+VMAgentMetrics
+| where RunId in ("20260818-203543", "20260818-211031")
+| where Metric in ("vmagent_persistentqueue_bytes_pending", "vmagent_remote_write_samples_dropped_total",
+                    "vmagent_remote_write_rate_limit_reached_total", "vmagent_persistentqueue_bytes_dropped_total")
+| summarize max(Value) by RunId, Tier, Metric
+| order by RunId, Tier, Metric
+
+// 7. Any non-"hold" autoscaler actions (did it ever actually scale?)
+KonnectivityLogs
+| where RunId in ("20260818-203543", "20260818-211031")
+| where container == "konnectivity-agent-autoscaler"
+| where log has "\"msg\":\"scale decision\"" and log !has "\"action\":\"hold\""
+| distinct RunId, TIMESTAMP, log
+| order by TIMESTAMP asc
+
+// 8. Pod restarts / errors across all containers for the run
+VMAgentLogs
+| where RunId in ("20260818-203543", "20260818-211031")
+| where log has_any ("panic", "OOMKilled", "CrashLoopBackOff", "level\":\"error", "level\":\"fatal")
+| distinct RunId, container, Pod, TIMESTAMP, log
+| order by TIMESTAMP asc
