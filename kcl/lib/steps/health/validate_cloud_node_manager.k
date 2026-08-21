@@ -1,4 +1,5 @@
 import azure_pipelines.ap.steps
+import lib.steps.azure
 
 # cloud-node-manager: verify the cloud provider integration by checking that
 # every Node carries a providerID. For generic controller/pod health, pair this
@@ -30,5 +31,5 @@ fi
 
 echo "cloud-node-manager validation passed"
 """
-    AzCli(serviceConnection, title, script, continueOnError=continueOnError)
+    azure.AzCli(serviceConnection, title, script, continueOnError=continueOnError)
 }

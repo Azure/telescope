@@ -1,4 +1,5 @@
 import azure_pipelines.ap.steps
+import lib.steps.azure
 
 # metrics-server: `kubectl top nodes` returns CPU/memory metrics. For
 # pod/controller health, pair with
@@ -36,5 +37,5 @@ if [ "$failures" -gt 0 ]; then
 fi
 echo "metrics-server validation passed"
 """
-    AzCli(serviceConnection, title, script, continueOnError=continueOnError)
+    azure.AzCli(serviceConnection, title, script, continueOnError=continueOnError)
 }
