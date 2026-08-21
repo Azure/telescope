@@ -1,5 +1,6 @@
 import azure_pipelines.ap.steps
 import lib.const
+import lib.steps.azure
 
 # azure-cns: a new pod gets an IP from the CNI IPAM, and the pod dataplane can
 # reach in-cluster services. For daemonset/pod health, pair with
@@ -23,5 +24,5 @@ if ! echo "$reach_out" | grep -q 'REACHABLE'; then
 fi
 echo "azure-cns validation passed"
 """
-    AzCli(serviceConnection, title, script, continueOnError=continueOnError)
+    azure.AzCli(serviceConnection, title, script, continueOnError=continueOnError)
 }

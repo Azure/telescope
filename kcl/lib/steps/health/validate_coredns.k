@@ -1,5 +1,6 @@
 import azure_pipelines.ap.steps
 import lib.const
+import lib.steps.azure
 
 # coredns: a DNS query resolves the in-cluster kubernetes API service to a
 # valid ClusterIP. For pod/controller health, pair with
@@ -21,5 +22,5 @@ fi
 
 echo "coredns validation passed"
 """
-    AzCli(serviceConnection, title, script, continueOnError=continueOnError)
+    azure.AzCli(serviceConnection, title, script, continueOnError=continueOnError)
 }

@@ -1,5 +1,6 @@
 import azure_pipelines.ap.steps
 import lib.const
+import lib.steps.azure
 
 # konnectivity-agent: the tunnel from control plane to nodes works, exercised
 # via kubectl exec against a temporary pod. For pod/controller health, pair with
@@ -25,5 +26,5 @@ if [ "$exec_out" != "pong" ]; then
 fi
 echo "konnectivity-agent validation passed"
 """
-    AzCli(serviceConnection, title, script, continueOnError=continueOnError)
+    azure.AzCli(serviceConnection, title, script, continueOnError=continueOnError)
 }
