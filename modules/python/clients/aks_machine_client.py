@@ -31,7 +31,7 @@ get_logger("msal").setLevel(logging.ERROR)
 
 _ARM_BASE = "https://management.azure.com"
 _ARM_SCOPE = "https://management.azure.com/.default"
-_AGENTPOOL_API_VERSION = "2024-06-02-preview"
+_AGENTPOOL_API_VERSION = "2025-06-02-preview"
 _MACHINE_API_VERSION = "2025-06-02-preview"
 _POLL_INTERVAL_SECONDS = 10
 # Per-request HTTP timeout is capped so that a single slow PUT/GET cannot
