@@ -21,6 +21,19 @@ from .utils import kubectl, kubectl_apply, render_template, retry, run
 from urllib.parse import urlparse
 
 
+def _force_clear_namespace(kubeconfig: str, namespace: str) -> None:
+    """Best-effort: force-delete and strip finalizers from a stuck namespace."""
+    kubectl(kubeconfig, "delete", "ns", namespace, "--grace-period=0", "--force", check=False)
+    result = kubectl(kubeconfig, "get", "ns", namespace, "-o", "json", check=False)
+    if result.returncode != 0:
+        return
+    ns_obj = json.loads(result.stdout)
+    ns_obj.setdefault("spec", {})["finalizers"] = []
+    run(["kubectl", "--kubeconfig", kubeconfig, "replace", "--raw",
+         f"/api/v1/namespaces/{namespace}/finalize", "-f", "-"],
+        input=json.dumps(ns_obj), capture=False, check=False)
+
+
 def ensure_namespace(kubeconfig: str, namespace: str) -> None:
     for _ in range(60):
         result = kubectl(kubeconfig, "get", "ns", namespace, "-o", "jsonpath={.status.phase}", check=False)
@@ -31,6 +44,23 @@ def ensure_namespace(kubeconfig: str, namespace: str) -> None:
             time.sleep(5)
             continue
         break
+    else:
+        # Still Terminating after 5m of normal waiting -- a stuck finalizer,
+        # not just slow cleanup. Force-clear now instead of proceeding to
+        # apply (guaranteed Forbidden) and burning ~70min across 3 outer
+        # ramp retries (seen in build 77430).
+        log.warning("  Namespace %s still Terminating after 5m — forcing finalizer clear", namespace)
+        _force_clear_namespace(kubeconfig, namespace)
+        for _ in range(12):
+            result = kubectl(kubeconfig, "get", "ns", namespace, "-o", "jsonpath={.status.phase}", check=False)
+            if result.returncode != 0:
+                break
+            time.sleep(5)
+        else:
+            raise RuntimeError(
+                f"Namespace {namespace} still stuck Terminating after forced finalizer "
+                "clear — needs manual cluster investigation (stuck resource finalizer)."
+            )
     result = run(
         ["kubectl", "--kubeconfig", kubeconfig, "create", "ns", namespace,
          "--dry-run=client", "-o", "yaml"]
