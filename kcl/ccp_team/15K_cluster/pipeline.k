@@ -58,9 +58,27 @@ CREATE_ARGS=(
 )
 [[ -n "$(network_dataplane)" ]] && CREATE_ARGS+=(--network-dataplane "$(network_dataplane)")
 [[ "$(apiserver_vnet_integration)" == "true" ]] && CREATE_ARGS+=(--enable-apiserver-vnet-integration --apiserver-subnet-id "$(APISERVER_SUBNET_ID)")
+[[ -n "$(kms_key_id)" ]] && CREATE_ARGS+=(--enable-azure-keyvault-kms --azure-keyvault-kms-key-id "$(kms_key_id)" --azure-keyvault-kms-key-vault-network-access Public)
 
 
 az aks create "\${CREATE_ARGS[@]}"
+"""
+
+grantKmsAccessScript = """
+KEY_ID="$(kms_key_id)"
+HOST="\${KEY_ID#https://}"
+VAULT_NAME="\${HOST%%.*}"
+
+KEY_VAULT_RESOURCE_ID=$(az keyvault show \\
+  --subscription "${SUBSCRIPTION_ID}" \\
+  --name "\${VAULT_NAME}" \\
+  --query id -o tsv)
+
+az role assignment create \\
+  --role "Key Vault Crypto User" \\
+  --assignee-object-id "$(IDENTITY_PRINCIPAL_ID)" \\
+  --assignee-principal-type ServicePrincipal \\
+  --scope "\${KEY_VAULT_RESOURCE_ID}"
 """
 
 output = ap.Pipeline {
@@ -106,6 +124,12 @@ output = ap.Pipeline {
             type = "string"
             default = "true"
         }
+        ap.Parameter {
+            name = "kms_key_id"
+            displayName = "Azure Key Vault KMS key ID (versioned key URI; leave empty to disable KMS)"
+            type = "string"
+            default = ""
+        }
     ]
 
     variables = {
@@ -115,6 +139,7 @@ output = ap.Pipeline {
         user_pool_vm_size = "\${{ parameters.user_pool_vm_size }}"
         network_dataplane = "\${{ parameters.network_dataplane }}"
         apiserver_vnet_integration = "\${{ parameters.apiserver_vnet_integration }}"
+        kms_key_id = "\${{ parameters.kms_key_id }}"
     }
 
     jobs = [
@@ -199,6 +224,12 @@ output = ap.Pipeline {
                     SERVICE_CONNECTION,
                     "Create jumpbox",
                     createJumpboxScript
+                ),
+                azure.AzCli(
+                    SERVICE_CONNECTION,
+                    "Grant KMS access to cluster identity",
+                    grantKmsAccessScript,
+                    condition = "ne(variables['kms_key_id'], '')"
                 ),
                 azure.AzCli(
                     SERVICE_CONNECTION,
