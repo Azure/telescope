@@ -78,7 +78,7 @@ class TestAKSMachineClient(unittest.TestCase):
 
         mock_make_request.assert_called_once()
         call_args = mock_make_request.call_args
-        self.assertEqual(call_args.args[0], "PUT")
+        self.assertTrue(call_args.args[1].endswith("api-version=2025-06-02-preview"))
         self.assertEqual(call_args.kwargs["data"], {"properties": {"mode": "Machines"}})
         metadata_keys = {
             call.args[0] for call in self.mock_operation.add_metadata.call_args_list
