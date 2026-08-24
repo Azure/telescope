@@ -26,6 +26,10 @@ parameters:
   displayName: Enable API server vNet integration (leave empty to disable)
   type: string
   default: 'true'
+- name: kms_key_id
+  displayName: Azure Key Vault KMS key ID (versioned key URI; leave empty to disable KMS)
+  type: string
+  default: ''
 variables:
   subscription_id: ${{ parameters.subscription_id }}
   location: ${{ parameters.location }}
@@ -33,6 +37,7 @@ variables:
   user_pool_vm_size: ${{ parameters.user_pool_vm_size }}
   network_dataplane: ${{ parameters.network_dataplane }}
   apiserver_vnet_integration: ${{ parameters.apiserver_vnet_integration }}
+  kms_key_id: ${{ parameters.kms_key_id }}
 jobs:
 - job: create_cluster
   displayName: Create 15K Nodes Cluster
@@ -387,6 +392,30 @@ jobs:
       inlineScript: |
         set -exo pipefail
 
+        KEY_ID="$(kms_key_id)"
+        HOST="${KEY_ID#https://}"
+        VAULT_NAME="${HOST%%.*}"
+
+        KEY_VAULT_RESOURCE_ID=$(az keyvault show \
+          --subscription "$(subscription_id)" \
+          --name "${VAULT_NAME}" \
+          --query id -o tsv)
+
+        az role assignment create \
+          --role "Key Vault Crypto User" \
+          --assignee-object-id "$(IDENTITY_PRINCIPAL_ID)" \
+          --assignee-principal-type ServicePrincipal \
+          --scope "${KEY_VAULT_RESOURCE_ID}"
+    condition: ne(variables['kms_key_id'], '')
+    displayName: Grant KMS access to cluster identity
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(AZURE_SERVICE_CONNECTION)
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
         az extension add --name aks-preview --allow-preview true --upgrade --yes
 
         CREATE_ARGS=(
@@ -418,6 +447,7 @@ jobs:
         )
         [[ -n "$(network_dataplane)" ]] && CREATE_ARGS+=(--network-dataplane "$(network_dataplane)")
         [[ "$(apiserver_vnet_integration)" == "true" ]] && CREATE_ARGS+=(--enable-apiserver-vnet-integration --apiserver-subnet-id "$(APISERVER_SUBNET_ID)")
+        [[ -n "$(kms_key_id)" ]] && CREATE_ARGS+=(--enable-azure-keyvault-kms --azure-keyvault-kms-key-id "$(kms_key_id)" --azure-keyvault-kms-key-vault-network-access Public)
 
 
         az aks create "${CREATE_ARGS[@]}"
