@@ -34,13 +34,16 @@ parameters:
   displayName: Secrets ingest size (GiB)
   type: number
   default: 4
+- name: ingest_pods_gib
+  displayName: Pods ingest size (GiB) — creates deployments of 100 replicas with ~10KB pod manifests
+  type: number
+  default: 2
 jobs:
 - job: bootstrap
   displayName: Bootstrap
   timeoutInMinutes: 10
   steps:
-  - bash: |2
-
+  - bash: |
       set -exo pipefail
 
       # Resolve CLUSTER
@@ -85,7 +88,6 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
-
         az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
         az config set defaults.location="westus2"
         az account show
@@ -95,10 +97,13 @@ jobs:
       azureSubscription: Azure-for-Telescope-internal
       scriptType: bash
       scriptLocation: inlineScript
-      inlineScript: |
+      inlineScript: |+
         set -exo pipefail
+        az group create \
+          --name "$(RESOURCE_GROUP)" \
+          --location "westus2" \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
 
-        az group create --name "$(RESOURCE_GROUP)" --location "westus2" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
     displayName: Create resource group in westus2 (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
   - task: AzureCLI@2
     inputs:
@@ -107,12 +112,10 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
-
         az rest \
           --method put \
           --uri "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/$(RESOURCE_GROUP)/providers/Microsoft.ContainerService/managedClusters/$(CLUSTER)?api-version=2026-01-02-preview" \
-          --body "
-        {
+          --body "{
             \"location\": \"westus2\",
             \"identity\": { \"type\": \"SystemAssigned\" },
             \"sku\": {
@@ -126,16 +129,16 @@ jobs:
             },
             \"properties\": {
               \"controlPlaneScalingProfile\": {\"scalingSize\": \"${{ parameters.scaling_size }}\"},
-              \"kubernetesVersion\": \"1.33.0\",
+              \"kubernetesVersion\": \"1.36.2\",
               \"dnsPrefix\": \"$(CLUSTER)-dns\",
               \"agentPoolProfiles\": [
                 {
                   \"name\": \"systempool\",
                   \"mode\": \"System\",
-                  \"count\": 3,
+                  \"count\": 220,
                   \"vmSize\": \"Standard_D2_v4\",
                   \"osType\": \"Linux\",
-                  \"maxPods\": 50
+                  \"maxPods\": 1000
                 }
               ],
             \"networkProfile\": {
@@ -161,7 +164,6 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
-
         while true; do
           STATE=$(az aks show \
             --name "$(CLUSTER)" \
@@ -190,8 +192,7 @@ jobs:
   condition: and(eq(dependencies.bootstrap.result, 'Succeeded'), in(dependencies.setup.result, 'Succeeded', 'Skipped'))
   timeoutInMinutes: 5
   steps:
-  - script: |2
-
+  - script: |
       set -euo pipefail
       START_TIME=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
       echo "Benchmark start time: $START_TIME"
@@ -217,15 +218,13 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
-
         az aks get-credentials \
           --name "$(CLUSTER)" \
           --resource-group "$(RESOURCE_GROUP)" \
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --overwrite-existing
     displayName: Get credentials for $(CLUSTER)
-  - script: |2
-
+  - script: |
       set -euo pipefail
       set -x
 
@@ -239,8 +238,7 @@ jobs:
       rm -rf $temp_dir
       docker rmi ghcr.io/liyu-ma/kperf:hyperscale-etcd 2>/dev/null || true
     displayName: Install runkperf binary
-  - script: |2
-
+  - script: |
       set -euo pipefail
       set -x
 
@@ -299,15 +297,13 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
-
         az aks get-credentials \
           --name "$(CLUSTER)" \
           --resource-group "$(RESOURCE_GROUP)" \
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --overwrite-existing
     displayName: Get credentials for $(CLUSTER)
-  - script: |2
-
+  - script: |
       set -euo pipefail
       set -x
 
@@ -321,8 +317,7 @@ jobs:
       rm -rf $temp_dir
       docker rmi ghcr.io/liyu-ma/kperf:hyperscale-etcd 2>/dev/null || true
     displayName: Install runkperf binary
-  - script: |2
-
+  - script: |
       set -euo pipefail
       set -x
 
@@ -381,15 +376,13 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
-
         az aks get-credentials \
           --name "$(CLUSTER)" \
           --resource-group "$(RESOURCE_GROUP)" \
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --overwrite-existing
     displayName: Get credentials for $(CLUSTER)
-  - script: |2
-
+  - script: |
       set -euo pipefail
       set -x
 
@@ -403,8 +396,7 @@ jobs:
       rm -rf $temp_dir
       docker rmi ghcr.io/liyu-ma/kperf:hyperscale-etcd 2>/dev/null || true
     displayName: Install runkperf binary
-  - script: |2
-
+  - script: |
       set -euo pipefail
       set -x
 
@@ -444,6 +436,110 @@ jobs:
       echo "Ingest complete: $completed secrets created."
     condition: and(succeeded(), ne('${{ parameters.ingest_secrets_gib }}', '0'))
     displayName: Ingest secret data (${{ parameters.ingest_secrets_gib }} GiB)
+- job: ingest_pods
+  displayName: Ingest Pods via Deployments (${{ parameters.ingest_pods_gib }} GiB)
+  dependsOn:
+  - bootstrap
+  - setup
+  - record_start_time
+  condition: and(succeeded(), ${{ ne(parameters.ingest_pods_gib, 0) }})
+  timeoutInMinutes: 1440
+  variables:
+    CLUSTER: $[ dependencies.bootstrap.outputs['resolve.CLUSTER'] ]
+    RESOURCE_GROUP: $[ dependencies.bootstrap.outputs['resolve.RESOURCE_GROUP'] ]
+  steps:
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        az aks get-credentials \
+          --name "$(CLUSTER)" \
+          --resource-group "$(RESOURCE_GROUP)" \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --overwrite-existing
+    displayName: Get credentials for $(CLUSTER)
+  - script: |
+      set -euo pipefail
+      set -x
+
+      temp_dir=$(mktemp -p /tmp -d kperfinstall.XXXX)
+      docker rmi ghcr.io/liyu-ma/kperf:hyperscale-etcd 2>/dev/null || true
+      docker pull ghcr.io/liyu-ma/kperf:hyperscale-etcd
+      docker run --rm -v $temp_dir:/install-dir \
+        ghcr.io/liyu-ma/kperf:hyperscale-etcd bash -c "set -x; install /kperf /runkperf /install-dir"
+
+      sudo install $temp_dir/kperf $temp_dir/runkperf /usr/local/bin
+      rm -rf $temp_dir
+      docker rmi ghcr.io/liyu-ma/kperf:hyperscale-etcd 2>/dev/null || true
+    displayName: Install runkperf binary
+  - script: |
+      set -euo pipefail
+      set -x
+
+      TOTAL_POD_BYTES=$(( ${{ parameters.ingest_pods_gib }} * 1073741824 ))
+      TOTAL_PODS=$(( TOTAL_POD_BYTES / 10240 ))
+      NUM_DEPLOYMENTS=$(( TOTAL_PODS / 100 ))
+
+      if [ "$NUM_DEPLOYMENTS" -le 0 ]; then
+        echo "Requested totalGiB=${{ parameters.ingest_pods_gib }} yields 0 deployments; skipping."
+        exit 0
+      fi
+
+      kubectl create namespace pod-data 2>/dev/null || true
+
+      # Generate a random string exactly 10240 bytes long,
+      # used as a single annotation value on every pod.
+      RANDOM_STR=$(LC_ALL=C tr -dc 'a-z0-9' </dev/urandom | head -c 10240)
+
+      echo "Creating $NUM_DEPLOYMENTS deployments (100 replicas each, ~10240B/pod) in namespace pod-data..."
+
+      TMPFILE=$(mktemp)
+      trap 'rm -f "$TMPFILE"' EXIT
+
+      for i in $(seq 1 $NUM_DEPLOYMENTS); do
+        cat >> "$TMPFILE" <<EOF
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: my-deploy-$i
+        namespace: pod-data
+      spec:
+        replicas: 100
+        selector:
+          matchLabels:
+            app: my-deploy-$i
+        template:
+          metadata:
+            labels:
+              app: my-deploy-$i
+            annotations:
+              pad: "${RANDOM_STR}"
+          spec:
+            terminationGracePeriodSeconds: 0
+            containers:
+            - name: pause
+              image: mcr.microsoft.com/oss/kubernetes/pause:3.6
+              resources:
+                requests:
+                  cpu: 1m
+                  memory: 1Mi
+      ---
+      EOF
+
+        # Apply in batches of 50 deployments to avoid oversized single apply calls.
+        if [ $(( i % 50 )) -eq 0 ] || [ "$i" -eq "$NUM_DEPLOYMENTS" ]; then
+          kubectl apply -f "$TMPFILE" --server-side=true
+          : > "$TMPFILE"
+          echo "Progress: $i / $NUM_DEPLOYMENTS deployments applied"
+        fi
+      done
+
+      echo "Deployment ingest complete: $NUM_DEPLOYMENTS deployments, ~$TOTAL_PODS pods."
+    condition: and(succeeded(), ne('${{ parameters.ingest_pods_gib }}', '0'))
+    displayName: Ingest deployments (${{ parameters.ingest_pods_gib }} GiB of pod manifests)
 - job: report
   displayName: Print ASI Dashboard URLs
   dependsOn:
@@ -466,7 +562,6 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
-
         RESOURCE_UID=$(az aks show \
           --resource-group "$(RESOURCE_GROUP)" \
           --name "$(CLUSTER)" \
@@ -512,7 +607,6 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
-
         az group delete --name "$(RESOURCE_GROUP)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
     condition: always()
     displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)

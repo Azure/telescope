@@ -3,6 +3,7 @@ import azure_pipelines.ap.jobs.job
 import azure_pipelines.ap.steps
 import lib.const
 import lib.steps.azure
+import lib.steps.k8s
 import lib.steps.kperf
 import lib.util
 import lib.util.asi_dashboard
@@ -34,16 +35,16 @@ requestBody = util.escapeStr("""
     },
     "properties": {
       "controlPlaneScalingProfile": {"scalingSize": "\${{ parameters.scaling_size }}"},
-      "kubernetesVersion": "1.33.0",
+      "kubernetesVersion": "1.36.2",
       "dnsPrefix": "${CLUSTER}-dns",
       "agentPoolProfiles": [
         {
           "name": "systempool",
           "mode": "System",
-          "count": 3,
+          "count": 220,
           "vmSize": "Standard_D2_v4",
           "osType": "Linux",
-          "maxPods": 50
+          "maxPods": 1000
         }
       ],
     "networkProfile": {
@@ -136,6 +137,12 @@ output = ap.Pipeline {
             displayName = "Secrets ingest size (GiB)"
             type = "number"
             default = 4
+        }
+        ap.Parameter {
+            name = "ingest_pods_gib"
+            displayName = "Pods ingest size (GiB) — creates deployments of 100 replicas with ~10KB pod manifests"
+            type = "number"
+            default = 2
         }
     ]
 
@@ -244,6 +251,20 @@ echo "##vso[task.setvariable variable=BENCHMARK_START_TIME;isOutput=true]$START_
                     namespace="kperf-secret-data",
                     name="my-secrets",
                     totalGiB="\${{ parameters.ingest_secrets_gib }}"),
+            ]
+        }
+        job.Job {
+            job = "ingest_pods"
+            displayName = "Ingest Pods via Deployments (\${{ parameters.ingest_pods_gib }} GiB)"
+            timeoutInMinutes = 1440
+            dependsOn = INGEST_DEPENDS_ON
+            condition = "and(succeeded(), \${{ ne(parameters.ingest_pods_gib, 0) }})"
+            variables = INGEST_VARIABLES
+            steps = prepareForIngestion() + [
+                k8s.RunDeploymentIngest(
+                    namespace="pod-data",
+                    name="my-deploy",
+                    totalGiB="\${{ parameters.ingest_pods_gib }}"),
             ]
         }
         job.Job {
