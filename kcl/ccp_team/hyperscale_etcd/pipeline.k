@@ -41,10 +41,10 @@ requestBody = util.escapeStr("""
         {
           "name": "systempool",
           "mode": "System",
-          "count": 220,
+          "count": 3,
           "vmSize": "Standard_D2_v4",
           "osType": "Linux",
-          "maxPods": 1000
+          "maxPods": 30
         }
       ],
     "networkProfile": {
@@ -187,6 +187,17 @@ output = ap.Pipeline {
                     CLUSTER,
                     RESOURCE_GROUP,
                     SUBSCRIPTION_ID),
+                azure.CreateNodePool(
+                    const.DEFAULT_SERVICE_CONNECTION,
+                    CLUSTER,
+                    RESOURCE_GROUP,
+                    SUBSCRIPTION_ID,
+                    azure.NodePool {
+                        name = "userpool"
+                        sku = "Standard_D2_v3"
+                        count = 1000
+                        maxPods = 250
+                    }),
             ]
         }
         job.Job {
