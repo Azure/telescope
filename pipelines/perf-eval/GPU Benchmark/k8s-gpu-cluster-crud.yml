@@ -49,7 +49,7 @@ stages:
               vm_size: Standard_NC40ads_H100_v5
               create_node_count: 0
               scale_node_count: 2
-              scale_step_size: 2
+              scale_step_size: 1
               step_time_out: 600
               step_wait_time: 30
               count: 1
@@ -81,7 +81,7 @@ stages:
               vm_size: Standard_NC40ads_H100_v5
               create_node_count: 0
               scale_node_count: 2
-              scale_step_size: 2
+              scale_step_size: 1
               step_time_out: 600
               step_wait_time: 30
               count: 1
@@ -116,7 +116,7 @@ stages:
               vm_size: Standard_ND96asr_v4
               create_node_count: 0
               scale_node_count: 2
-              scale_step_size: 2
+              scale_step_size: 1
               step_time_out: 600
               step_wait_time: 30
               count: 1
@@ -148,7 +148,7 @@ stages:
               vm_size: Standard_ND96asr_v4
               create_node_count: 0
               scale_node_count: 2
-              scale_step_size: 2
+              scale_step_size: 1
               step_time_out: 600
               step_wait_time: 30
               count: 1
@@ -182,7 +182,7 @@ stages:
               gpu_mig_strategy: mixed
               create_node_count: 0
               scale_node_count: 2
-              scale_step_size: 2
+              scale_step_size: 1
               step_time_out: 600
               step_wait_time: 30
               count: 1
@@ -216,7 +216,7 @@ stages:
               gpu_mig_strategy: single
               create_node_count: 0
               scale_node_count: 2
-              scale_step_size: 2
+              scale_step_size: 1
               step_time_out: 600
               step_wait_time: 30
               count: 1
@@ -247,7 +247,7 @@ stages:
               vm_size: Standard_NV36ads_A10_v5
               create_node_count: 0
               scale_node_count: 2
-              scale_step_size: 2
+              scale_step_size: 1
               step_time_out: 600
               step_wait_time: 30
               count: 1
@@ -279,7 +279,7 @@ stages:
               vm_size: Standard_NV36ads_A10_v5
               create_node_count: 0
               scale_node_count: 2
-              scale_step_size: 2
+              scale_step_size: 1
               step_time_out: 600
               step_wait_time: 30
               count: 1
