@@ -2,20 +2,21 @@ import azure_pipelines.ap.steps
 import lib.const
 import lib.steps.azure
 
-# kube-proxy: a ClusterIP service is reachable from within the cluster,
-# exercising service routing. For daemonset/pod health, pair with
-# ValidateWorkloadHealth(kind="daemonset", name="kube-proxy", namespace="kube-system")
-# only on clusters that run kube-proxy; skip it when a replacement (e.g. Cilium
-# eBPF) is used, since there is no kube-proxy daemonset to check.
-ValidateKubeProxy = lambda serviceConnection: str, displayName: str = "", continueOnError: bool = Undefined -> steps.Step {
-    title = displayName if displayName else "Validate kube-proxy"
+# Validate that ClusterIP service routing works: a backend behind a ClusterIP is
+# reachable from a separate pod. This exercises whatever service proxy the
+# cluster runs (kube-proxy, Cilium eBPF, etc.). For the health of the proxy
+# workload itself, pair with ValidateWorkloadHealth on the workload the cluster
+# actually runs (e.g. daemonset kube-system/kube-proxy, or the cilium daemonset
+# on kube-proxy-replacement clusters).
+ValidateClusterIPService = lambda serviceConnection: str, displayName: str = "", continueOnError: bool = Undefined -> steps.Step {
+    title = displayName if displayName else "Validate ClusterIP service routing"
     script = """
-fail() { echo "FAILED KUBE-PROXY CHECK: $*"; exit 1; }
+fail() { echo "FAILED CLUSTERIP CHECK: $*"; exit 1; }
 
 # ClusterIP reachability: deploy a service + backend and reach it from within
 # the cluster to exercise service routing.
 suffix=$RANDOM
-app="aks-validation-kp-$suffix"
+app="aks-validation-clusterip-$suffix"
 client="$app-client"
 trap 'kubectl delete deploy/"$app" svc/"$app" pod/"$client" --ignore-not-found >/dev/null 2>&1' EXIT
 
@@ -66,12 +67,12 @@ echo "service ClusterIP: $clusterip"
 # verifies the response in the pod so kubectl's --rm output cannot affect it.
 if ! out=$(kubectl run "$client" --image=${const.BUSYBOX_IMAGE} --restart=Never \
   -i --rm --pod-running-timeout=120s --command -- \
-  sh -c 'out=$(wget -T 10 -t 1 -qO- "http://'$clusterip':80/ping") && echo "$out" && [ "$out" = "pong" ]' 2>&1); then
+  sh -c 'out=$(wget -T 10 -t 1 -qO- "http://'"$clusterip"':80/ping") && echo "$out" && [ "$out" = "pong" ]' 2>&1); then
   fail "ClusterIP service not reachable (got '$out')"
 fi
 
 echo "client output: $out"
-echo "kube-proxy validation passed"
+echo "ClusterIP service validation passed"
 """
     azure.AzCli(serviceConnection, title, script, continueOnError=continueOnError)
 }
