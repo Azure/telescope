@@ -2,23 +2,18 @@ import azure_pipelines.ap.steps
 import lib.const
 import lib.steps.azure
 
-# csi-azuredisk-node / csi-azurefile-node: create a PVC (disk or file), mount
-# it in a short-lived pod, write+read a file to prove attach/mount/RW works,
-# then delete the pod and PVC. For daemonset/pod health, pair with
-# ValidateWorkloadHealth(kind="daemonset", name="csi-azure${driver}-node", namespace="kube-system").
-#
-# Both drivers use ReadWriteOnce for this single-pod mount check.
-# driver="disk" -> default storageClass "managed-csi"
-# driver="file" -> default storageClass "azurefile-csi"
-ValidateCsiNode = lambda serviceConnection: str, driver: "disk" | "file", storageClass: str = "", displayName: str = "", continueOnError: bool = Undefined -> steps.Step {
-    sc = storageClass if storageClass else ("managed-csi" if driver == "disk" else "azurefile-csi")
-    title = displayName if displayName else "Validate csi-azure${driver}-node"
+# Validate a CSI-backed StorageClass by creating a PVC, mounting it in a
+# short-lived pod, and writing and reading a file. This validates provisioning
+# and node mount behavior; validate the driver workloads separately.
+ValidateCsiNode = lambda serviceConnection: str, storageClass: str, displayName: str = "", continueOnError: bool = Undefined -> steps.Step {
+  assert storageClass != "", "storageClass must be non-empty"
+  title = displayName if displayName else "Validate CSI storage class ${storageClass}"
     script = """
 set +e
 
 suffix=$RANDOM
-pvc="aks-validation-csi-${driver}-pvc-$suffix"
-pod="aks-validation-csi-${driver}-pod-$suffix"
+pvc="aks-validation-csi-pvc-$suffix"
+pod="aks-validation-csi-pod-$suffix"
 trap 'kubectl delete pod "$pod" --ignore-not-found >/dev/null 2>&1; kubectl delete pvc "$pvc" --ignore-not-found >/dev/null 2>&1' EXIT
 
 if ! kubectl apply -f - <<EOF
@@ -29,7 +24,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
-  storageClassName: ${sc}
+  storageClassName: ${storageClass}
   resources:
     requests:
       storage: 1Gi
@@ -56,7 +51,7 @@ spec:
         claimName: $pvc
 EOF
 then
-  echo "FAILED CSI-${driver} CHECK: could not create test PVC or pod"
+  echo "FAILED CSI CHECK (${storageClass}): could not create test PVC or pod"
   exit 1
 fi
 
@@ -72,7 +67,7 @@ done
 echo "pod $pod phase=$phase"
 
 if [ "$phase" != "Succeeded" ]; then
-  echo "FAILED CSI-${driver} CHECK: pod did not succeed (phase=$phase); attach/mount likely failed"
+  echo "FAILED CSI CHECK (${storageClass}): pod did not succeed (phase=$phase); attach/mount likely failed"
   echo "--- pod describe ---"
   kubectl describe pod "$pod" | tail -30
   echo "--- pvc describe ---"
@@ -82,7 +77,7 @@ if [ "$phase" != "Succeeded" ]; then
   exit 1
 fi
 
-echo "csi-azure${driver}-node validation passed"
+echo "CSI storage class ${storageClass} validation passed"
 """
     azure.AzCli(serviceConnection, title, script, continueOnError=continueOnError)
 }
