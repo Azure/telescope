@@ -83,47 +83,6 @@ def instrument_nodepool_provisioning(
     return ready_nodes
 
 
-def instrument_aks_nodepool_provisioning(
-    aks_sdk_client,
-    resource_group,
-    k8s_client,
-    operation_timeout_minutes,
-    node_pool_name,
-    cluster_name,
-    parameters,
-    node_count,
-    op,
-    label="",
-    arm_callable=None,
-):
-    """Build AKS callables and instrument ARM and Kubernetes readiness."""
-    if arm_callable is None:
-        def arm_callable():
-            return begin_create_or_update_with_retry(
-                aks_sdk_client,
-                resource_group,
-                cluster_name,
-                node_pool_name,
-                parameters,
-                label=label,
-            )
-
-    def k8s_wait_callable():
-        return k8s_client.wait_for_nodes_ready(
-            node_count=node_count,
-            operation_timeout_in_minutes=operation_timeout_minutes,
-            label_selector=f"agentpool={node_pool_name}",
-        )
-
-    return instrument_nodepool_provisioning(
-        node_pool_name=node_pool_name,
-        op=op,
-        arm_callable=arm_callable,
-        k8s_wait_callable=k8s_wait_callable,
-        label=label,
-    )
-
-
 def begin_create_or_update_with_retry(
     aks_sdk_client,
     resource_group,

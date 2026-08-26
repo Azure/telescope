@@ -86,8 +86,10 @@ class TestAzureNodePoolCLI(unittest.TestCase):
             ],
         )
 
-    def test_prepare_create_operation_configures_vmss(self):
+    def test_prepare_create_operation_returns_vmss_callable(self):
         parameters = {}
+        aks_sdk_client = mock.MagicMock()
+        aks_sdk_client.agent_pools.begin_create_or_update.return_value.done.return_value = True
 
         operation = prepare_create_operation(
             parameters,
@@ -98,10 +100,17 @@ class TestAzureNodePoolCLI(unittest.TestCase):
             "test-pool",
             2,
             "Standard_D2s_v3",
+            aks_sdk_client,
         )
 
-        self.assertIsNone(operation)
-        self.assertEqual(parameters, {"count": 2, "vm_size": "Standard_D2s_v3"})
+        self.assertTrue(callable(operation))
+        operation()
+        call_parameters = (
+            aks_sdk_client.agent_pools.begin_create_or_update.call_args.kwargs[
+                "parameters"
+            ]
+        )
+        self.assertEqual(call_parameters, {"count": 2, "vm_size": "Standard_D2s_v3"})
 
     def test_prepare_create_operation_returns_virtual_machines_callable(self):
         operation = prepare_create_operation(
@@ -113,12 +122,15 @@ class TestAzureNodePoolCLI(unittest.TestCase):
             "test-pool",
             2,
             "Standard_D2s_v3",
+            mock.MagicMock(),
         )
 
         self.assertTrue(callable(operation))
 
-    def test_prepare_scale_operation_configures_vmss(self):
+    def test_prepare_scale_operation_returns_vmss_callable(self):
         node_pool = mock.MagicMock()
+        aks_sdk_client = mock.MagicMock()
+        aks_sdk_client.agent_pools.begin_create_or_update.return_value.done.return_value = True
 
         operation = prepare_scale_operation(
             node_pool,
@@ -127,10 +139,13 @@ class TestAzureNodePoolCLI(unittest.TestCase):
             "test-cluster",
             "test-pool",
             3,
+            aks_sdk_client,
         )
 
-        self.assertIsNone(operation)
+        self.assertTrue(callable(operation))
         self.assertEqual(node_pool.count, 3)
+        operation()
+        aks_sdk_client.agent_pools.begin_create_or_update.assert_called_once()
 
     def test_prepare_scale_operation_returns_virtual_machines_callable(self):
         operation = prepare_scale_operation(
@@ -140,6 +155,7 @@ class TestAzureNodePoolCLI(unittest.TestCase):
             "test-cluster",
             "test-pool",
             3,
+            mock.MagicMock(),
         )
 
         self.assertTrue(callable(operation))

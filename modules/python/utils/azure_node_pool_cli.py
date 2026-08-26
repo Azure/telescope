@@ -4,14 +4,16 @@ import subprocess
 import time
 from functools import partial
 
+from utils.constants import AzureNodePoolTypeConstants
 from utils.logger_config import get_logger
+from utils.provisioning_instrumentation import begin_create_or_update_with_retry
 
 logger = get_logger(__name__)
 
 
 def get_node_pool_scale_state(node_pool, node_pool_type):
     """Return current node count and VM size for VMSS or VirtualMachines pools."""
-    if node_pool_type != "VirtualMachines":
+    if node_pool_type != AzureNodePoolTypeConstants.VIRTUAL_MACHINES:
         return node_pool.count, node_pool.vm_size
 
     profile = node_pool.virtual_machines_profile
@@ -40,7 +42,7 @@ def build_add_virtual_machines_command(
         "--name", node_pool_name,
         "--node-count", str(node_count),
         "--vm-sizes", vm_size,
-        "--vm-set-type", "VirtualMachines",
+        "--vm-set-type", AzureNodePoolTypeConstants.VIRTUAL_MACHINES,
         "--mode", "User",
         "--node-osdisk-type", "Managed",
     ]
@@ -136,12 +138,25 @@ def prepare_create_operation(
     node_pool_name,
     node_count,
     vm_size,
+    aks_sdk_client,
+    label="",
 ):
-    """Configure VMSS parameters or return a VirtualMachines create callable."""
-    if node_pool_type != "VirtualMachines":
-        parameters["count"] = node_count
-        parameters["vm_size"] = vm_size
-        return None
+    """Return a node-pool create callable for the requested pool type."""
+    if node_pool_type != AzureNodePoolTypeConstants.VIRTUAL_MACHINES:
+        sdk_parameters = {
+            **parameters,
+            "count": node_count,
+            "vm_size": vm_size,
+        }
+        return partial(
+            begin_create_or_update_with_retry,
+            aks_sdk_client,
+            resource_group,
+            cluster_name,
+            node_pool_name,
+            sdk_parameters,
+            label=label,
+        )
     if gpu_node_pool:
         raise ValueError("GPU node pools with type VirtualMachines are not supported")
     return partial(
@@ -161,11 +176,21 @@ def prepare_scale_operation(
     cluster_name,
     node_pool_name,
     node_count,
+    aks_sdk_client,
+    label="",
 ):
-    """Configure VMSS count or return a VirtualMachines scale callable."""
-    if node_pool_type != "VirtualMachines":
+    """Return a node-pool scale callable for the requested pool type."""
+    if node_pool_type != AzureNodePoolTypeConstants.VIRTUAL_MACHINES:
         node_pool.count = node_count
-        return None
+        return partial(
+            begin_create_or_update_with_retry,
+            aks_sdk_client,
+            resource_group,
+            cluster_name,
+            node_pool_name,
+            node_pool,
+            label=label,
+        )
     return partial(
         scale_virtual_machines_node_pool,
         resource_group,
@@ -183,7 +208,7 @@ def add_managed_gpu_node_pool(
     node_count,
     gpu_instance_profile=None,
     gpu_mig_strategy=None,
-    node_pool_type="VirtualMachineScaleSets",
+    node_pool_type=AzureNodePoolTypeConstants.VIRTUAL_MACHINE_SCALE_SETS,
 ):
     """Create a fully managed GPU node pool through the aks-preview CLI."""
     subprocess.run(

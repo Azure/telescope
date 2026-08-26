@@ -25,6 +25,7 @@ from azure.mgmt.containerservice import ContainerServiceClient
 # Local imports
 from utils.logger_config import get_logger, setup_logging
 from utils.common import get_env_vars
+from utils.constants import AzureNodePoolTypeConstants
 from utils.azure_node_pool_cli import (
     add_managed_gpu_node_pool as add_managed_gpu_node_pool_cli,
     get_node_pool_scale_state,
@@ -32,7 +33,7 @@ from utils.azure_node_pool_cli import (
     prepare_scale_operation,
 )
 from utils.provisioning_instrumentation import (
-    instrument_aks_nodepool_provisioning,
+    instrument_nodepool_provisioning,
 )
 from .kubernetes_client import KubernetesClient
 
@@ -70,25 +71,24 @@ class AKSClient:
     def _instrument_nodepool_provisioning(
         self,
         node_pool_name: str,
-        cluster_name: str,
-        parameters: Any,
         node_count: int,
         op,
+        arm_callable,
         label: str = "",
-        arm_callable=None,
     ) -> list:
         """Instrument ARM and Kubernetes node readiness for an AKS node pool."""
-        return instrument_aks_nodepool_provisioning(
-            aks_sdk_client=self.aks_client,
-            resource_group=self.resource_group,
-            k8s_client=self.k8s_client,
-            operation_timeout_minutes=self.operation_timeout_minutes,
+        def k8s_wait_callable():
+            return self.k8s_client.wait_for_nodes_ready(
+                node_count=node_count,
+                operation_timeout_in_minutes=self.operation_timeout_minutes,
+                label_selector=f"agentpool={node_pool_name}",
+            )
+
+        return instrument_nodepool_provisioning(
             node_pool_name=node_pool_name,
-            cluster_name=cluster_name,
-            parameters=parameters,
-            node_count=node_count,
             op=op,
             arm_callable=arm_callable,
+            k8s_wait_callable=k8s_wait_callable,
             label=label,
         )
 
@@ -289,7 +289,7 @@ class AKSClient:
         node_count: int,
         gpu_instance_profile: Optional[str] = None,
         gpu_mig_strategy: Optional[str] = None,
-        node_pool_type: str = "VirtualMachineScaleSets",
+        node_pool_type: str = AzureNodePoolTypeConstants.VIRTUAL_MACHINE_SCALE_SETS,
     ) -> None:
         """Create a fully managed GPU node pool through the aks-preview CLI."""
         add_managed_gpu_node_pool_cli(
@@ -377,7 +377,7 @@ class AKSClient:
         enable_managed_gpu: bool = False,
         gpu_instance_profile: Optional[str] = None,
         gpu_mig_strategy: Optional[str] = None,
-        node_pool_type: str = "VirtualMachineScaleSets",
+        node_pool_type: str = AzureNodePoolTypeConstants.VIRTUAL_MACHINE_SCALE_SETS,
     ) -> Any:
         """
         Create a new node pool in the AKS cluster.
@@ -437,6 +437,12 @@ class AKSClient:
                     "nodeLabels": {"gpu": "true"} if gpu_node_pool else {},
                 }
 
+                if gpu_node_pool and not enable_managed_gpu:
+                    # Managed GPU (driver bootstrap only): driver install, no NVIDIA management
+                    parameters["gpu_profile"] = {
+                        "driver": "Install",
+                    }
+
                 arm_callable = prepare_create_operation(
                     parameters,
                     node_pool_type,
@@ -446,13 +452,8 @@ class AKSClient:
                     node_pool_name,
                     node_count,
                     vm_size,
+                    self.aks_client,
                 )
-
-                if gpu_node_pool and not enable_managed_gpu:
-                    # Managed GPU (driver bootstrap only): driver install, no NVIDIA management
-                    parameters["gpu_profile"] = {
-                        "driver": "Install",
-                    }
 
                 logger.info(
                     f"Creating node pool {node_pool_name} in cluster {cluster_name}"
@@ -479,8 +480,6 @@ class AKSClient:
                 else:
                     ready_nodes = self._instrument_nodepool_provisioning(
                         node_pool_name,
-                        cluster_name,
-                        parameters,
                         node_count,
                         op,
                         arm_callable=arm_callable,
@@ -543,7 +542,7 @@ class AKSClient:
         scale_step_size: int = 1,
         gpu_instance_profile: Optional[str] = None,
         gpu_mig_strategy: Optional[str] = None,
-        node_pool_type: str = "VirtualMachineScaleSets",
+        node_pool_type: str = AzureNodePoolTypeConstants.VIRTUAL_MACHINE_SCALE_SETS,
     ) -> Any:
         """
         Scale a node pool to the specified node count.
@@ -646,6 +645,7 @@ class AKSClient:
                     cluster_name,
                     node_pool_name,
                     node_count,
+                    self.aks_client,
                 )
 
                 logger.info(f"Scaling node pool {node_pool_name} to {node_count} nodes")
@@ -657,8 +657,6 @@ class AKSClient:
                 # Run ARM and K8s readiness concurrently to capture both timings
                 ready_nodes = self._instrument_nodepool_provisioning(
                     node_pool_name,
-                    cluster_name,
-                    node_pool,
                     node_count,
                     op,
                     arm_callable=arm_callable,
@@ -790,7 +788,7 @@ class AKSClient:
         node_pool: Optional[Any] = None,
         gpu_instance_profile: Optional[str] = None,
         gpu_mig_strategy: Optional[str] = None,
-        node_pool_type: str = "VirtualMachineScaleSets",
+        node_pool_type: str = AzureNodePoolTypeConstants.VIRTUAL_MACHINE_SCALE_SETS,
     ) -> Any:
         """
         Scale a node pool progressively with specified step size
@@ -888,11 +886,13 @@ class AKSClient:
                         cluster_name,
                         node_pool_name,
                         step,
+                        self.aks_client,
+                        label=f"step {step} ",
                     )
 
                     # Run ARM and K8s readiness concurrently to capture both timings
                     ready_nodes = self._instrument_nodepool_provisioning(
-                        node_pool_name, cluster_name, node_pool, step, op,
+                        node_pool_name, step, op,
                         label=f"step {step} ",
                         arm_callable=arm_callable,
                     )

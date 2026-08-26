@@ -12,6 +12,7 @@ import time
 import yaml
 
 from clients.aks_client import AKSClient
+from utils.constants import AzureNodePoolTypeConstants
 from utils.logger_config import get_logger, setup_logging
 from utils.azure_auth import configure_credential
 
@@ -86,7 +87,7 @@ class NodePoolCRUD:
     def create_node_pool(
         self, node_pool_name, vm_size, node_count=1, gpu_node_pool=False, enable_managed_gpu=False,
         gpu_instance_profile=None, gpu_mig_strategy=None,
-        node_pool_type="VirtualMachineScaleSets",
+        node_pool_type=AzureNodePoolTypeConstants.VIRTUAL_MACHINE_SCALE_SETS,
     ):
         """
         Create a new node pool
@@ -132,7 +133,7 @@ class NodePoolCRUD:
         enable_managed_gpu=False,
         gpu_instance_profile=None,
         gpu_mig_strategy=None,
-        node_pool_type="VirtualMachineScaleSets",
+        node_pool_type=AzureNodePoolTypeConstants.VIRTUAL_MACHINE_SCALE_SETS,
     ):
         """
         Scale a node pool to specified count
@@ -208,7 +209,7 @@ class NodePoolCRUD:
         step_wait_time=30,
         gpu_instance_profile=None,
         gpu_mig_strategy=None,
-        node_pool_type="VirtualMachineScaleSets",
+        node_pool_type=AzureNodePoolTypeConstants.VIRTUAL_MACHINE_SCALE_SETS,
     ):
         """
         Unified method to perform all node pool operations: create, scale-up, scale-down, delete

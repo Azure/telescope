@@ -21,6 +21,7 @@ from crud.azure.machine_crud import MachineCRUD as AzureMachineCRUD
 from crud.aws.node_pool_crud import NodePoolCRUD as AWSNodePoolCRUD
 from crud.operation import OperationContext
 from utils.common import get_env_vars
+from utils.constants import AzureNodePoolTypeConstants
 from utils.logger_config import get_logger, setup_logging
 
 # Configure logging
@@ -111,10 +112,11 @@ def handle_node_pool_operation(node_pool_crud, args):
     # CRUD does not accept these kwargs (and has no **kwargs), so passing them for
     # --cloud aws would raise TypeError. Only forward them on Azure.
     azure_kwargs = {}
-    if args.cloud == "azure":
+    if args.cloud == "azure" and command in ("create", "scale", "all"):
         azure_kwargs = {
             "gpu_instance_profile": args.gpu_instance_profile,
             "gpu_mig_strategy": args.gpu_mig_strategy,
+            "node_pool_type": args.node_pool_type,
         }
 
     try:
@@ -128,9 +130,6 @@ def handle_node_pool_operation(node_pool_crud, args):
                 "enable_managed_gpu": args.enable_managed_gpu,
                 **azure_kwargs,
             }
-            if args.cloud == "azure":
-                create_kwargs["node_pool_type"] = args.node_pool_type
-
             result = node_pool_crud.create_node_pool(**create_kwargs)
 
         elif command == "scale":
@@ -144,9 +143,6 @@ def handle_node_pool_operation(node_pool_crud, args):
                 "enable_managed_gpu": args.enable_managed_gpu,
                 **azure_kwargs,
             }
-            if args.cloud == "azure":
-                scale_kwargs["node_pool_type"] = args.node_pool_type
-
             result = node_pool_crud.scale_node_pool(**scale_kwargs)
 
         elif command == "delete":
@@ -166,9 +162,6 @@ def handle_node_pool_operation(node_pool_crud, args):
                 "step_wait_time": args.step_wait_time,
                 **azure_kwargs,
             }
-            if args.cloud == "azure":
-                all_kwargs["node_pool_type"] = args.node_pool_type
-
             result = node_pool_crud.all(**all_kwargs)
         else:
             logger.error(f"Unsupported command: {command}")
@@ -470,8 +463,11 @@ def main():
     azure_node_pool_parser = argparse.ArgumentParser(add_help=False)
     azure_node_pool_parser.add_argument(
         "--node-pool-type",
-        choices=["VirtualMachineScaleSets", "VirtualMachines"],
-        default="VirtualMachineScaleSets",
+        choices=[
+            AzureNodePoolTypeConstants.VIRTUAL_MACHINE_SCALE_SETS,
+            AzureNodePoolTypeConstants.VIRTUAL_MACHINES,
+        ],
+        default=AzureNodePoolTypeConstants.VIRTUAL_MACHINE_SCALE_SETS,
         help="Azure node pool type (default: VirtualMachineScaleSets)",
     )
 
@@ -667,8 +663,12 @@ def main():
         if args.cloud != "azure" and (
             getattr(args, "cluster_name", None)
             or getattr(args, "exclude_managed_identity", False)
-            or getattr(args, "node_pool_type", "VirtualMachineScaleSets")
-            != "VirtualMachineScaleSets"
+            or getattr(
+                args,
+                "node_pool_type",
+                AzureNodePoolTypeConstants.VIRTUAL_MACHINE_SCALE_SETS,
+            )
+            != AzureNodePoolTypeConstants.VIRTUAL_MACHINE_SCALE_SETS
         ):
             parser.error(
                 "--cluster-name, --exclude-managed-identity, and non-default "
