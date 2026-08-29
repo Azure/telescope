@@ -855,10 +855,10 @@ class TestAKSMachineClient(unittest.TestCase):
             vm_size="Standard_D2_v3",
             timeout=60,
             batch_command_execution_times={},
+            chunk_throttle=[],
+            throttle_lock=mock.MagicMock(),
         )
-        with mock.patch.object(
-            AKSMachineClient, "_make_batch_request"
-        ) as mock_make_batch:
+        with mock.patch.object(AKSMachineClient, "_make_batch_request", return_value=0.0) as mock_make_batch:
             result = self.client._create_batch_machines(
                 request, ["m-1", "m-2", "m-3"], chunk_idx=0
             )
