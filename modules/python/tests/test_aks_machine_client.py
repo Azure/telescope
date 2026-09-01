@@ -18,16 +18,12 @@ class TestAKSMachineClient(unittest.TestCase):
         self.cs_client_patcher = mock.patch(
             "clients.aks_client.ContainerServiceClient"
         )
-        self.mi_cred_patcher = mock.patch(
-            "clients.aks_client.ManagedIdentityCredential"
-        )
         self.k8s_client_patcher = mock.patch("clients.aks_client.KubernetesClient")
         self.operation_context_getter_patcher = mock.patch(
             "clients.aks_machine_client.AKSMachineClient._get_operation_context"
         )
-
+        self.mock_credential = mock.MagicMock()
         self.cs_client_patcher.start()
-        self.mi_cred_patcher.start()
         self.mock_k8s_class = self.k8s_client_patcher.start()
         mock_get_operation_context = self.operation_context_getter_patcher.start()
         self.mock_operation_context = mock.MagicMock()
@@ -46,7 +42,7 @@ class TestAKSMachineClient(unittest.TestCase):
             subscription_id="fake-sub",
             resource_group="fake-rg",
             cluster_name="fake-cluster",
-            use_managed_identity=True,
+            credential=self.mock_credential,
             result_dir=self.test_result_dir,
         )
 
@@ -634,7 +630,7 @@ class TestAKSMachineClient(unittest.TestCase):
             AKSMachineClient(
                 subscription_id="fake-sub",
                 resource_group="fake-rg",
-                use_managed_identity=True,
+                credential=self.mock_credential,
                 result_dir=self.test_result_dir,
             )
 

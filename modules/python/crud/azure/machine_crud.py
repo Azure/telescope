@@ -16,6 +16,8 @@ import logging
 
 from clients.aks_machine_client import AKSMachineClient
 from utils.logger_config import get_logger, setup_logging
+from utils.azure_auth import configure_credential
+
 
 setup_logging()
 logger = get_logger(__name__)
@@ -40,6 +42,7 @@ class MachineCRUD:
             kube_config_file=kube_config_file,
             result_dir=result_dir,
             operation_timeout_minutes=max(1, step_timeout // 60),
+            credential=configure_credential(),
         )
         self.cluster_name = self.aks_client.get_cluster_name()
         self.result_dir = result_dir

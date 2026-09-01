@@ -13,6 +13,7 @@ import yaml
 
 from clients.aks_client import AKSClient
 from utils.logger_config import get_logger, setup_logging
+from utils.azure_auth import configure_credential
 
 # Configure logging
 setup_logging()
@@ -61,6 +62,7 @@ class NodePoolCRUD:
             kube_config_file=kube_config_file,
             result_dir=result_dir,
             operation_timeout_minutes=step_timeout / 60,  # Convert seconds to minutes
+            credential=configure_credential(),
         )
 
         if not self.aks_client:
