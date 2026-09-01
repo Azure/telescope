@@ -298,13 +298,16 @@ def validate_san_resource(
     expected_zones = [availability_zone] if availability_zone else []
     checks = {
         "location": (str(resource.get("location", "")).casefold(), location.casefold()),
-        "sku": (resource.get("sku", {}).get("name"), "Premium_LRS"),
+        "sku": (properties.get("sku", {}).get("name"), "Premium_LRS"),
         "baseSizeTiB": (properties.get("baseSizeTiB"), base_size_tib),
         "extendedCapacitySizeTiB": (
             properties.get("extendedCapacitySizeTiB", 0),
             extended_size_tib,
         ),
-        "zones": (sorted(resource.get("zones") or []), expected_zones),
+        "availabilityZones": (
+            sorted(properties.get("availabilityZones") or []),
+            expected_zones,
+        ),
         "provisioningState": (properties.get("provisioningState"), "Succeeded"),
     }
     mismatches = [
@@ -384,15 +387,15 @@ async def ensure_san(
     )
     payload = {
         "location": location,
-        "sku": {"name": "Premium_LRS", "tier": "Premium"},
         "tags": tags,
         "properties": {
+            "sku": {"name": "Premium_LRS", "tier": "Premium"},
             "baseSizeTiB": base_size_tib,
             "extendedCapacitySizeTiB": extended_size_tib,
         },
     }
     if availability_zone:
-        payload["zones"] = [availability_zone]
+        payload["properties"]["availabilityZones"] = [availability_zone]
     try:
         _, existing, _ = await client.request("GET", resource_id)
     except ArmError as error:

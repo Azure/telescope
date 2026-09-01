@@ -152,8 +152,9 @@ class DeterministicVolumeTests(unittest.TestCase):
             "id": san_id,
             "name": "san",
             "location": "southeastasia",
-            "sku": {"name": "Premium_LRS"},
             "properties": {
+                "sku": {"name": "Premium_LRS"},
+                "availabilityZones": [],
                 "baseSizeTiB": 3,
                 "extendedCapacitySizeTiB": 17,
                 "provisioningState": "Succeeded",
@@ -380,6 +381,14 @@ class AsyncProvisionWriteLimitTests(unittest.IsolatedAsyncioTestCase):
                 tags={"managed": "true"},
             )
         limiter.acquire.assert_awaited_once_with(1)
+        payload = client.request.await_args_list[1].args[2]
+        self.assertNotIn("sku", payload)
+        self.assertNotIn("zones", payload)
+        self.assertEqual(
+            {"name": "Premium_LRS", "tier": "Premium"},
+            payload["properties"]["sku"],
+        )
+        self.assertEqual(["2"], payload["properties"]["availabilityZones"])
 
     async def test_new_volume_group_consumes_write_budget(self):
         client = type("Client", (), {})()
