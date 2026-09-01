@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import asyncio
 import sys
 import unittest
 from pathlib import Path
@@ -36,6 +37,9 @@ from provision import (
     desired_volume_specs,
     ensure_san,
     ensure_volume_group,
+    inventory_named_sans,
+    inventory_san,
+    submit_volumes,
     validate_managed_inventory,
 )
 from repair import (
@@ -45,6 +49,11 @@ from repair import (
     failed_volume_records,
     recreate_volumes,
     wait_until_absent,
+)
+from configure_network_acls import (
+    ensure_volume_group_acls,
+    merged_network_acls,
+    missing_subnet_ids,
 )
 
 
@@ -276,7 +285,12 @@ class AsyncRepairTests(unittest.IsolatedAsyncioTestCase):
         limiter = HourlyWriteLimiter(10, 1)
         errors = await delete_failed_volumes(client, [self.record], limiter)
         self.assertEqual([], errors)
-        client.request.assert_awaited_once_with("DELETE", "/failed", retry_reads=False)
+        client.request.assert_awaited_once_with(
+            "DELETE",
+            "/failed",
+            retry_reads=False,
+            retry_limiter=limiter,
+        )
 
         client.list_all = AsyncMock(return_value=[])
         await wait_until_absent(client, [self.record], timeout_seconds=1)
@@ -356,8 +370,66 @@ class AsyncArmClientTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([], body["value"])
         sleep.assert_awaited_once_with(1.5)
 
+    async def test_put_throttle_retries_and_counts_retry_write(self):
+        class Response:
+            def __init__(self, status, text, headers):
+                self.status = status
+                self._text = text
+                self.headers = headers
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_):
+                return None
+
+            async def text(self):
+                return self._text
+
+        class Session:
+            def __init__(self):
+                self.responses = iter(
+                    [
+                        Response(429, "throttled", {"retry-after": "1"}),
+                        Response(201, "{}", {}),
+                    ]
+                )
+
+            def request(self, *_args, **_kwargs):
+                return next(self.responses)
+
+        client = ArmClient("sub")
+        client.session = Session()
+        client._access_token = AsyncMock(return_value="token")
+        limiter = type("Limiter", (), {})()
+        limiter.acquire = AsyncMock()
+        with patch("provision.asyncio.sleep", new=AsyncMock()) as sleep:
+            status, _, _ = await client.request(
+                "PUT",
+                "/resource",
+                {},
+                retry_reads=False,
+                retry_limiter=limiter,
+            )
+        self.assertEqual(201, status)
+        sleep.assert_awaited_once_with(1.0)
+        limiter.acquire.assert_awaited_once_with(1)
+
 
 class AsyncProvisionWriteLimitTests(unittest.IsolatedAsyncioTestCase):
+    async def test_twenty_first_concurrent_write_waits_for_next_burst_window(self):
+        limiter = HourlyWriteLimiter(100, burst_limit=20, burst_window_seconds=1.1)
+        current_time = 0.0
+
+        async def advance_clock(delay: float) -> None:
+            nonlocal current_time
+            current_time += delay
+
+        limiter._clock = lambda: current_time
+        limiter._sleep = AsyncMock(side_effect=advance_clock)
+        await asyncio.gather(*(limiter.acquire(1) for _ in range(21)))
+        limiter._sleep.assert_awaited_once_with(1.1)
+
     async def test_new_san_consumes_write_budget(self):
         client = type("Client", (), {"subscription_id": "sub"})()
         client.request = AsyncMock(
@@ -389,6 +461,25 @@ class AsyncProvisionWriteLimitTests(unittest.IsolatedAsyncioTestCase):
             payload["properties"]["sku"],
         )
         self.assertEqual(["2"], payload["properties"]["availabilityZones"])
+
+    async def test_volume_batch_acquires_one_burst_slot_per_put(self):
+        client = type("Client", (), {})()
+        client.request = AsyncMock(return_value=(201, {}, {}))
+        limiter = type("Limiter", (), {})()
+        limiter.acquire = AsyncMock()
+        accepted, errors = await submit_volumes(
+            client,
+            san_id="/subscriptions/sub/resourceGroups/rg/providers/Microsoft.ElasticSan/elasticSans/san",
+            specs=[("vg-000", f"vol-{index:04d}") for index in range(100)],
+            volume_size_gib=1,
+            batch_size=100,
+            batch_delay_seconds=0,
+            limiter=limiter,
+        )
+        self.assertEqual(100, len(accepted))
+        self.assertEqual([], errors)
+        self.assertEqual(100, limiter.acquire.await_count)
+        self.assertTrue(all(call.args == (1,) for call in limiter.acquire.await_args_list))
 
     async def test_new_volume_group_consumes_write_budget(self):
         client = type("Client", (), {})()
@@ -445,43 +536,40 @@ class AttachmentRendererTests(unittest.TestCase):
         self.assertEqual("300m", args.cpu_request)
 
     def test_attached_handles_only_include_successful_volume_attachments(self):
-        persistent_volumes = {
-            "items": [
-                {
-                    "metadata": {"name": "pv-attached"},
-                    "spec": {
-                        "csi": {"driver": "san.csi.azure.com", "volumeHandle": "RG#SAN#VG#A"}
-                    },
-                },
-                {
-                    "metadata": {"name": "pv-pending"},
-                    "spec": {
-                        "csi": {"driver": "san.csi.azure.com", "volumeHandle": "RG#SAN#VG#B"}
-                    },
-                },
-            ]
-        }
+        attached_handle = "rg#san#vg#a"
+        pending_handle = "rg#san#vg#b"
         volume_attachments = {
             "items": [
                 {
                     "spec": {
                         "attacher": "san.csi.azure.com",
-                        "source": {"persistentVolumeName": "pv-attached"},
+                        "source": {
+                            "persistentVolumeName": f"tesan-pv-{resource_suffix(attached_handle)}"
+                        },
                     },
                     "status": {"attached": True},
                 },
                 {
                     "spec": {
                         "attacher": "san.csi.azure.com",
-                        "source": {"persistentVolumeName": "pv-pending"},
+                        "source": {
+                            "persistentVolumeName": f"tesan-pv-{resource_suffix(pending_handle)}"
+                        },
                     },
                     "status": {"attached": False},
                 },
             ]
         }
-        with patch("attach.kubectl_json", side_effect=[persistent_volumes, volume_attachments]):
-            handles = attached_volume_handles("/tmp/kubeconfig")
-        self.assertEqual({"rg#san#vg#a"}, handles)
+        with patch(
+            "attach.kubectl_json", return_value=volume_attachments
+        ) as kubectl_json_mock:
+            handles = attached_volume_handles(
+                "/tmp/kubeconfig", {attached_handle, pending_handle}
+            )
+        self.assertEqual({attached_handle}, handles)
+        # PVs are derived locally, so only VolumeAttachments are listed (no get pv).
+        kubectl_json_mock.assert_called_once()
+        self.assertNotIn("pv", kubectl_json_mock.call_args.args[1])
 
     def test_resources_are_static_retain_and_cluster_scoped(self):
         record = volume_record("rg", "san", "vg-000", self.volume)
@@ -612,6 +700,106 @@ class AttachmentRendererTests(unittest.TestCase):
                 1,
             )
         self.assertEqual(2, attached)
+
+
+class InventoryNamedSansTests(unittest.IsolatedAsyncioTestCase):
+    async def test_named_san_selected_without_managed_tags(self):
+        san_id = (
+            "/subscriptions/sub/resourceGroups/rg/providers/"
+            "Microsoft.ElasticSan/elasticSans/exp"
+        )
+        sans = [
+            {"id": san_id, "name": "exp", "location": "southeastasia", "tags": None},
+            {
+                "id": san_id.replace("/exp", "/other"),
+                "name": "other",
+                "location": "southeastasia",
+                "tags": None,
+            },
+        ]
+
+        async def fake_list_all(resource_id):
+            if resource_id.endswith("/elasticSans"):
+                return sans
+            if resource_id.endswith("/volumeGroups"):
+                return [{"id": f"{san_id}/volumeGroups/sdk-vg-000", "name": "sdk-vg-000"}]
+            if resource_id.endswith("/volumes"):
+                return [{"name": "vol", "properties": {"provisioningState": "Succeeded"}}]
+            return []
+
+        client = SimpleNamespace(
+            subscription_id="sub", list_all=AsyncMock(side_effect=fake_list_all)
+        )
+        inventories = await inventory_named_sans(client, ["EXP"])
+        self.assertEqual(1, len(inventories))
+        self.assertEqual("exp", inventories[0].san.name)
+        self.assertEqual(1, inventories[0].san.volume_count)
+
+
+class NetworkAclHelperTests(unittest.TestCase):
+    @staticmethod
+    def _vg(rules):
+        return {
+            "id": "/subscriptions/s/resourceGroups/rg/providers/Microsoft.ElasticSan"
+            "/elasticSans/e/volumeGroups/sdk-vg-000",
+            "name": "sdk-vg-000",
+            "properties": {"networkAcls": {"virtualNetworkRules": rules}},
+        }
+
+    def test_missing_subnet_ids_is_case_insensitive(self):
+        vg = self._vg([{"id": "/subs/AKS", "action": "Allow"}])
+        self.assertEqual([], missing_subnet_ids(vg, ("/subs/aks",)))
+        self.assertEqual(["/subs/new"], missing_subnet_ids(vg, ("/subs/aks", "/subs/new")))
+
+    def test_missing_subnet_ids_handles_absent_acls(self):
+        self.assertEqual(["/subs/a"], missing_subnet_ids({"properties": {}}, ("/subs/a",)))
+
+    def test_merged_network_acls_preserves_existing_rules(self):
+        vg = self._vg([{"id": "/subs/keep", "action": "Allow"}])
+        merged = merged_network_acls(vg, ["/subs/new"])
+        self.assertEqual(
+            ["/subs/keep", "/subs/new"],
+            [rule["id"] for rule in merged["virtualNetworkRules"]],
+        )
+
+
+class AsyncNetworkAclTests(unittest.IsolatedAsyncioTestCase):
+    @staticmethod
+    def _vg(rules):
+        return {
+            "id": "/subscriptions/s/resourceGroups/rg/providers/Microsoft.ElasticSan"
+            "/elasticSans/e/volumeGroups/sdk-vg-000",
+            "name": "sdk-vg-000",
+            "properties": {"networkAcls": {"virtualNetworkRules": rules}},
+        }
+
+    async def test_skips_when_subnet_already_allowed(self):
+        client = SimpleNamespace(request=AsyncMock())
+        limiter = SimpleNamespace(acquire=AsyncMock())
+        vg = self._vg([{"id": "/subs/aks", "action": "Allow"}])
+        action = await ensure_volume_group_acls(
+            client, limiter, volume_group=vg, subnet_ids=("/subs/aks",)
+        )
+        self.assertEqual("skipped", action)
+        client.request.assert_not_awaited()
+        limiter.acquire.assert_not_awaited()
+
+    async def test_patches_missing_subnet_and_preserves_existing(self):
+        client = SimpleNamespace(request=AsyncMock(return_value=(200, {}, {})))
+        limiter = SimpleNamespace(acquire=AsyncMock())
+        vg = self._vg([{"id": "/subs/keep", "action": "Allow"}])
+        action = await ensure_volume_group_acls(
+            client, limiter, volume_group=vg, subnet_ids=("/subs/aks",)
+        )
+        self.assertEqual("updated", action)
+        limiter.acquire.assert_awaited_once()
+        self.assertEqual("PATCH", client.request.await_args.args[0])
+        self.assertEqual(vg["id"], client.request.await_args.args[1])
+        body = client.request.await_args.args[2]
+        self.assertEqual(
+            ["/subs/keep", "/subs/aks"],
+            [rule["id"] for rule in body["properties"]["networkAcls"]["virtualNetworkRules"]],
+        )
 
 
 if __name__ == "__main__":

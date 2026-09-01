@@ -78,6 +78,9 @@ records selected unattached volumes, Ready Pods, and successful VolumeAttachment
 - `max_volume_writes_per_hour` is a per-stage client-side rolling-window budget for SAN, VG,
   Volume PUT, and Repair DELETE operations. The 3,610-second window defaults to 3,000 writes,
   leaving 600 writes of headroom below the subscription's 3,600 writes/hour limit.
+- Writes are additionally paced to at most 20 requests per 1.1 seconds to stay below the
+  Storage RP one-second observation window. Idempotent PUT/DELETE requests retry transient
+  429 and 5xx responses, honoring `Retry-After`; every retry also consumes both budgets.
 - The limiter is local to one Provision or Repair job. Separate pipeline runs and stages do not
   share counters, so do not overlap runs for the same subscription. Prefer a separate Repair run
   after Provision when the preceding hour used the full write budget.

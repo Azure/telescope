@@ -44,6 +44,8 @@ from esan_common import (
 API_VERSION = "2023-01-01"
 ARM_ENDPOINT = "https://management.azure.com"
 MAX_SUBSCRIPTION_WRITES_PER_HOUR = 3_600
+MAX_WRITES_PER_BURST = 20
+BURST_WINDOW_SECONDS = 1.1
 
 
 @dataclass
@@ -130,6 +132,7 @@ class ArmClient:
         payload: dict[str, Any] | None = None,
         *,
         retry_reads: bool = True,
+        retry_limiter: HourlyWriteLimiter | None = None,
     ) -> tuple[int, dict[str, Any], dict[str, str]]:
         if not self.session:
             raise RuntimeError("ArmClient must be used as an async context manager")
@@ -139,7 +142,8 @@ class ArmClient:
             else self.url(resource_id_or_url)
         )
         method = method.upper()
-        attempts = 8 if method == "GET" and retry_reads else 1
+        retry_transient = (method == "GET" and retry_reads) or retry_limiter is not None
+        attempts = 8 if retry_transient else 1
         for attempt in range(attempts):
             token = await self._access_token()
             async with self.session.request(
@@ -164,7 +168,14 @@ class ArmClient:
                             delay = float(headers["x-ms-retry-after-ms"]) / 1_000
                         except (KeyError, ValueError):
                             delay = min(2**attempt, 30)
+                    print(
+                        f"[arm-retry] {method} status={response.status} "
+                        f"attempt={attempt + 1}/{attempts} delay={delay:.3f}s",
+                        flush=True,
+                    )
                     await asyncio.sleep(delay)
+                    if retry_limiter is not None:
+                        await retry_limiter.acquire(1)
                     continue
                 raise ArmError(response.status, method, url, text)
         raise AssertionError("unreachable")
@@ -180,33 +191,72 @@ class ArmClient:
 
 
 class HourlyWriteLimiter:
-    def __init__(self, limit: int, window_seconds: int = 3_610):
-        if not 1 <= limit <= MAX_SUBSCRIPTION_WRITES_PER_HOUR or window_seconds < 1:
+    def __init__(
+        self,
+        limit: int,
+        window_seconds: int = 3_610,
+        burst_limit: int = MAX_WRITES_PER_BURST,
+        burst_window_seconds: float = BURST_WINDOW_SECONDS,
+    ):
+        if (
+            not 1 <= limit <= MAX_SUBSCRIPTION_WRITES_PER_HOUR
+            or window_seconds < 1
+            or burst_limit < 1
+            or burst_window_seconds <= 0
+        ):
             raise ValueError(
                 f"write limit must be between 1 and {MAX_SUBSCRIPTION_WRITES_PER_HOUR}; "
-                "window must be positive"
+                "write windows and burst limit must be positive"
             )
         self.limit = limit
         self.window_seconds = window_seconds
+        self.burst_limit = burst_limit
+        self.burst_window_seconds = burst_window_seconds
         self.timestamps: deque[float] = deque()
+        self.burst_timestamps: deque[float] = deque()
+        self._lock = asyncio.Lock()
+        self._clock = time.monotonic
+        self._sleep = asyncio.sleep
 
     async def acquire(self, count: int) -> None:
-        if count > self.limit:
-            raise ValueError(f"batch of {count} exceeds hourly limit {self.limit}")
-        while True:
-            now = time.monotonic()
-            while self.timestamps and now - self.timestamps[0] >= self.window_seconds:
-                self.timestamps.popleft()
-            if len(self.timestamps) + count <= self.limit:
-                self.timestamps.extend([now] * count)
-                return
-            wait_seconds = self.window_seconds - (now - self.timestamps[0]) + 1
-            print(
-                f"[rate-limit] {len(self.timestamps)} writes in local window; "
-                f"waiting {wait_seconds:.0f}s",
-                flush=True,
+        if count > self.limit or count > self.burst_limit:
+            raise ValueError(
+                f"batch of {count} exceeds hourly limit {self.limit} "
+                f"or burst limit {self.burst_limit}"
             )
-            await asyncio.sleep(wait_seconds)
+        async with self._lock:
+            while True:
+                now = self._clock()
+                while self.timestamps and now - self.timestamps[0] >= self.window_seconds:
+                    self.timestamps.popleft()
+                while (
+                    self.burst_timestamps
+                    and now - self.burst_timestamps[0] >= self.burst_window_seconds
+                ):
+                    self.burst_timestamps.popleft()
+
+                hourly_blocked = len(self.timestamps) + count > self.limit
+                burst_blocked = len(self.burst_timestamps) + count > self.burst_limit
+                if not hourly_blocked and not burst_blocked:
+                    self.timestamps.extend([now] * count)
+                    self.burst_timestamps.extend([now] * count)
+                    return
+
+                waits = []
+                if hourly_blocked:
+                    waits.append(self.window_seconds - (now - self.timestamps[0]) + 1)
+                if burst_blocked:
+                    waits.append(
+                        self.burst_window_seconds - (now - self.burst_timestamps[0])
+                    )
+                wait_seconds = max(waits)
+                print(
+                    f"[rate-limit] hourly={len(self.timestamps)}/{self.limit} "
+                    f"burst={len(self.burst_timestamps)}/{self.burst_limit}; "
+                    f"waiting {wait_seconds:.3f}s",
+                    flush=True,
+                )
+                await self._sleep(wait_seconds)
 
 
 def utc_now() -> str:
@@ -227,6 +277,31 @@ def tag_value(tags: dict[str, Any] | None, key: str, default: str = "") -> str:
     return default
 
 
+async def inventory_san(client: ArmClient, san: dict[str, Any]) -> SanInventory:
+    groups = await client.list_all(f"{san['id']}/volumeGroups")
+    group_resources = {group["name"]: group for group in groups}
+    group_volumes: dict[str, list[dict[str, Any]]] = {}
+    for group in groups:
+        group_volumes[group["name"]] = await client.list_all(f"{group['id']}/volumes")
+        await asyncio.sleep(0.1)
+    tags = {str(key): str(value) for key, value in (san.get("tags") or {}).items()}
+    return SanInventory(
+        san=ManagedSan(
+            name=san["name"],
+            resource_group=resource_group_from_id(san["id"]),
+            location=san["location"],
+            index=int(tag_value(tags, SAN_INDEX_TAG, "-1")),
+            geometry=tag_value(tags, GEOMETRY_TAG),
+            volume_count=sum(len(volumes) for volumes in group_volumes.values()),
+        ),
+        resource_id=san["id"],
+        tags=tags,
+        resource=san,
+        group_resources=group_resources,
+        groups=group_volumes,
+    )
+
+
 async def inventory_managed_sans(
     client: ArmClient,
     cluster_uid: str,
@@ -242,34 +317,26 @@ async def inventory_managed_sans(
         if tag_value(san.get("tags"), MANAGED_BY_TAG) == MANAGED_BY_VALUE
         and tag_value(san.get("tags"), CLUSTER_UID_TAG).casefold() == cluster_uid.casefold()
     ]
-
-    async def inventory(san: dict[str, Any]) -> SanInventory:
-        groups = await client.list_all(f"{san['id']}/volumeGroups")
-        group_resources = {group["name"]: group for group in groups}
-        group_volumes: dict[str, list[dict[str, Any]]] = {}
-        for group in groups:
-            group_volumes[group["name"]] = await client.list_all(f"{group['id']}/volumes")
-            await asyncio.sleep(0.1)
-        tags = {str(key): str(value) for key, value in (san.get("tags") or {}).items()}
-        return SanInventory(
-            san=ManagedSan(
-                name=san["name"],
-                resource_group=resource_group_from_id(san["id"]),
-                location=san["location"],
-                index=int(tag_value(tags, SAN_INDEX_TAG, "-1")),
-                geometry=tag_value(tags, GEOMETRY_TAG),
-                volume_count=sum(len(volumes) for volumes in group_volumes.values()),
-            ),
-            resource_id=san["id"],
-            tags=tags,
-            resource=san,
-            group_resources=group_resources,
-            groups=group_volumes,
-        )
-
     inventories: list[SanInventory] = []
     for san in managed:
-        inventories.append(await inventory(san))
+        inventories.append(await inventory_san(client, san))
+    return inventories
+
+
+async def inventory_named_sans(
+    client: ArmClient,
+    names: list[str],
+    sans: list[dict[str, Any]] | None = None,
+) -> list[SanInventory]:
+    if sans is None:
+        sans = await client.list_all(
+            f"/subscriptions/{client.subscription_id}/providers/Microsoft.ElasticSan/elasticSans"
+        )
+    wanted = {name.casefold() for name in names}
+    matched = [san for san in sans if str(san.get("name", "")).casefold() in wanted]
+    inventories: list[SanInventory] = []
+    for san in matched:
+        inventories.append(await inventory_san(client, san))
     return inventories
 
 
@@ -419,7 +486,13 @@ async def ensure_san(
         return resource_id
     print(f"[san] creating {name} at {utc_now()}", flush=True)
     await limiter.acquire(1)
-    await client.request("PUT", resource_id, payload, retry_reads=False)
+    await client.request(
+        "PUT",
+        resource_id,
+        payload,
+        retry_reads=False,
+        retry_limiter=limiter,
+    )
     await wait_succeeded(client, resource_id)
     return resource_id
 
@@ -442,7 +515,13 @@ async def ensure_volume_group(
             "virtualNetworkRules": [{"id": subnet, "action": "Allow"} for subnet in subnet_ids]
         }
     await limiter.acquire(1)
-    await client.request("PUT", resource_id, {"properties": properties}, retry_reads=False)
+    await client.request(
+        "PUT",
+        resource_id,
+        {"properties": properties},
+        retry_reads=False,
+        retry_limiter=limiter,
+    )
     await wait_succeeded(client, resource_id)
     return resource_id
 
@@ -486,11 +565,13 @@ async def submit_volumes(
     async def create(group: str, volume: str) -> None:
         resource_id = f"{san_id}/volumeGroups/{quote(group)}/volumes/{quote(volume)}"
         try:
+            await limiter.acquire(1)
             status, _, _ = await client.request(
                 "PUT",
                 resource_id,
                 {"properties": {"sizeGiB": volume_size_gib}},
                 retry_reads=False,
+                retry_limiter=limiter,
             )
             accepted.append((group, volume))
             if status not in (200, 201, 202):
@@ -503,7 +584,6 @@ async def submit_volumes(
         volumes = sorted(by_group[group])
         for start in range(0, len(volumes), batch_size):
             batch = volumes[start : start + batch_size]
-            await limiter.acquire(len(batch))
             print(
                 f"[batch] {group} {start // batch_size + 1}: submitting {len(batch)} at {utc_now()}",
                 flush=True,
@@ -593,6 +673,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--availability-zone", default="")
     parser.add_argument("--subnet-id", action="append", default=[])
     parser.add_argument("--max-volume-writes-per-hour", type=int, default=3_000)
+    parser.add_argument(
+        "--max-volume-writes-per-burst", type=int, default=MAX_WRITES_PER_BURST
+    )
+    parser.add_argument(
+        "--burst-window-seconds", type=float, default=BURST_WINDOW_SECONDS
+    )
     parser.add_argument("--batch-size", type=int, default=100)
     parser.add_argument("--batch-delay-seconds", type=float, default=1.0)
     parser.add_argument("--validation-timeout-seconds", type=int, default=1_800)
@@ -744,7 +830,11 @@ async def async_main(args: argparse.Namespace) -> int:
         all_records: list[dict[str, Any]] = []
         submit_errors: list[dict[str, Any]] = []
         validation_work: list[tuple[str, str, list[tuple[str, str]]]] = []
-        limiter = HourlyWriteLimiter(args.max_volume_writes_per_hour)
+        limiter = HourlyWriteLimiter(
+            args.max_volume_writes_per_hour,
+            burst_limit=args.max_volume_writes_per_burst,
+            burst_window_seconds=args.burst_window_seconds,
+        )
         run_started = utc_now()
         submit_started_monotonic = time.monotonic()
         submit_started = utc_now()

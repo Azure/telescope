@@ -146,6 +146,8 @@ PYTHONPATH="${PYTHON_DEPS}" python3 "${WORKLOAD_DIR}/provision.py" \\
     --extended-size-tib "$PARAM_EXTENDED_SIZE_TIB" \\
     --availability-zone "$PARAM_AVAILABILITY_ZONE" \\
     --max-volume-writes-per-hour "$PARAM_MAX_VOLUME_WRITES_PER_HOUR" \\
+    --max-volume-writes-per-burst "$PARAM_MAX_VOLUME_WRITES_PER_BURST" \\
+    --burst-window-seconds "$PARAM_BURST_WINDOW_SECONDS" \\
     --batch-size "100" \\
     --batch-delay-seconds "1" \\
     --validation-timeout-seconds "1800" \\
@@ -161,6 +163,8 @@ PYTHONPATH="${PYTHON_DEPS}" python3 "${WORKLOAD_DIR}/repair.py" \\
     --cluster-info "${RESULT_ROOT}/cluster.json" \\
     --kubeconfig "${KUBECONFIG}" \\
     --max-volume-writes-per-hour "$PARAM_MAX_VOLUME_WRITES_PER_HOUR" \\
+    --max-volume-writes-per-burst "$PARAM_MAX_VOLUME_WRITES_PER_BURST" \\
+    --burst-window-seconds "$PARAM_BURST_WINDOW_SECONDS" \\
     --target-total-volumes "$PARAM_TARGET_TOTAL_VOLUMES" \\
     --volume-groups-per-san "$PARAM_VOLUME_GROUPS_PER_SAN" \\
     --volumes-per-group "$PARAM_VOLUMES_PER_GROUP" \\
@@ -172,10 +176,15 @@ PYTHONPATH="${PYTHON_DEPS}" python3 "${WORKLOAD_DIR}/repair.py" \\
 
 attachScript = """
 mkdir -p "${RESULT_ROOT}/attach"
+include_args=""
+if [ -n "$PARAM_INCLUDE_SAN_NAMES" ]; then
+  include_args="--include-san-name $PARAM_INCLUDE_SAN_NAMES"
+fi
 PYTHONPATH="${PYTHON_DEPS}" python3 "${WORKLOAD_DIR}/attach.py" \\
     --cluster-info "${RESULT_ROOT}/cluster.json" \\
     --kubeconfig "${KUBECONFIG}" \\
     --attach-limit "$PARAM_ATTACH_LIMIT" \\
+    $include_args \\
     --workload-node-selector "kubernetes.azure.com/mode=user" \\
     --pods-per-node "$PARAM_PODS_PER_NODE" \\
     --pod-slot-headroom "10" \\
@@ -269,10 +278,28 @@ output = ap.Pipeline {
             default = 3000
         }
         ap.Parameter {
+            name = "max_volume_writes_per_burst"
+            displayName = "Client-side Elastic SAN writes allowed per burst window"
+            type = "number"
+            default = 20
+        }
+        ap.Parameter {
+            name = "burst_window_seconds"
+            displayName = "Burst window length in seconds for the write limiter"
+            type = "number"
+            default = 1.1
+        }
+        ap.Parameter {
             name = "attach_limit"
             displayName = "Successful managed volumes to attach (0 means all)"
             type = "number"
             default = 0
+        }
+        ap.Parameter {
+            name = "include_san_names"
+            displayName = "Also attach an extra SAN by name (e.g. experiment SAN; empty to skip)"
+            type = "string"
+            default = ""
         }
         ap.Parameter {
             name = "pods_per_node"
@@ -351,6 +378,8 @@ output = ap.Pipeline {
                             PARAM_EXTENDED_SIZE_TIB = "\${{ parameters.extended_size_tib }}"
                             PARAM_AVAILABILITY_ZONE = "\${{ parameters.availability_zone }}"
                             PARAM_MAX_VOLUME_WRITES_PER_HOUR = "\${{ parameters.max_volume_writes_per_hour }}"
+                            PARAM_MAX_VOLUME_WRITES_PER_BURST = "\${{ parameters.max_volume_writes_per_burst }}"
+                            PARAM_BURST_WINDOW_SECONDS = "\${{ parameters.burst_window_seconds }}"
                         }),
                     publishArtifact("${RESULT_ROOT}/provision", "elastic-san-provision"),
                     cleanupAgent(),
@@ -377,6 +406,8 @@ output = ap.Pipeline {
                         repairScript,
                         {
                             PARAM_MAX_VOLUME_WRITES_PER_HOUR = "\${{ parameters.max_volume_writes_per_hour }}"
+                            PARAM_MAX_VOLUME_WRITES_PER_BURST = "\${{ parameters.max_volume_writes_per_burst }}"
+                            PARAM_BURST_WINDOW_SECONDS = "\${{ parameters.burst_window_seconds }}"
                             PARAM_TARGET_TOTAL_VOLUMES = "\${{ parameters.target_total_volumes }}"
                             PARAM_VOLUME_GROUPS_PER_SAN = "\${{ parameters.volume_groups_per_san }}"
                             PARAM_VOLUMES_PER_GROUP = "\${{ parameters.volumes_per_group }}"
@@ -407,6 +438,7 @@ output = ap.Pipeline {
                         attachScript,
                         {
                             PARAM_ATTACH_LIMIT = "\${{ parameters.attach_limit }}"
+                            PARAM_INCLUDE_SAN_NAMES = "\${{ parameters.include_san_names }}"
                             PARAM_PODS_PER_NODE = "\${{ parameters.pods_per_node }}"
                             PARAM_POD_IMAGE = "\${{ parameters.pod_image }}"
                             PARAM_POD_CPU_REQUEST = "\${{ parameters.pod_cpu_request }}"

@@ -22,6 +22,8 @@ from esan_common import (
     write_json,
 )
 from provision import (
+    BURST_WINDOW_SECONDS,
+    MAX_WRITES_PER_BURST,
     ArmClient,
     HourlyWriteLimiter,
     aggregate_records,
@@ -151,7 +153,12 @@ async def delete_failed_volumes(
 
     async def delete(record: dict[str, Any]) -> None:
         try:
-            await client.request("DELETE", record["resource_id"], retry_reads=False)
+            await client.request(
+                "DELETE",
+                record["resource_id"],
+                retry_reads=False,
+                retry_limiter=limiter,
+            )
         except Exception as error:
             errors.append(
                 {
@@ -245,6 +252,7 @@ async def recreate_volumes(
                 resource_id,
                 {"properties": {"sizeGiB": record["size_gib"]}},
                 retry_reads=False,
+                retry_limiter=limiter,
             )
         except Exception as error:
             errors.append(
@@ -296,6 +304,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--cluster-info", type=Path, required=True)
     parser.add_argument("--kubeconfig", required=True)
     parser.add_argument("--max-volume-writes-per-hour", type=int, default=3_000)
+    parser.add_argument(
+        "--max-volume-writes-per-burst", type=int, default=MAX_WRITES_PER_BURST
+    )
+    parser.add_argument(
+        "--burst-window-seconds", type=float, default=BURST_WINDOW_SECONDS
+    )
     parser.add_argument("--target-total-volumes", type=int, required=True)
     parser.add_argument("--volume-groups-per-san", type=int, required=True)
     parser.add_argument("--volumes-per-group", type=int, required=True)
@@ -314,7 +328,11 @@ async def async_main(args: argparse.Namespace) -> int:
     cluster = load_cluster_info(args.cluster_info)
     shard_capacity = validate_geometry(args.volume_groups_per_san, args.volumes_per_group)
     geometry = geometry_key(args.volume_groups_per_san, args.volumes_per_group)
-    limiter = HourlyWriteLimiter(args.max_volume_writes_per_hour)
+    limiter = HourlyWriteLimiter(
+        args.max_volume_writes_per_hour,
+        burst_limit=args.max_volume_writes_per_burst,
+        burst_window_seconds=args.burst_window_seconds,
+    )
     started_utc = utc_now()
     started = time.monotonic()
     rounds: list[dict[str, Any]] = []

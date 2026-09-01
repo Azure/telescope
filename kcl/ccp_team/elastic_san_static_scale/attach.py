@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from esan_common import CSI_DRIVER, canonical_handle, load_cluster_info, resolve_cluster, write_json
-from provision import ArmClient, inventory_managed_sans, utc_now
+from provision import ArmClient, inventory_managed_sans, inventory_named_sans, utc_now
 
 
 def kubectl_json(kubeconfig: str, arguments: list[str]) -> dict[str, Any]:
@@ -60,23 +60,22 @@ def resource_suffix(handle: str) -> str:
     return hashlib.sha256(handle.encode()).hexdigest()[:20]
 
 
-def attached_volume_handles(kubeconfig: str) -> set[str]:
-    persistent_volumes = kubectl_json(kubeconfig, ["get", "pv"])
-    volume_attachments = kubectl_json(kubeconfig, ["get", "volumeattachments"])
-    handles_by_pv = {
-        item["metadata"]["name"]: csi["volumeHandle"].casefold()
-        for item in persistent_volumes.get("items", [])
-        if (csi := item.get("spec", {}).get("csi"))
-        and csi.get("driver") == CSI_DRIVER
-        and csi.get("volumeHandle")
-    }
+def attached_volume_handles(kubeconfig: str, handles: set[str]) -> set[str]:
+    # PV names are derived deterministically from the handle (see build_resources),
+    # so map them locally instead of listing every PV in the cluster.
+    handle_by_pv_name = {f"tesan-pv-{resource_suffix(handle)}": handle for handle in handles}
+    if not handle_by_pv_name:
+        return set()
+    volume_attachments = kubectl_json(
+        kubeconfig, ["get", "volumeattachments", "--chunk-size", "500"]
+    )
     return {
-        handles_by_pv[persistent_volume]
+        handle_by_pv_name[persistent_volume]
         for item in volume_attachments.get("items", [])
         if item.get("spec", {}).get("attacher") == CSI_DRIVER
         and item.get("status", {}).get("attached") is True
         and (persistent_volume := item.get("spec", {}).get("source", {}).get("persistentVolumeName"))
-        in handles_by_pv
+        in handle_by_pv_name
     }
 
 
@@ -363,7 +362,7 @@ def wait_attached(
 ) -> int:
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
-        attached = attached_volume_handles(kubeconfig)
+        attached = attached_volume_handles(kubeconfig, expected_handles)
         attached_count = len(expected_handles & attached)
         print(
             f"[attach] volumeattachments={attached_count}/{len(expected_handles)}"
@@ -383,6 +382,12 @@ def parse_args() -> argparse.Namespace:
     cluster.add_argument("--cluster-info", type=Path, help="Resolved cluster JSON from the pipeline")
     parser.add_argument("--kubeconfig", required=True)
     parser.add_argument("--attach-limit", type=int, default=0, help="0 attaches all successful volumes")
+    parser.add_argument(
+        "--include-san-name",
+        action="append",
+        default=[],
+        help="Also attach volumes from these SANs by name (managed tag not required)",
+    )
     parser.add_argument("--workload-node-selector", default="kubernetes.azure.com/mode=user")
     parser.add_argument("--pods-per-node", type=int, default=150)
     parser.add_argument("--pod-slot-headroom", type=int, default=10)
@@ -413,6 +418,13 @@ async def async_main(args: argparse.Namespace) -> int:
     )
     async with ArmClient(cluster.subscription_id) as client:
         inventories = await inventory_managed_sans(client, cluster.resource_uid)
+        if args.include_san_name:
+            named = await inventory_named_sans(client, args.include_san_name)
+            seen = {item.resource_id for item in inventories}
+            for item in named:
+                if item.resource_id not in seen:
+                    inventories.append(item)
+                    seen.add(item.resource_id)
 
     records = []
     failed_or_unready = 0
@@ -427,7 +439,9 @@ async def async_main(args: argparse.Namespace) -> int:
                 else:
                     failed_or_unready += 1
     records.sort(key=lambda item: item["handle"])
-    already_attached = attached_volume_handles(args.kubeconfig)
+    already_attached = attached_volume_handles(
+        args.kubeconfig, {record["handle"] for record in records}
+    )
     successful_managed_count = len(records)
     records = [record for record in records if record["handle"] not in already_attached]
     unattached_count = len(records)
