@@ -1,0 +1,525 @@
+name: Elastic SAN Static Scale
+pool: AKS-Telescope-Airlock
+trigger: none
+parameters:
+- name: cluster_id
+  displayName: Existing AKS ARM resource ID
+  type: string
+  default: none
+- name: run_provision
+  displayName: Run static volume provisioning
+  type: boolean
+  default: false
+- name: run_repair
+  displayName: Repair failed managed volumes
+  type: boolean
+  default: false
+- name: run_attach
+  displayName: Attach currently unattached managed volumes
+  type: boolean
+  default: false
+- name: target_total_volumes
+  displayName: Desired total ESAN volumes (existing cluster plus managed SANs)
+  type: number
+  default: 40000
+- name: volume_groups_per_san
+  displayName: Volume groups per new SAN
+  type: number
+  default: 200
+- name: volumes_per_group
+  displayName: Volumes per volume group
+  type: number
+  default: 100
+- name: volume_size_gib
+  displayName: Volume size (GiB)
+  type: number
+  default: 1
+- name: base_size_tib
+  displayName: New SAN base capacity (TiB)
+  type: number
+  default: 3
+- name: extended_size_tib
+  displayName: New SAN extended capacity (TiB)
+  type: number
+  default: 17
+- name: availability_zone
+  displayName: New SAN availability zone (empty disables zonal placement)
+  type: string
+  default: '2'
+- name: max_volume_writes_per_hour
+  displayName: Client-side Elastic SAN write budget per rolling hour
+  type: number
+  default: 3000
+- name: attach_limit
+  displayName: Successful managed volumes to attach (0 means all)
+  type: number
+  default: 0
+- name: pods_per_node
+  displayName: Attachment Pods per node
+  type: number
+  default: 150
+- name: pod_image
+  displayName: Attachment Pod image
+  type: string
+  default: mcr.microsoft.com/azurelinux/busybox:1.36
+- name: pod_cpu_request
+  displayName: Attachment Pod CPU request
+  type: string
+  default: '10m'
+- name: pod_memory_request
+  displayName: Attachment Pod memory request
+  type: string
+  default: '32Mi'
+- name: attach_timeout_seconds
+  displayName: Attachment readiness timeout
+  type: number
+  default: 14400
+stages:
+- stage: validate_cluster
+  displayName: Validate existing AKS cluster
+  jobs:
+  - job: resolve_cluster
+    displayName: Resolve cluster resourceUid
+    timeoutInMinutes: 15
+    steps:
+    - bash: mkdir -p '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/resolve' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/provision' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/repair' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/attach'
+      displayName: Prepare result directories
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          resolve_cluster() {
+              local cluster_id="$1"
+              local output="$2"
+              local cluster_id_lower
+              local arm_subscription
+              local cluster_name
+              local resource_group
+              local raw
+
+              if [ -z "$cluster_id" ] || [ "$cluster_id" = "none" ]; then
+                  echo "cluster_id must be a full AKS ARM resource ID" >&2
+                  return 1
+              fi
+
+              raw=$(mktemp)
+              cluster_id_lower=$(printf '%s' "$cluster_id" | tr '[:upper:]' '[:lower:]')
+              if [[ ! "$cluster_id_lower" =~ ^/subscriptions/[^/]+/resourcegroups/[^/]+/providers/microsoft.containerservice/managedclusters/[^/]+$ ]]; then
+                  echo "invalid AKS ARM resource ID: $cluster_id" >&2
+                  rm -f "$raw"
+                  return 1
+              fi
+              arm_subscription=$(printf '%s' "$cluster_id" | cut -d/ -f3)
+              resource_group=$(printf '%s' "$cluster_id" | cut -d/ -f5)
+              cluster_name=$(printf '%s' "$cluster_id" | cut -d/ -f9)
+              az account set --subscription "$arm_subscription"
+              az aks show \
+                  --subscription "$arm_subscription" \
+                  --resource-group "$resource_group" \
+                  --name "$cluster_name" \
+                  -o json > "$raw"
+
+              jq --arg subscription_id "$arm_subscription" '{
+                  subscription_id: $subscription_id,
+                  name: .name,
+                  resource_group: .resourceGroup,
+                  node_resource_group: .nodeResourceGroup,
+                  location: .location,
+                  resource_uid: (.resourceUid // error("AKS resourceUid is missing")),
+                  subnet_ids: ([.agentPoolProfiles[]?.vnetSubnetId | select(. != null and . != "")] | unique | sort)
+              }' "$raw" > "${output}.tmp"
+              mv "${output}.tmp" "$output"
+              rm -f "$raw"
+          }
+
+          mkdir -p "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/resolve"
+          resolve_cluster \
+              "$PARAM_CLUSTER_ID" \
+              "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/resolve/cluster.json"
+          cat "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/resolve/cluster.json"
+      displayName: Resolve existing cluster
+      env:
+        PARAM_CLUSTER_ID: ${{ parameters.cluster_id }}
+    - task: PublishPipelineArtifact@1
+      inputs:
+        targetPath: $(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/resolve
+        artifact: elastic-san-resolve
+      condition: always()
+      displayName: Publish elastic-san-resolve results
+- stage: provision
+  displayName: Static Elastic SAN provision
+  dependsOn:
+  - validate_cluster
+  condition: and(succeeded(), ${{ parameters.run_provision }})
+  jobs:
+  - job: provision_static_volumes
+    displayName: Provision static volumes
+    timeoutInMinutes: 2880
+    steps:
+    - bash: mkdir -p '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/resolve' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/provision' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/repair' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/attach'
+      displayName: Prepare result directories
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          resolve_cluster() {
+              local cluster_id="$1"
+              local output="$2"
+              local cluster_id_lower
+              local arm_subscription
+              local cluster_name
+              local resource_group
+              local raw
+
+              if [ -z "$cluster_id" ] || [ "$cluster_id" = "none" ]; then
+                  echo "cluster_id must be a full AKS ARM resource ID" >&2
+                  return 1
+              fi
+
+              raw=$(mktemp)
+              cluster_id_lower=$(printf '%s' "$cluster_id" | tr '[:upper:]' '[:lower:]')
+              if [[ ! "$cluster_id_lower" =~ ^/subscriptions/[^/]+/resourcegroups/[^/]+/providers/microsoft.containerservice/managedclusters/[^/]+$ ]]; then
+                  echo "invalid AKS ARM resource ID: $cluster_id" >&2
+                  rm -f "$raw"
+                  return 1
+              fi
+              arm_subscription=$(printf '%s' "$cluster_id" | cut -d/ -f3)
+              resource_group=$(printf '%s' "$cluster_id" | cut -d/ -f5)
+              cluster_name=$(printf '%s' "$cluster_id" | cut -d/ -f9)
+              az account set --subscription "$arm_subscription"
+              az aks show \
+                  --subscription "$arm_subscription" \
+                  --resource-group "$resource_group" \
+                  --name "$cluster_name" \
+                  -o json > "$raw"
+
+              jq --arg subscription_id "$arm_subscription" '{
+                  subscription_id: $subscription_id,
+                  name: .name,
+                  resource_group: .resourceGroup,
+                  node_resource_group: .nodeResourceGroup,
+                  location: .location,
+                  resource_uid: (.resourceUid // error("AKS resourceUid is missing")),
+                  subnet_ids: ([.agentPoolProfiles[]?.vnetSubnetId | select(. != null and . != "")] | unique | sort)
+              }' "$raw" > "${output}.tmp"
+              mv "${output}.tmp" "$output"
+              rm -f "$raw"
+          }
+
+          mkdir -p "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/provision" "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/attach"
+          resolve_cluster \
+              "$PARAM_CLUSTER_ID" \
+              "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/cluster.json"
+          CLUSTER_NAME=$(jq -r .name "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/cluster.json")
+          CLUSTER_RG=$(jq -r .resource_group "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/cluster.json")
+          CLUSTER_SUBSCRIPTION=$(jq -r .subscription_id "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/cluster.json")
+          az aks get-credentials \
+              --subscription "$CLUSTER_SUBSCRIPTION" \
+              --resource-group "$CLUSTER_RG" \
+              --name "$CLUSTER_NAME" \
+              --file "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/kubeconfig" \
+            --overwrite-existing
+          python3 -m venv "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/venv"
+          "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/venv/bin/python" -m pip install --disable-pip-version-check \
+            -r "$(Build.SourcesDirectory)/kcl/ccp_team/elastic_san_static_scale/requirements.txt"
+      displayName: Prepare cluster access and Python
+      env:
+        PARAM_CLUSTER_ID: ${{ parameters.cluster_id }}
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          mkdir -p "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/provision"
+          "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/venv/bin/python" "$(Build.SourcesDirectory)/kcl/ccp_team/elastic_san_static_scale/provision.py" \
+              --cluster-info "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/cluster.json" \
+              --san-prefix "tel-esan" \
+              --target-total-volumes "$PARAM_TARGET_TOTAL_VOLUMES" \
+              --volume-groups-per-san "$PARAM_VOLUME_GROUPS_PER_SAN" \
+              --volumes-per-group "$PARAM_VOLUMES_PER_GROUP" \
+              --volume-size-gib "$PARAM_VOLUME_SIZE_GIB" \
+              --base-size-tib "$PARAM_BASE_SIZE_TIB" \
+              --extended-size-tib "$PARAM_EXTENDED_SIZE_TIB" \
+              --availability-zone "$PARAM_AVAILABILITY_ZONE" \
+              --max-volume-writes-per-hour "$PARAM_MAX_VOLUME_WRITES_PER_HOUR" \
+              --batch-size "100" \
+              --batch-delay-seconds "1" \
+              --validation-timeout-seconds "1800" \
+              --kubeconfig "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/kubeconfig" \
+              --results-dir "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/provision" \
+              2>&1 | tee "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/provision/run.log"
+      displayName: Plan or provision static volumes
+      env:
+        PARAM_TARGET_TOTAL_VOLUMES: ${{ parameters.target_total_volumes }}
+        PARAM_VOLUME_GROUPS_PER_SAN: ${{ parameters.volume_groups_per_san }}
+        PARAM_VOLUMES_PER_GROUP: ${{ parameters.volumes_per_group }}
+        PARAM_VOLUME_SIZE_GIB: ${{ parameters.volume_size_gib }}
+        PARAM_BASE_SIZE_TIB: ${{ parameters.base_size_tib }}
+        PARAM_EXTENDED_SIZE_TIB: ${{ parameters.extended_size_tib }}
+        PARAM_AVAILABILITY_ZONE: ${{ parameters.availability_zone }}
+        PARAM_MAX_VOLUME_WRITES_PER_HOUR: ${{ parameters.max_volume_writes_per_hour }}
+    - task: PublishPipelineArtifact@1
+      inputs:
+        targetPath: $(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/provision
+        artifact: elastic-san-provision
+      condition: always()
+      displayName: Publish elastic-san-provision results
+    - bash: rm -f '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/kubeconfig'
+      condition: always()
+      displayName: Remove generated kubeconfig
+- stage: repair
+  displayName: Repair failed Elastic SAN volumes
+  dependsOn:
+  - validate_cluster
+  - provision
+  condition: and(in(dependencies.validate_cluster.result, 'Succeeded', 'SucceededWithIssues'), in(dependencies.provision.result, 'Succeeded', 'SucceededWithIssues', 'Skipped'), ${{ parameters.run_repair }})
+  jobs:
+  - job: repair_failed_volumes
+    displayName: Repair failed managed volumes
+    timeoutInMinutes: 2880
+    steps:
+    - bash: mkdir -p '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/resolve' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/provision' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/repair' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/attach'
+      displayName: Prepare result directories
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          resolve_cluster() {
+              local cluster_id="$1"
+              local output="$2"
+              local cluster_id_lower
+              local arm_subscription
+              local cluster_name
+              local resource_group
+              local raw
+
+              if [ -z "$cluster_id" ] || [ "$cluster_id" = "none" ]; then
+                  echo "cluster_id must be a full AKS ARM resource ID" >&2
+                  return 1
+              fi
+
+              raw=$(mktemp)
+              cluster_id_lower=$(printf '%s' "$cluster_id" | tr '[:upper:]' '[:lower:]')
+              if [[ ! "$cluster_id_lower" =~ ^/subscriptions/[^/]+/resourcegroups/[^/]+/providers/microsoft.containerservice/managedclusters/[^/]+$ ]]; then
+                  echo "invalid AKS ARM resource ID: $cluster_id" >&2
+                  rm -f "$raw"
+                  return 1
+              fi
+              arm_subscription=$(printf '%s' "$cluster_id" | cut -d/ -f3)
+              resource_group=$(printf '%s' "$cluster_id" | cut -d/ -f5)
+              cluster_name=$(printf '%s' "$cluster_id" | cut -d/ -f9)
+              az account set --subscription "$arm_subscription"
+              az aks show \
+                  --subscription "$arm_subscription" \
+                  --resource-group "$resource_group" \
+                  --name "$cluster_name" \
+                  -o json > "$raw"
+
+              jq --arg subscription_id "$arm_subscription" '{
+                  subscription_id: $subscription_id,
+                  name: .name,
+                  resource_group: .resourceGroup,
+                  node_resource_group: .nodeResourceGroup,
+                  location: .location,
+                  resource_uid: (.resourceUid // error("AKS resourceUid is missing")),
+                  subnet_ids: ([.agentPoolProfiles[]?.vnetSubnetId | select(. != null and . != "")] | unique | sort)
+              }' "$raw" > "${output}.tmp"
+              mv "${output}.tmp" "$output"
+              rm -f "$raw"
+          }
+
+          mkdir -p "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/provision" "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/attach"
+          resolve_cluster \
+              "$PARAM_CLUSTER_ID" \
+              "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/cluster.json"
+          CLUSTER_NAME=$(jq -r .name "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/cluster.json")
+          CLUSTER_RG=$(jq -r .resource_group "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/cluster.json")
+          CLUSTER_SUBSCRIPTION=$(jq -r .subscription_id "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/cluster.json")
+          az aks get-credentials \
+              --subscription "$CLUSTER_SUBSCRIPTION" \
+              --resource-group "$CLUSTER_RG" \
+              --name "$CLUSTER_NAME" \
+              --file "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/kubeconfig" \
+            --overwrite-existing
+          python3 -m venv "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/venv"
+          "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/venv/bin/python" -m pip install --disable-pip-version-check \
+            -r "$(Build.SourcesDirectory)/kcl/ccp_team/elastic_san_static_scale/requirements.txt"
+      displayName: Prepare cluster access and Python
+      env:
+        PARAM_CLUSTER_ID: ${{ parameters.cluster_id }}
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          mkdir -p "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/repair"
+          "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/venv/bin/python" "$(Build.SourcesDirectory)/kcl/ccp_team/elastic_san_static_scale/repair.py" \
+              --cluster-info "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/cluster.json" \
+              --kubeconfig "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/kubeconfig" \
+              --max-volume-writes-per-hour "$PARAM_MAX_VOLUME_WRITES_PER_HOUR" \
+              --target-total-volumes "$PARAM_TARGET_TOTAL_VOLUMES" \
+              --volume-groups-per-san "$PARAM_VOLUME_GROUPS_PER_SAN" \
+              --volumes-per-group "$PARAM_VOLUMES_PER_GROUP" \
+              --volume-size-gib "$PARAM_VOLUME_SIZE_GIB" \
+              --results-dir "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/repair" \
+              2>&1 | tee "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/repair/run.log"
+      displayName: Repair failed static volumes
+      env:
+        PARAM_MAX_VOLUME_WRITES_PER_HOUR: ${{ parameters.max_volume_writes_per_hour }}
+        PARAM_TARGET_TOTAL_VOLUMES: ${{ parameters.target_total_volumes }}
+        PARAM_VOLUME_GROUPS_PER_SAN: ${{ parameters.volume_groups_per_san }}
+        PARAM_VOLUMES_PER_GROUP: ${{ parameters.volumes_per_group }}
+        PARAM_VOLUME_SIZE_GIB: ${{ parameters.volume_size_gib }}
+    - task: PublishPipelineArtifact@1
+      inputs:
+        targetPath: $(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/repair
+        artifact: elastic-san-repair
+      condition: always()
+      displayName: Publish elastic-san-repair results
+    - bash: rm -f '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/kubeconfig'
+      condition: always()
+      displayName: Remove generated kubeconfig
+- stage: attach
+  displayName: Create PV/PVC and attach Pods
+  dependsOn:
+  - validate_cluster
+  - provision
+  - repair
+  condition: and(in(dependencies.validate_cluster.result, 'Succeeded', 'SucceededWithIssues'), in(dependencies.provision.result, 'Succeeded', 'SucceededWithIssues', 'Skipped'), in(dependencies.repair.result, 'Succeeded', 'SucceededWithIssues', 'Skipped'), ${{ parameters.run_attach }})
+  jobs:
+  - job: attach_static_volumes
+    displayName: Attach successful static volumes
+    timeoutInMinutes: 1440
+    steps:
+    - bash: mkdir -p '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/resolve' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/provision' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/repair' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/attach'
+      displayName: Prepare result directories
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          resolve_cluster() {
+              local cluster_id="$1"
+              local output="$2"
+              local cluster_id_lower
+              local arm_subscription
+              local cluster_name
+              local resource_group
+              local raw
+
+              if [ -z "$cluster_id" ] || [ "$cluster_id" = "none" ]; then
+                  echo "cluster_id must be a full AKS ARM resource ID" >&2
+                  return 1
+              fi
+
+              raw=$(mktemp)
+              cluster_id_lower=$(printf '%s' "$cluster_id" | tr '[:upper:]' '[:lower:]')
+              if [[ ! "$cluster_id_lower" =~ ^/subscriptions/[^/]+/resourcegroups/[^/]+/providers/microsoft.containerservice/managedclusters/[^/]+$ ]]; then
+                  echo "invalid AKS ARM resource ID: $cluster_id" >&2
+                  rm -f "$raw"
+                  return 1
+              fi
+              arm_subscription=$(printf '%s' "$cluster_id" | cut -d/ -f3)
+              resource_group=$(printf '%s' "$cluster_id" | cut -d/ -f5)
+              cluster_name=$(printf '%s' "$cluster_id" | cut -d/ -f9)
+              az account set --subscription "$arm_subscription"
+              az aks show \
+                  --subscription "$arm_subscription" \
+                  --resource-group "$resource_group" \
+                  --name "$cluster_name" \
+                  -o json > "$raw"
+
+              jq --arg subscription_id "$arm_subscription" '{
+                  subscription_id: $subscription_id,
+                  name: .name,
+                  resource_group: .resourceGroup,
+                  node_resource_group: .nodeResourceGroup,
+                  location: .location,
+                  resource_uid: (.resourceUid // error("AKS resourceUid is missing")),
+                  subnet_ids: ([.agentPoolProfiles[]?.vnetSubnetId | select(. != null and . != "")] | unique | sort)
+              }' "$raw" > "${output}.tmp"
+              mv "${output}.tmp" "$output"
+              rm -f "$raw"
+          }
+
+          mkdir -p "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/provision" "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/attach"
+          resolve_cluster \
+              "$PARAM_CLUSTER_ID" \
+              "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/cluster.json"
+          CLUSTER_NAME=$(jq -r .name "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/cluster.json")
+          CLUSTER_RG=$(jq -r .resource_group "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/cluster.json")
+          CLUSTER_SUBSCRIPTION=$(jq -r .subscription_id "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/cluster.json")
+          az aks get-credentials \
+              --subscription "$CLUSTER_SUBSCRIPTION" \
+              --resource-group "$CLUSTER_RG" \
+              --name "$CLUSTER_NAME" \
+              --file "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/kubeconfig" \
+            --overwrite-existing
+          python3 -m venv "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/venv"
+          "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/venv/bin/python" -m pip install --disable-pip-version-check \
+            -r "$(Build.SourcesDirectory)/kcl/ccp_team/elastic_san_static_scale/requirements.txt"
+      displayName: Prepare cluster access and Python
+      env:
+        PARAM_CLUSTER_ID: ${{ parameters.cluster_id }}
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          mkdir -p "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/attach"
+          "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/venv/bin/python" "$(Build.SourcesDirectory)/kcl/ccp_team/elastic_san_static_scale/attach.py" \
+              --cluster-info "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/cluster.json" \
+              --kubeconfig "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/kubeconfig" \
+              --attach-limit "$PARAM_ATTACH_LIMIT" \
+              --workload-node-selector "kubernetes.azure.com/mode=user" \
+              --pods-per-node "$PARAM_PODS_PER_NODE" \
+              --pod-slot-headroom "10" \
+              --namespace-prefix "telescope-esan" \
+              --apply-batch-size "100" \
+              --pod-image "$PARAM_POD_IMAGE" \
+              --cpu-request "$PARAM_POD_CPU_REQUEST" \
+              --memory-request "$PARAM_POD_MEMORY_REQUEST" \
+              --wait-timeout-seconds "$PARAM_ATTACH_TIMEOUT_SECONDS" \
+              --results-dir "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/attach" \
+              2>&1 | tee "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/attach/run.log"
+      displayName: Plan or attach static volumes
+      env:
+        PARAM_ATTACH_LIMIT: ${{ parameters.attach_limit }}
+        PARAM_PODS_PER_NODE: ${{ parameters.pods_per_node }}
+        PARAM_POD_IMAGE: ${{ parameters.pod_image }}
+        PARAM_POD_CPU_REQUEST: ${{ parameters.pod_cpu_request }}
+        PARAM_POD_MEMORY_REQUEST: ${{ parameters.pod_memory_request }}
+        PARAM_ATTACH_TIMEOUT_SECONDS: ${{ parameters.attach_timeout_seconds }}
+    - task: PublishPipelineArtifact@1
+      inputs:
+        targetPath: $(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/attach
+        artifact: elastic-san-attach
+      condition: always()
+      displayName: Publish elastic-san-attach results
+    - bash: rm -f '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/kubeconfig'
+      condition: always()
+      displayName: Remove generated kubeconfig
