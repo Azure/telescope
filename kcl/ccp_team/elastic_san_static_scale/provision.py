@@ -46,6 +46,9 @@ ARM_ENDPOINT = "https://management.azure.com"
 MAX_SUBSCRIPTION_WRITES_PER_HOUR = 3_600
 MAX_WRITES_PER_BURST = 20
 BURST_WINDOW_SECONDS = 1.1
+# List/read throttles (e.g. List_ObservationWindow_00:05:00) need retries that outlast a 5-min window.
+READ_RETRY_ATTEMPTS = 24
+WRITE_RETRY_ATTEMPTS = 8
 
 
 @dataclass
@@ -142,8 +145,12 @@ class ArmClient:
             else self.url(resource_id_or_url)
         )
         method = method.upper()
-        retry_transient = (method == "GET" and retry_reads) or retry_limiter is not None
-        attempts = 8 if retry_transient else 1
+        if method == "GET" and retry_reads:
+            attempts = READ_RETRY_ATTEMPTS
+        elif retry_limiter is not None:
+            attempts = WRITE_RETRY_ATTEMPTS
+        else:
+            attempts = 1
         for attempt in range(attempts):
             token = await self._access_token()
             async with self.session.request(
