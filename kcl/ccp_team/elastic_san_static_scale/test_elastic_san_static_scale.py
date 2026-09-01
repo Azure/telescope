@@ -13,6 +13,7 @@ from attach import (
     apply_resources,
     attached_volume_handles,
     build_resources,
+    parse_args as parse_attach_args,
     resource_suffix,
     select_ready_nodes,
     volume_record,
@@ -416,6 +417,23 @@ class AttachmentRendererTests(unittest.TestCase):
         self.assertIsNotNone(record)
         failed = {**self.volume, "properties": {**self.volume["properties"], "provisioningState": "Failed"}}
         self.assertIsNone(volume_record("rg", "san", "vg-000", failed))
+
+    def test_attachment_cpu_request_defaults_to_300m(self):
+        with patch.object(
+            sys,
+            "argv",
+            [
+                "attach.py",
+                "--cluster-id",
+                "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/aks",
+                "--kubeconfig",
+                "/tmp/kubeconfig",
+                "--results-dir",
+                "/tmp/results",
+            ],
+        ):
+            args = parse_attach_args()
+        self.assertEqual("300m", args.cpu_request)
 
     def test_attached_handles_only_include_successful_volume_attachments(self):
         persistent_volumes = {

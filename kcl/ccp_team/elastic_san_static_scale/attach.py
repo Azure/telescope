@@ -390,7 +390,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--namespace-prefix", default="telescope-esan")
     parser.add_argument("--apply-batch-size", type=int, default=100)
     parser.add_argument("--pod-image", default="mcr.microsoft.com/azurelinux/busybox:1.36")
-    parser.add_argument("--cpu-request", default="10m")
+    parser.add_argument("--cpu-request", default="300m")
     parser.add_argument("--memory-request", default="32Mi")
     parser.add_argument("--wait-timeout-seconds", type=int, default=14_400)
     parser.add_argument("--results-dir", type=Path, required=True)

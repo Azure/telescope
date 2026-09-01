@@ -8,7 +8,7 @@ WORKLOAD_DIR = "$(Build.SourcesDirectory)/kcl/ccp_team/elastic_san_static_scale"
 RUN_ROOT = "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)"
 RESULT_ROOT = "${RUN_ROOT}/results"
 KUBECONFIG = "${RUN_ROOT}/kubeconfig"
-VENV = "${RUN_ROOT}/venv"
+PYTHON_DEPS = "${RUN_ROOT}/python-deps"
 
 
 azCli = lambda displayName: str, script: str, env: {str:str} -> steps.Step {
@@ -126,15 +126,16 @@ az aks get-credentials \\
     --name "$CLUSTER_NAME" \\
     --file "${KUBECONFIG}" \\
   --overwrite-existing
-python3 -m venv "${VENV}"
-"${VENV}/bin/python" -m pip install --disable-pip-version-check \\
+mkdir -p "${PYTHON_DEPS}"
+python3 -m pip install --disable-pip-version-check \\
+    --target "${PYTHON_DEPS}" \\
   -r "${WORKLOAD_DIR}/requirements.txt"
 """
 
 
 provisionScript = """
 mkdir -p "${RESULT_ROOT}/provision"
-"${VENV}/bin/python" "${WORKLOAD_DIR}/provision.py" \\
+PYTHONPATH="${PYTHON_DEPS}" python3 "${WORKLOAD_DIR}/provision.py" \\
     --cluster-info "${RESULT_ROOT}/cluster.json" \\
     --san-prefix "tel-esan" \\
     --target-total-volumes "$PARAM_TARGET_TOTAL_VOLUMES" \\
@@ -156,7 +157,7 @@ mkdir -p "${RESULT_ROOT}/provision"
 
 repairScript = """
 mkdir -p "${RESULT_ROOT}/repair"
-"${VENV}/bin/python" "${WORKLOAD_DIR}/repair.py" \\
+PYTHONPATH="${PYTHON_DEPS}" python3 "${WORKLOAD_DIR}/repair.py" \\
     --cluster-info "${RESULT_ROOT}/cluster.json" \\
     --kubeconfig "${KUBECONFIG}" \\
     --max-volume-writes-per-hour "$PARAM_MAX_VOLUME_WRITES_PER_HOUR" \\
@@ -171,7 +172,7 @@ mkdir -p "${RESULT_ROOT}/repair"
 
 attachScript = """
 mkdir -p "${RESULT_ROOT}/attach"
-"${VENV}/bin/python" "${WORKLOAD_DIR}/attach.py" \\
+PYTHONPATH="${PYTHON_DEPS}" python3 "${WORKLOAD_DIR}/attach.py" \\
     --cluster-info "${RESULT_ROOT}/cluster.json" \\
     --kubeconfig "${KUBECONFIG}" \\
     --attach-limit "$PARAM_ATTACH_LIMIT" \\
@@ -289,7 +290,7 @@ output = ap.Pipeline {
             name = "pod_cpu_request"
             displayName = "Attachment Pod CPU request"
             type = "string"
-            default = "10m"
+            default = "300m"
         }
         ap.Parameter {
             name = "pod_memory_request"
