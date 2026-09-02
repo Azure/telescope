@@ -311,7 +311,7 @@ output = ap.Pipeline {
             name = "pod_image"
             displayName = "Attachment Pod image"
             type = "string"
-            default = "mcr.microsoft.com/azurelinux/busybox:1.36"
+            default = "ghcr.io/openclaw/openclaw:latest"
         }
         ap.Parameter {
             name = "pod_cpu_request"
