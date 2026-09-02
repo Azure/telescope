@@ -206,7 +206,6 @@ jobs:
   displayName: Ingest ConfigMaps (${{ parameters.ingest_configmap_gib }} GiB)
   dependsOn:
   - bootstrap
-  - setup
   - record_start_time
   condition: and(succeeded(), ${{ ne(parameters.ingest_configmap_gib, 0) }})
   timeoutInMinutes: 1440
@@ -288,7 +287,6 @@ jobs:
   displayName: Ingest Events (${{ parameters.ingest_events_gib }} GiB)
   dependsOn:
   - bootstrap
-  - setup
   - record_start_time
   condition: and(succeeded(), ${{ ne(parameters.ingest_events_gib, 0) }})
   timeoutInMinutes: 1440
@@ -370,7 +368,6 @@ jobs:
   displayName: Ingest Secrets (${{ parameters.ingest_secrets_gib }} GiB)
   dependsOn:
   - bootstrap
-  - setup
   - record_start_time
   condition: and(succeeded(), ${{ ne(parameters.ingest_secrets_gib, 0) }})
   timeoutInMinutes: 1440

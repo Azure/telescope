@@ -81,7 +81,7 @@ prepareForIngestion = lambda {
     ]
 }
 
-INGEST_DEPENDS_ON = ["bootstrap", "setup", "record_start_time"]
+INGEST_DEPENDS_ON = ["bootstrap", "record_start_time"]
 INGEST_VARIABLES = {
     CLUSTER = "$[ dependencies.bootstrap.outputs['resolve.CLUSTER'] ]"
     RESOURCE_GROUP = "$[ dependencies.bootstrap.outputs['resolve.RESOURCE_GROUP'] ]"
