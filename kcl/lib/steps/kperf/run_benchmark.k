@@ -25,12 +25,25 @@ runkperf -v 3 bench \\
 # RunKperfRunnerGroup runs `kperf rg run` with the specified runner image, runner
 # group manifest, optional flow control setting, and optional affinity selector.
 RunKperfRunnerGroup = lambda runnerImage: str, runnerGroup: str, flowcontrol: str = "", affinity: str = "", target: str = None -> steps.Step {
-    flowcontrolFlag = "--runner-flowcontrol=\"${flowcontrol}\" \\\n  " if flowcontrol else ""
-    affinityFlag = "--affinity=\"${affinity}\" \\\n  " if affinity else ""
     steps.Script {
         script = """
 set -euo pipefail
 set -x
+
+run_rg() {
+  args=(
+    rg run
+    --runner-image="${runnerImage}"
+    --runnergroup="${runnerGroup}"
+  )
+  if [ -n "${flowcontrol}" ]; then
+    args+=(--runner-flowcontrol="${flowcontrol}")
+  fi
+  if [ -n "${affinity}" ]; then
+    args+=(--affinity="${affinity}")
+  fi
+  kperf "\${args[@]}"
+}
 
 cleanup_rg() {
   kperf rg delete || true
@@ -42,10 +55,7 @@ cleanup_rg
 
 attempt=0
 max_attempts=10
-until kperf rg run \\
-  --runner-image=${runnerImage} \\
-  --runnergroup="${runnerGroup}" \\
-  ${flowcontrolFlag}${affinityFlag}; do
+until run_rg; do
   attempt=$((attempt + 1))
   if [ "$attempt" -ge "$max_attempts" ]; then
     echo "kperf rg run failed after $attempt attempts" >&2
