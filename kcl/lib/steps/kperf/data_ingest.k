@@ -6,6 +6,7 @@ DEFAULT_BURST = 80
 DEFAULT_SIZE_BYTES = 524288  # 0.5 MiB per object
 DEFAULT_GROUP_SIZE = 80
 BATCH_SIZE = 2000  # Internal batch size, not configurable by caller
+MAX_ATTEMPTS = 2  # Attempts per batch before failing the step
 BYTES_PER_GIB = 1073741824
 
 # RunKperfDataIngest creates objects in fixed-size batches (BATCH_SIZE) to be
@@ -13,6 +14,8 @@ BYTES_PER_GIB = 1073741824
 # local in-memory counter stays accurate since each successful batch represents a known
 # quantity. This avoids using kubectl get to count existing objects, which would OOM
 # the pipeline agent by fetching full object bodies.
+# Each batch uses the set name "<name>-b<batch>", so object names are predictable and
+# kperf load profiles can target a batch by its prefix.
 RunKperfDataIngest = lambda dataType: str, namespace: str, name: str, totalGiB: str, qps: int = DEFAULT_QPS, burst: int = DEFAULT_BURST, size: int = DEFAULT_SIZE_BYTES, groupSize: int = DEFAULT_GROUP_SIZE -> steps.Step {
     steps.Script {
         script = """
@@ -38,14 +41,24 @@ for batch in $(seq 1 $TOTAL_BATCHES); do
   run_batch() {
     runkperf data ${dataType} \\
       --namespace ${namespace} \\
-      add ${name}-b$batch-$1 \\
+      add ${name}-b$batch \\
       --qps ${qps} \\
       --burst ${burst} \\
       --total $COUNT \\
       --size ${size} \\
       --group-size ${groupSize}
   }
-  run_batch first || run_batch retry
+
+  # add is not idempotent, so clear the partial batch before each retry.
+  for attempt in $(seq 1 ${MAX_ATTEMPTS}); do
+    run_batch && break
+    if [ "$attempt" -eq "${MAX_ATTEMPTS}" ]; then
+      echo "Batch $batch failed after ${MAX_ATTEMPTS} attempts" >&2
+      exit 1
+    fi
+    echo "Batch $batch attempt $attempt failed; cleaning up before retry..."
+    runkperf data ${dataType} --namespace ${namespace} delete ${name}-b$batch || true
+  done
 
   completed=$((completed + COUNT))
   STORAGE_GIB=$(awk 'BEGIN{printf "%.1f", '$completed' * ${size} / ${BYTES_PER_GIB}}')
