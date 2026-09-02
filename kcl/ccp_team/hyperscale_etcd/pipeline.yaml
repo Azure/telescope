@@ -271,7 +271,7 @@ jobs:
         run_batch() {
           runkperf data configmap \
             --namespace kperf-configmap-data \
-            add my-configmaps-b$batch-$1 \
+            add $(System.JobId)-b$batch-$1 \
             --qps 80 \
             --burst 80 \
             --total $COUNT \
@@ -352,7 +352,7 @@ jobs:
         run_batch() {
           runkperf data event \
             --namespace kperf-event-data \
-            add my-events-b$batch-$1 \
+            add $(System.JobId)-b$batch-$1 \
             --qps 80 \
             --burst 80 \
             --total $COUNT \
@@ -433,7 +433,7 @@ jobs:
         run_batch() {
           runkperf data secret \
             --namespace kperf-secret-data \
-            add my-secrets-b$batch-$1 \
+            add $(System.JobId)-b$batch-$1 \
             --qps 80 \
             --burst 80 \
             --total $COUNT \

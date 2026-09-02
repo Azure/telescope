@@ -213,7 +213,7 @@ echo "##vso[task.setvariable variable=BENCHMARK_START_TIME;isOutput=true]$START_
                 kperf.RunKperfDataIngest(
                     dataType="configmap",
                     namespace="kperf-configmap-data",
-                    name="my-configmaps",
+                    name="$(System.JobId)",
                     totalGiB="\${{ parameters.ingest_configmap_gib }}"),
             ]
         }
@@ -228,7 +228,7 @@ echo "##vso[task.setvariable variable=BENCHMARK_START_TIME;isOutput=true]$START_
                 kperf.RunKperfDataIngest(
                     dataType="event",
                     namespace="kperf-event-data",
-                    name="my-events",
+                    name="$(System.JobId)",
                     totalGiB="\${{ parameters.ingest_events_gib }}"),
             ]
         }
@@ -243,7 +243,7 @@ echo "##vso[task.setvariable variable=BENCHMARK_START_TIME;isOutput=true]$START_
                 kperf.RunKperfDataIngest(
                     dataType="secret",
                     namespace="kperf-secret-data",
-                    name="my-secrets",
+                    name="$(System.JobId)",
                     totalGiB="\${{ parameters.ingest_secrets_gib }}"),
             ]
         }
