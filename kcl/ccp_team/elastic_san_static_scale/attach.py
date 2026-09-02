@@ -14,7 +14,13 @@ from pathlib import Path
 from typing import Any
 
 from esan_common import CSI_DRIVER, canonical_handle, load_cluster_info, resolve_cluster, write_json
-from provision import ArmClient, inventory_managed_sans, inventory_named_sans, utc_now
+from provision import (
+    ArmClient,
+    ReadRateLimiter,
+    inventory_managed_sans,
+    inventory_named_sans,
+    utc_now,
+)
 
 
 def kubectl_json(kubeconfig: str, arguments: list[str]) -> dict[str, Any]:
@@ -417,6 +423,7 @@ async def async_main(args: argparse.Namespace) -> int:
         else resolve_cluster(args.cluster_id)
     )
     async with ArmClient(cluster.subscription_id) as client:
+        client.read_limiter = ReadRateLimiter()
         inventories = await inventory_managed_sans(client, cluster.resource_uid)
         if args.include_san_name:
             named = await inventory_named_sans(client, args.include_san_name)

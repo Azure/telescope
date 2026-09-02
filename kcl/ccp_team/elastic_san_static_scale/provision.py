@@ -49,6 +49,9 @@ BURST_WINDOW_SECONDS = 1.1
 # List/read throttles (e.g. List_ObservationWindow_00:05:00) need retries that outlast a 5-min window.
 READ_RETRY_ATTEMPTS = 24
 WRITE_RETRY_ATTEMPTS = 8
+# Keep LIST operations under SanRP's empirical ~100-lists-per-5-min observation window.
+LIST_RATE_LIMIT = 90
+LIST_RATE_WINDOW_SECONDS = 300
 
 
 @dataclass
@@ -84,6 +87,7 @@ class ArmClient:
         self._token_time = 0.0
         self._token_lock = asyncio.Lock()
         self.session: aiohttp.ClientSession | None = None
+        self.read_limiter: "ReadRateLimiter | None" = None
 
     async def __aenter__(self) -> "ArmClient":
         self.session = aiohttp.ClientSession(
@@ -191,10 +195,42 @@ class ArmClient:
         items: list[dict[str, Any]] = []
         next_url: str | None = self.url(resource_id)
         while next_url:
+            if self.read_limiter is not None:
+                await self.read_limiter.acquire()
             _, page, _ = await self.request("GET", next_url)
             items.extend(page.get("value", []))
             next_url = page.get("nextLink")
         return items
+
+
+class ReadRateLimiter:
+    """Paces LIST operations under SanRP's List observation window (sliding window)."""
+
+    def __init__(
+        self,
+        limit: int = LIST_RATE_LIMIT,
+        window_seconds: int = LIST_RATE_WINDOW_SECONDS,
+    ):
+        if limit < 1 or window_seconds <= 0:
+            raise ValueError("read limit and window must be positive")
+        self.limit = limit
+        self.window_seconds = window_seconds
+        self.timestamps: deque[float] = deque()
+        self._lock = asyncio.Lock()
+        self._clock = time.monotonic
+        self._sleep = asyncio.sleep
+
+    async def acquire(self) -> None:
+        async with self._lock:
+            while True:
+                now = self._clock()
+                cutoff = now - self.window_seconds
+                while self.timestamps and self.timestamps[0] <= cutoff:
+                    self.timestamps.popleft()
+                if len(self.timestamps) < self.limit:
+                    self.timestamps.append(now)
+                    return
+                await self._sleep(max(self.timestamps[0] + self.window_seconds - now, 0.0))
 
 
 class HourlyWriteLimiter:
