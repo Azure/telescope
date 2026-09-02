@@ -33,7 +33,7 @@ stages:
             runner_image: ghcr.io/azure/kperf:0.3.4
             benchmark_subcmd: node100_pod10k
             benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192"
-            vc_affinity: "node.kubernetes.io/instance-type=Standard_D4s_v3,m4.2xlarge,n1-standard-8"
+            vc_affinity: "node.kubernetes.io/instance-type=Standard_E2s_v3,m4.2xlarge,n1-standard-8"
           max_parallel: 2
           timeout_in_minutes: 760
           credential_type: service_connection
@@ -58,7 +58,7 @@ stages:
             runner_image: ghcr.io/azure/kperf:0.3.4
             benchmark_subcmd: node100_pod10k
             benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192"
-            vc_affinity: "node.kubernetes.io/instance-type=Standard_D4s_v3,m4.2xlarge,n1-standard-8"
+            vc_affinity: "node.kubernetes.io/instance-type=Standard_E2s_v3,m4.2xlarge,n1-standard-8"
           max_parallel: 2
           timeout_in_minutes: 360
           credential_type: service_connection
@@ -88,7 +88,7 @@ stages:
             runner_image: ghcr.io/azure/kperf:0.3.4
             benchmark_subcmd: node100_pod10k
             benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192"
-            vc_affinity: "node.kubernetes.io/instance-type=Standard_D4s_v3,m4.2xlarge,n1-standard-8"
+            vc_affinity: "node.kubernetes.io/instance-type=Standard_E2s_v3,m4.2xlarge,n1-standard-8"
           max_parallel: 2
           timeout_in_minutes: 760
           credential_type: service_connection
@@ -122,7 +122,7 @@ stages:
             runner_image: ghcr.io/azure/kperf:0.3.4
             benchmark_subcmd: node100_pod10k
             benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192"
-            vc_affinity: "node.kubernetes.io/instance-type=Standard_D4s_v3,m4.2xlarge,n1-standard-8"
+            vc_affinity: "node.kubernetes.io/instance-type=Standard_E2s_v3,m4.2xlarge,n1-standard-8"
           max_parallel: 2
           timeout_in_minutes: 760
           credential_type: service_connection
@@ -156,7 +156,7 @@ stages:
             runner_image: ghcr.io/azure/kperf:0.3.4
             benchmark_subcmd: node100_pod10k
             benchmark_subcmd_args: "--total 72000 --deployments=10 --interval 24h --cpu 64 --memory 192"
-            vc_affinity: "node.kubernetes.io/instance-type=Standard_D4s_v3,m4.2xlarge,n1-standard-8"
+            vc_affinity: "node.kubernetes.io/instance-type=Standard_E2s_v3,m4.2xlarge,n1-standard-8"
           max_parallel: 2
           timeout_in_minutes: 760
           credential_type: service_connection
