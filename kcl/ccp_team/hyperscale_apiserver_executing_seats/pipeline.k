@@ -41,7 +41,7 @@ requestBody = util.escapeStr("""
     },
     "properties": {
       "controlPlaneScalingProfile": {"scalingSize": "${CONTROL_PLANE_SCALING_SIZE}"},
-      "kubernetesVersion": "1.37.0",
+      "kubernetesVersion": "1.36",
       "dnsPrefix": "${CLUSTER}-dns",
       "agentPoolProfiles": [
         {
