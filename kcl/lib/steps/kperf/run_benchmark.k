@@ -32,12 +32,32 @@ RunKperfRunnerGroup = lambda runnerImage: str, runnerGroup: str, flowcontrol: st
 set -euo pipefail
 set -x
 
-kperf rg delete
+cleanup_rg() {
+  kperf rg delete || true
+  kubectl -n runnergroups-kperf-io delete pod runnergroup-server \\
+    --force --grace-period=0 --ignore-not-found=true --timeout=120s || true
+}
 
-kperf rg run \\
+cleanup_rg
+
+attempt=0
+max_attempts=10
+until kperf rg run \\
   --runner-image=${runnerImage} \\
   --runnergroup="${runnerGroup}" \\
-  ${flowcontrolFlag}${affinityFlag}
+  ${flowcontrolFlag}${affinityFlag}; do
+  attempt=$((attempt + 1))
+  if [ "$attempt" -ge "$max_attempts" ]; then
+    echo "kperf rg run failed after $attempt attempts" >&2
+    kubectl -n runnergroups-kperf-io get pods -o wide || true
+    kubectl -n runnergroups-kperf-io describe pod runnergroup-server || true
+    kubectl -n runnergroups-kperf-io get events --sort-by=.lastTimestamp | tail -50 || true
+    exit 1
+  fi
+  echo "attempt $attempt failed; retry in 120s" >&2
+  sleep 120
+  cleanup_rg
+done
 """
         displayName = "Run kperf runner group"
         target = target
