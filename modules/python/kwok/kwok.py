@@ -424,11 +424,17 @@ class Node(KWOK):
                     not_ready.append(f"{name}:available={available_replicas}")
 
             if not not_ready:
-                print(f"All {len(controller_names)} KWOK controller deployment(s) are ready.")
+                print(
+                    f"All {len(controller_names)} KWOK controller deployment(s) are ready.",
+                    flush=True,
+                )
                 return
 
             if not_ready != last_not_ready:
-                print(f"Waiting for KWOK controller readiness: {', '.join(not_ready)}")
+                print(
+                    f"Waiting for KWOK controller readiness: {', '.join(not_ready)}",
+                    flush=True,
+                )
                 last_not_ready = not_ready
 
             time.sleep(CONTROLLER_READY_POLL_INTERVAL_SECONDS)

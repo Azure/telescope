@@ -540,7 +540,7 @@ stages:
               --resource-group "$(RUN_ID)" \
               --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
               --name "kwokpool" \
-              --node-count 20 \
+              --node-count 40 \
               --node-vm-size "Standard_D4_v3" \
               --mode User \
               --node-taints kwok=true:NoSchedule \
@@ -867,7 +867,7 @@ stages:
               --resource-group "$(RUN_ID)" \
               --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
               --name "kwokpool" \
-              --node-count 20 \
+              --node-count 80 \
               --node-vm-size "Standard_D4_v3" \
               --mode User \
               --node-taints kwok=true:NoSchedule \
