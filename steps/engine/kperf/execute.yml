@@ -74,6 +74,11 @@ steps:
       is_eks="--eks"
     fi
 
+    vc_affinity=()
+    if [[ -n "${VC_AFFINITY}" ]]; then
+      vc_affinity=(--vc-affinity="${VC_AFFINITY}")
+    fi
+
     new_version=$(runkperf ekswarmup -h 2> /dev/null || echo true)
     if [[ "${new_version}" == "true" ]]; then
       is_eks=""
@@ -83,6 +88,7 @@ steps:
       --kubeconfig ~/.kube/config \
       --runner-image="${RUNNER_IMAGE}" \
       --runner-flowcontrol="${FLOWCONTROL}" \
+      "${vc_affinity[@]}" \
       --result $(TEST_RESULTS_DIR)/tmp_results.json \
       ${BENCHMARK_SUBCMD} ${BENCHMARK_SUBCMD_ARGS} ${EXTRA_BENCHMARK_SUBCMD_ARGS}
 
@@ -92,6 +98,7 @@ steps:
     RUNNER_IMAGE: ${{ parameters.engine_input.runner_image }}
     BENCHMARK_SUBCMD: ${{ parameters.engine_input.benchmark_subcmd }}
     BENCHMARK_SUBCMD_ARGS: ${{ parameters.engine_input.benchmark_subcmd_args }}
+    VC_AFFINITY: ${{ coalesce(parameters.engine_input.vc_affinity, '') }}
     EXTRA_BENCHMARK_SUBCMD_ARGS: ${{ parameters.extra_benchmark_subcmd_args }}
     FLOWCONTROL: ${{ parameters.flowcontrol }}
   displayName: "Run Benchmark"
