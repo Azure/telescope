@@ -18,11 +18,11 @@ aks_cli_config_list = [
       {
         name       = "virtualnodes"
         node_count = 2
-        vm_size    = "Standard_D8s_v3"
+        vm_size    = "Standard_D4s_v3"
       },
       {
         name       = "runner"
-        node_count = 3
+        node_count = 2
         vm_size    = "Standard_D16s_v3"
       }
     ]
