@@ -43,6 +43,11 @@ jobs:
 
       set -exo pipefail
 
+      if { [ "$PARAM_EXISTING_CLUSTER" = "none" ] && [ "$PARAM_EXISTING_RG" != "none" ]; } ||    { [ "$PARAM_EXISTING_CLUSTER" != "none" ] && [ "$PARAM_EXISTING_RG" = "none" ]; }; then
+        echo "Existing cluster name and resource group must be provided together."
+        exit 1
+      fi
+
       # Resolve CLUSTER
       if [ -n "$PARAM_EXISTING_CLUSTER" ] && [ "$PARAM_EXISTING_CLUSTER" != "none" ]; then
         CLUSTER="$PARAM_EXISTING_CLUSTER"
@@ -72,7 +77,7 @@ jobs:
 - job: setup
   displayName: Cluster Setup
   dependsOn: bootstrap
-  condition: and(succeeded(), not(ne('${{ parameters.existing_cluster_name }}', 'none')))
+  condition: and(succeeded(), not(and(ne('${{ parameters.existing_cluster_name }}', 'none'), ne('${{ parameters.existing_cluster_resource_group }}', 'none'))))
   timeoutInMinutes: 1440
   variables:
     CLUSTER: $[ dependencies.bootstrap.outputs['resolve.CLUSTER'] ]
@@ -206,8 +211,8 @@ jobs:
   displayName: Ingest ConfigMaps (${{ parameters.ingest_configmap_gib }} GiB)
   dependsOn:
   - bootstrap
-  - record_start_time
-  condition: and(succeeded(), ${{ ne(parameters.ingest_configmap_gib, 0) }})
+  - setup
+  condition: and(and(eq(dependencies.bootstrap.result, 'Succeeded'), or(eq(dependencies.setup.result, 'Succeeded'), and(eq(dependencies.setup.result, 'Skipped'), and(ne('${{ parameters.existing_cluster_name }}', 'none'), ne('${{ parameters.existing_cluster_resource_group }}', 'none'))))), ${{ ne(parameters.ingest_configmap_gib, 0) }})
   timeoutInMinutes: 1440
   variables:
     CLUSTER: $[ dependencies.bootstrap.outputs['resolve.CLUSTER'] ]
@@ -287,8 +292,8 @@ jobs:
   displayName: Ingest Events (${{ parameters.ingest_events_gib }} GiB)
   dependsOn:
   - bootstrap
-  - record_start_time
-  condition: and(succeeded(), ${{ ne(parameters.ingest_events_gib, 0) }})
+  - setup
+  condition: and(and(eq(dependencies.bootstrap.result, 'Succeeded'), or(eq(dependencies.setup.result, 'Succeeded'), and(eq(dependencies.setup.result, 'Skipped'), and(ne('${{ parameters.existing_cluster_name }}', 'none'), ne('${{ parameters.existing_cluster_resource_group }}', 'none'))))), ${{ ne(parameters.ingest_events_gib, 0) }})
   timeoutInMinutes: 1440
   variables:
     CLUSTER: $[ dependencies.bootstrap.outputs['resolve.CLUSTER'] ]
@@ -368,8 +373,8 @@ jobs:
   displayName: Ingest Secrets (${{ parameters.ingest_secrets_gib }} GiB)
   dependsOn:
   - bootstrap
-  - record_start_time
-  condition: and(succeeded(), ${{ ne(parameters.ingest_secrets_gib, 0) }})
+  - setup
+  condition: and(and(eq(dependencies.bootstrap.result, 'Succeeded'), or(eq(dependencies.setup.result, 'Succeeded'), and(eq(dependencies.setup.result, 'Skipped'), and(ne('${{ parameters.existing_cluster_name }}', 'none'), ne('${{ parameters.existing_cluster_resource_group }}', 'none'))))), ${{ ne(parameters.ingest_secrets_gib, 0) }})
   timeoutInMinutes: 1440
   variables:
     CLUSTER: $[ dependencies.bootstrap.outputs['resolve.CLUSTER'] ]
@@ -501,7 +506,7 @@ jobs:
   dependsOn:
   - bootstrap
   - report
-  condition: and(always(), not(ne('${{ parameters.existing_cluster_name }}', 'none')), not(${{ parameters.keep_cluster }}))
+  condition: and(always(), not(and(ne('${{ parameters.existing_cluster_name }}', 'none'), ne('${{ parameters.existing_cluster_resource_group }}', 'none'))), not(${{ parameters.keep_cluster }}))
   timeoutInMinutes: 60
   variables:
     RESOURCE_GROUP: $[ dependencies.bootstrap.outputs['resolve.RESOURCE_GROUP'] ]
