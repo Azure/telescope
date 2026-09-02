@@ -16,9 +16,16 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
         """Set up test environment"""
         # Setup mock AKSClient
         self.aks_client_patcher = mock.patch("crud.azure.node_pool_crud.AKSClient")
-        mock_aks_client_cls = self.aks_client_patcher.start()
-        self.mock_aks_client = mock_aks_client_cls.return_value
+        self.mock_aks_client_cls = self.aks_client_patcher.start()
+        self.mock_aks_client = self.mock_aks_client_cls.return_value
         self.mock_aks_client.get_cluster_name.return_value = "fake-cluster"
+
+        self.credential_patcher = mock.patch(
+            "crud.azure.node_pool_crud.configure_credential"
+        )
+        self.mock_configure_credential = self.credential_patcher.start()
+        self.mock_credential = mock.MagicMock()
+        self.mock_configure_credential.return_value = self.mock_credential
 
         # Create test directory for result files
         self.test_result_dir = "/tmp/test_results"
@@ -34,12 +41,24 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
     def tearDown(self):
         """Clean up after tests"""
         # Stop patches
+        self.credential_patcher.stop()
         self.aks_client_patcher.stop()
 
         try:
             os.rmdir(self.test_result_dir)
         except OSError:
             pass
+
+    def test_init_injects_configured_credential(self):
+        """Test that the configured credential is passed to AKSClient."""
+        self.mock_configure_credential.assert_called_once_with()
+        self.mock_aks_client_cls.assert_called_once_with(
+            resource_group="fake-resource-group",
+            kube_config_file=None,
+            result_dir=self.test_result_dir,
+            operation_timeout_minutes=10.0,
+            credential=self.mock_credential,
+        )
 
     def test_create_node_pool_success(self):
         """Test successful node pool creation"""

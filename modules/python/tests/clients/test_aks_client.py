@@ -17,9 +17,6 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         """Set up test environment"""
         # Create patches
         self.cs_client_patcher = mock.patch("clients.aks_client.ContainerServiceClient")
-        self.mi_cred_patcher = mock.patch(
-            "clients.aks_client.ManagedIdentityCredential"
-        )
         self.k8s_client_patcher = mock.patch("clients.aks_client.KubernetesClient")
         # Mock the dynamic import of OperationContext
         self.operation_context_patcher = mock.patch(
@@ -28,12 +25,11 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
 
         # Start patches
         mock_cs_client = self.cs_client_patcher.start()
-        mock_mi_cred = self.mi_cred_patcher.start()
         mock_k8s_client = self.k8s_client_patcher.start()
         self.mock_operation_context = self.operation_context_patcher.start()
 
         # Setup mock credential
-        self.mock_credential = mock_mi_cred.return_value
+        self.mock_credential = mock.MagicMock()
 
         # Setup mock container service client
         self.mock_aks_client = mock_cs_client.return_value
@@ -61,7 +57,7 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
             subscription_id="fake-subscription-id",
             resource_group="fake-resource-group",
             cluster_name="fake-cluster",
-            use_managed_identity=True,
+            credential=self.mock_credential,
             result_dir=self.test_result_dir,
         )
 
@@ -88,8 +84,15 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         # Stop patches
         self.operation_context_patcher.stop()
         self.cs_client_patcher.stop()
-        self.mi_cred_patcher.stop()
         self.k8s_client_patcher.stop()
+
+    def test_init_requires_credential(self):
+        """Test that initialization requires an injected Azure credential."""
+        with self.assertRaisesRegex(ValueError, "Azure credential is required"):
+            AKSClient(
+                subscription_id="fake-subscription-id",
+                resource_group="fake-resource-group",
+            )
 
     def test_get_cluster_name_provided(self):
         """Test get_cluster_name when name is already provided"""

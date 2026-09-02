@@ -3,8 +3,7 @@ AKS Client Module
 
 This module provides a client for interacting with Azure Kubernetes Service (AKS),
 focusing specifically on node pool operations (create, scale, delete).
-It handles authentication with Azure services using Managed Identity
-or other authentication methods provided by DefaultAzureCredential.
+It uses an Azure credential supplied by the caller.
 
 The client also validates node readiness after operations using Kubernetes API.
 
@@ -22,7 +21,6 @@ from typing import Dict, Optional, Any
 from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
 from azure.core.pipeline.policies import RetryPolicy, RetryMode
 from azure.core.pipeline.transport import RequestsTransport
-from azure.identity import DefaultAzureCredential, ManagedIdentityCredential
 from azure.mgmt.containerservice import ContainerServiceClient
 
 # Local imports
@@ -49,8 +47,8 @@ class AKSClient:
     """
     Client for Azure Kubernetes Service (AKS) operations.
 
-    This client handles authentication with Azure services and provides
-    methods for managing AKS node pools (create, scale, delete).
+    This client uses an injected Azure credential and provides methods for
+    managing AKS node pools (create, scale, delete).
     It also validates node readiness using Kubernetes API.
     """
 
@@ -104,7 +102,7 @@ class AKSClient:
         subscription_id: Optional[str] = None,
         resource_group: Optional[str] = None,
         cluster_name: Optional[str] = None,
-        use_managed_identity: bool = False,
+        credential=None,
         kube_config_file: Optional[str] = os.path.expanduser("~/.kube/config"),
         result_dir: Optional[str] = None,
         operation_timeout_minutes: int = 10,  # Timeout for each step in seconds
@@ -118,8 +116,7 @@ class AKSClient:
             resource_group: The Azure resource group containing the AKS cluster.
             cluster_name: The name of the AKS cluster. If not provided,
                           will try to get the first cluster in the resource group.
-            use_managed_identity: Whether to use managed identity for authentication.
-                                 If False, will fall back to DefaultAzureCredential.
+            credential: The required Azure credential used to authenticate with AKS.
             kube_config_file: Path to the kubeconfig file for Kubernetes authentication.
         """
         # Get subscription ID from environment if not provided
@@ -134,17 +131,9 @@ class AKSClient:
         self.vm_size = None  # Initialize vm_size attribute
 
         # Set up authentication
-        if use_managed_identity:
-            mi_client_id = os.getenv("AZURE_MI_ID")
-            if mi_client_id:
-                logger.info("Using Managed Identity with client ID for authentication")
-                self.credential = ManagedIdentityCredential(client_id=mi_client_id)
-            else:
-                logger.info("Using default Managed Identity for authentication")
-                self.credential = ManagedIdentityCredential()
-        else:
-            logger.info("Using DefaultAzureCredential for authentication")
-            self.credential = DefaultAzureCredential()
+        if credential is None:
+            raise ValueError("Azure credential is required.")
+        self.credential = credential
         # Set up retry policy
         retry_policy = RetryPolicy(
             retry_mode=RetryMode.Exponential,

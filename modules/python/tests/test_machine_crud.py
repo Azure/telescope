@@ -17,9 +17,16 @@ class TestMachineCRUD(unittest.TestCase):
         self.client_patcher = mock.patch(
             "crud.azure.machine_crud.AKSMachineClient"
         )
-        mock_client_class = self.client_patcher.start()
-        self.mock_client = mock_client_class.return_value
+        self.mock_client_class = self.client_patcher.start()
+        self.mock_client = self.mock_client_class.return_value
         self.mock_client.get_cluster_name.return_value = "fake-cluster"
+
+        self.credential_patcher = mock.patch(
+            "crud.azure.machine_crud.configure_credential"
+        )
+        self.mock_configure_credential = self.credential_patcher.start()
+        self.mock_credential = mock.MagicMock()
+        self.mock_configure_credential.return_value = self.mock_credential
 
         # Import lazily so the patch above is in effect.
         from crud.azure.machine_crud import MachineCRUD  # pylint: disable=import-outside-toplevel
@@ -31,12 +38,21 @@ class TestMachineCRUD(unittest.TestCase):
         )
 
     def tearDown(self):
+        self.credential_patcher.stop()
         self.client_patcher.stop()
 
     def test_init_captures_cluster_name(self):
         self.assertEqual(self.crud.cluster_name, "fake-cluster")
         self.assertEqual(self.crud.result_dir, "/tmp/test_results")
         self.assertEqual(self.crud.step_timeout, 900)
+        self.mock_configure_credential.assert_called_once_with()
+        self.mock_client_class.assert_called_once_with(
+            resource_group="fake-rg",
+            kube_config_file=None,
+            result_dir="/tmp/test_results",
+            operation_timeout_minutes=15,
+            credential=self.mock_credential,
+        )
 
     # ---- create_machine_agentpool ----
 
