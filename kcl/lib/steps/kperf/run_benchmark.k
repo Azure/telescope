@@ -64,9 +64,9 @@ until run_rg; do
     kubectl -n runnergroups-kperf-io get events --sort-by=.lastTimestamp | tail -50 || true
     exit 1
   fi
-  echo "attempt $attempt failed; retry in 120s" >&2
-  sleep 120
   cleanup_rg
+  echo "attempt $attempt failed; cleaning up and retrying in 120s" >&2
+  sleep 120
 done
 """
         displayName = "Run kperf runner group"
