@@ -349,7 +349,7 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         # Check that NVIDIA verification was performed
         self.mock_k8s.verify_nvidia_smi_on_node.assert_called_once_with(ready_nodes)
 
-    @mock.patch("clients.aks_client.subprocess.run")
+    @mock.patch("utils.azure_node_pool_cli.subprocess.run")
     @mock.patch("clients.aks_client.time")
     def test_create_node_pool_fully_managed_gpu(self, mock_time, mock_subprocess_run):
         """Test creating a fully managed GPU node pool uses az CLI, verifies systemd services and nvidia-smi"""
@@ -626,10 +626,19 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         # Two operations for two scaling steps
         mock_operation1 = mock.MagicMock()
         mock_operation2 = mock.MagicMock()
-        self.mock_agent_pools.begin_create_or_update.side_effect = [
+        mock_operations = [
             mock_operation1,
             mock_operation2,
         ]
+        requested_counts = []
+
+        def record_requested_count(**kwargs):
+            requested_counts.append(kwargs["parameters"].count)
+            return mock_operations.pop(0)
+
+        self.mock_agent_pools.begin_create_or_update.side_effect = (
+            record_requested_count
+        )
 
         # Create mock for each scaling step's nodes
         ready_nodes1 = [mock.MagicMock(), mock.MagicMock()]  # First step to 2 nodes
@@ -664,6 +673,7 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         self.assertEqual(
             self.mock_agent_pools.begin_create_or_update.call_count, 2
         )
+        self.assertEqual(requested_counts, [2, 3])
 
         # Check that NVIDIA verification was performed only once (on the final step)
         self.mock_k8s.verify_nvidia_smi_on_node.assert_called_once_with(

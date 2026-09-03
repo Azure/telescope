@@ -12,6 +12,7 @@ import time
 import yaml
 
 from clients.aks_client import AKSClient
+from utils.constants import AzureNodePoolTypeConstants
 from utils.logger_config import get_logger, setup_logging
 from utils.azure_auth import configure_credential
 
@@ -53,16 +54,25 @@ class NodePoolCRUD:
     """Performs AKS node pool operations - metrics collection is handled directly by AKSClient"""
 
     def __init__(
-        self, resource_group, kube_config_file=None, result_dir=None, step_timeout=600
+        self,
+        resource_group,
+        kube_config_file=None,
+        result_dir=None,
+        step_timeout=600,
+        cluster_name=None,
+        exclude_managed_identity=False,
     ):
         """Initialize with Azure resource identifiers"""
         self.resource_group = resource_group
         self.aks_client = AKSClient(
             resource_group=resource_group,
+            cluster_name=cluster_name,
             kube_config_file=kube_config_file,
             result_dir=result_dir,
             operation_timeout_minutes=step_timeout / 60,  # Convert seconds to minutes
-            credential=configure_credential(),
+            credential=configure_credential(
+                default_credential_exclude_mi=exclude_managed_identity
+            ),
         )
 
         if not self.aks_client:
@@ -77,6 +87,7 @@ class NodePoolCRUD:
     def create_node_pool(
         self, node_pool_name, vm_size, node_count=1, gpu_node_pool=False, enable_managed_gpu=False,
         gpu_instance_profile=None, gpu_mig_strategy=None,
+        node_pool_type=AzureNodePoolTypeConstants.VIRTUAL_MACHINE_SCALE_SETS,
     ):
         """
         Create a new node pool
@@ -100,6 +111,7 @@ class NodePoolCRUD:
                 node_pool_name=node_pool_name,
                 vm_size=vm_size,
                 node_count=node_count,
+                node_pool_type=node_pool_type,
                 gpu_node_pool=gpu_node_pool,
                 enable_managed_gpu=enable_managed_gpu,
                 gpu_instance_profile=gpu_instance_profile,
@@ -121,6 +133,7 @@ class NodePoolCRUD:
         enable_managed_gpu=False,
         gpu_instance_profile=None,
         gpu_mig_strategy=None,
+        node_pool_type=AzureNodePoolTypeConstants.VIRTUAL_MACHINE_SCALE_SETS,
     ):
         """
         Scale a node pool to specified count
@@ -143,6 +156,7 @@ class NodePoolCRUD:
             result = self.aks_client.scale_node_pool(
                 node_pool_name=node_pool_name,
                 node_count=node_count,
+                node_pool_type=node_pool_type,
                 gpu_node_pool=gpu_node_pool,
                 enable_managed_gpu=enable_managed_gpu,
                 progressive=progressive,
@@ -195,6 +209,7 @@ class NodePoolCRUD:
         step_wait_time=30,
         gpu_instance_profile=None,
         gpu_mig_strategy=None,
+        node_pool_type=AzureNodePoolTypeConstants.VIRTUAL_MACHINE_SCALE_SETS,
     ):
         """
         Unified method to perform all node pool operations: create, scale-up, scale-down, delete
@@ -229,6 +244,7 @@ class NodePoolCRUD:
                 node_pool_name=node_pool_name,
                 vm_size=vm_size,
                 node_count=node_count,
+                node_pool_type=node_pool_type,
                 gpu_node_pool=gpu_node_pool,
                 enable_managed_gpu=enable_managed_gpu,
                 gpu_instance_profile=gpu_instance_profile,
@@ -252,6 +268,7 @@ class NodePoolCRUD:
             scale_up_result = self.scale_node_pool(
                 node_pool_name=node_pool_name,
                 node_count=target_count,
+                node_pool_type=node_pool_type,
                 progressive=progressive,
                 scale_step_size=scale_step_size,
                 gpu_node_pool=gpu_node_pool,
@@ -277,6 +294,7 @@ class NodePoolCRUD:
             scale_down_result = self.scale_node_pool(
                 node_pool_name=node_pool_name,
                 node_count=node_count,
+                node_pool_type=node_pool_type,
                 progressive=progressive,
                 scale_step_size=scale_step_size,
                 gpu_node_pool=gpu_node_pool,
