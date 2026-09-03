@@ -11,12 +11,14 @@ RESOURCE_GROUP = "$(RUN_ID)"
 LOCATION = "southeastasia"
 NODE_COUNTS = {"H2": 2000, "H4": 4000, "H8": 8000}
 KWOK_NODES_PER_CONTROLLER = 100
-KWOK_POOL = azure.NodePool {
-    name = "kwokpool"
-    sku = "Standard_D4_v3"
-    count = 20
-    taintPrefix = "kwok"
-    labels = "kwok=true"
+makeKwokPool = lambda nodeCount: int -> azure.NodePool {
+    azure.NodePool {
+        name = "kwokpool"
+        sku = "Standard_D4_v3"
+        count = nodeCount // KWOK_NODES_PER_CONTROLLER
+        taintPrefix = "kwok"
+        labels = "kwok=true"
+    }
 }
 CL2_IMAGE = "ghcr.io/azure/clusterloader2:v20260220"
 CL2_NAMESPACE = "clusterloader2"
@@ -43,7 +45,7 @@ makeRequestBody = lambda scalingSize: str, cluster: str -> str {
     },
     "properties": {
       "controlPlaneScalingProfile": {"scalingSize": "${scalingSize}"},
-      "kubernetesVersion": "1.33.0",
+      "kubernetesVersion": "1.36",
       "dnsPrefix": "${cluster}-dns",
       "agentPoolProfiles": [
         {
@@ -74,6 +76,7 @@ makeRequestBody = lambda scalingSize: str, cluster: str -> str {
 
 makeBenchmarkingJob = lambda scalingSize: str, cl2Manifest: str -> job.Job {
     nodeCount = NODE_COUNTS[scalingSize]
+    kwokPool = makeKwokPool(nodeCount)
     cluster = "stg-${scalingSize}-hyperscale-pod-scheduling-rate"
     requestBody = makeRequestBody(scalingSize, cluster)
     createClusterScript = """
@@ -126,7 +129,7 @@ az rest \\
                 cluster,
                 RESOURCE_GROUP,
                 SUBSCRIPTION_ID,
-                KWOK_POOL),
+                kwokPool),
             *k8s.CreateKwokNodes(
               nodeCount,
               params = {
