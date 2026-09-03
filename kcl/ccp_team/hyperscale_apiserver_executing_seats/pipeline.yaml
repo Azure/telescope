@@ -80,7 +80,7 @@ jobs:
             },
             \"properties\": {
               \"controlPlaneScalingProfile\": {\"scalingSize\": \"${{ parameters.scaling_size }}\"},
-              \"kubernetesVersion\": \"1.33.0\",
+              \"kubernetesVersion\": \"1.36\",
               \"dnsPrefix\": \"stg-${{ parameters.scaling_size }}-hyperscale-apiserver-seats-dns\",
               \"agentPoolProfiles\": [
                 {
