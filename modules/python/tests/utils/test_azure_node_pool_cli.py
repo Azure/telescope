@@ -10,6 +10,7 @@ from azure.mgmt.containerservice.models import (
 )
 
 from utils.azure_node_pool_cli import (
+    add_managed_gpu_node_pool,
     build_add_virtual_machines_command,
     build_scale_virtual_machines_command,
     get_node_pool_scale_state,
@@ -21,7 +22,7 @@ from utils.azure_node_pool_cli import (
 class TestAzureNodePoolCLI(unittest.TestCase):
     """Validate VirtualMachines readback and command contracts."""
 
-    def test_get_scale_state_from_sdk_model(self):
+    def test_get_scale_state_rejects_multiple_manual_profiles(self):
         node_pool = mock.MagicMock()
         node_pool.virtual_machines_profile = VirtualMachinesProfile(
             scale=ScaleProfile(
@@ -32,10 +33,8 @@ class TestAzureNodePoolCLI(unittest.TestCase):
             )
         )
 
-        count, vm_size = get_node_pool_scale_state(node_pool, "VirtualMachines")
-
-        self.assertEqual(count, 5)
-        self.assertEqual(vm_size, "Standard_D2s_v3")
+        with self.assertRaisesRegex(ValueError, "multiple manual scale profiles"):
+            get_node_pool_scale_state(node_pool, "VirtualMachines")
 
     def test_get_scale_state_from_dict(self):
         node_pool = mock.MagicMock()
@@ -85,6 +84,53 @@ class TestAzureNodePoolCLI(unittest.TestCase):
                 "--node-count", "3",
             ],
         )
+
+    @mock.patch("utils.azure_node_pool_cli.subprocess.run")
+    def test_managed_gpu_command_does_not_set_vm_type(self, mock_subprocess_run):
+        mock_subprocess_run.return_value = mock.MagicMock(
+            returncode=0, stdout="", stderr=""
+        )
+
+        add_managed_gpu_node_pool(
+            "test-rg", "test-pool", "test-cluster", "Standard_NC6s_v3", 1
+        )
+
+        command = mock_subprocess_run.call_args_list[1].args[0]
+        self.assertNotIn("--vm-set-type", command)
+
+    @mock.patch("utils.azure_node_pool_cli.time.sleep")
+    @mock.patch("utils.azure_node_pool_cli.subprocess.run")
+    def test_managed_gpu_retries_operation_not_allowed(
+        self, mock_subprocess_run, mock_sleep
+    ):
+        mock_subprocess_run.side_effect = [
+            mock.MagicMock(returncode=0, stdout="", stderr=""),
+            mock.MagicMock(
+                returncode=1, stdout="", stderr="OperationNotAllowed"
+            ),
+            mock.MagicMock(returncode=0, stdout="", stderr=""),
+        ]
+
+        add_managed_gpu_node_pool(
+            "test-rg", "test-pool", "test-cluster", "Standard_NC6s_v3", 1
+        )
+
+        self.assertEqual(mock_subprocess_run.call_count, 3)
+        mock_sleep.assert_called_once_with(30)
+
+    @mock.patch("utils.azure_node_pool_cli.subprocess.run")
+    def test_managed_gpu_does_not_retry_etag_mismatch(self, mock_subprocess_run):
+        mock_subprocess_run.side_effect = [
+            mock.MagicMock(returncode=0, stdout="", stderr=""),
+            mock.MagicMock(returncode=1, stdout="", stderr="EtagMismatch"),
+        ]
+
+        with self.assertRaisesRegex(RuntimeError, "EtagMismatch"):
+            add_managed_gpu_node_pool(
+                "test-rg", "test-pool", "test-cluster", "Standard_NC6s_v3", 1
+            )
+
+        self.assertEqual(mock_subprocess_run.call_count, 2)
 
     def test_prepare_create_operation_returns_vmss_callable(self):
         parameters = {}

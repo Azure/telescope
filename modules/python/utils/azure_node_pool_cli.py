@@ -21,14 +21,19 @@ def get_node_pool_scale_state(node_pool, node_pool_type):
     manual = scale.get("manual") if isinstance(scale, dict) else scale.manual
     if not manual:
         raise ValueError("VirtualMachines node pool has no manual scale profile")
+    if len(manual) != 1:
+        raise ValueError(
+            "VirtualMachines node pools with multiple manual scale profiles "
+            "are not supported"
+        )
 
     def read(entry, field):
         return entry.get(field) if isinstance(entry, dict) else getattr(entry, field)
 
-    counts = [read(entry, "count") for entry in manual]
-    if any(count is None for count in counts):
+    count = read(manual[0], "count")
+    if count is None:
         raise ValueError("VirtualMachines manual scale profile has no node count")
-    return sum(counts), read(manual[0], "size")
+    return count, read(manual[0], "size")
 
 
 def build_add_virtual_machines_command(
@@ -208,7 +213,6 @@ def add_managed_gpu_node_pool(
     node_count,
     gpu_instance_profile=None,
     gpu_mig_strategy=None,
-    node_pool_type=AzureNodePoolTypeConstants.VIRTUAL_MACHINE_SCALE_SETS,
 ):
     """Create a fully managed GPU node pool through the aks-preview CLI."""
     subprocess.run(
@@ -243,8 +247,6 @@ def add_managed_gpu_node_pool(
         str(node_count),
         "--node-vm-size",
         vm_size,
-        "--vm-set-type",
-        node_pool_type,
         "--mode",
         "User",
         "--node-osdisk-type",
@@ -260,5 +262,33 @@ def add_managed_gpu_node_pool(
         cmd += ["--gpu-mig-strategy", gpu_mig_strategy]
 
     logger.info("Running: %s", " ".join(cmd))
-    run_node_pool_cli(cmd, node_pool_name, "add")
+    retries = 10
+    retry_wait = 30
+    for attempt in range(retries):
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0:
+            break
+        detail = " | ".join(
+            line
+            for line in (result.stdout + result.stderr).splitlines()
+            if line.strip()
+        )
+        if "OperationNotAllowed" in detail and attempt < retries - 1:
+            logger.warning(
+                "Cluster has an in-progress operation, retrying in %ss "
+                "(attempt %s/%s)",
+                retry_wait,
+                attempt + 1,
+                retries,
+            )
+            time.sleep(retry_wait)
+            continue
+        raise RuntimeError(
+            f"az aks nodepool add failed (rc={result.returncode}): {detail}"
+        )
     logger.info("az aks nodepool add succeeded for '%s'", node_pool_name)

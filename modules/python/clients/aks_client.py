@@ -289,7 +289,6 @@ class AKSClient:
         node_count: int,
         gpu_instance_profile: Optional[str] = None,
         gpu_mig_strategy: Optional[str] = None,
-        node_pool_type: str = AzureNodePoolTypeConstants.VIRTUAL_MACHINE_SCALE_SETS,
     ) -> None:
         """Create a fully managed GPU node pool through the aks-preview CLI."""
         add_managed_gpu_node_pool_cli(
@@ -300,7 +299,6 @@ class AKSClient:
             node_count=node_count,
             gpu_instance_profile=gpu_instance_profile,
             gpu_mig_strategy=gpu_mig_strategy,
-            node_pool_type=node_pool_type,
         )
 
     @staticmethod
@@ -467,7 +465,6 @@ class AKSClient:
                         cluster_name=cluster_name,
                         vm_size=vm_size,
                         node_count=node_count,
-                        node_pool_type=node_pool_type,
                         gpu_instance_profile=gpu_instance_profile,
                         gpu_mig_strategy=gpu_mig_strategy,
                     )
