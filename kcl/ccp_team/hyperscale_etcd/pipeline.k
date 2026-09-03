@@ -14,22 +14,19 @@ RUNNER_IMAGE = "ghcr.io/liyu-ma/kperf:hyperscale-etcd"
 # Condition: true when user provides a complete existing cluster reference (skip create/delete)
 USE_EXISTING_CLUSTER = "and(ne('\${{ parameters.existing_cluster_name }}', 'none'), ne('\${{ parameters.existing_cluster_resource_group }}', 'none'))"
 
-# ADO runtime variable references for downstream jobs.
-CLUSTER: str = "$(CLUSTER)"
-RESOURCE_GROUP = "$(RESOURCE_GROUP)"
-SETUP_CLUSTER = "$(resolve.CLUSTER)"
-SETUP_RESOURCE_GROUP = "$(resolve.RESOURCE_GROUP)"
+RESOLVED_CLUSTER = "$(resolve.CLUSTER)"
+RESOLVED_RESOURCE_GROUP = "$(resolve.RESOURCE_GROUP)"
 
 createClusterScript = """
 az extension add --name aks-preview --version 20.0.0b6 --allow-preview true --yes
 
 az aks create \\
     --subscription "${SUBSCRIPTION_ID}" \\
-    --resource-group "${SETUP_RESOURCE_GROUP}" \\
-    --name "${SETUP_CLUSTER}" \\
+    --resource-group "${RESOLVED_RESOURCE_GROUP}" \\
+    --name "${RESOLVED_CLUSTER}" \\
     --location "${LOCATION}" \\
     --kubernetes-version "1.36" \\
-    --dns-name-prefix "${SETUP_CLUSTER}-dns" \\
+    --dns-name-prefix "${RESOLVED_CLUSTER}-dns" \\
     --tier standard \\
     --enable-managed-identity \\
     --generate-ssh-keys \\
@@ -63,8 +60,8 @@ makeIngestionJob = lambda jobName: str, displayName: str, dataType: str, namespa
         steps = [
             azure.GetCredentials(
                 const.DEFAULT_SERVICE_CONNECTION,
-                CLUSTER,
-                RESOURCE_GROUP,
+                "$(CLUSTER)",
+                "$(RESOURCE_GROUP)",
                 SUBSCRIPTION_ID),
             kperf.InstallRunkperf(RUNNER_IMAGE),
             kperf.RunKperfDataIngest(
@@ -142,7 +139,7 @@ output = ap.Pipeline {
                 ),
                 azure.CreateResourceGroup(
                     const.DEFAULT_SERVICE_CONNECTION,
-                    SETUP_RESOURCE_GROUP,
+                    RESOLVED_RESOURCE_GROUP,
                     LOCATION,
                     SUBSCRIPTION_ID,
                     condition="and(succeeded(), not(${USE_EXISTING_CLUSTER}))"
@@ -154,8 +151,8 @@ output = ap.Pipeline {
                     condition="and(succeeded(), not(${USE_EXISTING_CLUSTER}))"),
                 azure.WaitForClusterSucceeded(
                     const.DEFAULT_SERVICE_CONNECTION,
-                    SETUP_CLUSTER,
-                    SETUP_RESOURCE_GROUP,
+                    RESOLVED_CLUSTER,
+                    RESOLVED_RESOURCE_GROUP,
                     SUBSCRIPTION_ID),
                 steps.Script {
                     script = """
@@ -201,13 +198,13 @@ echo "##vso[task.setvariable variable=BENCHMARK_START_TIME;isOutput=true]$START_
             steps = [
                 asi_dashboard.PrintAsiDashboardUrl(
                     const.DEFAULT_SERVICE_CONNECTION,
-                    CLUSTER,
-                    RESOURCE_GROUP,
+                    "$(CLUSTER)",
+                    "$(RESOURCE_GROUP)",
                     SUBSCRIPTION_ID,
                     startTime="$(BENCHMARK_START_TIME)"),
                 azure.DeleteResourceGroup(
                     const.DEFAULT_SERVICE_CONNECTION,
-                    RESOURCE_GROUP,
+                    "$(RESOURCE_GROUP)",
                     SUBSCRIPTION_ID,
                     condition="and(always(), not(${USE_EXISTING_CLUSTER}), not(\${{ parameters.keep_cluster }}))")
             ]

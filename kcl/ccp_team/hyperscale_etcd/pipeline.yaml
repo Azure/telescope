@@ -116,7 +116,7 @@ jobs:
             --resource-group "$(resolve.RESOURCE_GROUP)" \
             --name "$(resolve.CLUSTER)" \
             --location "westus2" \
-            --kubernetes-version "1.35" \
+            --kubernetes-version "1.36" \
             --dns-name-prefix "$(resolve.CLUSTER)-dns" \
             --tier standard \
             --enable-managed-identity \
