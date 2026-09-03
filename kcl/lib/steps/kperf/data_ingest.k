@@ -57,12 +57,8 @@ for batch in $(seq 1 $TOTAL_BATCHES); do
       exit 1
     fi
     echo "Batch $batch attempt $attempt failed; cleaning up before retry..."
-<<<<<<< HEAD
     # delete reconstructs names <set>-<0..total-1>, so total must cover the whole batch.
     runkperf data ${dataType} --namespace ${namespace} delete ${name}-b$batch --total $COUNT || true
-=======
-    runkperf data ${dataType} --namespace ${namespace} delete ${name}-b$batch || true
->>>>>>> 70e38325 (Make kperf ingest batch names predictable and avoid residue on retry)
   done
 
   completed=$((completed + COUNT))
