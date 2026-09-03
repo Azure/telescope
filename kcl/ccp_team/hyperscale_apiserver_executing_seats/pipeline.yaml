@@ -1,7 +1,16 @@
 name: Hyperscale API Server Executing Seats
+parameters:
+- name: scaling_size
+  displayName: Control plane scaling size
+  type: string
+  default: H8
+  values:
+  - H2
+  - H4
+  - H8
 jobs:
 - job: benchmarking
-  displayName: Benchmarking
+  displayName: Benchmarking (${{ parameters.scaling_size }})
   timeoutInMinutes: 600
   steps:
   - bash: |2
@@ -55,7 +64,7 @@ jobs:
 
         az rest \
           --method put \
-          --uri "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/$(RUN_ID)/providers/Microsoft.ContainerService/managedClusters/stg-H8-hyperscale-apiserver-seats?api-version=2026-01-02-preview" \
+          --uri "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/$(RUN_ID)/providers/Microsoft.ContainerService/managedClusters/stg-${{ parameters.scaling_size }}-hyperscale-apiserver-seats?api-version=2026-01-02-preview" \
           --body "
         {
             \"location\": \"westus2\",
@@ -70,9 +79,9 @@ jobs:
               \"SkipLinuxAzSecPack\": \"true\"
             },
             \"properties\": {
-              \"controlPlaneScalingProfile\": {\"scalingSize\": \"H8\"},
+              \"controlPlaneScalingProfile\": {\"scalingSize\": \"${{ parameters.scaling_size }}\"},
               \"kubernetesVersion\": \"1.33.0\",
-              \"dnsPrefix\": \"stg-H8-hyperscale-apiserver-seats-dns\",
+              \"dnsPrefix\": \"stg-${{ parameters.scaling_size }}-hyperscale-apiserver-seats-dns\",
               \"agentPoolProfiles\": [
                 {
                   \"name\": \"systempool\",
@@ -109,7 +118,7 @@ jobs:
 
         while true; do
           STATE=$(az aks show \
-            --name "stg-H8-hyperscale-apiserver-seats" \
+            --name "stg-${{ parameters.scaling_size }}-hyperscale-apiserver-seats" \
             --resource-group "$(RUN_ID)" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --query "provisioningState" \
@@ -136,11 +145,11 @@ jobs:
         set -exo pipefail
 
         az aks get-credentials \
-          --name "stg-H8-hyperscale-apiserver-seats" \
+          --name "stg-${{ parameters.scaling_size }}-hyperscale-apiserver-seats" \
           --resource-group "$(RUN_ID)" \
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --overwrite-existing
-    displayName: Get credentials for stg-H8-hyperscale-apiserver-seats
+    displayName: Get credentials for stg-${{ parameters.scaling_size }}-hyperscale-apiserver-seats
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
@@ -156,7 +165,7 @@ jobs:
           attempt=$((attempt + 1))
           set +e
           output=$(az aks nodepool add \
-            --cluster-name "stg-H8-hyperscale-apiserver-seats" \
+            --cluster-name "stg-${{ parameters.scaling_size }}-hyperscale-apiserver-seats" \
             --resource-group "$(RUN_ID)" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --name "cl2pool" \
@@ -200,7 +209,7 @@ jobs:
           attempt=$((attempt + 1))
           set +e
           output=$(az aks nodepool add \
-            --cluster-name "stg-H8-hyperscale-apiserver-seats" \
+            --cluster-name "stg-${{ parameters.scaling_size }}-hyperscale-apiserver-seats" \
             --resource-group "$(RUN_ID)" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --name "kwokpool" \
@@ -255,7 +264,7 @@ jobs:
 
         set +eo pipefail
         kubectl create namespace "clusterloader2" || true
-        kubectl apply -f $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/cl2.yaml
+        kubectl apply -f $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/cl2-${{ lower(parameters.scaling_size) }}.yaml
         # Wait
         consecutive_errors=0
         while true; do

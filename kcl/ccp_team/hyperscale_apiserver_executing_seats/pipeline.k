@@ -9,7 +9,7 @@ import lib.util
 SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
 RESOURCE_GROUP = "$(RUN_ID)"
 LOCATION = "westus2"
-CONTROL_PLANE_SCALING_SIZE = "H8"
+CONTROL_PLANE_SCALING_SIZE = "\${{ parameters.scaling_size }}"
 CLUSTER = "stg-${CONTROL_PLANE_SCALING_SIZE}-hyperscale-apiserver-seats"
 
 CL2_POOL = azure.NodePool {
@@ -79,10 +79,20 @@ az rest \\
 output = ap.Pipeline {
     name = "Hyperscale API Server Executing Seats"
 
+  parameters = [
+    ap.Parameter {
+      name = "scaling_size"
+      displayName = "Control plane scaling size"
+      type = "string"
+      default = "H8"
+      values = ["H2", "H4", "H8"]
+    }
+  ]
+
     jobs = [
         job.Job {
             job = "benchmarking"
-            displayName = "Benchmarking"
+      displayName = "Benchmarking (${CONTROL_PLANE_SCALING_SIZE})"
             timeoutInMinutes = 600
 
             steps = [
@@ -139,7 +149,7 @@ output = ap.Pipeline {
                   k8s.RunClusterLoader2(
                     const.DEFAULT_SERVICE_CONNECTION,
                     "clusterloader2",
-                    manifest = "kcl/ccp_team/hyperscale_apiserver_executing_seats/cl2.yaml"),
+                    manifest = "kcl/ccp_team/hyperscale_apiserver_executing_seats/cl2-\${{ lower(parameters.scaling_size) }}.yaml"),
                   k8s.PrintCl2PodLogs(
                     const.DEFAULT_SERVICE_CONNECTION,
                     "clusterloader2"),
