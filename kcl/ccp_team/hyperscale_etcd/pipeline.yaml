@@ -35,13 +35,18 @@ parameters:
   type: number
   default: 4
 jobs:
-- job: bootstrap
-  displayName: Bootstrap
-  timeoutInMinutes: 10
+- job: setup
+  displayName: Cluster Setup
+  timeoutInMinutes: 1440
   steps:
   - bash: |2
 
-      set -exo pipefail
+      set -eo pipefail
+
+      if { [ "$PARAM_EXISTING_CLUSTER" = "none" ] && [ "$PARAM_EXISTING_RG" != "none" ]; } ||    { [ "$PARAM_EXISTING_CLUSTER" != "none" ] && [ "$PARAM_EXISTING_RG" = "none" ]; }; then
+        echo "Existing cluster name and resource group must be provided together."
+        exit 1
+      fi
 
       # Resolve CLUSTER
       if [ -n "$PARAM_EXISTING_CLUSTER" ] && [ "$PARAM_EXISTING_CLUSTER" != "none" ]; then
@@ -69,15 +74,6 @@ jobs:
       PARAM_EXISTING_CLUSTER: ${{ parameters.existing_cluster_name }}
       PARAM_EXISTING_RG: ${{ parameters.existing_cluster_resource_group }}
     name: resolve
-- job: setup
-  displayName: Cluster Setup
-  dependsOn: bootstrap
-  condition: and(succeeded(), not(ne('${{ parameters.existing_cluster_name }}', 'none')))
-  timeoutInMinutes: 1440
-  variables:
-    CLUSTER: $[ dependencies.bootstrap.outputs['resolve.CLUSTER'] ]
-    RESOURCE_GROUP: $[ dependencies.bootstrap.outputs['resolve.RESOURCE_GROUP'] ]
-  steps:
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
@@ -95,10 +91,15 @@ jobs:
       azureSubscription: Azure-for-Telescope-internal
       scriptType: bash
       scriptLocation: inlineScript
-      inlineScript: |
+      inlineScript: |+
         set -exo pipefail
 
-        az group create --name "$(RESOURCE_GROUP)" --location "westus2" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+        az group create \
+          --name "$(resolve.RESOURCE_GROUP)" \
+          --location "westus2" \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+
+    condition: and(succeeded(), not(and(ne('${{ parameters.existing_cluster_name }}', 'none'), ne('${{ parameters.existing_cluster_resource_group }}', 'none'))))
     displayName: Create resource group in westus2 (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
   - task: AzureCLI@2
     inputs:
@@ -108,51 +109,33 @@ jobs:
       inlineScript: |
         set -exo pipefail
 
-        az rest \
-          --method put \
-          --uri "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/$(RESOURCE_GROUP)/providers/Microsoft.ContainerService/managedClusters/$(CLUSTER)?api-version=2026-01-02-preview" \
-          --body "
-        {
-            \"location\": \"westus2\",
-            \"identity\": { \"type\": \"SystemAssigned\" },
-            \"sku\": {
-              \"name\": \"Base\",
-              \"tier\": \"Standard\"
-            },
-            \"tags\": {
-              \"SkipAKSCluster\": \"true\",
-              \"SkipASMAzSecPackAutoConfig\": \"true\",
-              \"SkipLinuxAzSecPack\": \"true\"
-            },
-            \"properties\": {
-              \"controlPlaneScalingProfile\": {\"scalingSize\": \"${{ parameters.scaling_size }}\"},
-              \"kubernetesVersion\": \"1.33.0\",
-              \"dnsPrefix\": \"$(CLUSTER)-dns\",
-              \"agentPoolProfiles\": [
-                {
-                  \"name\": \"systempool\",
-                  \"mode\": \"System\",
-                  \"count\": 3,
-                  \"vmSize\": \"Standard_D2_v4\",
-                  \"osType\": \"Linux\",
-                  \"maxPods\": 50
-                }
-              ],
-            \"networkProfile\": {
-               \"networkPlugin\": \"azure\",
-               \"networkPluginMode\": \"overlay\",
-               \"podCidr\": \"10.64.0.0/10\",
-               \"serviceCidr\": \"10.0.0.0/16\",
-               \"dnsServiceIP\": \"10.0.0.10\",
-               \"outboundType\": \"managedNATGateway\",
-               \"natGatewayProfile\": {
-                  \"managedOutboundIPProfile\": {
-                    \"count\": 10
-                  }
-                }
-              }
-            }
-          }"
+        az extension add --name aks-preview --version 20.0.0b6 --allow-preview true --yes
+
+        az aks create \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --resource-group "$(resolve.RESOURCE_GROUP)" \
+            --name "$(resolve.CLUSTER)" \
+            --location "westus2" \
+            --kubernetes-version "1.36" \
+            --dns-name-prefix "$(resolve.CLUSTER)-dns" \
+            --tier standard \
+            --enable-managed-identity \
+            --generate-ssh-keys \
+            --nodepool-name systempool \
+            --node-count 3 \
+            --node-vm-size Standard_D2_v4 \
+            --max-pods 50 \
+            --network-plugin azure \
+            --network-plugin-mode overlay \
+            --pod-cidr 10.64.0.0/10 \
+            --service-cidr 10.0.0.0/16 \
+            --dns-service-ip 10.0.0.10 \
+            --outbound-type managedNATGateway \
+            --nat-gateway-managed-outbound-ip-count 10 \
+            --tags SkipAKSCluster=true \
+            --control-plane-scaling-size ${{ parameters.scaling_size }} \
+            --yes
+    condition: and(succeeded(), not(and(ne('${{ parameters.existing_cluster_name }}', 'none'), ne('${{ parameters.existing_cluster_resource_group }}', 'none'))))
     displayName: Create cluster
   - task: AzureCLI@2
     inputs:
@@ -164,8 +147,8 @@ jobs:
 
         while true; do
           STATE=$(az aks show \
-            --name "$(CLUSTER)" \
-            --resource-group "$(RESOURCE_GROUP)" \
+            --name "$(resolve.CLUSTER)" \
+            --resource-group "$(resolve.RESOURCE_GROUP)" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --query "provisioningState" \
             --output tsv)
@@ -182,14 +165,6 @@ jobs:
           sleep 30
         done
     displayName: Wait for cluster to succeed
-- job: record_start_time
-  displayName: Record Benchmark Start Time
-  dependsOn:
-  - bootstrap
-  - setup
-  condition: and(eq(dependencies.bootstrap.result, 'Succeeded'), in(dependencies.setup.result, 'Succeeded', 'Skipped'))
-  timeoutInMinutes: 5
-  steps:
   - script: |2
 
       set -euo pipefail
@@ -200,15 +175,12 @@ jobs:
     name: timestamp
 - job: ingest_configmap
   displayName: Ingest ConfigMaps (${{ parameters.ingest_configmap_gib }} GiB)
-  dependsOn:
-  - bootstrap
-  - setup
-  - record_start_time
-  condition: and(succeeded(), ${{ ne(parameters.ingest_configmap_gib, 0) }})
+  dependsOn: setup
+  condition: and(succeeded(), ne('${{ parameters.ingest_configmap_gib }}', '0'))
   timeoutInMinutes: 1440
   variables:
-    CLUSTER: $[ dependencies.bootstrap.outputs['resolve.CLUSTER'] ]
-    RESOURCE_GROUP: $[ dependencies.bootstrap.outputs['resolve.RESOURCE_GROUP'] ]
+    CLUSTER: $[ dependencies.setup.outputs['resolve.CLUSTER'] ]
+    RESOURCE_GROUP: $[ dependencies.setup.outputs['resolve.RESOURCE_GROUP'] ]
   steps:
   - task: AzureCLI@2
     inputs:
@@ -263,7 +235,7 @@ jobs:
         run_batch() {
           runkperf data configmap \
             --namespace kperf-configmap-data \
-            add my-configmaps-b$batch-$1 \
+            add $(System.JobId)-b$batch-$1 \
             --qps 80 \
             --burst 80 \
             --total $COUNT \
@@ -282,15 +254,12 @@ jobs:
     displayName: Ingest configmap data (${{ parameters.ingest_configmap_gib }} GiB)
 - job: ingest_events
   displayName: Ingest Events (${{ parameters.ingest_events_gib }} GiB)
-  dependsOn:
-  - bootstrap
-  - setup
-  - record_start_time
-  condition: and(succeeded(), ${{ ne(parameters.ingest_events_gib, 0) }})
+  dependsOn: setup
+  condition: and(succeeded(), ne('${{ parameters.ingest_events_gib }}', '0'))
   timeoutInMinutes: 1440
   variables:
-    CLUSTER: $[ dependencies.bootstrap.outputs['resolve.CLUSTER'] ]
-    RESOURCE_GROUP: $[ dependencies.bootstrap.outputs['resolve.RESOURCE_GROUP'] ]
+    CLUSTER: $[ dependencies.setup.outputs['resolve.CLUSTER'] ]
+    RESOURCE_GROUP: $[ dependencies.setup.outputs['resolve.RESOURCE_GROUP'] ]
   steps:
   - task: AzureCLI@2
     inputs:
@@ -345,7 +314,7 @@ jobs:
         run_batch() {
           runkperf data event \
             --namespace kperf-event-data \
-            add my-events-b$batch-$1 \
+            add $(System.JobId)-b$batch-$1 \
             --qps 80 \
             --burst 80 \
             --total $COUNT \
@@ -364,15 +333,12 @@ jobs:
     displayName: Ingest event data (${{ parameters.ingest_events_gib }} GiB)
 - job: ingest_secrets
   displayName: Ingest Secrets (${{ parameters.ingest_secrets_gib }} GiB)
-  dependsOn:
-  - bootstrap
-  - setup
-  - record_start_time
-  condition: and(succeeded(), ${{ ne(parameters.ingest_secrets_gib, 0) }})
+  dependsOn: setup
+  condition: and(succeeded(), ne('${{ parameters.ingest_secrets_gib }}', '0'))
   timeoutInMinutes: 1440
   variables:
-    CLUSTER: $[ dependencies.bootstrap.outputs['resolve.CLUSTER'] ]
-    RESOURCE_GROUP: $[ dependencies.bootstrap.outputs['resolve.RESOURCE_GROUP'] ]
+    CLUSTER: $[ dependencies.setup.outputs['resolve.CLUSTER'] ]
+    RESOURCE_GROUP: $[ dependencies.setup.outputs['resolve.RESOURCE_GROUP'] ]
   steps:
   - task: AzureCLI@2
     inputs:
@@ -427,7 +393,7 @@ jobs:
         run_batch() {
           runkperf data secret \
             --namespace kperf-secret-data \
-            add my-secrets-b$batch-$1 \
+            add $(System.JobId)-b$batch-$1 \
             --qps 80 \
             --burst 80 \
             --total $COUNT \
@@ -444,20 +410,19 @@ jobs:
       echo "Ingest complete: $completed secrets created."
     condition: and(succeeded(), ne('${{ parameters.ingest_secrets_gib }}', '0'))
     displayName: Ingest secret data (${{ parameters.ingest_secrets_gib }} GiB)
-- job: report
-  displayName: Print ASI Dashboard URLs
+- job: finalize
+  displayName: Report and Cleanup
   dependsOn:
-  - bootstrap
-  - record_start_time
+  - setup
   - ingest_configmap
   - ingest_events
   - ingest_secrets
-  condition: in(dependencies.record_start_time.result, 'Succeeded', 'SucceededWithIssues')
-  timeoutInMinutes: 10
+  condition: always()
+  timeoutInMinutes: 60
   variables:
-    CLUSTER: $[ dependencies.bootstrap.outputs['resolve.CLUSTER'] ]
-    RESOURCE_GROUP: $[ dependencies.bootstrap.outputs['resolve.RESOURCE_GROUP'] ]
-    BENCHMARK_START_TIME: $[ dependencies.record_start_time.outputs['timestamp.BENCHMARK_START_TIME'] ]
+    CLUSTER: $[ dependencies.setup.outputs['resolve.CLUSTER'] ]
+    RESOURCE_GROUP: $[ dependencies.setup.outputs['resolve.RESOURCE_GROUP'] ]
+    BENCHMARK_START_TIME: $[ dependencies.setup.outputs['timestamp.BENCHMARK_START_TIME'] ]
   steps:
   - task: AzureCLI@2
     inputs:
@@ -495,16 +460,6 @@ jobs:
         echo "============================================"
     continueOnError: true
     displayName: Print ASI dashboard URL
-- job: cleanup
-  displayName: Cleanup
-  dependsOn:
-  - bootstrap
-  - report
-  condition: and(always(), not(ne('${{ parameters.existing_cluster_name }}', 'none')), not(${{ parameters.keep_cluster }}))
-  timeoutInMinutes: 60
-  variables:
-    RESOURCE_GROUP: $[ dependencies.bootstrap.outputs['resolve.RESOURCE_GROUP'] ]
-  steps:
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
@@ -514,5 +469,5 @@ jobs:
         set -exo pipefail
 
         az group delete --name "$(RESOURCE_GROUP)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
-    condition: always()
+    condition: and(always(), not(and(ne('${{ parameters.existing_cluster_name }}', 'none'), ne('${{ parameters.existing_cluster_resource_group }}', 'none'))), not(${{ parameters.keep_cluster }}))
     displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)

@@ -5,7 +5,13 @@ DEFAULT_CLUSTER_NAME = "hyperscale-etcd-testing"
 Bootstrap = lambda -> steps.Step {
     steps.Bash {
         bash = """
-set -exo pipefail
+set -eo pipefail
+
+if { [ "$PARAM_EXISTING_CLUSTER" = "none" ] && [ "$PARAM_EXISTING_RG" != "none" ]; } || \
+   { [ "$PARAM_EXISTING_CLUSTER" != "none" ] && [ "$PARAM_EXISTING_RG" = "none" ]; }; then
+  echo "Existing cluster name and resource group must be provided together."
+  exit 1
+fi
 
 # Resolve CLUSTER
 if [ -n "$PARAM_EXISTING_CLUSTER" ] && [ "$PARAM_EXISTING_CLUSTER" != "none" ]; then
