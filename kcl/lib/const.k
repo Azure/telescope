@@ -5,3 +5,6 @@ DEFAULT_SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
 DEFAULT_STORAGE_ACCOUNT = "telescopev2"
 DEFAULT_STORAGE_SUBSCRIPTION_ID = "137f0351-8235-42a6-ac7a-6b46be2d21c7"
 DEFAULT_STORAGE_CONTAINER = "aks"
+
+# Shared busybox image used by the AKS component validation steps.
+BUSYBOX_IMAGE = "mcr.microsoft.com/azurelinux/busybox:1.36"

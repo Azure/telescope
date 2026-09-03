@@ -80,7 +80,7 @@ stages:
               },
               \"properties\": {
                 \"controlPlaneScalingProfile\": {\"scalingSize\": \"H2\"},
-                \"kubernetesVersion\": \"1.33.0\",
+                \"kubernetesVersion\": \"1.36\",
                 \"dnsPrefix\": \"stg-H2-hyperscale-pod-scheduling-rate-dns\",
                 \"agentPoolProfiles\": [
                   {
@@ -156,7 +156,7 @@ stages:
               --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
               --name "cl2pool" \
               --node-count 1 \
-              --node-vm-size "Standard_D8S_v4" \
+              --node-vm-size "Standard_D16S_v4" \
               --mode User \
               --node-taints cl2pool=true:NoSchedule 2>&1)
             rc=$?
@@ -407,7 +407,7 @@ stages:
               },
               \"properties\": {
                 \"controlPlaneScalingProfile\": {\"scalingSize\": \"H4\"},
-                \"kubernetesVersion\": \"1.33.0\",
+                \"kubernetesVersion\": \"1.36\",
                 \"dnsPrefix\": \"stg-H4-hyperscale-pod-scheduling-rate-dns\",
                 \"agentPoolProfiles\": [
                   {
@@ -483,7 +483,7 @@ stages:
               --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
               --name "cl2pool" \
               --node-count 1 \
-              --node-vm-size "Standard_D8S_v4" \
+              --node-vm-size "Standard_D16S_v4" \
               --mode User \
               --node-taints cl2pool=true:NoSchedule 2>&1)
             rc=$?
@@ -540,7 +540,7 @@ stages:
               --resource-group "$(RUN_ID)" \
               --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
               --name "kwokpool" \
-              --node-count 20 \
+              --node-count 40 \
               --node-vm-size "Standard_D4_v3" \
               --mode User \
               --node-taints kwok=true:NoSchedule \
@@ -734,7 +734,7 @@ stages:
               },
               \"properties\": {
                 \"controlPlaneScalingProfile\": {\"scalingSize\": \"H8\"},
-                \"kubernetesVersion\": \"1.33.0\",
+                \"kubernetesVersion\": \"1.36\",
                 \"dnsPrefix\": \"stg-H8-hyperscale-pod-scheduling-rate-dns\",
                 \"agentPoolProfiles\": [
                   {
@@ -810,7 +810,7 @@ stages:
               --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
               --name "cl2pool" \
               --node-count 1 \
-              --node-vm-size "Standard_D8S_v4" \
+              --node-vm-size "Standard_D16S_v4" \
               --mode User \
               --node-taints cl2pool=true:NoSchedule 2>&1)
             rc=$?
@@ -867,7 +867,7 @@ stages:
               --resource-group "$(RUN_ID)" \
               --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
               --name "kwokpool" \
-              --node-count 20 \
+              --node-count 80 \
               --node-vm-size "Standard_D4_v3" \
               --mode User \
               --node-taints kwok=true:NoSchedule \
