@@ -4,7 +4,6 @@ import azure_pipelines.ap.steps
 import lib.const
 import lib.steps.azure
 import lib.steps.kperf
-import lib.util
 import lib.util.asi_dashboard
 
 SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
@@ -15,78 +14,67 @@ RUNNER_IMAGE = "ghcr.io/liyu-ma/kperf:hyperscale-etcd"
 # Condition: true when user provides a complete existing cluster reference (skip create/delete)
 USE_EXISTING_CLUSTER = "and(ne('\${{ parameters.existing_cluster_name }}', 'none'), ne('\${{ parameters.existing_cluster_resource_group }}', 'none'))"
 
-# ADO runtime variable references (resolved by bootstrap job)
+# ADO runtime variable references for downstream jobs.
 CLUSTER: str = "$(CLUSTER)"
 RESOURCE_GROUP = "$(RESOURCE_GROUP)"
-
-requestBody = util.escapeStr("""
-{
-    "location": "${LOCATION}",
-    "identity": { "type": "SystemAssigned" },
-    "sku": {
-      "name": "Base",
-      "tier": "Standard"
-    },
-    "tags": {
-      "SkipAKSCluster": "true",
-      "SkipASMAzSecPackAutoConfig": "true",
-      "SkipLinuxAzSecPack": "true"
-    },
-    "properties": {
-      "controlPlaneScalingProfile": {"scalingSize": "\${{ parameters.scaling_size }}"},
-    "kubernetesVersion": "1.36",
-      "dnsPrefix": "${CLUSTER}-dns",
-      "agentPoolProfiles": [
-        {
-          "name": "systempool",
-          "mode": "System",
-          "count": 3,
-          "vmSize": "Standard_D2_v4",
-          "osType": "Linux",
-          "maxPods": 50
-        }
-      ],
-    "networkProfile": {
-       "networkPlugin": "azure",
-       "networkPluginMode": "overlay",
-       "podCidr": "10.64.0.0/10",
-       "serviceCidr": "10.0.0.0/16",
-       "dnsServiceIP": "10.0.0.10",
-       "outboundType": "managedNATGateway",
-       "natGatewayProfile": {
-          "managedOutboundIPProfile": {
-            "count": 10
-          }
-        }
-      }
-    }
-  }""")
+SETUP_CLUSTER = "$(resolve.CLUSTER)"
+SETUP_RESOURCE_GROUP = "$(resolve.RESOURCE_GROUP)"
 
 createClusterScript = """
-az rest \\
-  --method put \\
-  --uri "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.ContainerService/managedClusters/${CLUSTER}?api-version=2026-01-02-preview" \\
-  --body "${requestBody}"
+az extension add --name aks-preview --version 20.0.0b6 --allow-preview true --yes
+
+az aks create \\
+    --subscription "${SUBSCRIPTION_ID}" \\
+    --resource-group "${SETUP_RESOURCE_GROUP}" \\
+    --name "${SETUP_CLUSTER}" \\
+    --location "${LOCATION}" \\
+    --kubernetes-version "1.36" \\
+    --dns-name-prefix "${SETUP_CLUSTER}-dns" \\
+    --tier standard \\
+    --enable-managed-identity \\
+    --generate-ssh-keys \\
+    --nodepool-name systempool \\
+    --node-count 3 \\
+    --node-vm-size Standard_D2_v4 \\
+    --max-pods 50 \\
+    --network-plugin azure \\
+    --network-plugin-mode overlay \\
+    --pod-cidr 10.64.0.0/10 \\
+    --service-cidr 10.0.0.0/16 \\
+    --dns-service-ip 10.0.0.10 \\
+    --outbound-type managedNATGateway \\
+    --nat-gateway-managed-outbound-ip-count 10 \\
+    --tags SkipAKSCluster=true \\
+    --control-plane-scaling-size \${{ parameters.scaling_size }} \\
+    --yes
 """
 
-# Common steps for each ingest job (login, get creds, install runkperf)
-prepareForIngestion = lambda {
-    [
-        azure.GetCredentials(
-            const.DEFAULT_SERVICE_CONNECTION,
-            CLUSTER,
-            RESOURCE_GROUP,
-            SUBSCRIPTION_ID),
-        kperf.InstallRunkperf(RUNNER_IMAGE),
-    ]
+makeIngestionJob = lambda jobName: str, displayName: str, dataType: str, namespace: str, totalGiB: str -> job.Job {
+    job.Job {
+        job = jobName
+        displayName = displayName
+        timeoutInMinutes = 1440
+        dependsOn = "setup"
+        condition = "and(succeeded(), ne('${totalGiB}', '0'))"
+        variables = {
+            CLUSTER = "$[ dependencies.setup.outputs['resolve.CLUSTER'] ]"
+            RESOURCE_GROUP = "$[ dependencies.setup.outputs['resolve.RESOURCE_GROUP'] ]"
+        }
+        steps = [
+            azure.GetCredentials(
+                const.DEFAULT_SERVICE_CONNECTION,
+                CLUSTER,
+                RESOURCE_GROUP,
+                SUBSCRIPTION_ID),
+            kperf.InstallRunkperf(RUNNER_IMAGE),
+            kperf.RunKperfDataIngest(
+                dataType=dataType,
+                namespace=namespace,
+                name="$(System.JobId)",
+                totalGiB=totalGiB),
+        ]
+    }
 }
-
-INGEST_DEPENDS_ON = ["bootstrap", "setup"]
-INGEST_VARIABLES = {
-    CLUSTER = "$[ dependencies.bootstrap.outputs['resolve.CLUSTER'] ]"
-    RESOURCE_GROUP = "$[ dependencies.bootstrap.outputs['resolve.RESOURCE_GROUP'] ]"
-}
-INGEST_CLUSTER_READY = "and(eq(dependencies.bootstrap.result, 'Succeeded'), or(eq(dependencies.setup.result, 'Succeeded'), and(eq(dependencies.setup.result, 'Skipped'), ${USE_EXISTING_CLUSTER})))"
 
 output = ap.Pipeline {
     name = "Hyperscale Etcd Benchmarking"
@@ -142,25 +130,11 @@ output = ap.Pipeline {
 
     jobs = [
         job.Job {
-            job = "bootstrap"
-            displayName = "Bootstrap"
-            timeoutInMinutes = 10
-            steps = [
-                Bootstrap(),
-            ]
-        }
-        job.Job {
             job = "setup"
             displayName = "Cluster Setup"
             timeoutInMinutes = 1440
-            dependsOn = "bootstrap"
-            condition = "and(succeeded(), not(${USE_EXISTING_CLUSTER}))"
-            variables = {
-                CLUSTER = "$[ dependencies.bootstrap.outputs['resolve.CLUSTER'] ]"
-                RESOURCE_GROUP = "$[ dependencies.bootstrap.outputs['resolve.RESOURCE_GROUP'] ]"
-            }
-
             steps = [
+                Bootstrap(),
                 azure.Login(
                     const.DEFAULT_SERVICE_CONNECTION,
                     SUBSCRIPTION_ID,
@@ -168,28 +142,21 @@ output = ap.Pipeline {
                 ),
                 azure.CreateResourceGroup(
                     const.DEFAULT_SERVICE_CONNECTION,
-                    RESOURCE_GROUP,
+                    SETUP_RESOURCE_GROUP,
                     LOCATION,
-                    SUBSCRIPTION_ID
+                    SUBSCRIPTION_ID,
+                    condition="and(succeeded(), not(${USE_EXISTING_CLUSTER}))"
                 ),
                 azure.AzCli(
                     const.DEFAULT_SERVICE_CONNECTION,
                     "Create cluster",
-                    createClusterScript),
+                    createClusterScript,
+                    condition="and(succeeded(), not(${USE_EXISTING_CLUSTER}))"),
                 azure.WaitForClusterSucceeded(
                     const.DEFAULT_SERVICE_CONNECTION,
-                    CLUSTER,
-                    RESOURCE_GROUP,
+                    SETUP_CLUSTER,
+                    SETUP_RESOURCE_GROUP,
                     SUBSCRIPTION_ID),
-            ]
-        }
-        job.Job {
-            job = "record_start_time"
-            displayName = "Record Benchmark Start Time"
-            timeoutInMinutes = 5
-            dependsOn = ["bootstrap", "setup"]
-            condition = "and(eq(dependencies.bootstrap.result, 'Succeeded'), in(dependencies.setup.result, 'Succeeded', 'Skipped'))"
-            steps = [
                 steps.Script {
                     script = """
 set -euo pipefail
@@ -199,66 +166,38 @@ echo "##vso[task.setvariable variable=BENCHMARK_START_TIME;isOutput=true]$START_
 """
                     displayName = "Record start time"
                     name = "timestamp"
-                }
+                },
             ]
-        }
+        },
+        makeIngestionJob(
+            "ingest_configmap",
+            "Ingest ConfigMaps (\${{ parameters.ingest_configmap_gib }} GiB)",
+            "configmap",
+            "kperf-configmap-data",
+            "\${{ parameters.ingest_configmap_gib }}"),
+        makeIngestionJob(
+            "ingest_events",
+            "Ingest Events (\${{ parameters.ingest_events_gib }} GiB)",
+            "event",
+            "kperf-event-data",
+            "\${{ parameters.ingest_events_gib }}"),
+        makeIngestionJob(
+            "ingest_secrets",
+            "Ingest Secrets (\${{ parameters.ingest_secrets_gib }} GiB)",
+            "secret",
+            "kperf-secret-data",
+            "\${{ parameters.ingest_secrets_gib }}"),
         job.Job {
-            job = "ingest_configmap"
-            displayName = "Ingest ConfigMaps (\${{ parameters.ingest_configmap_gib }} GiB)"
-            timeoutInMinutes = 1440
-            dependsOn = INGEST_DEPENDS_ON
-            condition = "and(${INGEST_CLUSTER_READY}, \${{ ne(parameters.ingest_configmap_gib, 0) }})"
-            variables = INGEST_VARIABLES
-            steps = prepareForIngestion() + [
-                kperf.RunKperfDataIngest(
-                    dataType="configmap",
-                    namespace="kperf-configmap-data",
-                    name="$(System.JobId)",
-                    totalGiB="\${{ parameters.ingest_configmap_gib }}"),
-            ]
-        }
-        job.Job {
-            job = "ingest_events"
-            displayName = "Ingest Events (\${{ parameters.ingest_events_gib }} GiB)"
-            timeoutInMinutes = 1440
-            dependsOn = INGEST_DEPENDS_ON
-            condition = "and(${INGEST_CLUSTER_READY}, \${{ ne(parameters.ingest_events_gib, 0) }})"
-            variables = INGEST_VARIABLES
-            steps = prepareForIngestion() + [
-                kperf.RunKperfDataIngest(
-                    dataType="event",
-                    namespace="kperf-event-data",
-                    name="$(System.JobId)",
-                    totalGiB="\${{ parameters.ingest_events_gib }}"),
-            ]
-        }
-        job.Job {
-            job = "ingest_secrets"
-            displayName = "Ingest Secrets (\${{ parameters.ingest_secrets_gib }} GiB)"
-            timeoutInMinutes = 1440
-            dependsOn = INGEST_DEPENDS_ON
-            condition = "and(${INGEST_CLUSTER_READY}, \${{ ne(parameters.ingest_secrets_gib, 0) }})"
-            variables = INGEST_VARIABLES
-            steps = prepareForIngestion() + [
-                kperf.RunKperfDataIngest(
-                    dataType="secret",
-                    namespace="kperf-secret-data",
-                    name="$(System.JobId)",
-                    totalGiB="\${{ parameters.ingest_secrets_gib }}"),
-            ]
-        }
-        job.Job {
-            job = "report"
-            displayName = "Print ASI Dashboard URLs"
-            timeoutInMinutes = 10
-            dependsOn = ["bootstrap", "record_start_time", "ingest_configmap", "ingest_events", "ingest_secrets"]
-            condition = "in(dependencies.record_start_time.result, 'Succeeded', 'SucceededWithIssues')"
+            job = "finalize"
+            displayName = "Report and Cleanup"
+            timeoutInMinutes = 60
+            dependsOn = ["setup", "ingest_configmap", "ingest_events", "ingest_secrets"]
+            condition = "always()"
             variables = {
-                CLUSTER = "$[ dependencies.bootstrap.outputs['resolve.CLUSTER'] ]"
-                RESOURCE_GROUP = "$[ dependencies.bootstrap.outputs['resolve.RESOURCE_GROUP'] ]"
-                BENCHMARK_START_TIME = "$[ dependencies.record_start_time.outputs['timestamp.BENCHMARK_START_TIME'] ]"
+                CLUSTER = "$[ dependencies.setup.outputs['resolve.CLUSTER'] ]"
+                RESOURCE_GROUP = "$[ dependencies.setup.outputs['resolve.RESOURCE_GROUP'] ]"
+                BENCHMARK_START_TIME = "$[ dependencies.setup.outputs['timestamp.BENCHMARK_START_TIME'] ]"
             }
-
             steps = [
                 asi_dashboard.PrintAsiDashboardUrl(
                     const.DEFAULT_SERVICE_CONNECTION,
@@ -266,23 +205,11 @@ echo "##vso[task.setvariable variable=BENCHMARK_START_TIME;isOutput=true]$START_
                     RESOURCE_GROUP,
                     SUBSCRIPTION_ID,
                     startTime="$(BENCHMARK_START_TIME)"),
-            ]
-        }
-        job.Job {
-            job = "cleanup"
-            displayName = "Cleanup"
-            timeoutInMinutes = 60
-            dependsOn = ["bootstrap", "report"]
-            condition = "and(always(), not(${USE_EXISTING_CLUSTER}), not(\${{ parameters.keep_cluster }}))"
-            variables = {
-                RESOURCE_GROUP = "$[ dependencies.bootstrap.outputs['resolve.RESOURCE_GROUP'] ]"
-            }
-
-            steps = [
                 azure.DeleteResourceGroup(
                     const.DEFAULT_SERVICE_CONNECTION,
                     RESOURCE_GROUP,
-                    SUBSCRIPTION_ID)
+                    SUBSCRIPTION_ID,
+                    condition="and(always(), not(${USE_EXISTING_CLUSTER}), not(\${{ parameters.keep_cluster }}))")
             ]
         }
     ]
