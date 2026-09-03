@@ -63,9 +63,9 @@ parameters:
   type: number
   default: 0
 - name: include_san_names
-  displayName: Also attach an extra SAN by name (e.g. experiment SAN; empty to skip)
+  displayName: Also attach an extra SAN by name (e.g. experiment SAN; 'none' to skip)
   type: string
-  default: ''
+  default: none
 - name: pods_per_node
   displayName: Attachment Pods per node
   type: number
@@ -515,7 +515,7 @@ stages:
 
           mkdir -p "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/attach"
           include_args=""
-          if [ -n "$PARAM_INCLUDE_SAN_NAMES" ]; then
+          if [ -n "$PARAM_INCLUDE_SAN_NAMES" ] && [ "$PARAM_INCLUDE_SAN_NAMES" != "none" ]; then
             include_args="--include-san-name $PARAM_INCLUDE_SAN_NAMES"
           fi
           PYTHONPATH="$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/python-deps" python3 "$(Build.SourcesDirectory)/kcl/ccp_team/elastic_san_static_scale/attach.py" \

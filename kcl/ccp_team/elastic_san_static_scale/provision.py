@@ -242,14 +242,13 @@ class HourlyWriteLimiter:
         burst_window_seconds: float = BURST_WINDOW_SECONDS,
     ):
         if (
-            not 1 <= limit <= MAX_SUBSCRIPTION_WRITES_PER_HOUR
+            limit < 1
             or window_seconds < 1
             or burst_limit < 1
             or burst_window_seconds <= 0
         ):
             raise ValueError(
-                f"write limit must be between 1 and {MAX_SUBSCRIPTION_WRITES_PER_HOUR}; "
-                "write windows and burst limit must be positive"
+                "write limit, write windows, and burst limit must be positive"
             )
         self.limit = limit
         self.window_seconds = window_seconds
@@ -770,8 +769,8 @@ async def async_main(args: argparse.Namespace) -> int:
             f"geometry needs {shard_capacity * args.volume_size_gib} GiB per SAN, "
             f"but configured capacity is {total_capacity_gib} GiB"
         )
-    if args.batch_size < 1 or args.batch_size > args.max_volume_writes_per_hour:
-        raise ValueError("batch size must be positive and not exceed the hourly write budget")
+    if args.batch_size < 1:
+        raise ValueError("batch size must be positive")
 
     cluster = (
         load_cluster_info(args.cluster_info)

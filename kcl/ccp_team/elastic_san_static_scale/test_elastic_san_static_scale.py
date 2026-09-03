@@ -151,7 +151,7 @@ class DeterministicVolumeTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             HourlyWriteLimiter(0)
         with self.assertRaises(ValueError):
-            HourlyWriteLimiter(3_601)
+            HourlyWriteLimiter(1, burst_limit=0)
         with self.assertRaises(ValueError):
             HourlyWriteLimiter(1, 0)
 

@@ -177,7 +177,7 @@ PYTHONPATH="${PYTHON_DEPS}" python3 "${WORKLOAD_DIR}/repair.py" \\
 attachScript = """
 mkdir -p "${RESULT_ROOT}/attach"
 include_args=""
-if [ -n "$PARAM_INCLUDE_SAN_NAMES" ]; then
+if [ -n "$PARAM_INCLUDE_SAN_NAMES" ] && [ "$PARAM_INCLUDE_SAN_NAMES" != "none" ]; then
   include_args="--include-san-name $PARAM_INCLUDE_SAN_NAMES"
 fi
 PYTHONPATH="${PYTHON_DEPS}" python3 "${WORKLOAD_DIR}/attach.py" \\
@@ -297,9 +297,9 @@ output = ap.Pipeline {
         }
         ap.Parameter {
             name = "include_san_names"
-            displayName = "Also attach an extra SAN by name (e.g. experiment SAN; empty to skip)"
+            displayName = "Also attach an extra SAN by name (e.g. experiment SAN; 'none' to skip)"
             type = "string"
-            default = ""
+            default = "none"
         }
         ap.Parameter {
             name = "pods_per_node"
