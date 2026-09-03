@@ -43,6 +43,11 @@ jobs:
 
       set -exo pipefail
 
+      if { [ "$PARAM_EXISTING_CLUSTER" = "none" ] && [ "$PARAM_EXISTING_RG" != "none" ]; } ||    { [ "$PARAM_EXISTING_CLUSTER" != "none" ] && [ "$PARAM_EXISTING_RG" = "none" ]; }; then
+        echo "Existing cluster name and resource group must be provided together."
+        exit 1
+      fi
+
       # Resolve CLUSTER
       if [ -n "$PARAM_EXISTING_CLUSTER" ] && [ "$PARAM_EXISTING_CLUSTER" != "none" ]; then
         CLUSTER="$PARAM_EXISTING_CLUSTER"
@@ -72,7 +77,7 @@ jobs:
 - job: setup
   displayName: Cluster Setup
   dependsOn: bootstrap
-  condition: and(succeeded(), not(ne('${{ parameters.existing_cluster_name }}', 'none')))
+  condition: and(succeeded(), not(and(ne('${{ parameters.existing_cluster_name }}', 'none'), ne('${{ parameters.existing_cluster_resource_group }}', 'none'))))
   timeoutInMinutes: 1440
   variables:
     CLUSTER: $[ dependencies.bootstrap.outputs['resolve.CLUSTER'] ]
@@ -95,10 +100,14 @@ jobs:
       azureSubscription: Azure-for-Telescope-internal
       scriptType: bash
       scriptLocation: inlineScript
-      inlineScript: |
+      inlineScript: |+
         set -exo pipefail
 
-        az group create --name "$(RESOURCE_GROUP)" --location "westus2" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+        az group create \
+          --name "$(RESOURCE_GROUP)" \
+          --location "westus2" \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+
     displayName: Create resource group in westus2 (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
   - task: AzureCLI@2
     inputs:
@@ -126,7 +135,7 @@ jobs:
             },
             \"properties\": {
               \"controlPlaneScalingProfile\": {\"scalingSize\": \"${{ parameters.scaling_size }}\"},
-              \"kubernetesVersion\": \"1.33.0\",
+            \"kubernetesVersion\": \"1.36\",
               \"dnsPrefix\": \"$(CLUSTER)-dns\",
               \"agentPoolProfiles\": [
                 {
@@ -203,8 +212,7 @@ jobs:
   dependsOn:
   - bootstrap
   - setup
-  - record_start_time
-  condition: and(succeeded(), ${{ ne(parameters.ingest_configmap_gib, 0) }})
+  condition: and(and(eq(dependencies.bootstrap.result, 'Succeeded'), or(eq(dependencies.setup.result, 'Succeeded'), and(eq(dependencies.setup.result, 'Skipped'), and(ne('${{ parameters.existing_cluster_name }}', 'none'), ne('${{ parameters.existing_cluster_resource_group }}', 'none'))))), ${{ ne(parameters.ingest_configmap_gib, 0) }})
   timeoutInMinutes: 1440
   variables:
     CLUSTER: $[ dependencies.bootstrap.outputs['resolve.CLUSTER'] ]
@@ -263,7 +271,7 @@ jobs:
         run_batch() {
           runkperf data configmap \
             --namespace kperf-configmap-data \
-            add my-configmaps-b$batch-$1 \
+            add $(System.JobId)-b$batch-$1 \
             --qps 80 \
             --burst 80 \
             --total $COUNT \
@@ -285,8 +293,7 @@ jobs:
   dependsOn:
   - bootstrap
   - setup
-  - record_start_time
-  condition: and(succeeded(), ${{ ne(parameters.ingest_events_gib, 0) }})
+  condition: and(and(eq(dependencies.bootstrap.result, 'Succeeded'), or(eq(dependencies.setup.result, 'Succeeded'), and(eq(dependencies.setup.result, 'Skipped'), and(ne('${{ parameters.existing_cluster_name }}', 'none'), ne('${{ parameters.existing_cluster_resource_group }}', 'none'))))), ${{ ne(parameters.ingest_events_gib, 0) }})
   timeoutInMinutes: 1440
   variables:
     CLUSTER: $[ dependencies.bootstrap.outputs['resolve.CLUSTER'] ]
@@ -345,7 +352,7 @@ jobs:
         run_batch() {
           runkperf data event \
             --namespace kperf-event-data \
-            add my-events-b$batch-$1 \
+            add $(System.JobId)-b$batch-$1 \
             --qps 80 \
             --burst 80 \
             --total $COUNT \
@@ -367,8 +374,7 @@ jobs:
   dependsOn:
   - bootstrap
   - setup
-  - record_start_time
-  condition: and(succeeded(), ${{ ne(parameters.ingest_secrets_gib, 0) }})
+  condition: and(and(eq(dependencies.bootstrap.result, 'Succeeded'), or(eq(dependencies.setup.result, 'Succeeded'), and(eq(dependencies.setup.result, 'Skipped'), and(ne('${{ parameters.existing_cluster_name }}', 'none'), ne('${{ parameters.existing_cluster_resource_group }}', 'none'))))), ${{ ne(parameters.ingest_secrets_gib, 0) }})
   timeoutInMinutes: 1440
   variables:
     CLUSTER: $[ dependencies.bootstrap.outputs['resolve.CLUSTER'] ]
@@ -427,7 +433,7 @@ jobs:
         run_batch() {
           runkperf data secret \
             --namespace kperf-secret-data \
-            add my-secrets-b$batch-$1 \
+            add $(System.JobId)-b$batch-$1 \
             --qps 80 \
             --burst 80 \
             --total $COUNT \
@@ -500,7 +506,7 @@ jobs:
   dependsOn:
   - bootstrap
   - report
-  condition: and(always(), not(ne('${{ parameters.existing_cluster_name }}', 'none')), not(${{ parameters.keep_cluster }}))
+  condition: and(always(), not(and(ne('${{ parameters.existing_cluster_name }}', 'none'), ne('${{ parameters.existing_cluster_resource_group }}', 'none'))), not(${{ parameters.keep_cluster }}))
   timeoutInMinutes: 60
   variables:
     RESOURCE_GROUP: $[ dependencies.bootstrap.outputs['resolve.RESOURCE_GROUP'] ]

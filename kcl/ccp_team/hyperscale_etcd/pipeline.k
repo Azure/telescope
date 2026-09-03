@@ -12,8 +12,8 @@ LOCATION = "westus2"
 # TODO: Merge custom branch to upstream and use official image
 RUNNER_IMAGE = "ghcr.io/liyu-ma/kperf:hyperscale-etcd"
 
-# Condition: true when user provides an existing cluster (skip create/delete)
-USE_EXISTING_CLUSTER = "ne('\${{ parameters.existing_cluster_name }}', 'none')"
+# Condition: true when user provides a complete existing cluster reference (skip create/delete)
+USE_EXISTING_CLUSTER = "and(ne('\${{ parameters.existing_cluster_name }}', 'none'), ne('\${{ parameters.existing_cluster_resource_group }}', 'none'))"
 
 # ADO runtime variable references (resolved by bootstrap job)
 CLUSTER: str = "$(CLUSTER)"
@@ -34,7 +34,7 @@ requestBody = util.escapeStr("""
     },
     "properties": {
       "controlPlaneScalingProfile": {"scalingSize": "\${{ parameters.scaling_size }}"},
-      "kubernetesVersion": "1.33.0",
+    "kubernetesVersion": "1.36",
       "dnsPrefix": "${CLUSTER}-dns",
       "agentPoolProfiles": [
         {
@@ -81,11 +81,12 @@ prepareForIngestion = lambda {
     ]
 }
 
-INGEST_DEPENDS_ON = ["bootstrap", "setup", "record_start_time"]
+INGEST_DEPENDS_ON = ["bootstrap", "setup"]
 INGEST_VARIABLES = {
     CLUSTER = "$[ dependencies.bootstrap.outputs['resolve.CLUSTER'] ]"
     RESOURCE_GROUP = "$[ dependencies.bootstrap.outputs['resolve.RESOURCE_GROUP'] ]"
 }
+INGEST_CLUSTER_READY = "and(eq(dependencies.bootstrap.result, 'Succeeded'), or(eq(dependencies.setup.result, 'Succeeded'), and(eq(dependencies.setup.result, 'Skipped'), ${USE_EXISTING_CLUSTER})))"
 
 output = ap.Pipeline {
     name = "Hyperscale Etcd Benchmarking"
@@ -206,13 +207,13 @@ echo "##vso[task.setvariable variable=BENCHMARK_START_TIME;isOutput=true]$START_
             displayName = "Ingest ConfigMaps (\${{ parameters.ingest_configmap_gib }} GiB)"
             timeoutInMinutes = 1440
             dependsOn = INGEST_DEPENDS_ON
-            condition = "and(succeeded(), \${{ ne(parameters.ingest_configmap_gib, 0) }})"
+            condition = "and(${INGEST_CLUSTER_READY}, \${{ ne(parameters.ingest_configmap_gib, 0) }})"
             variables = INGEST_VARIABLES
             steps = prepareForIngestion() + [
                 kperf.RunKperfDataIngest(
                     dataType="configmap",
                     namespace="kperf-configmap-data",
-                    name="my-configmaps",
+                    name="$(System.JobId)",
                     totalGiB="\${{ parameters.ingest_configmap_gib }}"),
             ]
         }
@@ -221,13 +222,13 @@ echo "##vso[task.setvariable variable=BENCHMARK_START_TIME;isOutput=true]$START_
             displayName = "Ingest Events (\${{ parameters.ingest_events_gib }} GiB)"
             timeoutInMinutes = 1440
             dependsOn = INGEST_DEPENDS_ON
-            condition = "and(succeeded(), \${{ ne(parameters.ingest_events_gib, 0) }})"
+            condition = "and(${INGEST_CLUSTER_READY}, \${{ ne(parameters.ingest_events_gib, 0) }})"
             variables = INGEST_VARIABLES
             steps = prepareForIngestion() + [
                 kperf.RunKperfDataIngest(
                     dataType="event",
                     namespace="kperf-event-data",
-                    name="my-events",
+                    name="$(System.JobId)",
                     totalGiB="\${{ parameters.ingest_events_gib }}"),
             ]
         }
@@ -236,13 +237,13 @@ echo "##vso[task.setvariable variable=BENCHMARK_START_TIME;isOutput=true]$START_
             displayName = "Ingest Secrets (\${{ parameters.ingest_secrets_gib }} GiB)"
             timeoutInMinutes = 1440
             dependsOn = INGEST_DEPENDS_ON
-            condition = "and(succeeded(), \${{ ne(parameters.ingest_secrets_gib, 0) }})"
+            condition = "and(${INGEST_CLUSTER_READY}, \${{ ne(parameters.ingest_secrets_gib, 0) }})"
             variables = INGEST_VARIABLES
             steps = prepareForIngestion() + [
                 kperf.RunKperfDataIngest(
                     dataType="secret",
                     namespace="kperf-secret-data",
-                    name="my-secrets",
+                    name="$(System.JobId)",
                     totalGiB="\${{ parameters.ingest_secrets_gib }}"),
             ]
         }

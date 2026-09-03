@@ -7,6 +7,12 @@ Bootstrap = lambda -> steps.Step {
         bash = """
 set -exo pipefail
 
+if { [ "$PARAM_EXISTING_CLUSTER" = "none" ] && [ "$PARAM_EXISTING_RG" != "none" ]; } || \
+   { [ "$PARAM_EXISTING_CLUSTER" != "none" ] && [ "$PARAM_EXISTING_RG" = "none" ]; }; then
+  echo "Existing cluster name and resource group must be provided together."
+  exit 1
+fi
+
 # Resolve CLUSTER
 if [ -n "$PARAM_EXISTING_CLUSTER" ] && [ "$PARAM_EXISTING_CLUSTER" != "none" ]; then
   CLUSTER="$PARAM_EXISTING_CLUSTER"
