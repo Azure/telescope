@@ -25,19 +25,49 @@ runkperf -v 3 bench \\
 # RunKperfRunnerGroup runs `kperf rg run` with the specified runner image, runner
 # group manifest, optional flow control setting, and optional affinity selector.
 RunKperfRunnerGroup = lambda runnerImage: str, runnerGroup: str, flowcontrol: str = "", affinity: str = "", target: str = None -> steps.Step {
-    flowcontrolFlag = "--runner-flowcontrol=\"${flowcontrol}\" \\\n  " if flowcontrol else ""
-    affinityFlag = "--affinity=\"${affinity}\" \\\n  " if affinity else ""
     steps.Script {
         script = """
 set -euo pipefail
 set -x
 
-kperf rg delete
+run_rg() {
+  args=(
+    rg run
+    --runner-image="${runnerImage}"
+    --runnergroup="${runnerGroup}"
+  )
+  if [ -n "${flowcontrol}" ]; then
+    args+=(--runner-flowcontrol="${flowcontrol}")
+  fi
+  if [ -n "${affinity}" ]; then
+    args+=(--affinity="${affinity}")
+  fi
+  kperf "\${args[@]}"
+}
 
-kperf rg run \\
-  --runner-image=${runnerImage} \\
-  --runnergroup="${runnerGroup}" \\
-  ${flowcontrolFlag}${affinityFlag}
+cleanup_rg() {
+  kperf rg delete || true
+  kubectl -n runnergroups-kperf-io delete pod runnergroup-server \\
+    --force --grace-period=0 --ignore-not-found=true --timeout=120s || true
+}
+
+cleanup_rg
+
+attempt=0
+max_attempts=10
+until run_rg; do
+  attempt=$((attempt + 1))
+  if [ "$attempt" -ge "$max_attempts" ]; then
+    echo "kperf rg run failed after $attempt attempts" >&2
+    kubectl -n runnergroups-kperf-io get pods -o wide || true
+    kubectl -n runnergroups-kperf-io describe pod runnergroup-server || true
+    kubectl -n runnergroups-kperf-io get events --sort-by=.lastTimestamp | tail -50 || true
+    exit 1
+  fi
+  cleanup_rg
+  echo "attempt $attempt failed; cleaning up and retrying in 120s" >&2
+  sleep 120
+done
 """
         displayName = "Run kperf runner group"
         target = target
