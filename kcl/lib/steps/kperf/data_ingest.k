@@ -22,7 +22,7 @@ RunKperfDataIngest = lambda dataType: str, namespace: str, name: str, totalGiB: 
 set -euo pipefail
 set -x
 
-TOTAL_OBJECTS_COUNT=$(( ${totalGiB} * ${BYTES_PER_GIB} / ${size} ))
+TOTAL_OBJECTS_COUNT=$(awk 'BEGIN{printf "%d", ${totalGiB} * ${BYTES_PER_GIB} / ${size}}')
 TOTAL_BATCHES=$(( (TOTAL_OBJECTS_COUNT + ${BATCH_SIZE} - 1) / ${BATCH_SIZE} ))
 
 kubectl create namespace ${namespace} 2>/dev/null || true
