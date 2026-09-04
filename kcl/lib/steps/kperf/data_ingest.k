@@ -5,34 +5,40 @@ DEFAULT_QPS = 80
 DEFAULT_BURST = 80
 DEFAULT_SIZE_BYTES = 524288  # 0.5 MiB per object
 DEFAULT_GROUP_SIZE = 80
-BATCH_SIZE = 2000  # Internal batch size, not configurable by caller
 MAX_ATTEMPTS = 2  # Attempts per batch before failing the step
 BYTES_PER_GIB = 1073741824
 
-# RunKperfDataIngest creates objects in fixed-size batches (BATCH_SIZE) to be
+# RunKperfDataIngest creates either `total` objects or enough objects to fill
+# `totalGiB`, in fixed-size batches (`batchSize`). When both are set, `total`
+# takes precedence.
+#
+# Batching is used to be
 # resilient to failures — if a batch fails, only that batch needs to be retried, and the
 # local in-memory counter stays accurate since each successful batch represents a known
 # quantity. This avoids using kubectl get to count existing objects, which would OOM
 # the pipeline agent by fetching full object bodies.
 # Each batch uses the set name "<name>-b<batch>", so object names are predictable and
 # kperf load profiles can target a batch by its prefix.
-RunKperfDataIngest = lambda dataType: str, namespace: str, name: str, totalGiB: str, qps: int = DEFAULT_QPS, burst: int = DEFAULT_BURST, size: int = DEFAULT_SIZE_BYTES, groupSize: int = DEFAULT_GROUP_SIZE -> steps.Step {
+RunKperfDataIngest = lambda dataType: str, namespace: str, name: str, totalGiB: str = "0", qps: int = DEFAULT_QPS, burst: int = DEFAULT_BURST, size: int = DEFAULT_SIZE_BYTES, groupSize: int = DEFAULT_GROUP_SIZE, total: int = 0, batchSize: int = 2000 -> steps.Step {
     steps.Script {
         script = """
 set -euo pipefail
 set -x
 
-TOTAL_OBJECTS_COUNT=$(awk 'BEGIN{printf "%d", ${totalGiB} * ${BYTES_PER_GIB} / ${size}}')
-TOTAL_BATCHES=$(( (TOTAL_OBJECTS_COUNT + ${BATCH_SIZE} - 1) / ${BATCH_SIZE} ))
+TOTAL_OBJECTS_COUNT=${total}
+if [ "$TOTAL_OBJECTS_COUNT" -eq 0 ]; then
+  TOTAL_OBJECTS_COUNT=$(awk 'BEGIN{printf "%d", ${totalGiB} * ${BYTES_PER_GIB} / ${size}}')
+fi
+TOTAL_BATCHES=$(( (TOTAL_OBJECTS_COUNT + ${batchSize} - 1) / ${batchSize} ))
 
 kubectl create namespace ${namespace} 2>/dev/null || true
 
-echo "Ingesting $TOTAL_OBJECTS_COUNT ${dataType}s in $TOTAL_BATCHES batches of ${BATCH_SIZE}..."
+echo "Ingesting $TOTAL_OBJECTS_COUNT ${dataType}s in $TOTAL_BATCHES batches of ${batchSize}..."
 
 completed=0
 for batch in $(seq 1 $TOTAL_BATCHES); do
   REMAINING=$((TOTAL_OBJECTS_COUNT - completed))
-  COUNT=${BATCH_SIZE}
+  COUNT=${batchSize}
   if [ "$REMAINING" -lt "$COUNT" ]; then
     COUNT=$REMAINING
   fi
@@ -68,7 +74,7 @@ done
 
 echo "Ingest complete: $completed ${dataType}s created."
 """
-        displayName = "Ingest ${dataType} data (${totalGiB} GiB)"
-        condition = "and(succeeded(), ne('${totalGiB}', '0'))"
+        displayName = "Ingest ${dataType} data"
+        condition = "and(succeeded(), or(ne('${total}', '0'), ne('${totalGiB}', '0')))"
     }
 }
