@@ -6,7 +6,7 @@ metadata:
 data:
   override.yaml: |
     NODES: 12000
-    PODS_PER_NODE: 30
+    PODS_PER_NODE: 8
     BIG_GROUP_SIZE: 1
     MEDIUM_GROUP_SIZE: 1
     SMALL_GROUP_SIZE: 1
