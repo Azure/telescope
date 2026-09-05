@@ -18,6 +18,7 @@ import requests
 from requests.adapters import HTTPAdapter
 
 from clients.aks_client import AKSClient
+from utils.common import compute_throttle_delay
 from utils.logger_config import get_logger, setup_logging
 
 # Configure logging.
@@ -505,6 +506,8 @@ class AKSMachineClient(AKSClient):
             machine_workers=machine_workers,
             timeout=timeout,
             batch_command_execution_times={},
+            chunk_throttle=[],
+            throttle_lock=threading.Lock(),
         )
         with self._get_operation_context()(
             "scale_machine", "azure", metadata, result_dir=self.result_dir
@@ -536,7 +539,13 @@ class AKSMachineClient(AKSClient):
                     successful = self._scale_machine_batch(request, names)
                 else:
                     successful = self._scale_machine_individually(request, names)
-                op.add_metadata("command_execution_time", time.time() - command_t0)
+                command_end = time.time()
+                throttle_wait = compute_throttle_delay(request.chunk_throttle)
+                op.add_metadata(
+                    "command_execution_time",
+                    max(0.0, command_end - command_t0 - throttle_wait),
+                )
+                op.add_metadata("throttle_wait_seconds", throttle_wait)
                 if use_batch_api:
                     op.add_metadata(
                         "batch_command_execution_times",
@@ -889,10 +898,7 @@ class AKSMachineClient(AKSClient):
             "vmSkus": {"value": [vm_sku]},
             "batchMachines": batch_machines,
         })
-        logger.info(
-            f"chunk {chunk_idx}: submitting BatchPutMachine PUT for {len(chunk)} machines "
-            f"(target={first_machine_name})"
-        )
+        logger.info(f"chunk {chunk_idx}: submitting BatchPutMachine PUT for {len(chunk)} machines (target={first_machine_name})")
         # Cap the timeout value passed to this batch PUT attempt. This limits
         # the per-attempt request timeout given to ``_make_batch_request``,
         # but it does not bound total wall time for the chunk because retry
@@ -904,6 +910,7 @@ class AKSMachineClient(AKSClient):
             batch_header_value=batch_header_value,
             chunk_idx=chunk_idx,
             first_machine_name=first_machine_name,
+            request=request,
         )
         end_time = datetime.now(timezone.utc)
         execution_time_seconds = (end_time - start_time).total_seconds()
@@ -913,11 +920,7 @@ class AKSMachineClient(AKSClient):
             "execution_time_seconds": execution_time_seconds,
             "total_machines_in_batch": len(chunk),
         }
-        logger.info(
-            f"chunk {chunk_idx}: BatchPutMachine PUT completed for {len(chunk)} "
-            f"machines in {execution_time_seconds:.3f} seconds "
-            f"(target={first_machine_name})"
-        )
+        logger.info(f"chunk {chunk_idx}: BatchPutMachine PUT completed for {len(chunk)} machines in {execution_time_seconds:.3f} seconds (target={first_machine_name})")
         return list(chunk)
 
     def _make_batch_request(
@@ -929,7 +932,8 @@ class AKSMachineClient(AKSClient):
         batch_header_value: str,
         chunk_idx: Optional[int] = None,
         first_machine_name: Optional[str] = None,
-    ) -> None:
+        request: Optional[SimpleNamespace] = None,
+    ) -> float:
         """Send a ``BatchPutMachine``-headered request with bounded 429 backoff.
 
         Sends the request directly (NOT via ``make_request``) so we can attach
@@ -943,42 +947,38 @@ class AKSMachineClient(AKSClient):
         # Compact prefix so every error/log line is self-identifying in Kusto
         # (chunk_idx + first machine name pinpoint the failing slice without
         # cross-referencing the per-worker log).
-        ctx = (
-            f"chunk={chunk_idx} target={first_machine_name} {method} {url}"
-        )
+        ctx = f"chunk={chunk_idx} target={first_machine_name} {method} {url}"
         backoff = _BATCH_429_INITIAL_BACKOFF_SECONDS
+        total_backoff = 0.0
         last_resp: Optional[requests.Response] = None
-        for attempt in range(_BATCH_429_MAX_RETRIES):
-            headers = {
-                "Authorization": f"Bearer {self._get_access_token()}",
-                "Content-Type": "application/json",
-                "BatchPutMachine": batch_header_value,
-            }
-            # Use the client's shared Session so this batch path reuses the
-            # same pooled TCP/TLS connections (and adapters/proxies) as the
-            # individual ``make_request`` path; avoids per-PUT handshakes
-            # during large scales.
-            resp = self._session.request(
-                method, url, headers=headers, json=data, timeout=timeout,
-            )
-            last_resp = resp
-            if resp.status_code in (200, 201, 202, 204):
-                return
-            if resp.status_code != 429:
-                raise RuntimeError(
-                    f"batch request failed [{ctx}]: "
-                    f"{resp.status_code} {resp.text[:500]}"
+        try:
+            for attempt in range(_BATCH_429_MAX_RETRIES):
+                headers = {
+                    "Authorization": f"Bearer {self._get_access_token()}",
+                    "Content-Type": "application/json",
+                    "BatchPutMachine": batch_header_value,
+                }
+                # Use the client's shared Session so this batch path reuses the
+                # same pooled TCP/TLS connections (and adapters/proxies) as the
+                # individual ``make_request`` path; avoids per-PUT handshakes
+                # during large scales.
+                resp = self._session.request(
+                    method, url, headers=headers, json=data, timeout=timeout,
                 )
-            if attempt == _BATCH_429_MAX_RETRIES - 1:
-                break
-            logger.warning(
-                f"batch request 429 [{ctx}]; retrying in {backoff:.1f}s "
-                f"(attempt {attempt + 1}/{_BATCH_429_MAX_RETRIES})"
-            )
-            time.sleep(backoff)
-            backoff *= 2
-        text = last_resp.text[:500] if last_resp is not None else ""
-        raise RuntimeError(
-            f"batch request exceeded {_BATCH_429_MAX_RETRIES} attempts "
-            f"after HTTP 429 responses [{ctx}]; last text={text}"
-        )
+                last_resp = resp
+                if resp.status_code in (200, 201, 202, 204):
+                    return total_backoff
+                if resp.status_code != 429:
+                    raise RuntimeError(f"batch request failed [{ctx}]: {resp.status_code} {resp.text[:500]}")
+                if attempt == _BATCH_429_MAX_RETRIES - 1:
+                    break
+                logger.warning(f"batch request 429 [{ctx}]; retrying in {backoff:.1f}s (attempt {attempt + 1}/{_BATCH_429_MAX_RETRIES})")
+                time.sleep(backoff)
+                total_backoff += backoff
+                backoff *= 2
+            text = last_resp.text[:500] if last_resp is not None else ""
+            raise RuntimeError(f"batch request exceeded {_BATCH_429_MAX_RETRIES} attempts after HTTP 429 [{ctx}]; last text={text}")
+        finally:
+            if request is not None:
+                with request.throttle_lock:
+                    request.chunk_throttle.append((time.time(), total_backoff))
