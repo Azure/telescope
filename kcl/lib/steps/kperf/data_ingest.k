@@ -10,7 +10,7 @@ BYTES_PER_GIB = 1073741824
 
 # RunKperfDataIngest creates either `total` objects or enough objects to fill
 # `totalGiB`, in fixed-size batches (`batchSize`). When both are set, `total`
-# takes precedence.
+# takes precedence and `totalGiB` is ignored.
 #
 # Batching is used to be
 # resilient to failures — if a batch fails, only that batch needs to be retried, and the
@@ -19,7 +19,7 @@ BYTES_PER_GIB = 1073741824
 # the pipeline agent by fetching full object bodies.
 # Each batch uses the set name "<name>-b<batch>", so object names are predictable and
 # kperf load profiles can target a batch by its prefix.
-RunKperfDataIngest = lambda dataType: str, namespace: str, name: str, totalGiB: str = "0", qps: int = DEFAULT_QPS, burst: int = DEFAULT_BURST, size: int = DEFAULT_SIZE_BYTES, groupSize: int = DEFAULT_GROUP_SIZE, total: int = 0, batchSize: int = 2000 -> steps.Step {
+RunKperfDataIngest = lambda dataType: str, namespace: str, name: str, totalGiB: str = "0", total: int = 0, qps: int = DEFAULT_QPS, burst: int = DEFAULT_BURST, size: int = DEFAULT_SIZE_BYTES, groupSize: int = DEFAULT_GROUP_SIZE, batchSize: int = 2000 -> steps.Step {
     steps.Script {
         script = """
 set -euo pipefail
