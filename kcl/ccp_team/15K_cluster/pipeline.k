@@ -58,7 +58,7 @@ CREATE_ARGS=(
 )
 [[ -n "$(network_dataplane)" ]] && CREATE_ARGS+=(--network-dataplane "$(network_dataplane)")
 [[ "$(apiserver_vnet_integration)" == "true" ]] && CREATE_ARGS+=(--enable-apiserver-vnet-integration --apiserver-subnet-id "$(APISERVER_SUBNET_ID)")
-[[ -n "$(kms_key_id)" ]] && CREATE_ARGS+=(--enable-azure-keyvault-kms --azure-keyvault-kms-key-id "$(kms_key_id)" --azure-keyvault-kms-key-vault-network-access Public)
+[[ "$(kms_key_id)" != "none" ]] && CREATE_ARGS+=(--enable-azure-keyvault-kms --azure-keyvault-kms-key-id "$(kms_key_id)" --azure-keyvault-kms-key-vault-network-access Public)
 
 
 az aks create "\${CREATE_ARGS[@]}"
@@ -126,9 +126,9 @@ output = ap.Pipeline {
         }
         ap.Parameter {
             name = "kms_key_id"
-            displayName = "Azure Key Vault KMS key ID (versioned key URI; leave empty to disable KMS)"
+            displayName = "Azure Key Vault KMS key ID (versioned key URI; use 'none' to disable KMS)"
             type = "string"
-            default = ""
+            default = "none"
         }
     ]
 
@@ -229,7 +229,7 @@ output = ap.Pipeline {
                     SERVICE_CONNECTION,
                     "Grant KMS access to cluster identity",
                     grantKmsAccessScript,
-                    condition = "ne(variables['kms_key_id'], '')"
+                    condition = "ne(variables['kms_key_id'], 'none')"
                 ),
                 azure.AzCli(
                     SERVICE_CONNECTION,
