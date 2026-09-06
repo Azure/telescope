@@ -27,9 +27,9 @@ parameters:
   type: string
   default: 'true'
 - name: kms_key_id
-  displayName: Azure Key Vault KMS key ID (versioned key URI; leave empty to disable KMS)
+  displayName: Azure Key Vault KMS key ID (versioned key URI; use 'none' to disable KMS)
   type: string
-  default: ''
+  default: none
 variables:
   subscription_id: ${{ parameters.subscription_id }}
   location: ${{ parameters.location }}
@@ -406,7 +406,7 @@ jobs:
           --assignee-object-id "$(IDENTITY_PRINCIPAL_ID)" \
           --assignee-principal-type ServicePrincipal \
           --scope "${KEY_VAULT_RESOURCE_ID}"
-    condition: ne(variables['kms_key_id'], '')
+    condition: ne(variables['kms_key_id'], 'none')
     displayName: Grant KMS access to cluster identity
   - task: AzureCLI@2
     inputs:
@@ -447,7 +447,7 @@ jobs:
         )
         [[ -n "$(network_dataplane)" ]] && CREATE_ARGS+=(--network-dataplane "$(network_dataplane)")
         [[ "$(apiserver_vnet_integration)" == "true" ]] && CREATE_ARGS+=(--enable-apiserver-vnet-integration --apiserver-subnet-id "$(APISERVER_SUBNET_ID)")
-        [[ -n "$(kms_key_id)" ]] && CREATE_ARGS+=(--enable-azure-keyvault-kms --azure-keyvault-kms-key-id "$(kms_key_id)" --azure-keyvault-kms-key-vault-network-access Public)
+        [[ "$(kms_key_id)" != "none" ]] && CREATE_ARGS+=(--enable-azure-keyvault-kms --azure-keyvault-kms-key-id "$(kms_key_id)" --azure-keyvault-kms-key-vault-network-access Public)
 
 
         az aks create "${CREATE_ARGS[@]}"
