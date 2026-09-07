@@ -179,11 +179,16 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         vm_size = "Standard_DS2_v2"
         node_count = 2
 
-        # Define timestamps for clarity
+        # Define timestamps for clarity. accepted_at == start_time: ARM accepted the
+        # PUT on the first attempt (no in-progress wait), so timings measured from the
+        # accept match those measured from start. NOTE: the shared side_effect assumes
+        # ARM-thread-first scheduling of the concurrent ARM/K8s executor (arm_done
+        # consumed before ready); instant mocks make this hold in practice.
         start_time = 100
+        accepted_at = 100
         arm_done_time = 150
         nodes_ready_time = 130
-        mock_instr_time.time.side_effect = [start_time, arm_done_time, nodes_ready_time]
+        mock_instr_time.time.side_effect = [start_time, accepted_at, arm_done_time, nodes_ready_time]
         mock_instr_time.sleep = mock.MagicMock()
 
         mock_operation = mock.MagicMock()
@@ -245,10 +250,20 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         vm_size = "Standard_DS2_v2"
         node_count = 2
 
+        # The first PUT is rejected (OperationNotAllowed) and the retry is accepted
+        # ~30s later. Each attempt stamps its own start; timings are measured from
+        # the accepted attempt's start (130), so 30s of in-progress wait is excluded.
+        # Order: instrument start, failed-attempt start, accepted-attempt start,
+        # ARM done, nodes ready.
         start_time = 100
+        failed_attempt_start = 105
+        accepted_attempt_start = 130
         arm_done_time = 180
         nodes_ready_time = 160
-        mock_instr_time.time.side_effect = [start_time, arm_done_time, nodes_ready_time]
+        mock_instr_time.time.side_effect = [
+            start_time, failed_attempt_start, accepted_attempt_start,
+            arm_done_time, nodes_ready_time,
+        ]
         mock_instr_time.sleep = mock.MagicMock()
 
         # First call raises OperationNotAllowed, second succeeds
@@ -399,11 +414,13 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         node_pool_name = "test-pool"
         node_count = 3
 
-        # Define timestamps for clarity
+        # Define timestamps for clarity. accepted_at == start_time: first-attempt
+        # accept (no in-progress wait), so accept-based timings match start-based.
         start_time = 100
+        accepted_at = 100
         arm_done_time = 150
         nodes_ready_time = 130
-        mock_instr_time.time.side_effect = [start_time, arm_done_time, nodes_ready_time]
+        mock_instr_time.time.side_effect = [start_time, accepted_at, arm_done_time, nodes_ready_time]
         mock_instr_time.sleep = mock.MagicMock()
         mock_time.sleep = mock.MagicMock()
 

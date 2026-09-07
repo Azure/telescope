@@ -9,7 +9,7 @@ metadata for operations performed in the Telescope project.
 import json
 import os
 import traceback
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Optional
 
 from utils.logger_config import get_logger, setup_logging
@@ -39,6 +39,7 @@ class Operation:
         self.start_timestamp = None
         self.end_timestamp = None
         self.duration = None
+        self.excluded_seconds = 0.0
         self.unit = "seconds"
         self.success = True
         self.error_message = None
@@ -50,6 +51,12 @@ class Operation:
         Start the operation by recording the current time.
         """
         self.start_timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    def exclude_time(self, seconds: float) -> None:
+        """Accumulate wall-clock ``seconds`` to drop from the duration (e.g. ARM
+        admission/queue-wait). Positive values accumulate; others are ignored."""
+        if seconds is not None and seconds > 0:
+            self.excluded_seconds += seconds
 
     def end(self, success: bool = True, error: Optional[Exception] = None) -> None:
         """
@@ -70,6 +77,13 @@ class Operation:
                 end_dt = datetime.fromisoformat(
                     self.end_timestamp.replace("Z", "+00:00")
                 )
+                if self.excluded_seconds > 0:
+                    excluded = min(
+                        self.excluded_seconds, (end_dt - start_dt).total_seconds()
+                    )
+                    start_dt = start_dt + timedelta(seconds=excluded)
+                    self.start_timestamp = start_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+                    self.metadata["in_progress_wait_seconds"] = excluded
                 self.duration = (end_dt - start_dt).total_seconds()
             except Exception:
                 # If there's any issue parsing timestamps, don't set duration

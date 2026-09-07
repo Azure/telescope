@@ -109,6 +109,90 @@ class TestOperation(unittest.TestCase):
         self.assertIsNotNone(self.test_operation.error_traceback)
 
     @mock.patch("crud.operation.datetime")
+    def test_operation_end_excludes_in_progress_wait(self, mock_datetime):
+        """Duration excludes time spent waiting for a pre-existing in-progress op."""
+        # 10 minutes of wall-clock, 3 of which were queue-wait.
+        mock_now = mock.MagicMock()
+        mock_now.strftime.side_effect = [
+            "2023-01-01T12:00:00Z",  # start
+            "2023-01-01T12:10:00Z",  # end
+        ]
+        mock_datetime.now.return_value = mock_now
+        mock_datetime.fromisoformat.side_effect = [
+            datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
+            datetime(2023, 1, 1, 12, 10, 0, tzinfo=timezone.utc),
+        ]
+
+        self.test_operation.start()
+        self.test_operation.exclude_time(180)
+        self.test_operation.end(success=True)
+
+        # 600s wall-clock minus 180s queue-wait == 420s effective.
+        self.assertEqual(self.test_operation.duration, 420.0)
+        self.assertEqual(
+            self.test_operation.metadata["in_progress_wait_seconds"], 180
+        )
+        # Effective start shifted forward so start/end/duration stay consistent.
+        self.assertEqual(
+            self.test_operation.start_timestamp, "2023-01-01T12:03:00Z"
+        )
+        self.assertEqual(self.test_operation.end_timestamp, "2023-01-01T12:10:00Z")
+
+    def test_exclude_time_accumulates_and_ignores_nonpositive(self):
+        """exclude_time sums positive waits and ignores zero/negative values."""
+        self.test_operation.exclude_time(30)
+        self.test_operation.exclude_time(60)
+        self.test_operation.exclude_time(0)
+        self.test_operation.exclude_time(-5)
+        self.assertEqual(self.test_operation.excluded_seconds, 90)
+
+    @mock.patch("crud.operation.datetime")
+    def test_operation_end_clamps_excluded_to_wall_clock(self, mock_datetime):
+        """Excluded wait exceeding wall-clock clamps duration to 0 and metadata matches."""
+        mock_now = mock.MagicMock()
+        mock_now.strftime.side_effect = [
+            "2023-01-01T12:00:00Z",  # start
+            "2023-01-01T12:01:00Z",  # end (60s wall-clock)
+        ]
+        mock_datetime.now.return_value = mock_now
+        mock_datetime.fromisoformat.side_effect = [
+            datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
+            datetime(2023, 1, 1, 12, 1, 0, tzinfo=timezone.utc),
+        ]
+
+        self.test_operation.start()
+        self.test_operation.exclude_time(600)  # more than the 60s wall-clock
+        self.test_operation.end(success=True)
+
+        # Duration floors at 0 and the recorded wait is the clamped (real) value.
+        self.assertEqual(self.test_operation.duration, 0.0)
+        self.assertEqual(
+            self.test_operation.metadata["in_progress_wait_seconds"], 60.0
+        )
+        self.assertEqual(self.test_operation.start_timestamp, "2023-01-01T12:01:00Z")
+
+    @mock.patch("crud.operation.datetime")
+    def test_operation_end_no_wait_leaves_duration_unchanged(self, mock_datetime):
+        """With no excluded time, duration and start_timestamp are untouched."""
+        mock_now = mock.MagicMock()
+        mock_now.strftime.side_effect = [
+            "2023-01-01T12:00:00Z",
+            "2023-01-01T12:01:30Z",
+        ]
+        mock_datetime.now.return_value = mock_now
+        mock_datetime.fromisoformat.side_effect = [
+            datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
+            datetime(2023, 1, 1, 12, 1, 30, tzinfo=timezone.utc),
+        ]
+
+        self.test_operation.start()
+        self.test_operation.end(success=True)
+
+        self.assertEqual(self.test_operation.duration, 90.0)
+        self.assertEqual(self.test_operation.start_timestamp, "2023-01-01T12:00:00Z")
+        self.assertNotIn("in_progress_wait_seconds", self.test_operation.metadata)
+
+    @mock.patch("crud.operation.datetime")
     def test_operation_end_duration_calculation_error(self, mock_datetime):
         """Test operation end when duration calculation fails"""
         # Setup

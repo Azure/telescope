@@ -2,6 +2,7 @@ import re
 import os
 import json
 import argparse
+from typing import List, Tuple
 from utils.logger_config import get_logger, setup_logging
 
 # Configure logging
@@ -71,3 +72,20 @@ def str2bool(val):
     if val.lower() in ("false", "no", "0"):
         return False
     raise argparse.ArgumentTypeError("Boolean value expected.")
+
+
+def compute_throttle_delay(chunks: List[Tuple[float, float]]) -> float:
+    """Throttle delay to a concurrent command's completion.
+
+    ``chunks`` is per-worker ``(finish_time, backoff_seconds)``. Backoff is pure
+    delay on a worker's own timeline, so its throttle-free finish is
+    ``finish - backoff`` and the delay is ``max(finish) - max(finish - backoff)``.
+    Only backoff on the critical path counts -- off-path backoff hides behind
+    other workers. Assumes workers start concurrently (each Machine chunk gets its
+    own pool slot); queued workers would make this under-count.
+    """
+    if not chunks:
+        return 0.0
+    actual_finish = max(finish for finish, _ in chunks)
+    finish_without_backoff = max(finish - backoff for finish, backoff in chunks)
+    return max(0.0, actual_finish - finish_without_backoff)
