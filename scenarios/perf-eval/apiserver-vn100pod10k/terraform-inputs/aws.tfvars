@@ -74,7 +74,7 @@ eks_config_list = [{
     {
       name           = "virtualnodes"
       ami_type       = "AL2023_x86_64_STANDARD"
-      instance_types = ["m4.2xlarge"]
+      instance_types = ["m4.xlarge"]
       min_size       = 2
       max_size       = 2
       desired_size   = 2
