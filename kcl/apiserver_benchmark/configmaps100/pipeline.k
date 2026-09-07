@@ -23,7 +23,7 @@ az aks create \\
   --subscription "${SUBSCRIPTION_ID}" \\
   --location "${LOCATION}" \\
   --kubernetes-version "1.35" \\
-  --node-count 2 \\
+    --node-count 1 \
   --node-vm-size "Standard_D2s_v3" \\
   --network-plugin azure \\
   --network-plugin-mode overlay \\

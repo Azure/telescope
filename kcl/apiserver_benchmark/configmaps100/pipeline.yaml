@@ -71,8 +71,7 @@ stages:
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --location "uksouth" \
             --kubernetes-version "1.35" \
-            --node-count 2 \
-            --node-vm-size "Standard_D2s_v3" \
+              --node-count 1   --node-vm-size "Standard_D2s_v3" \
             --network-plugin azure \
             --network-plugin-mode overlay \
             --nodepool-taints "CriticalAddonsOnly=true:NoSchedule" \
@@ -303,8 +302,7 @@ stages:
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --location "uksouth" \
             --kubernetes-version "1.35" \
-            --node-count 2 \
-            --node-vm-size "Standard_D2s_v3" \
+              --node-count 1   --node-vm-size "Standard_D2s_v3" \
             --network-plugin azure \
             --network-plugin-mode overlay \
             --nodepool-taints "CriticalAddonsOnly=true:NoSchedule" \
