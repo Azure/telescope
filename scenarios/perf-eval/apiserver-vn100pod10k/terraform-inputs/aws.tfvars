@@ -75,9 +75,9 @@ eks_config_list = [{
       name           = "virtualnodes"
       ami_type       = "AL2023_x86_64_STANDARD"
       instance_types = ["m4.2xlarge"]
-      min_size       = 5
-      max_size       = 5
-      desired_size   = 5
+      min_size       = 2
+      max_size       = 2
+      desired_size   = 2
       capacity_type  = "ON_DEMAND"
       labels         = { terraform = "true", k8s = "true", role = "apiserver-eval" } # Optional input
     },
