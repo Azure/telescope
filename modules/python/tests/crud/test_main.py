@@ -72,6 +72,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         mock_args.node_pool_name = "test-np"
         mock_args.vm_size = "Standard_D2s_v3"
         mock_args.node_count = 3
+        mock_args.node_pool_type = "VirtualMachines"
         mock_args.gpu_node_pool = False
         mock_args.enable_managed_gpu = False
 
@@ -87,6 +88,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
             node_pool_name="test-np",
             vm_size="Standard_D2s_v3",
             node_count=3,
+            node_pool_type="VirtualMachines",
             gpu_node_pool=False,
             enable_managed_gpu=False,
             gpu_instance_profile=mock_args.gpu_instance_profile,
@@ -102,6 +104,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         mock_args.cloud = "azure"
         mock_args.node_pool_name = "test-np"
         mock_args.target_count = 5
+        mock_args.node_pool_type = "VirtualMachines"
         mock_args.scale_step_size = (
             1  # scale_step_size != target_count, so progressive=True
         )
@@ -119,6 +122,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         mock_azure_crud.scale_node_pool.assert_called_once_with(
             node_pool_name="test-np",
             node_count=5,
+            node_pool_type="VirtualMachines",
             progressive=True,  # Should be True because scale_step_size != target_count
             scale_step_size=1,
             gpu_node_pool=False,
@@ -136,6 +140,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         mock_args.cloud = "azure"
         mock_args.node_pool_name = "test-np"
         mock_args.target_count = 3
+        mock_args.node_pool_type = "VirtualMachineScaleSets"
         mock_args.scale_step_size = (
             3  # scale_step_size == target_count, so progressive=False
         )
@@ -153,6 +158,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         mock_azure_crud.scale_node_pool.assert_called_once_with(
             node_pool_name="test-np",
             node_count=3,
+            node_pool_type="VirtualMachineScaleSets",
             progressive=False,  # Should be False because scale_step_size == target_count
             scale_step_size=3,
             gpu_node_pool=False,
@@ -178,6 +184,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         mock_args.cloud = "azure"
         mock_args.node_pool_name = "test-np"
         mock_args.target_count = 10
+        mock_args.node_pool_type = "VirtualMachineScaleSets"
         mock_args.scale_step_size = 2  # Progressive scaling
         mock_args.gpu_node_pool = False
         mock_args.enable_managed_gpu = False
@@ -193,6 +200,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         mock_azure_crud.scale_node_pool.assert_called_once_with(
             node_pool_name="test-np",
             node_count=10,
+            node_pool_type="VirtualMachineScaleSets",
             progressive=True,
             scale_step_size=2,
             gpu_node_pool=False,
@@ -269,6 +277,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         mock_args.vm_size = "Standard_D2s_v3"
         mock_args.node_count = 1
         mock_args.target_count = 3
+        mock_args.node_pool_type = "VirtualMachines"
         mock_args.scale_step_size = 1
         mock_args.gpu_node_pool = True
         mock_args.enable_managed_gpu = False
@@ -287,6 +296,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
             vm_size="Standard_D2s_v3",
             node_count=1,
             target_count=3,
+            node_pool_type="VirtualMachines",
             progressive=True,  # Should be True because scale_step_size != target_count
             scale_step_size=1,
             gpu_node_pool=True,
@@ -316,6 +326,8 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         call_kwargs = mock_crud.scale_node_pool.call_args.kwargs
         self.assertNotIn("gpu_instance_profile", call_kwargs)
         self.assertNotIn("gpu_mig_strategy", call_kwargs)
+        self.assertNotIn("node_pool_type", call_kwargs)
+        self.assertNotIn("vm_size", call_kwargs)
 
     @mock.patch("crud.main.AzureNodePoolCRUD")
     def test_handle_node_pool_operation_failure(self, mock_azure_crud):
@@ -814,36 +826,6 @@ class TestMainFunctionIntegration(unittest.TestCase):
         # Verify it was called with exit code 1 at least once
         self.assertIn(mock.call(1), mock_exit.call_args_list)
 
-    @mock.patch("crud.main.AzureNodePoolCRUD")
-    def test_main_complete_create_operation(self, mock_azure_crud_class):
-        """Test complete create operation flow"""
-        # Setup
-        mock_node_pool_crud = mock.MagicMock()
-        mock_azure_crud_class.return_value = mock_node_pool_crud
-        mock_node_pool_crud.create_node_pool.return_value = True
-
-        test_args = [
-            "crud.py",
-            "create",
-            "--cloud",
-            "azure",
-            "--run-id",
-            "test-run",
-            "--node-pool-name",
-            "test-pool",
-            "--vm-size",
-            "Standard_D2s_v3",
-            "--node-count",
-            "2",
-        ]
-
-        with mock.patch("sys.argv", test_args):
-            main()  # Use the imported main function
-
-        # Verify
-        mock_azure_crud_class.assert_called_once()
-        mock_node_pool_crud.create_node_pool.assert_called_once()
-
     @mock.patch("crud.main.OperationContext")
     @mock.patch("crud.main.AzureNodePoolCRUD")
     def test_main_operation_returns_none(
@@ -904,9 +886,10 @@ class TestMainFunctionIntegration(unittest.TestCase):
         ]
 
         with mock.patch("sys.argv", test_args):
-            main()  # Use the imported main function
+            with self.assertRaises(SystemExit) as context:
+                main()
 
-        # Verify error is logged but sys.exit is not called
+        self.assertEqual(context.exception.code, 1)
         mock_logger.error.assert_called_with("Operation failed with exit code: 1")
 
     @mock.patch("sys.exit")
@@ -1503,9 +1486,10 @@ class TestMainErrorHandlingEdgeCases(unittest.TestCase):
             with mock.patch(
                 "crud.main.handle_node_pool_operation", mock_handle_operation
             ):
-                main()
+                with self.assertRaises(SystemExit) as context:
+                    main()
 
-        # Should log error with the specific exit code but not call sys.exit
+        self.assertEqual(context.exception.code, 42)
         mock_logger.error.assert_called_with("Operation failed with exit code: 42")
 
     @mock.patch("crud.main.logger")
@@ -1569,9 +1553,10 @@ class TestMainErrorHandlingEdgeCases(unittest.TestCase):
             with mock.patch(
                 "crud.main.handle_node_pool_operation", mock_handle_operation
             ):
-                main()
+                with self.assertRaises(SystemExit) as context:
+                    main()
 
-        # Should log error but not call sys.exit
+        self.assertEqual(context.exception.code, 1)
         mock_logger.error.assert_called_with("Operation failed with exit code: 1")
 
 

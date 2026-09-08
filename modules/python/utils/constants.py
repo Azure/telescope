@@ -22,3 +22,9 @@ class AzureSKUFamily:
     VM_SIZE_TO_SKU_FAMILY = {
         "Standard_ND96asr_v4": "ndv4"
     }
+
+
+@dataclass(frozen=True)
+class AzureNodePoolTypeConstants:
+    VIRTUAL_MACHINE_SCALE_SETS = "VirtualMachineScaleSets"
+    VIRTUAL_MACHINES = "VirtualMachines"

@@ -13,7 +13,6 @@ and troubleshooting.
 
 import logging
 import os
-import subprocess
 import time
 from typing import Dict, Optional, Any
 
@@ -26,8 +25,14 @@ from azure.mgmt.containerservice import ContainerServiceClient
 # Local imports
 from utils.logger_config import get_logger, setup_logging
 from utils.common import get_env_vars
+from utils.constants import AzureNodePoolTypeConstants
+from utils.azure_node_pool_cli import (
+    add_managed_gpu_node_pool as add_managed_gpu_node_pool_cli,
+    get_node_pool_scale_state,
+    prepare_create_operation,
+    prepare_scale_operation,
+)
 from utils.provisioning_instrumentation import (
-    begin_create_or_update_with_retry,
     instrument_nodepool_provisioning,
 )
 from .kubernetes_client import KubernetesClient
@@ -66,22 +71,12 @@ class AKSClient:
     def _instrument_nodepool_provisioning(
         self,
         node_pool_name: str,
-        cluster_name: str,
-        parameters: Any,
         node_count: int,
         op,
+        arm_callable,
         label: str = "",
     ) -> list:
-        """
-        Run ARM operation and K8s node readiness check concurrently using threads.
-        Delegates to provisioning_instrumentation.instrument_nodepool_provisioning.
-        """
-        def arm_callable():
-            return begin_create_or_update_with_retry(
-                self.aks_client, self.resource_group,
-                cluster_name, node_pool_name, parameters, label=label,
-            )
-
+        """Instrument ARM and Kubernetes node readiness for an AKS node pool."""
         def k8s_wait_callable():
             return self.k8s_client.wait_for_nodes_ready(
                 node_count=node_count,
@@ -295,53 +290,16 @@ class AKSClient:
         gpu_instance_profile: Optional[str] = None,
         gpu_mig_strategy: Optional[str] = None,
     ) -> None:
-        """
-        Create a fully managed GPU node pool via az CLI (aks-preview extension).
-        Used because the stable Python SDK doesn't expose gpuProfile.nvidia.managementMode.
-        """
-        # Ensure aks-preview extension is installed/upgraded (required for --enable-managed-gpu)
-        subprocess.run(
-            ["az", "extension", "add", "--name", "aks-preview", "--upgrade",
-             "--allow-preview", "true", "--yes"],
-            capture_output=True, text=True, check=False,
+        """Create a fully managed GPU node pool through the aks-preview CLI."""
+        add_managed_gpu_node_pool_cli(
+            resource_group=self.resource_group,
+            node_pool_name=node_pool_name,
+            cluster_name=cluster_name,
+            vm_size=vm_size,
+            node_count=node_count,
+            gpu_instance_profile=gpu_instance_profile,
+            gpu_mig_strategy=gpu_mig_strategy,
         )
-
-        cmd = [
-            "az", "aks", "nodepool", "add",
-            "--resource-group", self.resource_group,
-            "--cluster-name", cluster_name,
-            "--name", node_pool_name,
-            "--node-count", str(node_count),
-            "--node-vm-size", vm_size,
-            "--mode", "User",
-            "--node-osdisk-type", "Managed",
-            "--labels", "gpu=true",
-            "--enable-managed-gpu", "true",
-        ]
-        if gpu_instance_profile:
-            cmd += ["--gpu-instance-profile", gpu_instance_profile]
-        if gpu_mig_strategy:
-            cmd += ["--gpu-mig-strategy", gpu_mig_strategy]
-        logger.info(f"Running: {' '.join(cmd)}")
-        retries = 10
-        retry_wait = 30
-        for attempt in range(retries):
-            result = subprocess.run(cmd, capture_output=True, text=True, check=False)
-            if result.returncode == 0:
-                break
-            detail = " | ".join(
-                line for line in (result.stdout + result.stderr).splitlines() if line.strip()
-            )
-            if "OperationNotAllowed" in detail and attempt < retries - 1:
-                logger.warning(
-                    f"Cluster has an in-progress operation, retrying in {retry_wait}s (attempt {attempt + 1}/{retries})"
-                )
-                time.sleep(retry_wait)
-            else:
-                raise RuntimeError(
-                    f"az aks nodepool add failed (rc={result.returncode}): {detail}"
-                )
-        logger.info(f"az aks nodepool add succeeded for '{node_pool_name}'")
 
     @staticmethod
     def _gpu_mode_metadata(
@@ -417,6 +375,7 @@ class AKSClient:
         enable_managed_gpu: bool = False,
         gpu_instance_profile: Optional[str] = None,
         gpu_mig_strategy: Optional[str] = None,
+        node_pool_type: str = AzureNodePoolTypeConstants.VIRTUAL_MACHINE_SCALE_SETS,
     ) -> Any:
         """
         Create a new node pool in the AKS cluster.
@@ -452,6 +411,7 @@ class AKSClient:
             "cluster_name": cluster_name,
             "vm_size": vm_size,
             "node_count": node_count,
+            "node_pool_type": node_pool_type,
             "gpu_node_pool": gpu_node_pool,
             **self._gpu_mode_metadata(
                 gpu_node_pool,
@@ -469,8 +429,6 @@ class AKSClient:
             try:
                 # Build parameters for node pool creation
                 parameters = {
-                    "count": node_count,
-                    "vm_size": vm_size,
                     "os_type": "Linux",
                     "mode": "User",
                     "os_disk_type": "Managed",
@@ -482,6 +440,18 @@ class AKSClient:
                     parameters["gpu_profile"] = {
                         "driver": "Install",
                     }
+
+                arm_callable = prepare_create_operation(
+                    parameters,
+                    node_pool_type,
+                    gpu_node_pool,
+                    self.resource_group,
+                    cluster_name,
+                    node_pool_name,
+                    node_count,
+                    vm_size,
+                    self.aks_client,
+                )
 
                 logger.info(
                     f"Creating node pool {node_pool_name} in cluster {cluster_name}"
@@ -505,9 +475,11 @@ class AKSClient:
                         label_selector=label_selector,
                     )
                 else:
-                    # Run ARM and K8s readiness concurrently to capture both timings
                     ready_nodes = self._instrument_nodepool_provisioning(
-                        node_pool_name, cluster_name, parameters, node_count, op
+                        node_pool_name,
+                        node_count,
+                        op,
+                        arm_callable=arm_callable,
                     )
 
                 logger.info(
@@ -567,6 +539,7 @@ class AKSClient:
         scale_step_size: int = 1,
         gpu_instance_profile: Optional[str] = None,
         gpu_mig_strategy: Optional[str] = None,
+        node_pool_type: str = AzureNodePoolTypeConstants.VIRTUAL_MACHINE_SCALE_SETS,
     ) -> Any:
         """
         Scale a node pool to the specified node count.
@@ -597,6 +570,7 @@ class AKSClient:
         metadata = {
             "cluster_name": cluster_name,
             "node_count": node_count,
+            "node_pool_type": node_pool_type,
             "gpu_node_pool": gpu_node_pool,
             "progressive_scaling": progressive,
             "scale_step_size": scale_step_size,
@@ -610,7 +584,9 @@ class AKSClient:
         self._log_gpu_mode(metadata)
         node_pool = self.get_node_pool(node_pool_name, cluster_name)
 
-        current_count = node_pool.count
+        current_count, current_vm_size = get_node_pool_scale_state(
+            node_pool, node_pool_type
+        )
         if node_count > current_count:
             operation_type = "scale_up"
         elif node_count < current_count:
@@ -634,6 +610,7 @@ class AKSClient:
                 gpu_node_pool=gpu_node_pool,
                 enable_managed_gpu=enable_managed_gpu,
                 node_pool=node_pool,
+                node_pool_type=node_pool_type,
                 gpu_instance_profile=gpu_instance_profile,
                 gpu_mig_strategy=gpu_mig_strategy,
             )
@@ -644,7 +621,7 @@ class AKSClient:
         ) as op:
             try:
                 # Store VM size for metrics
-                self.vm_size = node_pool.vm_size
+                self.vm_size = current_vm_size
                 op.name = operation_type
                 op.add_metadata("vm_size", self.vm_size)
                 op.add_metadata("current_count", current_count)
@@ -658,7 +635,15 @@ class AKSClient:
                 )
 
                 # For direct scaling, update the node count
-                node_pool.count = node_count
+                arm_callable = prepare_scale_operation(
+                    node_pool,
+                    node_pool_type,
+                    self.resource_group,
+                    cluster_name,
+                    node_pool_name,
+                    node_count,
+                    self.aks_client,
+                )
 
                 logger.info(f"Scaling node pool {node_pool_name} to {node_count} nodes")
 
@@ -668,7 +653,10 @@ class AKSClient:
 
                 # Run ARM and K8s readiness concurrently to capture both timings
                 ready_nodes = self._instrument_nodepool_provisioning(
-                    node_pool_name, cluster_name, node_pool, node_count, op,
+                    node_pool_name,
+                    node_count,
+                    op,
+                    arm_callable=arm_callable,
                 )
 
                 logger.info(
@@ -797,6 +785,7 @@ class AKSClient:
         node_pool: Optional[Any] = None,
         gpu_instance_profile: Optional[str] = None,
         gpu_mig_strategy: Optional[str] = None,
+        node_pool_type: str = AzureNodePoolTypeConstants.VIRTUAL_MACHINE_SCALE_SETS,
     ) -> Any:
         """
         Scale a node pool progressively with specified step size
@@ -887,12 +876,22 @@ class AKSClient:
                     op.add_metadata(
                         "cluster_info", self.get_cluster_data(cluster_name)
                     )
-                    node_pool.count = step  # Update node count in the node pool object
+                    arm_callable = prepare_scale_operation(
+                        node_pool,
+                        node_pool_type,
+                        self.resource_group,
+                        cluster_name,
+                        node_pool_name,
+                        step,
+                        self.aks_client,
+                        label=f"step {step} ",
+                    )
 
                     # Run ARM and K8s readiness concurrently to capture both timings
                     ready_nodes = self._instrument_nodepool_provisioning(
-                        node_pool_name, cluster_name, node_pool, step, op,
+                        node_pool_name, step, op,
                         label=f"step {step} ",
+                        arm_callable=arm_callable,
                     )
 
                     logger.info(f"All {step} nodes in pool {node_pool_name} are ready")
