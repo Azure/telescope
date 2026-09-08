@@ -169,6 +169,28 @@ class TestLargeCluster(unittest.TestCase):
 
         self.assertIn("CL2_NODES: 20", content)
         self.assertIn("CL2_LOAD_TEST_THROUGHPUT: 100", content)
+        self.assertIn("CL2_PROMETHEUS_CPU_SCALE_FACTOR: 30.0", content)
+        self.assertIn("CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR: 100.0", content)
+        self.assertIn("CL2_PROMETHEUS_MEMORY_SCALE_FACTOR: 100.0", content)
+
+    def test_configure_clusterloader2_custom_prometheus_resources(self):
+        """Test scenario-specific Prometheus resource factors."""
+        configure_clusterloader2(
+            cpu_per_node=2, node_count=1000, node_per_step=1000,
+            pods_per_node=20, repeats=10, operation_timeout="15m",
+            provider="azure", cilium_enabled=False,
+            scrape_containerd=False, override_file=self.temp_path,
+            prometheus_cpu_scale_factor=3.6,
+            prometheus_memory_limit_factor=4.0,
+            prometheus_memory_scale_factor=4.0,
+        )
+
+        with open(self.temp_path, "r", encoding='utf-8') as f:
+            content = f.read()
+
+        self.assertIn("CL2_PROMETHEUS_CPU_SCALE_FACTOR: 3.6", content)
+        self.assertIn("CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR: 4.0", content)
+        self.assertIn("CL2_PROMETHEUS_MEMORY_SCALE_FACTOR: 4.0", content)
 
     def test_configure_clusterloader2_cilium_enabled(self):
         """Test configuration with Cilium enabled"""
@@ -717,7 +739,8 @@ class TestLargeCluster(unittest.TestCase):
         main()
 
         mock_configure.assert_called_once_with(
-            4, 20, 5, 10, 3, '30m', 'aws', False, False, '/tmp/override.yaml'
+            4, 20, 5, 10, 3, '30m', 'aws', False, False, '/tmp/override.yaml',
+            30.0, 100.0, 100.0
         )
 
     @patch('clusterloader2.large_cluster.large_cluster.validate_clusterloader2')
