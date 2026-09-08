@@ -12,7 +12,7 @@ schedules:
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: pod-churn-50k-sched
+  SCENARIO_NAME: pod-churn-20k-sched
 
 # We only run with the override scheduler configuration, since we have baseline
 # data for AWS and Azure from the "SLO service discovery" pod churn test. This
@@ -28,7 +28,7 @@ stages:
             - eastus
           engine: clusterloader2
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20241022"
+            image: "ghcr.io/azure/clusterloader2:v20260220"
           topology: service-churn
           matrix:
             azure_cni:
@@ -40,8 +40,8 @@ stages:
               scale_timeout: "15m"
               cilium_enabled: False
               prometheus_cpu_scale_factor: 3.6
-              prometheus_memory_limit_factor: 4.0
               prometheus_memory_scale_factor: 4.0
+              prometheus_memory_limit_factor: 4.0
               cl2_config_file: service-churn.yaml
           max_parallel: 1
           timeout_in_minutes: 720

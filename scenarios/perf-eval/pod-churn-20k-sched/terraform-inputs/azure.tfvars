@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
-scenario_name  = "pod-churn-50k-sched"
-deletion_delay = "12h"
+scenario_name  = "pod-churn-20k-sched"
+deletion_delay = "8h"
 owner          = "aks"
 
 network_config_list = [
