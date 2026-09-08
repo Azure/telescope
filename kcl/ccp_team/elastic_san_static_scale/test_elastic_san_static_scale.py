@@ -55,6 +55,7 @@ from configure_network_acls import (
     merged_network_acls,
     missing_subnet_ids,
 )
+from delete import plan_deletions
 
 
 class ShardPlannerTests(unittest.TestCase):
@@ -115,6 +116,35 @@ class ShardPlannerTests(unittest.TestCase):
                 all_managed_indexes=[],
                 shard_capacity=20_000,
             )
+
+
+class DeletePlannerTests(unittest.TestCase):
+    def test_new_san_is_deleted_whole_and_topped_up_san_only_loses_its_volumes(self):
+        additions = [
+            {"san_name": "tel-esan-abc-00", "current_count": 12_000, "new_san": False},
+            {"san_name": "tel-esan-abc-01", "current_count": 0, "new_san": True},
+        ]
+        per_san_volumes = {
+            "tel-esan-abc-00": [("vg-000", "vol-0000"), ("vg-000", "vol-0001")],
+            "tel-esan-abc-01": [("vg-000", "vol-0000")],
+        }
+        whole_sans, topped_up = plan_deletions(additions, per_san_volumes)
+        self.assertEqual(["tel-esan-abc-01"], whole_sans)
+        self.assertEqual({"tel-esan-abc-00"}, set(topped_up))
+        self.assertEqual(
+            [("vg-000", "vol-0000"), ("vg-000", "vol-0001")],
+            topped_up["tel-esan-abc-00"],
+        )
+
+    def test_new_san_marker_falls_back_to_current_count(self):
+        additions = [
+            {"san_name": "tel-esan-abc-00", "current_count": 0},
+            {"san_name": "tel-esan-abc-01", "current_count": 8_000},
+        ]
+        per_san_volumes = {"tel-esan-abc-01": [("vg-000", "vol-0000")]}
+        whole_sans, topped_up = plan_deletions(additions, per_san_volumes)
+        self.assertEqual(["tel-esan-abc-00"], whole_sans)
+        self.assertEqual({"tel-esan-abc-01"}, set(topped_up))
 
 
 class DeterministicVolumeTests(unittest.TestCase):

@@ -51,8 +51,9 @@ Azure DevOps displays these boolean parameters as checkboxes:
 | `run_provision` | Create missing SANs, VGs, and static volumes |
 | `run_repair` | Delete Failed managed volumes and recreate the same names, up to four rounds |
 | `run_attach` | Create PV/PVC/Pod resources only for successful volumes not currently attached |
+| `run_delete` | Delete the SANs created by this run and the volumes it added to pre-existing SANs |
 
-The selected stages run in `provision -> repair -> attach` order. A stage can run by itself;
+The selected stages run in `provision -> repair -> attach -> delete` order. A stage can run by itself;
 skipped dependencies do not block it. Recommended sequences are:
 
 - First run: select only `run_provision` to preserve the raw provisioning result.
@@ -62,6 +63,14 @@ skipped dependencies do not block it. Recommended sequences are:
 - End-to-end run: select all three. Attach starts only if Repair succeeds.
 
 If no checkbox is selected, only cluster validation runs.
+
+`run_delete` is a scoped cleanup for the resources this run's Provision created. It reads the
+`elastic-san-provision` artifact from the same run, then deletes each SAN that Provision newly
+created (whole SAN, its volume groups, and volumes) and, for pre-existing SANs it only topped up,
+deletes just the volumes this run added. It requires `run_provision` to have run in the same
+queue (the Delete stage is skipped when Provision is skipped), only ever touches SANs tagged as
+managed for this cluster, and refuses to delete a volume still referenced by a cluster PV unless
+`--allow-attached` is set. Deletion results are published as the `elastic-san-delete` artifact.
 
 Provision, Repair, and Attach results are published as separate Azure DevOps pipeline artifacts.
 Provision records elapsed time and success rates for the run, each SAN, and each VG. Attach

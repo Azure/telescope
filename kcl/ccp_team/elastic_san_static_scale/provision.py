@@ -833,6 +833,7 @@ async def async_main(args: argparse.Namespace) -> int:
                 "san_name": item.san_name
                 or stable_san_name(args.san_prefix, cluster.resource_uid, item.san_index),
                 "add_count": item.add_count,
+                "new_san": item.san_name is None,
             }
             for item in additions
         ]

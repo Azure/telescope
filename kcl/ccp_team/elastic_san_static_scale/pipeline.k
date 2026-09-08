@@ -88,8 +88,21 @@ resolve_cluster() {
 
 ensureResultDirectories = lambda -> steps.Step {
     steps.Bash {
-        bash = "mkdir -p '${RESULT_ROOT}/resolve' '${RESULT_ROOT}/provision' '${RESULT_ROOT}/repair' '${RESULT_ROOT}/attach'"
+        bash = "mkdir -p '${RESULT_ROOT}/resolve' '${RESULT_ROOT}/provision' '${RESULT_ROOT}/repair' '${RESULT_ROOT}/attach' '${RESULT_ROOT}/delete'"
         displayName = "Prepare result directories"
+    }
+}
+
+
+downloadProvisionArtifact = lambda -> steps.Step {
+    steps.Task {
+        task = "DownloadPipelineArtifact@2"
+        displayName = "Download this run's provision manifest"
+        inputs = {
+            buildType = "current"
+            artifactName = "elastic-san-provision"
+            targetPath = "${RESULT_ROOT}/provision"
+        }
     }
 }
 
@@ -174,6 +187,21 @@ PYTHONPATH="${PYTHON_DEPS}" python3 "${WORKLOAD_DIR}/repair.py" \\
 """
 
 
+deleteScript = """
+mkdir -p "${RESULT_ROOT}/delete"
+PYTHONPATH="${PYTHON_DEPS}" python3 "${WORKLOAD_DIR}/delete.py" \\
+    --cluster-info "${RESULT_ROOT}/cluster.json" \\
+    --kubeconfig "${KUBECONFIG}" \\
+    --provision-summary "${RESULT_ROOT}/provision/provision-summary.json" \\
+    --provision-volumes "${RESULT_ROOT}/provision/provision-volumes.csv" \\
+    --max-volume-writes-per-hour "$PARAM_MAX_VOLUME_WRITES_PER_HOUR" \\
+    --max-volume-writes-per-burst "$PARAM_MAX_VOLUME_WRITES_PER_BURST" \\
+    --burst-window-seconds "$PARAM_BURST_WINDOW_SECONDS" \\
+    --results-dir "${RESULT_ROOT}/delete" \\
+    2>&1 | tee "${RESULT_ROOT}/delete/run.log"
+"""
+
+
 attachScript = """
 mkdir -p "${RESULT_ROOT}/attach"
 include_args=""
@@ -226,6 +254,12 @@ output = ap.Pipeline {
         ap.Parameter {
             name = "run_attach"
             displayName = "Attach currently unattached managed volumes"
+            type = "boolean"
+            default = False
+        }
+        ap.Parameter {
+            name = "run_delete"
+            displayName = "Delete the SANs and volumes created by this run's provisioning"
             type = "boolean"
             default = False
         }
@@ -446,6 +480,35 @@ output = ap.Pipeline {
                             PARAM_ATTACH_TIMEOUT_SECONDS = "\${{ parameters.attach_timeout_seconds }}"
                         }),
                     publishArtifact("${RESULT_ROOT}/attach", "elastic-san-attach"),
+                    cleanupAgent(),
+                ]
+            }]
+        }
+        ap.Stage {
+            stage = "delete"
+            displayName = "Delete this run's Elastic SAN resources"
+            dependsOn = ["validate_cluster", "provision", "repair", "attach"]
+            condition = "and(in(dependencies.validate_cluster.result, 'Succeeded', 'SucceededWithIssues'), in(dependencies.provision.result, 'Succeeded', 'SucceededWithIssues'), in(dependencies.repair.result, 'Succeeded', 'SucceededWithIssues', 'Skipped'), in(dependencies.attach.result, 'Succeeded', 'SucceededWithIssues', 'Skipped'), \${{ parameters.run_delete }})"
+            jobs = [job.Job {
+                job = "delete_static_volumes"
+                displayName = "Delete provisioned SANs and volumes"
+                timeoutInMinutes = 2880
+                steps = [
+                    ensureResultDirectories(),
+                    downloadProvisionArtifact(),
+                    azCli(
+                        "Prepare cluster access and Python",
+                        prepareAgentScript,
+                        {PARAM_CLUSTER_ID = "\${{ parameters.cluster_id }}"}),
+                    azCli(
+                        "Delete provisioned SANs and volumes",
+                        deleteScript,
+                        {
+                            PARAM_MAX_VOLUME_WRITES_PER_HOUR = "\${{ parameters.max_volume_writes_per_hour }}"
+                            PARAM_MAX_VOLUME_WRITES_PER_BURST = "\${{ parameters.max_volume_writes_per_burst }}"
+                            PARAM_BURST_WINDOW_SECONDS = "\${{ parameters.burst_window_seconds }}"
+                        }),
+                    publishArtifact("${RESULT_ROOT}/delete", "elastic-san-delete"),
                     cleanupAgent(),
                 ]
             }]

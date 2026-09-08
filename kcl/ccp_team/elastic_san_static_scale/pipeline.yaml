@@ -18,6 +18,10 @@ parameters:
   displayName: Attach currently unattached managed volumes
   type: boolean
   default: false
+- name: run_delete
+  displayName: Delete the SANs and volumes created by this run's provisioning
+  type: boolean
+  default: false
 - name: target_total_volumes
   displayName: Desired total ESAN volumes (existing cluster plus managed SANs)
   type: number
@@ -94,7 +98,7 @@ stages:
     displayName: Resolve cluster resourceUid
     timeoutInMinutes: 15
     steps:
-    - bash: mkdir -p '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/resolve' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/provision' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/repair' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/attach'
+    - bash: mkdir -p '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/resolve' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/provision' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/repair' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/attach' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/delete'
       displayName: Prepare result directories
     - task: AzureCLI@2
       inputs:
@@ -172,7 +176,7 @@ stages:
     displayName: Provision static volumes
     timeoutInMinutes: 2880
     steps:
-    - bash: mkdir -p '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/resolve' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/provision' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/repair' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/attach'
+    - bash: mkdir -p '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/resolve' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/provision' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/repair' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/attach' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/delete'
       displayName: Prepare result directories
     - task: AzureCLI@2
       inputs:
@@ -306,7 +310,7 @@ stages:
     displayName: Repair failed managed volumes
     timeoutInMinutes: 2880
     steps:
-    - bash: mkdir -p '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/resolve' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/provision' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/repair' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/attach'
+    - bash: mkdir -p '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/resolve' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/provision' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/repair' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/attach' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/delete'
       displayName: Prepare result directories
     - task: AzureCLI@2
       inputs:
@@ -431,7 +435,7 @@ stages:
     displayName: Attach successful static volumes
     timeoutInMinutes: 1440
     steps:
-    - bash: mkdir -p '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/resolve' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/provision' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/repair' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/attach'
+    - bash: mkdir -p '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/resolve' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/provision' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/repair' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/attach' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/delete'
       displayName: Prepare result directories
     - task: AzureCLI@2
       inputs:
@@ -549,6 +553,132 @@ stages:
         artifact: elastic-san-attach
       condition: always()
       displayName: Publish elastic-san-attach results
+    - bash: rm -f '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/kubeconfig'
+      condition: always()
+      displayName: Remove generated kubeconfig
+- stage: delete
+  displayName: Delete this run's Elastic SAN resources
+  dependsOn:
+  - validate_cluster
+  - provision
+  - repair
+  - attach
+  condition: and(in(dependencies.validate_cluster.result, 'Succeeded', 'SucceededWithIssues'), in(dependencies.provision.result, 'Succeeded', 'SucceededWithIssues'), in(dependencies.repair.result, 'Succeeded', 'SucceededWithIssues', 'Skipped'), in(dependencies.attach.result, 'Succeeded', 'SucceededWithIssues', 'Skipped'), ${{ parameters.run_delete }})
+  jobs:
+  - job: delete_static_volumes
+    displayName: Delete provisioned SANs and volumes
+    timeoutInMinutes: 2880
+    steps:
+    - bash: mkdir -p '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/resolve' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/provision' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/repair' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/attach' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/delete'
+      displayName: Prepare result directories
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        buildType: current
+        artifactName: elastic-san-provision
+        targetPath: $(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/provision
+      displayName: Download this run's provision manifest
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          resolve_cluster() {
+              local cluster_id="$1"
+              local output="$2"
+              local cluster_id_lower
+              local arm_subscription
+              local cluster_name
+              local resource_group
+              local raw
+
+              if [ -z "$cluster_id" ] || [ "$cluster_id" = "none" ]; then
+                  echo "cluster_id must be a full AKS ARM resource ID" >&2
+                  return 1
+              fi
+
+              raw=$(mktemp)
+              cluster_id_lower=$(printf '%s' "$cluster_id" | tr '[:upper:]' '[:lower:]')
+              if [[ ! "$cluster_id_lower" =~ ^/subscriptions/[^/]+/resourcegroups/[^/]+/providers/microsoft.containerservice/managedclusters/[^/]+$ ]]; then
+                  echo "invalid AKS ARM resource ID: $cluster_id" >&2
+                  rm -f "$raw"
+                  return 1
+              fi
+              arm_subscription=$(printf '%s' "$cluster_id" | cut -d/ -f3)
+              resource_group=$(printf '%s' "$cluster_id" | cut -d/ -f5)
+              cluster_name=$(printf '%s' "$cluster_id" | cut -d/ -f9)
+              az account set --subscription "$arm_subscription"
+              az aks show \
+                  --subscription "$arm_subscription" \
+                  --resource-group "$resource_group" \
+                  --name "$cluster_name" \
+                  -o json > "$raw"
+
+              jq --arg subscription_id "$arm_subscription" '{
+                  subscription_id: $subscription_id,
+                  name: .name,
+                  resource_group: .resourceGroup,
+                  node_resource_group: .nodeResourceGroup,
+                  location: .location,
+                  resource_uid: (.resourceUid // error("AKS resourceUid is missing")),
+                  subnet_ids: ([.agentPoolProfiles[]?.vnetSubnetId | select(. != null and . != "")] | unique | sort)
+              }' "$raw" > "${output}.tmp"
+              mv "${output}.tmp" "$output"
+              rm -f "$raw"
+          }
+
+          mkdir -p "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/provision" "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/attach"
+          resolve_cluster \
+              "$PARAM_CLUSTER_ID" \
+              "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/cluster.json"
+          CLUSTER_NAME=$(jq -r .name "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/cluster.json")
+          CLUSTER_RG=$(jq -r .resource_group "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/cluster.json")
+          CLUSTER_SUBSCRIPTION=$(jq -r .subscription_id "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/cluster.json")
+          az aks get-credentials \
+              --subscription "$CLUSTER_SUBSCRIPTION" \
+              --resource-group "$CLUSTER_RG" \
+              --name "$CLUSTER_NAME" \
+              --file "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/kubeconfig" \
+            --overwrite-existing
+          mkdir -p "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/python-deps"
+          python3 -m pip install --disable-pip-version-check \
+              --target "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/python-deps" \
+            -r "$(Build.SourcesDirectory)/kcl/ccp_team/elastic_san_static_scale/requirements.txt"
+      displayName: Prepare cluster access and Python
+      env:
+        PARAM_CLUSTER_ID: ${{ parameters.cluster_id }}
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          mkdir -p "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/delete"
+          PYTHONPATH="$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/python-deps" python3 "$(Build.SourcesDirectory)/kcl/ccp_team/elastic_san_static_scale/delete.py" \
+              --cluster-info "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/cluster.json" \
+              --kubeconfig "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/kubeconfig" \
+              --provision-summary "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/provision/provision-summary.json" \
+              --provision-volumes "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/provision/provision-volumes.csv" \
+              --max-volume-writes-per-hour "$PARAM_MAX_VOLUME_WRITES_PER_HOUR" \
+              --max-volume-writes-per-burst "$PARAM_MAX_VOLUME_WRITES_PER_BURST" \
+              --burst-window-seconds "$PARAM_BURST_WINDOW_SECONDS" \
+              --results-dir "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/delete" \
+              2>&1 | tee "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/delete/run.log"
+      displayName: Delete provisioned SANs and volumes
+      env:
+        PARAM_MAX_VOLUME_WRITES_PER_HOUR: ${{ parameters.max_volume_writes_per_hour }}
+        PARAM_MAX_VOLUME_WRITES_PER_BURST: ${{ parameters.max_volume_writes_per_burst }}
+        PARAM_BURST_WINDOW_SECONDS: ${{ parameters.burst_window_seconds }}
+    - task: PublishPipelineArtifact@1
+      inputs:
+        targetPath: $(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/delete
+        artifact: elastic-san-delete
+      condition: always()
+      displayName: Publish elastic-san-delete results
     - bash: rm -f '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/kubeconfig'
       condition: always()
       displayName: Remove generated kubeconfig
