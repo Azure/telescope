@@ -8,13 +8,13 @@ import lib.util
 
 SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
 RESOURCE_GROUP = "$(RUN_ID)"
-LOCATION = "westus2"
+LOCATION = "swedencentral"
 CONTROL_PLANE_SCALING_SIZE = "\${{ parameters.scaling_size }}"
 CLUSTER = "stg-${CONTROL_PLANE_SCALING_SIZE}-hyperscale-apiserver-seats"
 
 CL2_POOL = azure.NodePool {
     name = "cl2pool"
-    sku = "Standard_D16S_v4"
+    sku = "Standard_D16dS_v4"
     count = 10
     taintPrefix = "cl2pool"
 }
@@ -48,7 +48,7 @@ requestBody = util.escapeStr("""
           "name": "systempool",
           "mode": "System",
           "count": 3,
-          "vmSize": "Standard_D8S_v4",
+          "vmSize": "Standard_D8dS_v4",
           "osType": "Linux",
           "maxPods": 250
         }

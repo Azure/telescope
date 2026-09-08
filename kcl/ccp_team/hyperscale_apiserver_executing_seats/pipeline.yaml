@@ -37,7 +37,7 @@ jobs:
         set -exo pipefail
 
         az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
-        az config set defaults.location="westus2"
+        az config set defaults.location="swedencentral"
         az account show
     displayName: Login to Azure
   - task: AzureCLI@2
@@ -50,10 +50,10 @@ jobs:
 
         az group create \
           --name "$(RUN_ID)" \
-          --location "westus2" \
+          --location "swedencentral" \
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
 
-    displayName: Create resource group in westus2 (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+    displayName: Create resource group in swedencentral (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
@@ -67,7 +67,7 @@ jobs:
           --uri "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/$(RUN_ID)/providers/Microsoft.ContainerService/managedClusters/stg-${{ parameters.scaling_size }}-hyperscale-apiserver-seats?api-version=2026-01-02-preview" \
           --body "
         {
-            \"location\": \"westus2\",
+            \"location\": \"swedencentral\",
             \"identity\": { \"type\": \"SystemAssigned\" },
             \"sku\": {
               \"name\": \"Base\",
@@ -87,7 +87,7 @@ jobs:
                   \"name\": \"systempool\",
                   \"mode\": \"System\",
                   \"count\": 3,
-                  \"vmSize\": \"Standard_D8S_v4\",
+                  \"vmSize\": \"Standard_D8dS_v4\",
                   \"osType\": \"Linux\",
                   \"maxPods\": 250
                 }
@@ -170,7 +170,7 @@ jobs:
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --name "cl2pool" \
             --node-count 10 \
-            --node-vm-size "Standard_D16S_v4" \
+            --node-vm-size "Standard_D16dS_v4" \
             --mode User \
             --node-taints cl2pool=true:NoSchedule 2>&1)
           rc=$?
