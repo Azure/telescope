@@ -75,11 +75,14 @@ eks_config_list = [{
       name           = "virtualnodes"
       ami_type       = "AL2023_x86_64_STANDARD"
       instance_types = ["m4.xlarge"]
-      min_size       = 2
-      max_size       = 2
-      desired_size   = 2
-      capacity_type  = "ON_DEMAND"
-      labels         = { terraform = "true", k8s = "true", role = "apiserver-eval" } # Optional input
+      # AWS requires 2 nodes because each node is bounded by 4 ENIs and 15 IPs per ENI,
+      # limiting it to fewer than 60 pods.
+      # See https://docs.aws.amazon.com/ec2/latest/instancetypes/pg.html#pg_network.
+      min_size      = 2
+      max_size      = 2
+      desired_size  = 2
+      capacity_type = "ON_DEMAND"
+      labels        = { terraform = "true", k8s = "true", role = "apiserver-eval" } # Optional input
     },
     {
       name           = "runner"
