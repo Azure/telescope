@@ -24,6 +24,7 @@ from provision import (
     ArmClient,
     ArmError,
     HourlyWriteLimiter,
+    ReadRateLimiter,
     inventory_managed_sans,
     utc_now,
 )
@@ -130,6 +131,37 @@ async def wait_absent(
     return pending
 
 
+async def wait_volumes_absent(
+    client: ArmClient, records: list[dict[str, Any]], timeout_seconds: int
+) -> list[str]:
+    """Confirm volume deletion by LISTing each volume group once per cycle.
+
+    One read-limited LIST per group is far cheaper than a GET per volume, which
+    matters when SanRP throttles reads during large deletes.
+    """
+    expected: dict[tuple[str, str], set[str]] = defaultdict(set)
+    for record in records:
+        expected[(record["san_id"], record["group"])].add(record["volume"])
+    pending = {key: set(names) for key, names in expected.items()}
+    deadline = time.monotonic() + timeout_seconds
+    while pending and time.monotonic() < deadline:
+        for san_id, group in list(pending):
+            volumes = await client.list_all(f"{san_id}/volumeGroups/{quote(group)}/volumes")
+            present = {volume["name"] for volume in volumes}
+            pending[(san_id, group)].intersection_update(present)
+            if not pending[(san_id, group)]:
+                del pending[(san_id, group)]
+        if pending:
+            remaining = sum(len(names) for names in pending.values())
+            print(f"[delete] waiting for {remaining} volumes to drain at {utc_now()}")
+            await asyncio.sleep(20)
+    return [
+        record["resource_id"]
+        for record in records
+        if record["volume"] in pending.get((record["san_id"], record["group"]), set())
+    ]
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Delete Elastic SAN resources created by a specific provision run"
@@ -145,7 +177,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--burst-window-seconds", type=float, default=BURST_WINDOW_SECONDS
     )
-    parser.add_argument("--drain-timeout-seconds", type=int, default=1_800)
+    parser.add_argument("--drain-timeout-seconds", type=int, default=3_600)
     parser.add_argument(
         "--allow-attached",
         action="store_true",
@@ -183,6 +215,8 @@ async def async_main(args: argparse.Namespace) -> int:
     started = time.monotonic()
 
     async with ArmClient(cluster.subscription_id) as client:
+        # Pace LIST calls under SanRP's read observation window during large deletes.
+        client.read_limiter = ReadRateLimiter()
         # Only ever touch SANs tagged as managed for this cluster.
         inventories = await inventory_managed_sans(client, cluster.resource_uid)
         managed = {inventory.san.name.casefold(): inventory for inventory in inventories}
@@ -205,6 +239,7 @@ async def async_main(args: argparse.Namespace) -> int:
                     volume_records.append(
                         {
                             "san": inventory.san.name,
+                            "san_id": inventory.resource_id,
                             "resource_group": inventory.san.resource_group,
                             "group": group,
                             "volume": volume["name"],
@@ -220,6 +255,7 @@ async def async_main(args: argparse.Namespace) -> int:
                 volume_records.append(
                     {
                         "san": inventory.san.name,
+                        "san_id": inventory.resource_id,
                         "resource_group": inventory.san.resource_group,
                         "group": group,
                         "volume": volume,
@@ -270,10 +306,10 @@ async def async_main(args: argparse.Namespace) -> int:
             client, [record["resource_id"] for record in volume_records], limiter
         )
         volume_error_ids = {error["resource_id"] for error in volume_errors}
-        volumes_still_present = await wait_absent(
+        volumes_still_present = await wait_volumes_absent(
             client,
             [
-                record["resource_id"]
+                record
                 for record in volume_records
                 if record["resource_id"] not in volume_error_ids
             ],
