@@ -55,15 +55,22 @@ steps:
       cmd_name=warmup
     fi
 
+    vc_affinity_args=()
+    if [[ -n "${VC_AFFINITY}" ]]; then
+      vc_affinity_args+=(--vc-affinity="${VC_AFFINITY}")
+    fi
+
     sudo -E $(command -v runkperf) -v 3 ${cmd_name} \
       --kubeconfig ~/.kube/config \
       --runner-image ${RUNNER_IMAGE} ${is_eks} \
+      "${vc_affinity_args[@]}" \
       ${WARMUP_SUBCMD_ARGS}
   env:
     CLOUD: ${{ parameters.cloud }}
     RUNNER_IMAGE: ${{ parameters.engine_input.runner_image }}
     DISABLE_WARMUP: ${{ parameters.disable_warmup }}
     WARMUP_SUBCMD_ARGS: ${{ parameters.warmup_subcmd_args }}
+    VC_AFFINITY: ${{ coalesce(parameters.engine_input.vc_affinity, '') }}
   displayName: "Warmup"
 - script: |
     set -euo pipefail
@@ -79,10 +86,16 @@ steps:
       is_eks=""
     fi
 
+    vc_affinity_args=()
+    if [[ -n "${VC_AFFINITY}" ]]; then
+      vc_affinity_args+=(--vc-affinity="${VC_AFFINITY}")
+    fi
+
     sudo -E $(command -v runkperf) -v 3 bench ${is_eks} \
       --kubeconfig ~/.kube/config \
       --runner-image="${RUNNER_IMAGE}" \
       --runner-flowcontrol="${FLOWCONTROL}" \
+      "${vc_affinity_args[@]}" \
       --result $(TEST_RESULTS_DIR)/tmp_results.json \
       ${BENCHMARK_SUBCMD} ${BENCHMARK_SUBCMD_ARGS} ${EXTRA_BENCHMARK_SUBCMD_ARGS}
 
@@ -94,4 +107,5 @@ steps:
     BENCHMARK_SUBCMD_ARGS: ${{ parameters.engine_input.benchmark_subcmd_args }}
     EXTRA_BENCHMARK_SUBCMD_ARGS: ${{ parameters.extra_benchmark_subcmd_args }}
     FLOWCONTROL: ${{ parameters.flowcontrol }}
+    VC_AFFINITY: ${{ coalesce(parameters.engine_input.vc_affinity, '') }}
   displayName: "Run Benchmark"
