@@ -18,19 +18,13 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-const (
-	migrationLabel    = "telescope.azure.com/hyperscale-migration"
-	payloadAnnotation = "telescope.azure.com/payload"
-	payloadKey        = "payload"
-	maxPayloadBytes   = 512 * 1024
-)
-
 type Runner struct {
-	client kubernetes.Interface
+	client              kubernetes.Interface
+	createRetryInterval time.Duration
 }
 
 func NewRunner(client kubernetes.Interface) *Runner {
-	return &Runner{client: client}
+	return &Runner{client: client, createRetryInterval: DefaultCreateRetryInterval}
 }
 
 func ValidateConfig(config Config) error {
@@ -223,32 +217,71 @@ func (runner *Runner) ensureNamespace(ctx context.Context, namespace string) err
 }
 
 func (runner *Runner) createObject(ctx context.Context, config Config, spec IngestionSpec, index int) (ObjectRecord, error) {
+	record, create, err := runner.prepareObject(ctx, config, spec, index)
+	if err != nil {
+		return ObjectRecord{}, err
+	}
+
+	for attempt := 1; ; attempt++ {
+		err = create()
+		if err == nil {
+			return record, nil
+		}
+		if apierrors.IsAlreadyExists(err) {
+			return ObjectRecord{}, fmt.Errorf("create %s %s: %w", spec.Kind, record.Name, err)
+		}
+
+		if attempt >= DefaultCreateAttempts {
+			return ObjectRecord{}, fmt.Errorf("create %s %s after %d attempts: %w", spec.Kind, record.Name, DefaultCreateAttempts, err)
+		}
+
+		delay := runner.createRetryInterval * time.Duration(1<<(attempt-1))
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ObjectRecord{}, ctx.Err()
+		case <-timer.C:
+		}
+	}
+}
+
+func (runner *Runner) prepareObject(ctx context.Context, config Config, spec IngestionSpec, index int) (ObjectRecord, func() error, error) {
 	payload := createPayload(config.Seed, spec.Kind, index, spec.PayloadBytes)
 	name := formatObjectName(spec.Kind, index)
 	objectLabels := map[string]string{migrationLabel: "true"}
 	record := ObjectRecord{Kind: spec.Kind, Namespace: config.Namespace, Name: name, PayloadHash: computeHash(payload)}
-	var err error
-
+	var create func() error
 	switch spec.Kind {
 	case ConfigMapKind:
-		_, err = runner.client.CoreV1().ConfigMaps(config.Namespace).Create(ctx, &corev1.ConfigMap{
+		object := &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{Name: name, Labels: objectLabels},
 			BinaryData: map[string][]byte{payloadKey: payload},
-		}, metav1.CreateOptions{})
+		}
+		create = func() error {
+			_, err := runner.client.CoreV1().ConfigMaps(config.Namespace).Create(ctx, object, metav1.CreateOptions{})
+			return err
+		}
 	case SecretKind:
-		_, err = runner.client.CoreV1().Secrets(config.Namespace).Create(ctx, &corev1.Secret{
+		object := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{Name: name, Labels: objectLabels},
 			Data:       map[string][]byte{payloadKey: payload},
-		}, metav1.CreateOptions{})
+		}
+		create = func() error {
+			_, err := runner.client.CoreV1().Secrets(config.Namespace).Create(ctx, object, metav1.CreateOptions{})
+			return err
+		}
 	case PodKind:
 		deployment := newDeployment(config.Namespace, name, objectLabels, payload)
 		record.StructuralHash = computeDeploymentHash(deployment)
-		_, err = runner.client.AppsV1().Deployments(config.Namespace).Create(ctx, deployment, metav1.CreateOptions{})
+		create = func() error {
+			_, err := runner.client.AppsV1().Deployments(config.Namespace).Create(ctx, deployment, metav1.CreateOptions{})
+			return err
+		}
+	default:
+		return ObjectRecord{}, nil, fmt.Errorf("unsupported kind %q", spec.Kind)
 	}
-	if err != nil {
-		return ObjectRecord{}, fmt.Errorf("create %s %s: %w", spec.Kind, name, err)
-	}
-	return record, nil
+	return record, create, nil
 }
 
 func newDeployment(namespace, name string, objectLabels map[string]string, payload []byte) *appsv1.Deployment {

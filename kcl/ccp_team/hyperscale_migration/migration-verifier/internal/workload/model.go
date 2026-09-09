@@ -2,31 +2,6 @@ package workload
 
 import "time"
 
-const (
-	ConfigMapKind = "ConfigMap"
-	SecretKind    = "Secret"
-	PodKind       = "Pod"
-
-	DefaultNamespace                  = "hyperscale-migration"
-	DefaultSeed                       = "hyperscale-migration-v1"
-	DefaultConcurrency                = 32
-	DefaultQPS                float32 = 80
-	DefaultBurst                      = 160
-	DefaultPodReadyTimeout            = 30 * time.Minute
-	DefaultVerifyTimeout              = 30 * time.Minute
-	DefaultVerifyPollInterval         = 30 * time.Second
-
-	// ConfigMaps total 682.75 MiB
-	// Secrets total 682.75 MiB
-	// Pods total 682.5 MiB: exactly 2 GiB.
-	DefaultConfigMapCount        = 2731
-	DefaultConfigMapPayloadBytes = 256 * 1024
-	DefaultSecretCount           = 2731
-	DefaultSecretPayloadBytes    = 256 * 1024
-	DefaultPodCount              = 5460
-	DefaultPodPayloadBytes       = 128 * 1024
-)
-
 // IngestionSpec defines the object count and payload size for one Kubernetes resource kind.
 type IngestionSpec struct {
 	Kind         string `json:"kind"`

@@ -2,12 +2,14 @@ package workload
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
@@ -119,6 +121,65 @@ func TestValidateConfigRejectsOversizedPodAnnotation(t *testing.T) {
 	config.Specs = []IngestionSpec{{Kind: PodKind, Count: 1, PayloadBytes: 200 * 1024}}
 	if err := ValidateConfig(config); err == nil {
 		t.Fatal("ValidateConfig() accepted an oversized Pod annotation")
+	}
+}
+
+func TestCreateObjectRetriesThreeTimes(t *testing.T) {
+	ctx := context.Background()
+	client := fake.NewClientset()
+	attempts := 0
+	client.PrependReactor("create", "configmaps", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		attempts++
+		if attempts < DefaultCreateAttempts {
+			return true, nil, errors.New("transient connection error")
+		}
+		return false, nil, nil
+	})
+	runner := NewRunner(client)
+	runner.createRetryInterval = 0
+
+	manifest, err := runner.Ingest(ctx, Config{
+		Seed: "seed", Namespace: "ns", Concurrency: 1,
+		Specs: []IngestionSpec{{Kind: ConfigMapKind, Count: 1, PayloadBytes: 32}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if attempts != DefaultCreateAttempts {
+		t.Fatalf("create attempts = %d, want %d", attempts, DefaultCreateAttempts)
+	}
+	if len(manifest.Objects) != 1 {
+		t.Fatalf("manifest objects = %d, want 1", len(manifest.Objects))
+	}
+}
+
+func TestCreateObjectRejectsAlreadyExistsAfterAmbiguousCreate(t *testing.T) {
+	ctx := context.Background()
+	client := fake.NewClientset()
+	attempts := 0
+	client.PrependReactor("create", "configmaps", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		attempts++
+		if attempts == 2 {
+			return true, nil, apierrors.NewAlreadyExists(corev1.Resource("configmaps"), "migration-configmap-000000")
+		}
+		object := action.(k8stesting.CreateAction).GetObject().(*corev1.ConfigMap).DeepCopy()
+		if err := client.Tracker().Create(corev1.SchemeGroupVersion.WithResource("configmaps"), object, object.Namespace); err != nil {
+			return true, nil, err
+		}
+		return true, nil, errors.New("http2: server sent GOAWAY")
+	})
+	runner := NewRunner(client)
+	runner.createRetryInterval = 0
+
+	_, err := runner.Ingest(ctx, Config{
+		Seed: "seed", Namespace: "ns", Concurrency: 1,
+		Specs: []IngestionSpec{{Kind: ConfigMapKind, Count: 1, PayloadBytes: 32}},
+	})
+	if err == nil || !apierrors.IsAlreadyExists(err) {
+		t.Fatalf("Ingest() error = %v, want AlreadyExists", err)
+	}
+	if attempts != 2 {
+		t.Fatalf("create attempts = %d, want 2", attempts)
 	}
 }
 
