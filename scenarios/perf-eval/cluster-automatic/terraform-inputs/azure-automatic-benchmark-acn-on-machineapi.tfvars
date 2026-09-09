@@ -8,6 +8,7 @@ aks_cli_config_list = [
     aks_name                      = "automatic"
     sku_tier                      = "Standard"
     use_aks_preview_cli_extension = true
+    grant_rbac_permissions        = true
     optional_parameters = [
       {
         name  = "sku"
@@ -18,8 +19,12 @@ aks_cli_config_list = [
         value = "1 2 3" # Must add all zones since: Managed cluster 'Automatic' SKU should enable 'AvailabilityZones' feature with recommended values
       },
       {
+        name  = "enable-acns" # enable ACNs
+        value = ""
+      },
+      {
         name  = "aks-custom-headers"
-        value = "AKSHTTPCustomFeatures=Microsoft.ContainerService/AKSHTTPCustomFeatures,BootstrappingMethodTestOnly=bootstrappingclient"
+        value = "AKSHTTPCustomFeatures=Microsoft.ContainerService/AKSHTTPCustomFeatures,BootstrappingMethodTestOnly=aksmachineapiheaderbatch"
       }
     ]
   }
