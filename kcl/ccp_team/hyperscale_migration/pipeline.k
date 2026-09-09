@@ -135,9 +135,11 @@ echo "Wait for migration complete placeholder"
             startTime="$(BENCHMARK_START_TIME)"),
         steps.Bash {
             bash = """
-echo "Verify ingested objects placeholder"
+set -euo pipefail
+hyperscale-migration-verifier verify \
+  --manifest "$(Pipeline.Workspace)/hyperscale-migration-manifest.json"
 """
-            displayName = "Verify ingested objects [placeholder]"
+            displayName = "Verify ingested objects"
         },
         steps.Bash {
             bash = """

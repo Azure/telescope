@@ -230,8 +230,9 @@ jobs:
     displayName: Print ASI dashboard URL
   - bash: |2
 
-      echo "Verify ingested objects placeholder"
-    displayName: Verify ingested objects [placeholder]
+      set -euo pipefail
+      hyperscale-migration-verifier verify   --manifest "$(Pipeline.Workspace)/hyperscale-migration-manifest.json"
+    displayName: Verify ingested objects
   - bash: |2
 
       echo "Verify etcd shards data with etcdctl placeholder"
