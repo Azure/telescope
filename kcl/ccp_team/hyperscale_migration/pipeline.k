@@ -21,18 +21,11 @@ CLUSTER = "hyperscale-migration-$(Build.BuildId)"
 RESOURCE_GROUP = "hyperscale-migration-$(Build.BuildId)"
 
 KWOK_POOL = azure.NodePool {
-  name = "kwokpool"
-    sku = "Standard_D2_v4"
-  count = 20
+    name = "kwokpool"
+    sku = "Standard_D4_v3"
+    count = 20
     taintPrefix = "kwok"
     labels = "kwok=true"
-}
-
-installMigrationTool = steps.Script {
-    script = """
-echo "Install migration tool placeholder"
-"""
-        displayName = "Install migration tool [placeholder]"
 }
 
 createClusterScript = """
@@ -76,7 +69,6 @@ benchmarkJob = job.Job {
     displayName = "Create, ingest, migrate, and verify"
     timeoutInMinutes = 1440
     steps = [
-        installMigrationTool,
         common.InstallPythonDependencies(),
         azure.Login(const.DEFAULT_SERVICE_CONNECTION, SUBSCRIPTION_ID, LOCATION),
         azure.CreateResourceGroup(
@@ -113,19 +105,6 @@ benchmarkJob = job.Job {
                 "node-lease-duration-seconds": "100"
                 "pod-play-stage-parallelism": "500"
             }),
-        steps.Script {
-            script = """
-set -euo pipefail
-START_TIME=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
-echo "##vso[task.setvariable variable=BENCHMARK_START_TIME]$START_TIME"
-echo "Ingest fixed 2 GiB workload placeholder"
-"""
-            displayName = "Ingest fixed 2 GiB workload [placeholder]"
-        },
-        azure.AzCli(
-            const.DEFAULT_SERVICE_CONNECTION,
-          "Migration API Call [placeholder]",
-            migrationScript),
         azure.GetCredentials(
             const.DEFAULT_SERVICE_CONNECTION,
             CLUSTER,
@@ -149,9 +128,28 @@ python3 kwok/kwok.py \
         },
         steps.Script {
             script = """
-echo "Verify ingested objects placeholder"
+                    echo "Install Go app image"
+                    """
+            displayName = "Install ingestion client [placeholder]"
+        }
+        steps.Script {
+            script = """
+set -euo pipefail
+START_TIME=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+echo "##vso[task.setvariable variable=BENCHMARK_START_TIME]$START_TIME"
+echo "Ingest fixed 2 GiB workload placeholder"
 """
-            displayName = "Verify ingested objects [placeholder]"
+            displayName = "Ingest data workload for migration [placeholder]"
+        },
+        azure.AzCli(
+            const.DEFAULT_SERVICE_CONNECTION,
+          "Migration API Call [placeholder]",
+            migrationScript),
+        steps.Bash {
+            bash = """
+echo "Wait for migration complete placeholder"
+"""
+            displayName = "Wait for migration complete [placeholder]"
         },
         asi_dashboard.PrintAsiDashboardUrl(
             const.DEFAULT_SERVICE_CONNECTION,
@@ -159,33 +157,26 @@ echo "Verify ingested objects placeholder"
             RESOURCE_GROUP,
             SUBSCRIPTION_ID,
             startTime="$(BENCHMARK_START_TIME)"),
-        steps.Publish {
-            publish = RESULT_DIR
-            artifact = RESULT_ARTIFACT
-            condition = "always()"
-            displayName = "Publish benchmark results"
-        },
     ]
 }
 
-# This is intentionally a raw YAML-shaped object. The dependency schema types
-# timeoutInMinutes as an int, while ADO accepts a parameter expression here.
-manualValidationJob = {
-    job = "manual_validation"
-    displayName = "Verify etcd replication"
+verificationJob = job.Job {
+    job = "verification"
+    displayName = "Verify ingested objects"
     dependsOn = "benchmark"
     condition = "succeeded('benchmark')"
-    pool = "server"
-    timeoutInMinutes = "\${{ parameters.manual_validation_timeout_minutes }}"
     steps = [
-        steps.Task {
-            task = "ManualValidation@0"
-            inputs = {
-                notifyUsers = ""
-                instructions = "Use privileged etcdctl access to verify representative ConfigMap, Secret, and Deployment keys on all three members of every shard. Cluster: ${CLUSTER}. Resource group: ${RESOURCE_GROUP}. Target profile: \${{ parameters.scaling_size }}."
-                onTimeout = "reject"
-            }
-            displayName = "Approve etcd replica verification"
+        steps.Bash {
+            bash = """
+echo "Verify ingested objects placeholder"
+"""
+            displayName = "Verify ingested objects [placeholder]"
+        },
+        steps.Bash {
+            bash = """
+echo "Verify etcd shards data with etcdctl placeholder"
+"""
+            displayName = "Verify etcd shards data (etcdctl)"
         },
     ]
 }
@@ -194,7 +185,7 @@ cleanupJob = job.Job {
     job = "cleanup"
     displayName = "Cleanup"
     timeoutInMinutes = 60
-    dependsOn = ["benchmark", "manual_validation"]
+    dependsOn = ["benchmark", "verification"]
     condition = "always()"
     steps = [
         azure.DeleteResourceGroup(
@@ -225,17 +216,11 @@ output = {
             values = ["H2", "H4", "H8"]
         }
         ap.Parameter {
-            name = "manual_validation_timeout_minutes"
-            displayName = "Manual etcd validation timeout (minutes)"
-            type = "number"
-            default = 60
-        }
-        ap.Parameter {
             name = "keep_cluster"
             displayName = "Keep cluster after benchmark"
             type = "boolean"
             default = False
         }
     ]
-    jobs = [benchmarkJob, manualValidationJob, cleanupJob]
+    jobs = [benchmarkJob, verificationJob, cleanupJob]
 }

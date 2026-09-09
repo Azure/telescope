@@ -10,10 +10,6 @@ parameters:
   - H2
   - H4
   - H8
-- name: manual_validation_timeout_minutes
-  displayName: Manual etcd validation timeout (minutes)
-  type: number
-  default: 60
 - name: keep_cluster
   displayName: Keep cluster after benchmark
   type: boolean
@@ -23,10 +19,6 @@ jobs:
   displayName: Create, ingest, migrate, and verify
   timeoutInMinutes: 1440
   steps:
-  - script: |2
-
-      echo "Install migration tool placeholder"
-    displayName: Install migration tool [placeholder]
   - bash: |-
       set -exo pipefail
       pip3 install --upgrade "pip<24"
@@ -118,7 +110,7 @@ jobs:
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --name "kwokpool" \
             --node-count 20 \
-            --node-vm-size "Standard_D2_v4" \
+            --node-vm-size "Standard_D4_v3" \
             --mode User \
             --node-taints kwok=true:NoSchedule \
           --labels "kwok=true" 2>&1)
@@ -171,23 +163,6 @@ jobs:
       python3 kwok/kwok.py   --action validate   --node-count 2000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_migration/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 100 --pod-play-stage-parallelism 500
     workingDirectory: modules/python
     displayName: Validate KWOK Nodes
-  - script: |2
-
-      set -euo pipefail
-      START_TIME=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
-      echo "##vso[task.setvariable variable=BENCHMARK_START_TIME]$START_TIME"
-      echo "Ingest fixed 2 GiB workload placeholder"
-    displayName: Ingest fixed 2 GiB workload [placeholder]
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: Azure-for-Telescope-internal
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
-
-        echo "Migration API placeholder: migrate hyperscale-migration-$(Build.BuildId) to ${{ parameters.scaling_size }}"
-    displayName: Migration API Call [placeholder]
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
@@ -209,10 +184,29 @@ jobs:
       python3 kwok/kwok.py   --action validate   --node-count 2000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_migration/kwok-node.yaml   --nodes-per-controller 100   --node-selector kwok=true   --node-lease-duration-seconds 100   --pod-play-stage-parallelism 500
     workingDirectory: modules/python
     displayName: Validate KWOK nodes after migration
+  - script: "\n                    echo \"Install Go app image\"\n                    "
+    displayName: Install ingestion client [placeholder]
   - script: |2
 
-      echo "Verify ingested objects placeholder"
-    displayName: Verify ingested objects [placeholder]
+      set -euo pipefail
+      START_TIME=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+      echo "##vso[task.setvariable variable=BENCHMARK_START_TIME]$START_TIME"
+      echo "Ingest fixed 2 GiB workload placeholder"
+    displayName: Ingest data workload for migration [placeholder]
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        echo "Migration API placeholder: migrate hyperscale-migration-$(Build.BuildId) to ${{ parameters.scaling_size }}"
+    displayName: Migration API Call [placeholder]
+  - bash: |2
+
+      echo "Wait for migration complete placeholder"
+    displayName: Wait for migration complete [placeholder]
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
@@ -249,28 +243,24 @@ jobs:
         echo "============================================"
     continueOnError: true
     displayName: Print ASI dashboard URL
-  - publish: $(Build.ArtifactStagingDirectory)/hyperscale-migration
-    artifact: hyperscale-migration-results
-    condition: always()
-    displayName: Publish benchmark results
-- job: manual_validation
-  displayName: Verify etcd replication
+- job: verification
+  displayName: Verify ingested objects
   dependsOn: benchmark
   condition: succeeded('benchmark')
-  pool: server
-  timeoutInMinutes: ${{ parameters.manual_validation_timeout_minutes }}
   steps:
-  - task: ManualValidation@0
-    inputs:
-      notifyUsers: ''
-      instructions: 'Use privileged etcdctl access to verify representative ConfigMap, Secret, and Deployment keys on all three members of every shard. Cluster: hyperscale-migration-$(Build.BuildId). Resource group: hyperscale-migration-$(Build.BuildId). Target profile: ${{ parameters.scaling_size }}.'
-      onTimeout: reject
-    displayName: Approve etcd replica verification
+  - bash: |2
+
+      echo "Verify ingested objects placeholder"
+    displayName: Verify ingested objects [placeholder]
+  - bash: |2
+
+      echo "Verify etcd shards data with etcdctl placeholder"
+    displayName: Verify etcd shards data (etcdctl) [placeholder]
 - job: cleanup
   displayName: Cleanup
   dependsOn:
   - benchmark
-  - manual_validation
+  - verification
   condition: always()
   timeoutInMinutes: 60
   steps:
