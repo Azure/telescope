@@ -10,12 +10,6 @@ import lib.util.asi_dashboard
 SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
 LOCATION = "westus2"
 KUBERNETES_VERSION = "1.36"
-AKS_PREVIEW_EXTENSION_VERSION = "20.0.0b6"
-
-SIMULATED_NODE_COUNT = 2000
-KWOK_NODES_PER_CONTROLLER = 100
-RESULT_ARTIFACT = "hyperscale-migration-results"
-RESULT_DIR = "$(Build.ArtifactStagingDirectory)/hyperscale-migration"
 
 CLUSTER = "hyperscale-migration-$(Build.BuildId)"
 RESOURCE_GROUP = "hyperscale-migration-$(Build.BuildId)"
@@ -31,7 +25,7 @@ KWOK_POOL = azure.NodePool {
 createClusterScript = """
 az extension add \
   --name aks-preview \
-  --version ${AKS_PREVIEW_EXTENSION_VERSION} \
+  --version 20.0.0b6 \
   --allow-preview true \
   --yes
 
@@ -58,10 +52,6 @@ az aks create \
   --nat-gateway-managed-outbound-ip-count 10 \
   --tags SkipAKSCluster=true \
   --yes
-"""
-
-migrationScript = """
-echo "Migration API placeholder: migrate ${CLUSTER} to \${{ parameters.scaling_size }}"
 """
 
 benchmarkJob = job.Job {
@@ -96,11 +86,12 @@ benchmarkJob = job.Job {
             CLUSTER,
             RESOURCE_GROUP,
             SUBSCRIPTION_ID),
+        # Create 2,000 simulated nodes across 20 controllers (100 nodes each).
         *k8s.CreateKwokNodes(
-            SIMULATED_NODE_COUNT,
+            2000,
             params = {
                 "node-manifest-path": "$(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_migration/kwok-node.yaml"
-                "nodes-per-controller": "${KWOK_NODES_PER_CONTROLLER}"
+                "nodes-per-controller": "100"
                 "node-selector": "kwok=true"
                 "node-lease-duration-seconds": "100"
                 "pod-play-stage-parallelism": "500"
@@ -123,7 +114,9 @@ echo "Ingest fixed 2 GiB workload placeholder"
         azure.AzCli(
             const.DEFAULT_SERVICE_CONNECTION,
           "Migration API Call [placeholder]",
-            migrationScript),
+                        """
+echo "Migration API placeholder: migrate ${CLUSTER} to \${{ parameters.scaling_size }}"
+"""),
         steps.Bash {
             bash = """
 echo "Wait for migration complete placeholder"
