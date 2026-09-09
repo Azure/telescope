@@ -13,9 +13,9 @@ cluster to an H2, H4, or H8 control-plane profile.
 6. Verify the ingested Kubernetes objects and etcd shard data.
 7. Delete the resource group unless `keep_cluster` is enabled.
 
-The workload consists of deterministic ConfigMaps, Secrets, and Deployments so
-payload integrity can be checked after migration. Etcd shard verification uses
-`etcdctl` to confirm replicated data.
+The workload consists of deterministic ConfigMaps, Secrets, and Pods so payload
+integrity can be checked after migration. Each Pod is managed by a single-replica
+Deployment. Etcd shard verification uses `etcdctl` to confirm replicated data.
 
 ## Payload Verification
 

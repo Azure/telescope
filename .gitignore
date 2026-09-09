@@ -37,6 +37,7 @@ debug/
 go.work
 go.work.sum
 *.code-workspace
+/kcl/ccp_team/hyperscale_migration/migration-verifier/hyperscale-migration-verifier
 # Provide developers with a local directory to store their own scripts
 /dev/
 
