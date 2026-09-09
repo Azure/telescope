@@ -163,15 +163,21 @@ jobs:
       python3 kwok/kwok.py   --action validate   --node-count 2000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_migration/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 100 --pod-play-stage-parallelism 500
     workingDirectory: modules/python
     displayName: Validate KWOK Nodes
-  - script: "\n                    echo \"Install Go app image\"\n                    "
-    displayName: Install ingestion client [placeholder]
-  - script: |2
+  - bash: |2
 
       set -euo pipefail
+
+      docker pull "ghcr.io/liyu-ma/hyperscale-migration-verifier@sha256:ac6851aebcd35faa70bad8b0277b9bc015b05468f8c90b1f7deb993fea21de6c"
+      CONTAINER_ID=$(docker create "ghcr.io/liyu-ma/hyperscale-migration-verifier@sha256:ac6851aebcd35faa70bad8b0277b9bc015b05468f8c90b1f7deb993fea21de6c")
+      trap 'docker rm -f "$CONTAINER_ID" >/dev/null 2>&1 || true' EXIT
+      docker cp "$CONTAINER_ID:/usr/local/bin/hyperscale-migration-verifier" "$(Agent.TempDirectory)/hyperscale-migration-verifier"
+      sudo install -m 0755 "$(Agent.TempDirectory)/hyperscale-migration-verifier" /usr/local/bin/hyperscale-migration-verifier
+      hyperscale-migration-verifier version
+
       START_TIME=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
       echo "##vso[task.setvariable variable=BENCHMARK_START_TIME]$START_TIME"
-      echo "Ingest fixed 2 GiB workload placeholder"
-    displayName: Ingest data workload for migration [placeholder]
+      hyperscale-migration-verifier ingest   --manifest "$(Pipeline.Workspace)/hyperscale-migration-manifest.json"
+    displayName: Install verifier and ingest data workload
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal

@@ -10,6 +10,7 @@ import lib.util.asi_dashboard
 SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
 LOCATION = "westus2"
 KUBERNETES_VERSION = "1.36"
+MIGRATION_VERIFIER_IMAGE = "ghcr.io/liyu-ma/hyperscale-migration-verifier@sha256:ac6851aebcd35faa70bad8b0277b9bc015b05468f8c90b1f7deb993fea21de6c"
 
 CLUSTER = "hyperscale-migration-$(Build.BuildId)"
 RESOURCE_GROUP = "hyperscale-migration-$(Build.BuildId)"
@@ -96,20 +97,23 @@ benchmarkJob = job.Job {
                 "node-lease-duration-seconds": "100"
                 "pod-play-stage-parallelism": "500"
             }),
-        steps.Script {
-            script = """
-                    echo "Install Go app image"
-                    """
-            displayName = "Install ingestion client [placeholder]"
-        }
-        steps.Script {
-            script = """
+        steps.Bash {
+            bash = """
 set -euo pipefail
+
+docker pull "${MIGRATION_VERIFIER_IMAGE}"
+CONTAINER_ID=$(docker create "${MIGRATION_VERIFIER_IMAGE}")
+trap 'docker rm -f "$CONTAINER_ID" >/dev/null 2>&1 || true' EXIT
+docker cp "$CONTAINER_ID:/usr/local/bin/hyperscale-migration-verifier" "$(Agent.TempDirectory)/hyperscale-migration-verifier"
+sudo install -m 0755 "$(Agent.TempDirectory)/hyperscale-migration-verifier" /usr/local/bin/hyperscale-migration-verifier
+hyperscale-migration-verifier version
+
 START_TIME=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
 echo "##vso[task.setvariable variable=BENCHMARK_START_TIME]$START_TIME"
-echo "Ingest fixed 2 GiB workload placeholder"
+hyperscale-migration-verifier ingest \
+  --manifest "$(Pipeline.Workspace)/hyperscale-migration-manifest.json"
 """
-            displayName = "Ingest data workload for migration [placeholder]"
+            displayName = "Install verifier and ingest data workload"
         },
         azure.AzCli(
             const.DEFAULT_SERVICE_CONNECTION,
