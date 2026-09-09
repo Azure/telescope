@@ -222,11 +222,6 @@ jobs:
         echo "============================================"
     continueOnError: true
     displayName: Print ASI dashboard URL
-- job: verification
-  displayName: Verify ingested objects
-  dependsOn: benchmark
-  condition: succeeded('benchmark')
-  steps:
   - bash: |2
 
       echo "Verify ingested objects placeholder"
@@ -235,14 +230,6 @@ jobs:
 
       echo "Verify etcd shards data with etcdctl placeholder"
     displayName: Verify etcd shards data (etcdctl)
-- job: cleanup
-  displayName: Cleanup
-  dependsOn:
-  - benchmark
-  - verification
-  condition: always()
-  timeoutInMinutes: 60
-  steps:
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
@@ -254,8 +241,3 @@ jobs:
         az group delete --name "hyperscale-migration-$(Build.BuildId)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
     condition: and(always(), not(${{ parameters.keep_cluster }}))
     displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
-  - script: |2
-
-      echo "Retained cluster hyperscale-migration-$(Build.BuildId) in resource group hyperscale-migration-$(Build.BuildId)"
-    condition: and(always(), ${{ parameters.keep_cluster }})
-    displayName: Print retained cluster

@@ -129,15 +129,6 @@ echo "Wait for migration complete placeholder"
             RESOURCE_GROUP,
             SUBSCRIPTION_ID,
             startTime="$(BENCHMARK_START_TIME)"),
-    ]
-}
-
-verificationJob = job.Job {
-    job = "verification"
-    displayName = "Verify ingested objects"
-    dependsOn = "benchmark"
-    condition = "succeeded('benchmark')"
-    steps = [
         steps.Bash {
             bash = """
 echo "Verify ingested objects placeholder"
@@ -150,28 +141,11 @@ echo "Verify etcd shards data with etcdctl placeholder"
 """
             displayName = "Verify etcd shards data (etcdctl)"
         },
-    ]
-}
-
-cleanupJob = job.Job {
-    job = "cleanup"
-    displayName = "Cleanup"
-    timeoutInMinutes = 60
-    dependsOn = ["benchmark", "verification"]
-    condition = "always()"
-    steps = [
         azure.DeleteResourceGroup(
             const.DEFAULT_SERVICE_CONNECTION,
             RESOURCE_GROUP,
             SUBSCRIPTION_ID,
             condition="and(always(), not(\${{ parameters.keep_cluster }}))"),
-        steps.Script {
-            script = """
-echo "Retained cluster ${CLUSTER} in resource group ${RESOURCE_GROUP}"
-"""
-            displayName = "Print retained cluster"
-            condition = "and(always(), \${{ parameters.keep_cluster }})"
-        },
     ]
 }
 
@@ -194,5 +168,5 @@ output = {
             default = False
         }
     ]
-    jobs = [benchmarkJob, verificationJob, cleanupJob]
+    jobs = [benchmarkJob]
 }
