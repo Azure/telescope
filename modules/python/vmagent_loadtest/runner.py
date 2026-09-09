@@ -26,7 +26,7 @@ from .deploy import (
     deploy_fake_exporters, deploy_konnectivity_agent_autoscaler, deploy_konnectivity_agents,
     deploy_konnectivity_server, deploy_node_aggregator, deploy_vmagent, deploy_vmsingle,
     ensure_namespace, get_deployment_replicas, get_dp_api_server, get_node_ips, get_server_lb_ip,
-    rollout_restart, scale_fake_exporters, set_tier_block_regex, setup_dp_access,
+    _force_clear_namespace, rollout_restart, scale_fake_exporters, set_tier_block_regex, setup_dp_access,
     wait_for_fake_exporters_gone,
 )
 from .adx import (
@@ -1209,14 +1209,41 @@ def run_fake_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
     return result
 
 
+def _namespace_blocked_only_on_discovery(namespace_obj: dict) -> bool:
+    conditions = {
+        condition.get("type"): condition.get("status")
+        for condition in namespace_obj.get("status", {}).get("conditions", [])
+    }
+    return (
+        bool(namespace_obj.get("metadata", {}).get("deletionTimestamp"))
+        and conditions.get("NamespaceDeletionDiscoveryFailure") == "True"
+        and conditions.get("NamespaceContentRemaining") == "False"
+        and conditions.get("NamespaceFinalizersRemaining") == "False"
+    )
+
+
 def _wait_ns_gone(kubeconfig: str, namespace: str, timeout: int = 300) -> None:
     """Delete namespace and wait for it to disappear."""
     kubectl(kubeconfig, "delete", "ns", namespace, "--wait=false", check=False)
     deadline = time.monotonic() + timeout
+    finalization_attempted = False
     while time.monotonic() < deadline:
-        result = kubectl(kubeconfig, "get", "ns", namespace, check=False)
+        result = kubectl(kubeconfig, "get", "ns", namespace, "-o", "json", check=False)
         if result.returncode != 0:
             return
+        if not finalization_attempted:
+            try:
+                namespace_obj = json.loads(result.stdout)
+            except (json.JSONDecodeError, TypeError):
+                namespace_obj = {}
+            if _namespace_blocked_only_on_discovery(namespace_obj):
+                log.warning(
+                    "Namespace %s is empty but blocked by API discovery; "
+                    "clearing its namespace finalizer", namespace,
+                )
+                _force_clear_namespace(kubeconfig, namespace)
+                finalization_attempted = True
+                continue
         time.sleep(5)
     log.warning("Namespace %s still terminating after %ds", namespace, timeout)
 
