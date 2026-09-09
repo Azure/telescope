@@ -1,0 +1,292 @@
+name: Hyperscale Migration Benchmark
+trigger: none
+pool: AKS-Telescope-Airlock
+parameters:
+- name: scaling_size
+  displayName: Control plane scaling size
+  type: string
+  default: H2
+  values:
+  - H2
+  - H4
+  - H8
+- name: manual_validation_timeout_minutes
+  displayName: Manual etcd validation timeout (minutes)
+  type: number
+  default: 60
+- name: keep_cluster
+  displayName: Keep cluster after benchmark
+  type: boolean
+  default: false
+jobs:
+- job: benchmark
+  displayName: Create, ingest, migrate, and verify
+  timeoutInMinutes: 1440
+  steps:
+  - script: |2
+
+      echo "Install migration tool placeholder"
+    displayName: Install migration tool [placeholder]
+  - bash: |-
+      set -exo pipefail
+      pip3 install --upgrade "pip<24"
+      pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
+    displayName: Install Python dependencies
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+        az config set defaults.location="westus2"
+        az account show
+    displayName: Login to Azure
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |+
+        set -exo pipefail
+
+        az group create \
+          --name "hyperscale-migration-$(Build.BuildId)" \
+          --location "westus2" \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+
+    displayName: Create resource group in westus2 (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az extension add   --name aks-preview   --version 20.0.0b6   --allow-preview true   --yes
+
+        az aks create   --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"   --resource-group "hyperscale-migration-$(Build.BuildId)"   --name "hyperscale-migration-$(Build.BuildId)"   --location "westus2"   --kubernetes-version "1.36"   --dns-name-prefix "hyperscale-migration-$(Build.BuildId)-dns"   --tier standard   --enable-managed-identity   --generate-ssh-keys   --nodepool-name systempool   --node-count 3   --node-vm-size Standard_D8S_v4   --max-pods 250   --network-plugin azure   --network-plugin-mode overlay   --pod-cidr 10.64.0.0/10   --service-cidr 10.0.0.0/16   --dns-service-ip 10.0.0.10   --outbound-type managedNATGateway   --nat-gateway-managed-outbound-ip-count 10   --tags SkipAKSCluster=true   --yes
+    displayName: Create standard-tier cluster
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        while true; do
+          STATE=$(az aks show \
+            --name "hyperscale-migration-$(Build.BuildId)" \
+            --resource-group "hyperscale-migration-$(Build.BuildId)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --query "provisioningState" \
+            --output tsv)
+          echo "Cluster provisioning state: $STATE"
+          if [ "$STATE" = "Succeeded" ]; then
+            echo "Cluster is ready."
+            break
+          elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
+            echo "Cluster failed with state: $STATE."
+            exit 1
+          else
+            echo "Provisioning state: $STATE. Retry in 30 seconds"
+          fi
+          sleep 30
+        done
+    displayName: Wait for cluster to succeed
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        deadline=$(($(date +%s) + 600))
+        sleep_between=30
+        attempt=0
+        while :; do
+          attempt=$((attempt + 1))
+          set +e
+          output=$(az aks nodepool add \
+            --cluster-name "hyperscale-migration-$(Build.BuildId)" \
+            --resource-group "hyperscale-migration-$(Build.BuildId)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --name "kwokpool" \
+            --node-count 20 \
+            --node-vm-size "Standard_D2_v4" \
+            --mode User \
+            --node-taints kwok=true:NoSchedule \
+          --labels "kwok=true" 2>&1)
+          rc=$?
+          set -e
+          echo "$output"
+          if [ $rc -eq 0 ]; then
+            exit 0
+          fi
+          if echo "$output" | grep -qiE "OperationNotAllowed"; then
+            now=$(date +%s)
+            if [ $now -ge $deadline ]; then
+              echo "Retriable error persisted past 600s retry window ($attempt attempts); giving up."
+              exit $rc
+            fi
+            remaining=$((deadline - now))
+            echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining seconds remain in retry window)."
+            sleep $sleep_between
+          else
+            echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+            exit $rc
+          fi
+        done
+    displayName: Create node pool kwokpool
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az aks get-credentials \
+          --name "hyperscale-migration-$(Build.BuildId)" \
+          --resource-group "hyperscale-migration-$(Build.BuildId)" \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --overwrite-existing
+    displayName: Get credentials for hyperscale-migration-$(Build.BuildId)
+  - script: |2-
+
+      set -exo pipefail
+      export PYTHONPATH=$PYTHONPATH:$(pwd)
+      python3 kwok/kwok.py   --action create   --node-count 2000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_migration/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 100 --pod-play-stage-parallelism 500
+    workingDirectory: modules/python
+    displayName: Create KWOK Nodes
+  - script: |2-
+
+      set -exo pipefail
+      export PYTHONPATH=$PYTHONPATH:$(pwd)
+      python3 kwok/kwok.py   --action validate   --node-count 2000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_migration/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 100 --pod-play-stage-parallelism 500
+    workingDirectory: modules/python
+    displayName: Validate KWOK Nodes
+  - script: |2
+
+      set -euo pipefail
+      START_TIME=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+      echo "##vso[task.setvariable variable=BENCHMARK_START_TIME]$START_TIME"
+      echo "Ingest fixed 2 GiB workload placeholder"
+    displayName: Ingest fixed 2 GiB workload [placeholder]
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        echo "Migration API placeholder: migrate hyperscale-migration-$(Build.BuildId) to ${{ parameters.scaling_size }}"
+    displayName: Migration API Call [placeholder]
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az aks get-credentials \
+          --name "hyperscale-migration-$(Build.BuildId)" \
+          --resource-group "hyperscale-migration-$(Build.BuildId)" \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --overwrite-existing
+    displayName: Get credentials for hyperscale-migration-$(Build.BuildId)
+  - script: |2
+
+      set -euo pipefail
+      export PYTHONPATH=$PYTHONPATH:$(pwd)
+      python3 kwok/kwok.py   --action validate   --node-count 2000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_migration/kwok-node.yaml   --nodes-per-controller 100   --node-selector kwok=true   --node-lease-duration-seconds 100   --pod-play-stage-parallelism 500
+    workingDirectory: modules/python
+    displayName: Validate KWOK nodes after migration
+  - script: |2
+
+      echo "Verify ingested objects placeholder"
+    displayName: Verify ingested objects [placeholder]
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        RESOURCE_UID=$(az aks show \
+          --resource-group "hyperscale-migration-$(Build.BuildId)" \
+          --name "hyperscale-migration-$(Build.BuildId)" \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --query "resourceUid" -o tsv)
+
+        if [ -z "$RESOURCE_UID" ]; then
+          echo "##[warning]Failed to fetch resourceUid, skipping ASI URL"
+          exit 1
+        fi
+
+        END_TIME=""
+        if [ -z "$END_TIME" ]; then
+          END_TIME=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+        fi
+
+        FROM_ENCODED=$(echo "$(BENCHMARK_START_TIME)" | sed 's/:/%3A/g')
+        TO_ENCODED=$(echo "$END_TIME" | sed 's/:/%3A/g')
+
+        echo "============================================"
+        echo "ASI Managed Cluster Dashboard URL:"
+        echo "https://asi.azure.ms/services/AKS/pages/Managed%20Cluster?clusterVersion=$RESOURCE_UID&globalFrom=$FROM_ENCODED&globalTo=$TO_ENCODED"
+        echo ""
+        echo "ASI API Server Analyzer URL:"
+        echo "https://asi.azure.ms/services/AKS/pages/API%20Server%20Analyzer?clusterVersion=$RESOURCE_UID&globalFrom=$FROM_ENCODED&globalTo=$TO_ENCODED"
+        echo "============================================"
+    continueOnError: true
+    displayName: Print ASI dashboard URL
+  - publish: $(Build.ArtifactStagingDirectory)/hyperscale-migration
+    artifact: hyperscale-migration-results
+    condition: always()
+    displayName: Publish benchmark results
+- job: manual_validation
+  displayName: Verify etcd replication
+  dependsOn: benchmark
+  condition: succeeded('benchmark')
+  pool: server
+  timeoutInMinutes: ${{ parameters.manual_validation_timeout_minutes }}
+  steps:
+  - task: ManualValidation@0
+    inputs:
+      notifyUsers: ''
+      instructions: 'Use privileged etcdctl access to verify representative ConfigMap, Secret, and Deployment keys on all three members of every shard. Cluster: hyperscale-migration-$(Build.BuildId). Resource group: hyperscale-migration-$(Build.BuildId). Target profile: ${{ parameters.scaling_size }}.'
+      onTimeout: reject
+    displayName: Approve etcd replica verification
+- job: cleanup
+  displayName: Cleanup
+  dependsOn:
+  - benchmark
+  - manual_validation
+  condition: always()
+  timeoutInMinutes: 60
+  steps:
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az group delete --name "hyperscale-migration-$(Build.BuildId)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
+    condition: and(always(), not(${{ parameters.keep_cluster }}))
+    displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+  - script: |2
+
+      echo "Retained cluster hyperscale-migration-$(Build.BuildId) in resource group hyperscale-migration-$(Build.BuildId)"
+    condition: and(always(), ${{ parameters.keep_cluster }})
+    displayName: Print retained cluster
