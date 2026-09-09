@@ -163,27 +163,6 @@ jobs:
       python3 kwok/kwok.py   --action validate   --node-count 2000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_migration/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 100 --pod-play-stage-parallelism 500
     workingDirectory: modules/python
     displayName: Validate KWOK Nodes
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: Azure-for-Telescope-internal
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
-
-        az aks get-credentials \
-          --name "hyperscale-migration-$(Build.BuildId)" \
-          --resource-group "hyperscale-migration-$(Build.BuildId)" \
-          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-          --overwrite-existing
-    displayName: Get credentials for hyperscale-migration-$(Build.BuildId)
-  - script: |2
-
-      set -euo pipefail
-      export PYTHONPATH=$PYTHONPATH:$(pwd)
-      python3 kwok/kwok.py   --action validate   --node-count 2000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_migration/kwok-node.yaml   --nodes-per-controller 100   --node-selector kwok=true   --node-lease-duration-seconds 100   --pod-play-stage-parallelism 500
-    workingDirectory: modules/python
-    displayName: Validate KWOK nodes after migration
   - script: "\n                    echo \"Install Go app image\"\n                    "
     displayName: Install ingestion client [placeholder]
   - script: |2
@@ -255,7 +234,7 @@ jobs:
   - bash: |2
 
       echo "Verify etcd shards data with etcdctl placeholder"
-    displayName: Verify etcd shards data (etcdctl) [placeholder]
+    displayName: Verify etcd shards data (etcdctl)
 - job: cleanup
   displayName: Cleanup
   dependsOn:

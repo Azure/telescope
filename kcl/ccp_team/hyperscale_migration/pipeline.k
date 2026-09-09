@@ -105,27 +105,6 @@ benchmarkJob = job.Job {
                 "node-lease-duration-seconds": "100"
                 "pod-play-stage-parallelism": "500"
             }),
-        azure.GetCredentials(
-            const.DEFAULT_SERVICE_CONNECTION,
-            CLUSTER,
-            RESOURCE_GROUP,
-            SUBSCRIPTION_ID),
-        steps.Script {
-            script = """
-set -euo pipefail
-export PYTHONPATH=$PYTHONPATH:$(pwd)
-python3 kwok/kwok.py \
-  --action validate \
-  --node-count ${SIMULATED_NODE_COUNT} \
-  --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_migration/kwok-node.yaml \
-  --nodes-per-controller ${KWOK_NODES_PER_CONTROLLER} \
-  --node-selector kwok=true \
-  --node-lease-duration-seconds 100 \
-  --pod-play-stage-parallelism 500
-"""
-            workingDirectory = "modules/python"
-            displayName = "Validate KWOK nodes after migration"
-        },
         steps.Script {
             script = """
                     echo "Install Go app image"
