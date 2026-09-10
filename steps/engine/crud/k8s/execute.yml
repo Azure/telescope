@@ -6,7 +6,7 @@ steps:
     set -eo pipefail
 
     # Create Node Pool
-    PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" create \
+    PYTHONPATH=$PYTHONPATH:$(pwd) python3 -m crud.main create \
       --cloud "$CLOUD" \
       --run-id "$RUN_ID" \
       --result-dir "$RESULT_DIR" \
@@ -21,7 +21,7 @@ steps:
       --capacity-type "${CAPACITY_TYPE:-ON_DEMAND}"
 
     # Scale Up Node Pool
-    PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" scale \
+    PYTHONPATH=$PYTHONPATH:$(pwd) python3 -m crud.main scale \
       --cloud "$CLOUD" \
       --run-id "$RUN_ID" \
       --result-dir "$RESULT_DIR" \
@@ -38,7 +38,6 @@ steps:
   displayName: 'Execute K8s Create & Scale Up Operations for ${{ parameters.cloud }}'
   workingDirectory: modules/python
   env:
-    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/crud/main.py
     VM_SIZE: $(VM_SIZE)
     CREATE_NODE_COUNT: $(CREATE_NODE_COUNT)
     SCALE_NODE_COUNT: $(SCALE_NODE_COUNT)
@@ -60,7 +59,7 @@ steps:
       set -eo pipefail
 
       # Deploy Workloads
-      PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" deployment \
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 -m crud.main deployment \
         --cloud "$CLOUD" \
         --run-id "$RUN_ID" \
         --result-dir "$RESULT_DIR" \
@@ -74,7 +73,6 @@ steps:
     displayName: 'Execute K8s Workload operations for ${{ parameters.cloud }}'
     workingDirectory: modules/python
     env:
-      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/crud/main.py
       POOL_NAME: $(POOL_NAME)
       CLOUD: ${{ parameters.cloud }}
       STEP_TIME_OUT: $(STEP_TIME_OUT)
@@ -89,7 +87,7 @@ steps:
       set -eo pipefail
 
       # Deploy StatefulSets
-      PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" statefulset \
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 -m crud.main statefulset \
         --cloud "$CLOUD" \
         --run-id "$RUN_ID" \
         --result-dir "$RESULT_DIR" \
@@ -103,7 +101,6 @@ steps:
     displayName: 'Execute K8s StatefulSet operations for ${{ parameters.cloud }}'
     workingDirectory: modules/python
     env:
-      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/crud/main.py
       POOL_NAME: $(POOL_NAME)
       CLOUD: ${{ parameters.cloud }}
       STEP_TIME_OUT: $(STEP_TIME_OUT)
@@ -118,7 +115,7 @@ steps:
       set -eo pipefail
 
       # Deploy Jobs
-      PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" job \
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 -m crud.main job \
         --cloud "$CLOUD" \
         --run-id "$RUN_ID" \
         --result-dir "$RESULT_DIR" \
@@ -132,7 +129,6 @@ steps:
     displayName: 'Execute K8s Job operations for ${{ parameters.cloud }}'
     workingDirectory: modules/python
     env:
-      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/crud/main.py
       POOL_NAME: $(POOL_NAME)
       CLOUD: ${{ parameters.cloud }}
       STEP_TIME_OUT: $(STEP_TIME_OUT)
@@ -147,7 +143,7 @@ steps:
     set -eo pipefail
 
     # Scale Down Node Pool
-    PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" scale \
+    PYTHONPATH=$PYTHONPATH:$(pwd) python3 -m crud.main scale \
       --cloud "$CLOUD" \
       --run-id "$RUN_ID" \
       --result-dir "$RESULT_DIR" \
@@ -162,7 +158,7 @@ steps:
       $([[ "${ENABLE_MANAGED_GPU,,}" == "true" && "${GPU_MIG_STRATEGY}" =~ ^(mixed|single)$ ]] && echo "--gpu-mig-strategy ${GPU_MIG_STRATEGY}" || true)
 
     # Delete Node Pool
-    PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" delete \
+    PYTHONPATH=$PYTHONPATH:$(pwd) python3 -m crud.main delete \
       --cloud "$CLOUD" \
       --run-id "$RUN_ID" \
       --result-dir "$RESULT_DIR" \
@@ -172,7 +168,6 @@ steps:
   condition: always()
   workingDirectory: modules/python
   env:
-    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/crud/main.py
     VM_SIZE: $(VM_SIZE)
     CREATE_NODE_COUNT: $(CREATE_NODE_COUNT)
     SCALE_NODE_COUNT: $(SCALE_NODE_COUNT)

@@ -9,12 +9,11 @@ steps:
 - script: |
     set -eo pipefail
 
-    PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect
+    PYTHONPATH=$PYTHONPATH:$(pwd) python3 -m crud.main collect
 
   displayName: 'Collect K8s CRUD Operations data for ${{ parameters.cloud }}'
   workingDirectory: modules/python
   env:
-    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/crud/main.py
     RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
     RUN_URL: $(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=logs&j=$(System.JobId)
     REGION: ${{ parameters.region }}

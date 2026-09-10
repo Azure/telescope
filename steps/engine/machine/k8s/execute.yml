@@ -6,7 +6,7 @@ steps:
   - script: |
       set -eo pipefail
 
-      PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" create-machine \
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 -m crud.main create-machine \
         --cloud "$CLOUD" \
         --run-id "$RUN_ID" \
         --node-pool-name "$POOL_NAME" \
@@ -19,7 +19,7 @@ steps:
         use_batch_args+=(--use-batch-api)
       fi
 
-      PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" scale-machine \
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 -m crud.main scale-machine \
         --cloud "$CLOUD" \
         --run-id "$RUN_ID" \
         --node-pool-name "$POOL_NAME" \
@@ -33,7 +33,6 @@ steps:
     workingDirectory: modules/python
     displayName: "Execute Machine API CRUD"
     env:
-      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/crud/main.py
       CLOUD: ${{ parameters.cloud }}
       VM_SIZE: $(VM_SIZE)
       POOL_NAME: $(POOL_NAME)

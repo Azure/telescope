@@ -10,12 +10,11 @@ steps:
       region: ${{ parameters.region }}
   - script: |
       set -eo pipefail
-      PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" collect
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 -m crud.main collect
     workingDirectory: modules/python
     displayName: "Collect Machine API results"
     condition: always()
     env:
-      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/crud/main.py
       RUN_ID: $(RUN_ID)
       REGION: ${{ parameters.region }}
       RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
