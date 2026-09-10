@@ -167,8 +167,8 @@ jobs:
 
       set -euo pipefail
 
-      docker pull "ghcr.io/liyu-ma/hyperscale-migration-verifier@sha256:ac6851aebcd35faa70bad8b0277b9bc015b05468f8c90b1f7deb993fea21de6c"
-      CONTAINER_ID=$(docker create "ghcr.io/liyu-ma/hyperscale-migration-verifier@sha256:ac6851aebcd35faa70bad8b0277b9bc015b05468f8c90b1f7deb993fea21de6c")
+      docker pull "ghcr.io/liyu-ma/hyperscale-migration-verifier:latest"
+      CONTAINER_ID=$(docker create "ghcr.io/liyu-ma/hyperscale-migration-verifier:latest")
       trap 'docker rm -f "$CONTAINER_ID" >/dev/null 2>&1 || true' EXIT
       docker cp "$CONTAINER_ID:/usr/local/bin/hyperscale-migration-verifier" "$(Agent.TempDirectory)/hyperscale-migration-verifier"
       sudo install -m 0755 "$(Agent.TempDirectory)/hyperscale-migration-verifier" /usr/local/bin/hyperscale-migration-verifier

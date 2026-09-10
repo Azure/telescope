@@ -10,7 +10,7 @@ import lib.util.asi_dashboard
 SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
 LOCATION = "westus2"
 KUBERNETES_VERSION = "1.36"
-MIGRATION_VERIFIER_IMAGE = "ghcr.io/liyu-ma/hyperscale-migration-verifier@sha256:ac6851aebcd35faa70bad8b0277b9bc015b05468f8c90b1f7deb993fea21de6c"
+MIGRATION_VERIFIER_IMAGE = "ghcr.io/liyu-ma/hyperscale-migration-verifier:latest"
 
 CLUSTER = "hyperscale-migration-$(Build.BuildId)"
 RESOURCE_GROUP = "hyperscale-migration-$(Build.BuildId)"
