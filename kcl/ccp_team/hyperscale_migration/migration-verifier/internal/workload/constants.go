@@ -20,7 +20,6 @@ const (
 	DefaultBurst                       = 160
 	DefaultCreateAttempts              = 3
 	DefaultCreateRetryInterval         = 2 * time.Second
-	DefaultPodReadyTimeout             = 30 * time.Minute
 	DefaultVerifyTimeout               = 30 * time.Minute
 	DefaultVerifyPollInterval          = 30 * time.Second
 	DefaultVerifyPageSize      int64   = 50

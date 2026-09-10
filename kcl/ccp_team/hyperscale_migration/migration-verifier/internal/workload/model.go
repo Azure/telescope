@@ -11,11 +11,10 @@ type IngestionSpec struct {
 
 // ObjectRecord captures an ingested object's identity and expected hashes for post-migration verification.
 type ObjectRecord struct {
-	Kind           string `json:"kind"`
-	Namespace      string `json:"namespace"`
-	Name           string `json:"name"`
-	PayloadHash    string `json:"payloadHash"`
-	StructuralHash string `json:"structuralHash,omitempty"`
+	Kind        string `json:"kind"`
+	Namespace   string `json:"namespace"`
+	Name        string `json:"name"`
+	PayloadHash string `json:"payloadHash"`
 }
 
 // Manifest records an ingestion run and is persisted as the expected state for post-migration verification.

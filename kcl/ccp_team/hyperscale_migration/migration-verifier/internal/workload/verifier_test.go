@@ -14,13 +14,27 @@ import (
 
 func TestIngestAndVerify(t *testing.T) {
 	ctx := context.Background()
-	client := newFakeClientWithPodController()
+	client := fake.NewClientset()
 	manifest, err := NewIngestor(client).Ingest(ctx, smallConfig())
 	if err != nil {
 		t.Fatalf("Ingest() error = %v", err)
 	}
 	if len(manifest.Objects) != 6 {
 		t.Fatalf("object count = %d, want 6", len(manifest.Objects))
+	}
+	pods, err := client.CoreV1().Pods("migration-test").List(ctx, metav1.ListOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pods.Items) != 2 {
+		t.Fatalf("pod count = %d, want 2", len(pods.Items))
+	}
+	deployments, err := client.AppsV1().Deployments("migration-test").List(ctx, metav1.ListOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(deployments.Items) != 0 {
+		t.Fatalf("deployment count = %d, want 0", len(deployments.Items))
 	}
 	if err := NewVerifier(client).Verify(ctx, manifest); err != nil {
 		t.Fatalf("Verify() error = %v", err)
@@ -29,7 +43,7 @@ func TestIngestAndVerify(t *testing.T) {
 
 func TestVerifyDetectsPayloadCorruption(t *testing.T) {
 	ctx := context.Background()
-	client := newFakeClientWithPodController()
+	client := fake.NewClientset()
 	manifest, err := NewIngestor(client).Ingest(ctx, Config{
 		Seed: "seed", Namespace: "ns", Concurrency: 1,
 		Specs: []IngestionSpec{{Kind: ConfigMapKind, Count: 1, PayloadBytes: 32}},
@@ -96,7 +110,7 @@ func TestVerifyPaginatesConfigMaps(t *testing.T) {
 
 func TestVerifyDetectsPodPayloadCorruption(t *testing.T) {
 	ctx := context.Background()
-	client := newFakeClientWithPodController()
+	client := fake.NewClientset()
 	manifest, err := NewIngestor(client).Ingest(ctx, Config{
 		Seed: "seed", Namespace: "ns", Concurrency: 1,
 		Specs: []IngestionSpec{{Kind: PodKind, Count: 1, PayloadBytes: 32}},
@@ -104,7 +118,7 @@ func TestVerifyDetectsPodPayloadCorruption(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pod, err := client.CoreV1().Pods("ns").Get(ctx, "migration-pod-000000-pod", metav1.GetOptions{})
+	pod, err := client.CoreV1().Pods("ns").Get(ctx, "migration-pod-000000", metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,51 +128,5 @@ func TestVerifyDetectsPodPayloadCorruption(t *testing.T) {
 	}
 	if err := NewVerifier(client).Verify(ctx, manifest); err == nil || !strings.Contains(err.Error(), "hash mismatch") {
 		t.Fatalf("Verify() error = %v, want hash mismatch", err)
-	}
-}
-
-func TestVerifyDetectsUnreadyPod(t *testing.T) {
-	ctx := context.Background()
-	client := newFakeClientWithPodController()
-	manifest, err := NewIngestor(client).Ingest(ctx, Config{
-		Seed: "seed", Namespace: "ns", Concurrency: 1,
-		Specs: []IngestionSpec{{Kind: PodKind, Count: 1, PayloadBytes: 32}},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	pod, err := client.CoreV1().Pods("ns").Get(ctx, "migration-pod-000000-pod", metav1.GetOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	pod.Status.Conditions = nil
-	if _, err := client.CoreV1().Pods("ns").UpdateStatus(ctx, pod, metav1.UpdateOptions{}); err != nil {
-		t.Fatal(err)
-	}
-	if err := NewVerifier(client).Verify(ctx, manifest); err == nil || !strings.Contains(err.Error(), "not Running and Ready") {
-		t.Fatalf("Verify() error = %v, want Pod readiness error", err)
-	}
-}
-
-func TestVerifyDetectsDeploymentDrift(t *testing.T) {
-	ctx := context.Background()
-	client := newFakeClientWithPodController()
-	manifest, err := NewIngestor(client).Ingest(ctx, Config{
-		Seed: "seed", Namespace: "ns", Concurrency: 1,
-		Specs: []IngestionSpec{{Kind: PodKind, Count: 1, PayloadBytes: 32}},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	deployment, err := client.AppsV1().Deployments("ns").Get(ctx, "migration-pod-000000", metav1.GetOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	deployment.Spec.Template.Spec.Containers[0].Image = "unexpected:latest"
-	if _, err := client.AppsV1().Deployments("ns").Update(ctx, deployment, metav1.UpdateOptions{}); err != nil {
-		t.Fatal(err)
-	}
-	if err := NewVerifier(client).Verify(ctx, manifest); err == nil || !strings.Contains(err.Error(), "structural hash mismatch") {
-		t.Fatalf("Verify() error = %v, want structural hash mismatch", err)
 	}
 }

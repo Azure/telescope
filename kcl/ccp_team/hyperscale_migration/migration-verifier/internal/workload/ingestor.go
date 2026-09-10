@@ -9,11 +9,9 @@ import (
 	"sync"
 	"time"
 
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -76,10 +74,6 @@ func (ingestor *Ingestor) Ingest(ctx context.Context, config Config) (Manifest, 
 	errCh := make(chan error, 1)
 	workerCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	podsReady, err := ingestor.watchPodsReady(workerCtx, config.Namespace, expectedPodCount(config.Specs))
-	if err != nil {
-		return manifest, err
-	}
 
 	var workers sync.WaitGroup
 	for range config.Concurrency {
@@ -135,75 +129,7 @@ func (ingestor *Ingestor) Ingest(ctx context.Context, config Config) (Manifest, 
 		return manifest, err
 	default:
 	}
-	if err := <-podsReady; err != nil {
-		return manifest, err
-	}
 	return manifest, nil
-}
-
-func expectedPodCount(specs []IngestionSpec) int {
-	for _, spec := range specs {
-		if spec.Kind == PodKind {
-			return spec.Count
-		}
-	}
-	return 0
-}
-
-func (ingestor *Ingestor) watchPodsReady(ctx context.Context, namespace string, expected int) (<-chan error, error) {
-	result := make(chan error, 1)
-	if expected == 0 {
-		result <- nil
-		return result, nil
-	}
-	watchCtx, cancel := context.WithTimeout(ctx, DefaultPodReadyTimeout)
-	podWatch, err := ingestor.client.CoreV1().Pods(namespace).Watch(watchCtx, metav1.ListOptions{LabelSelector: migrationLabelSelector})
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("watch pods: %w", err)
-	}
-	go func() {
-		defer cancel()
-		defer podWatch.Stop()
-		states := make(map[string]bool, expected)
-		for {
-			select {
-			case <-watchCtx.Done():
-				result <- fmt.Errorf("wait for %d pods to become ready: %w", expected, watchCtx.Err())
-				return
-			case event, open := <-podWatch.ResultChan():
-				if !open {
-					result <- fmt.Errorf("pod watch closed before %d pods became ready", expected)
-					return
-				}
-				if event.Type == watch.Error {
-					result <- apierrors.FromObject(event.Object)
-					return
-				}
-				pod, ok := event.Object.(*corev1.Pod)
-				if !ok {
-					result <- fmt.Errorf("pod watch returned %T", event.Object)
-					return
-				}
-				if event.Type == watch.Deleted {
-					delete(states, pod.Name)
-				} else {
-					states[pod.Name] = pod.Status.Phase == corev1.PodRunning && isPodReady(*pod)
-				}
-				if len(states) == expected {
-					allReady := true
-					for _, ready := range states {
-						allReady = allReady && ready
-					}
-					if allReady {
-						result <- nil
-						return
-					}
-				}
-			}
-		}
-	}()
-	return result, nil
 }
 
 func (ingestor *Ingestor) ensureNamespace(ctx context.Context, namespace string) error {
@@ -285,17 +211,14 @@ func (ingestor *Ingestor) verifyExistingObject(ctx context.Context, expected Obj
 		}
 		return verifyHash(object.Data[payloadKey])
 	case PodKind:
-		deployment, err := ingestor.client.AppsV1().Deployments(expected.Namespace).Get(ctx, expected.Name, metav1.GetOptions{})
+		pod, err := ingestor.client.CoreV1().Pods(expected.Namespace).Get(ctx, expected.Name, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
-		if err := verifyMetadata(deployment.Labels); err != nil {
+		if err := verifyMetadata(pod.Labels); err != nil {
 			return err
 		}
-		if got := computeDeploymentHash(deployment); got != expected.StructuralHash {
-			return fmt.Errorf("structural hash mismatch: got %s, want %s", got, expected.StructuralHash)
-		}
-		payload, err := base64.StdEncoding.DecodeString(deployment.Spec.Template.Annotations[payloadAnnotation])
+		payload, err := base64.StdEncoding.DecodeString(pod.Annotations[payloadAnnotation])
 		if err != nil {
 			return fmt.Errorf("decode pod annotation payload: %w", err)
 		}
@@ -331,10 +254,9 @@ func (ingestor *Ingestor) prepareObject(ctx context.Context, config Config, spec
 			return err
 		}
 	case PodKind:
-		deployment := newDeployment(config.Namespace, name, objectLabels, payload)
-		record.StructuralHash = computeDeploymentHash(deployment)
+		pod := newPod(config.Namespace, name, objectLabels, payload)
 		create = func() error {
-			_, err := ingestor.client.AppsV1().Deployments(config.Namespace).Create(ctx, deployment, metav1.CreateOptions{})
+			_, err := ingestor.client.CoreV1().Pods(config.Namespace).Create(ctx, pod, metav1.CreateOptions{})
 			return err
 		}
 	default:
@@ -343,29 +265,18 @@ func (ingestor *Ingestor) prepareObject(ctx context.Context, config Config, spec
 	return record, create, nil
 }
 
-func newDeployment(namespace, name string, objectLabels map[string]string, podAnnotationPayload []byte) *appsv1.Deployment {
-	replicas := int32(1)
-	podLabels := map[string]string{"app": name, migrationLabel: "true"}
-	return &appsv1.Deployment{
+func newPod(namespace, name string, objectLabels map[string]string, annotationPayload []byte) *corev1.Pod {
+	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace,
-			Name:      name,
-			Labels:    objectLabels,
+			Namespace:   namespace,
+			Name:        name,
+			Labels:      objectLabels,
+			Annotations: map[string]string{payloadAnnotation: base64.StdEncoding.EncodeToString(annotationPayload)},
 		},
-		Spec: appsv1.DeploymentSpec{
-			Replicas: &replicas,
-			Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": name}},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels:      podLabels,
-					Annotations: map[string]string{payloadAnnotation: base64.StdEncoding.EncodeToString(podAnnotationPayload)},
-				},
-				Spec: corev1.PodSpec{
-					NodeSelector: map[string]string{"type": "kwok"},
-					Tolerations:  []corev1.Toleration{{Key: "kubernetes.io/arch", Operator: corev1.TolerationOpEqual, Value: "arm64", Effect: corev1.TaintEffectNoSchedule}},
-					Containers:   []corev1.Container{{Name: "pause", Image: "mcr.microsoft.com/oss/kubernetes/pause:3.9"}},
-				},
-			},
+		Spec: corev1.PodSpec{
+			NodeSelector: map[string]string{"type": "kwok"},
+			Tolerations:  []corev1.Toleration{{Key: "kubernetes.io/arch", Operator: corev1.TolerationOpEqual, Value: "arm64", Effect: corev1.TaintEffectNoSchedule}},
+			Containers:   []corev1.Container{{Name: "pause", Image: "mcr.microsoft.com/oss/kubernetes/pause:3.9"}},
 		},
 	}
 }

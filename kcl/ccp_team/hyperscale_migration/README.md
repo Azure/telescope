@@ -14,8 +14,9 @@ cluster to an H2, H4, or H8 control-plane profile.
 7. Delete the resource group unless `keep_cluster` is enabled.
 
 The workload consists of deterministic ConfigMaps, Secrets, and Pods so payload
-integrity can be checked after migration. Each Pod is managed by a single-replica
-Deployment. Etcd shard verification uses `etcdctl` to confirm replicated data.
+integrity can be checked after migration. Pods are created directly and target
+the simulated KWOK Nodes. Etcd shard verification uses `etcdctl` to confirm
+replicated data.
 
 ## Payload Verification
 

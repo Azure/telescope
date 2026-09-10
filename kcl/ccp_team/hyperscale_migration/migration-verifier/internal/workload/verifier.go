@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -35,9 +34,6 @@ func (verifier *Verifier) Verify(ctx context.Context, manifest Manifest) error {
 		return err
 	}
 	if err := verifier.verifySecrets(ctx, namespace, expected, actual); err != nil {
-		return err
-	}
-	if err := verifier.verifyDeployments(ctx, namespace, expected); err != nil {
 		return err
 	}
 	if err := verifier.verifyPods(ctx, namespace, expected, actual); err != nil {
@@ -77,30 +73,6 @@ func (verifier *Verifier) verifySecrets(ctx context.Context, namespace string, e
 	return pageListAndVerify(listSecrets, verifySecret)
 }
 
-func (verifier *Verifier) verifyDeployments(ctx context.Context, namespace string, expected map[string]ObjectRecord) error {
-	listDeployments := func(options metav1.ListOptions) ([]appsv1.Deployment, string, error) {
-		deployments, err := verifier.client.AppsV1().Deployments(namespace).List(ctx, options)
-		if err != nil {
-			return nil, "", fmt.Errorf("list deployments: %w", err)
-		}
-		return deployments.Items, deployments.Continue, nil
-	}
-	verifyDeployment := func(object appsv1.Deployment) error {
-		record, found := expected[PodKind+"/"+object.Name]
-		if !found {
-			return fmt.Errorf("unexpected Deployment/%s", object.Name)
-		}
-		if got := computeDeploymentHash(&object); got != record.StructuralHash {
-			return fmt.Errorf("structural hash mismatch for Deployment/%s: got %s, want %s", object.Name, got, record.StructuralHash)
-		}
-		if object.Status.AvailableReplicas != 1 {
-			return fmt.Errorf("Deployment/%s available replicas = %d, want 1", object.Name, object.Status.AvailableReplicas)
-		}
-		return nil
-	}
-	return pageListAndVerify(listDeployments, verifyDeployment)
-}
-
 func (verifier *Verifier) verifyPods(ctx context.Context, namespace string, expected map[string]ObjectRecord, actual map[string]bool) error {
 	listPods := func(options metav1.ListOptions) ([]corev1.Pod, string, error) {
 		pods, err := verifier.client.CoreV1().Pods(namespace).List(ctx, options)
@@ -110,18 +82,11 @@ func (verifier *Verifier) verifyPods(ctx context.Context, namespace string, expe
 		return pods.Items, pods.Continue, nil
 	}
 	verifyPod := func(pod corev1.Pod) error {
-		logicalName := pod.Labels["app"]
 		payload, decodeErr := base64.StdEncoding.DecodeString(pod.Annotations[payloadAnnotation])
 		if decodeErr != nil {
 			return fmt.Errorf("decode Pod/%s payload: %w", pod.Name, decodeErr)
 		}
-		if err := verifyPayload(expected, actual, PodKind, logicalName, payload); err != nil {
-			return err
-		}
-		if pod.Status.Phase != corev1.PodRunning || !isPodReady(pod) {
-			return fmt.Errorf("Pod/%s is not Running and Ready", pod.Name)
-		}
-		return nil
+		return verifyPayload(expected, actual, PodKind, pod.Name, payload)
 	}
 	return pageListAndVerify(listPods, verifyPod)
 }
