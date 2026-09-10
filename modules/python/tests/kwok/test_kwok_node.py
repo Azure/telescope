@@ -273,6 +273,32 @@ class TestNodeIntegration(unittest.TestCase):
         except Exception as exc:  # pylint: disable=broad-exception-caught
             self.fail(f"Node creation failed: {exc}")
 
+    def test_build_controller_deployment_with_custom_resources(self):
+        """Test custom controller resources are preserved in the deployment."""
+        custom_node = Node(
+            controller_cpu_request="250m",
+            controller_memory_request="512Mi",
+            controller_cpu_limit="750m",
+            controller_memory_limit="1Gi",
+            k8s_client=self.mock_k8s_client,
+        )
+
+        deployment = custom_node._build_controller_deployment(
+            make_base_controller_deployment(),
+            controller_index=0,
+        )
+        controller_container = deployment.spec.template.spec.containers[0]
+
+        self.assertEqual(
+            client.ApiClient().sanitize_for_serialization(
+                controller_container.resources
+            ),
+            {
+                "limits": {"cpu": "750m", "memory": "1Gi"},
+                "requests": {"cpu": "250m", "memory": "512Mi"},
+            },
+        )
+
     def test_create_nodes_grouped_mode(self):
         """Test multiple-controller mode creates per-controller deployments and labels nodes."""
         grouped_node = Node(

@@ -29,6 +29,10 @@ DEFAULT_CIDR = "10.0.0.0/8" # About 17 million addresses
 DEFAULT_NODE_IP = "10.0.0.1"
 DEFAULT_KUBE_CONNECTION_QPS = None
 DEFAULT_KUBE_CONNECTION_BURST = None
+DEFAULT_CONTROLLER_CPU_REQUEST = "2"
+DEFAULT_CONTROLLER_MEMORY_REQUEST = "5Gi"
+DEFAULT_CONTROLLER_CPU_LIMIT = "3"
+DEFAULT_CONTROLLER_MEMORY_LIMIT = "10Gi"
 
 
 @dataclass
@@ -48,6 +52,10 @@ class KWOK(ABC):
     node_lease_duration_seconds: int = 40
     kube_connection_qps: float = DEFAULT_KUBE_CONNECTION_QPS
     kube_connection_burst: int = DEFAULT_KUBE_CONNECTION_BURST
+    controller_cpu_request: str = DEFAULT_CONTROLLER_CPU_REQUEST
+    controller_memory_request: str = DEFAULT_CONTROLLER_MEMORY_REQUEST
+    controller_cpu_limit: str = DEFAULT_CONTROLLER_CPU_LIMIT
+    controller_memory_limit: str = DEFAULT_CONTROLLER_MEMORY_LIMIT
     k8s_client: KubernetesClient = KubernetesClient()
 
     @staticmethod
@@ -218,8 +226,14 @@ class KWOK(ABC):
             client.V1EnvVar(name="KUBE_API_BURST", value="1000"),
         )
         controller_container.resources = client.V1ResourceRequirements(
-            limits={"cpu": "3", "memory": "10Gi"},
-            requests={"cpu": "2", "memory": "5Gi"},
+            limits={
+                "cpu": self.controller_cpu_limit,
+                "memory": self.controller_memory_limit,
+            },
+            requests={
+                "cpu": self.controller_cpu_request,
+                "memory": self.controller_memory_request,
+            },
         )
 
         pod_spec = deployment.spec.template.spec
@@ -694,6 +708,30 @@ def main():
         help="Maximum number of virtual nodes managed per controller deployment (default: 100).",
     )
     parser.add_argument(
+        "--controller-cpu-request",
+        type=str,
+        default=DEFAULT_CONTROLLER_CPU_REQUEST,
+        help=f"CPU request for each controller (default: {DEFAULT_CONTROLLER_CPU_REQUEST}).",
+    )
+    parser.add_argument(
+        "--controller-memory-request",
+        type=str,
+        default=DEFAULT_CONTROLLER_MEMORY_REQUEST,
+        help=f"Memory request for each controller (default: {DEFAULT_CONTROLLER_MEMORY_REQUEST}).",
+    )
+    parser.add_argument(
+        "--controller-cpu-limit",
+        type=str,
+        default=DEFAULT_CONTROLLER_CPU_LIMIT,
+        help=f"CPU limit for each controller (default: {DEFAULT_CONTROLLER_CPU_LIMIT}).",
+    )
+    parser.add_argument(
+        "--controller-memory-limit",
+        type=str,
+        default=DEFAULT_CONTROLLER_MEMORY_LIMIT,
+        help=f"Memory limit for each controller (default: {DEFAULT_CONTROLLER_MEMORY_LIMIT}).",
+    )
+    parser.add_argument(
         "--node-selector",
         type=str,
         default=DEFAULT_NODE_SELECTOR,
@@ -744,6 +782,10 @@ def main():
         enable_metrics=args.enable_metrics,
         enable_dra=args.enable_dra,
         nodes_per_controller=args.nodes_per_controller,
+        controller_cpu_request=args.controller_cpu_request,
+        controller_memory_request=args.controller_memory_request,
+        controller_cpu_limit=args.controller_cpu_limit,
+        controller_memory_limit=args.controller_memory_limit,
         node_selector=args.node_selector,
         node_lease_duration_seconds=args.node_lease_duration_seconds,
         pod_play_stage_parallelism=args.pod_play_stage_parallelism
