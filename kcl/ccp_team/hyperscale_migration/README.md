@@ -8,7 +8,7 @@ cluster to an H2, H4, or H8 control-plane profile.
 1. Create an AKS 1.36 cluster in `westus2`.
 2. Add a 20-node `Standard_D4_v3` pool for KWOK controllers.
 3. Create and validate 2,000 simulated KWOK Nodes.
-4. Install the Go migration verifier and ingest a fixed 2 GiB workload.
+4. Install the Go migration verifier and ingest data workload.
 5. Start the selected H-profile migration and wait for completion.
 6. Verify the ingested Kubernetes objects and etcd shard data.
 7. Delete the resource group unless `keep_cluster` is enabled.

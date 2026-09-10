@@ -13,18 +13,17 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 )
 
-type Runner struct {
+type Ingestor struct {
 	client              kubernetes.Interface
 	createRetryInterval time.Duration
 }
 
-func NewRunner(client kubernetes.Interface) *Runner {
-	return &Runner{client: client, createRetryInterval: DefaultCreateRetryInterval}
+func NewIngestor(client kubernetes.Interface) *Ingestor {
+	return &Ingestor{client: client, createRetryInterval: DefaultCreateRetryInterval}
 }
 
 func ValidateConfig(config Config) error {
@@ -53,11 +52,11 @@ func ValidateConfig(config Config) error {
 	return nil
 }
 
-func (runner *Runner) Ingest(ctx context.Context, config Config) (Manifest, error) {
+func (ingestor *Ingestor) Ingest(ctx context.Context, config Config) (Manifest, error) {
 	if err := ValidateConfig(config); err != nil {
 		return Manifest{}, err
 	}
-	if err := runner.ensureNamespace(ctx, config.Namespace); err != nil {
+	if err := ingestor.ensureNamespace(ctx, config.Namespace); err != nil {
 		return Manifest{}, err
 	}
 
@@ -77,7 +76,7 @@ func (runner *Runner) Ingest(ctx context.Context, config Config) (Manifest, erro
 	errCh := make(chan error, 1)
 	workerCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	podsReady, err := runner.watchPodsReady(workerCtx, config.Namespace, expectedPodCount(config.Specs))
+	podsReady, err := ingestor.watchPodsReady(workerCtx, config.Namespace, expectedPodCount(config.Specs))
 	if err != nil {
 		return manifest, err
 	}
@@ -88,7 +87,7 @@ func (runner *Runner) Ingest(ctx context.Context, config Config) (Manifest, erro
 		go func() {
 			defer workers.Done()
 			for item := range tasks {
-				record, err := runner.createObject(workerCtx, config, item.spec, item.index)
+				record, err := ingestor.createObject(workerCtx, config, item.spec, item.index)
 				if err != nil {
 					select {
 					case errCh <- err:
@@ -151,15 +150,14 @@ func expectedPodCount(specs []IngestionSpec) int {
 	return 0
 }
 
-func (runner *Runner) watchPodsReady(ctx context.Context, namespace string, expected int) (<-chan error, error) {
+func (ingestor *Ingestor) watchPodsReady(ctx context.Context, namespace string, expected int) (<-chan error, error) {
 	result := make(chan error, 1)
 	if expected == 0 {
 		result <- nil
 		return result, nil
 	}
-	selector := labels.Set{migrationLabel: "true"}.AsSelector().String()
 	watchCtx, cancel := context.WithTimeout(ctx, DefaultPodReadyTimeout)
-	podWatch, err := runner.client.CoreV1().Pods(namespace).Watch(watchCtx, metav1.ListOptions{LabelSelector: selector})
+	podWatch, err := ingestor.client.CoreV1().Pods(namespace).Watch(watchCtx, metav1.ListOptions{LabelSelector: migrationLabelSelector})
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("watch pods: %w", err)
@@ -208,16 +206,16 @@ func (runner *Runner) watchPodsReady(ctx context.Context, namespace string, expe
 	return result, nil
 }
 
-func (runner *Runner) ensureNamespace(ctx context.Context, namespace string) error {
-	_, err := runner.client.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}, metav1.CreateOptions{})
+func (ingestor *Ingestor) ensureNamespace(ctx context.Context, namespace string) error {
+	_, err := ingestor.client.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}, metav1.CreateOptions{})
 	if err != nil && !apierrors.IsAlreadyExists(err) {
 		return fmt.Errorf("create namespace %s: %w", namespace, err)
 	}
 	return nil
 }
 
-func (runner *Runner) createObject(ctx context.Context, config Config, spec IngestionSpec, index int) (ObjectRecord, error) {
-	record, create, err := runner.prepareObject(ctx, config, spec, index)
+func (ingestor *Ingestor) createObject(ctx context.Context, config Config, spec IngestionSpec, index int) (ObjectRecord, error) {
+	record, create, err := ingestor.prepareObject(ctx, config, spec, index)
 	if err != nil {
 		return ObjectRecord{}, err
 	}
@@ -228,6 +226,13 @@ func (runner *Runner) createObject(ctx context.Context, config Config, spec Inge
 			return record, nil
 		}
 		if apierrors.IsAlreadyExists(err) {
+			if attempt > 1 {
+				if verifyErr := ingestor.verifyExistingObject(ctx, record); verifyErr == nil {
+					return record, nil
+				} else {
+					return ObjectRecord{}, fmt.Errorf("validate existing %s %s: %w", spec.Kind, record.Name, verifyErr)
+				}
+			}
 			return ObjectRecord{}, fmt.Errorf("create %s %s: %w", spec.Kind, record.Name, err)
 		}
 
@@ -235,7 +240,7 @@ func (runner *Runner) createObject(ctx context.Context, config Config, spec Inge
 			return ObjectRecord{}, fmt.Errorf("create %s %s after %d attempts: %w", spec.Kind, record.Name, DefaultCreateAttempts, err)
 		}
 
-		delay := runner.createRetryInterval * time.Duration(1<<(attempt-1))
+		delay := ingestor.createRetryInterval * time.Duration(1<<(attempt-1))
 		timer := time.NewTimer(delay)
 		select {
 		case <-ctx.Done():
@@ -246,7 +251,61 @@ func (runner *Runner) createObject(ctx context.Context, config Config, spec Inge
 	}
 }
 
-func (runner *Runner) prepareObject(ctx context.Context, config Config, spec IngestionSpec, index int) (ObjectRecord, func() error, error) {
+func (ingestor *Ingestor) verifyExistingObject(ctx context.Context, expected ObjectRecord) error {
+	verifyMetadata := func(labels map[string]string) error {
+		if labels[migrationLabel] != "true" {
+			return fmt.Errorf("missing %s=true label", migrationLabel)
+		}
+		return nil
+	}
+	verifyHash := func(payload []byte) error {
+		if got := computeHash(payload); got != expected.PayloadHash {
+			return fmt.Errorf("payload hash mismatch: got %s, want %s", got, expected.PayloadHash)
+		}
+		return nil
+	}
+
+	switch expected.Kind {
+	case ConfigMapKind:
+		object, err := ingestor.client.CoreV1().ConfigMaps(expected.Namespace).Get(ctx, expected.Name, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		if err := verifyMetadata(object.Labels); err != nil {
+			return err
+		}
+		return verifyHash(object.BinaryData[payloadKey])
+	case SecretKind:
+		object, err := ingestor.client.CoreV1().Secrets(expected.Namespace).Get(ctx, expected.Name, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		if err := verifyMetadata(object.Labels); err != nil {
+			return err
+		}
+		return verifyHash(object.Data[payloadKey])
+	case PodKind:
+		deployment, err := ingestor.client.AppsV1().Deployments(expected.Namespace).Get(ctx, expected.Name, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		if err := verifyMetadata(deployment.Labels); err != nil {
+			return err
+		}
+		if got := computeDeploymentHash(deployment); got != expected.StructuralHash {
+			return fmt.Errorf("structural hash mismatch: got %s, want %s", got, expected.StructuralHash)
+		}
+		payload, err := base64.StdEncoding.DecodeString(deployment.Spec.Template.Annotations[payloadAnnotation])
+		if err != nil {
+			return fmt.Errorf("decode pod annotation payload: %w", err)
+		}
+		return verifyHash(payload)
+	default:
+		return fmt.Errorf("unsupported kind %q", expected.Kind)
+	}
+}
+
+func (ingestor *Ingestor) prepareObject(ctx context.Context, config Config, spec IngestionSpec, index int) (ObjectRecord, func() error, error) {
 	payload := createPayload(config.Seed, spec.Kind, index, spec.PayloadBytes)
 	name := formatObjectName(spec.Kind, index)
 	objectLabels := map[string]string{migrationLabel: "true"}
@@ -259,7 +318,7 @@ func (runner *Runner) prepareObject(ctx context.Context, config Config, spec Ing
 			BinaryData: map[string][]byte{payloadKey: payload},
 		}
 		create = func() error {
-			_, err := runner.client.CoreV1().ConfigMaps(config.Namespace).Create(ctx, object, metav1.CreateOptions{})
+			_, err := ingestor.client.CoreV1().ConfigMaps(config.Namespace).Create(ctx, object, metav1.CreateOptions{})
 			return err
 		}
 	case SecretKind:
@@ -268,14 +327,14 @@ func (runner *Runner) prepareObject(ctx context.Context, config Config, spec Ing
 			Data:       map[string][]byte{payloadKey: payload},
 		}
 		create = func() error {
-			_, err := runner.client.CoreV1().Secrets(config.Namespace).Create(ctx, object, metav1.CreateOptions{})
+			_, err := ingestor.client.CoreV1().Secrets(config.Namespace).Create(ctx, object, metav1.CreateOptions{})
 			return err
 		}
 	case PodKind:
 		deployment := newDeployment(config.Namespace, name, objectLabels, payload)
 		record.StructuralHash = computeDeploymentHash(deployment)
 		create = func() error {
-			_, err := runner.client.AppsV1().Deployments(config.Namespace).Create(ctx, deployment, metav1.CreateOptions{})
+			_, err := ingestor.client.AppsV1().Deployments(config.Namespace).Create(ctx, deployment, metav1.CreateOptions{})
 			return err
 		}
 	default:
@@ -284,7 +343,7 @@ func (runner *Runner) prepareObject(ctx context.Context, config Config, spec Ing
 	return record, create, nil
 }
 
-func newDeployment(namespace, name string, objectLabels map[string]string, payload []byte) *appsv1.Deployment {
+func newDeployment(namespace, name string, objectLabels map[string]string, podAnnotationPayload []byte) *appsv1.Deployment {
 	replicas := int32(1)
 	podLabels := map[string]string{"app": name, migrationLabel: "true"}
 	return &appsv1.Deployment{
@@ -299,7 +358,7 @@ func newDeployment(namespace, name string, objectLabels map[string]string, paylo
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels:      podLabels,
-					Annotations: map[string]string{payloadAnnotation: base64.StdEncoding.EncodeToString(payload)},
+					Annotations: map[string]string{payloadAnnotation: base64.StdEncoding.EncodeToString(podAnnotationPayload)},
 				},
 				Spec: corev1.PodSpec{
 					NodeSelector: map[string]string{"type": "kwok"},
@@ -309,110 +368,4 @@ func newDeployment(namespace, name string, objectLabels map[string]string, paylo
 			},
 		},
 	}
-}
-
-func (runner *Runner) Verify(ctx context.Context, manifest Manifest) error {
-	if len(manifest.Objects) == 0 {
-		return errors.New("manifest contains no objects")
-	}
-	expected := make(map[string]ObjectRecord, len(manifest.Objects))
-	for _, record := range manifest.Objects {
-		expected[record.Kind+"/"+record.Name] = record
-	}
-	actual := map[string]bool{}
-	selector := labels.Set{migrationLabel: "true"}.AsSelector().String()
-	namespace := manifest.Objects[0].Namespace
-
-	configMaps, err := runner.client.CoreV1().ConfigMaps(namespace).List(ctx, metav1.ListOptions{LabelSelector: selector})
-	if err != nil {
-		return fmt.Errorf("list configmaps: %w", err)
-	}
-	for _, object := range configMaps.Items {
-		if err := verifyPayload(expected, actual, ConfigMapKind, object.Name, object.BinaryData[payloadKey]); err != nil {
-			return err
-		}
-	}
-
-	secrets, err := runner.client.CoreV1().Secrets(namespace).List(ctx, metav1.ListOptions{LabelSelector: selector})
-	if err != nil {
-		return fmt.Errorf("list secrets: %w", err)
-	}
-	for _, object := range secrets.Items {
-		if err := verifyPayload(expected, actual, SecretKind, object.Name, object.Data[payloadKey]); err != nil {
-			return err
-		}
-	}
-	deployments, err := runner.client.AppsV1().Deployments(namespace).List(ctx, metav1.ListOptions{LabelSelector: selector})
-	if err != nil {
-		return fmt.Errorf("list deployments: %w", err)
-	}
-	for _, object := range deployments.Items {
-		record, found := expected[PodKind+"/"+object.Name]
-		if !found {
-			return fmt.Errorf("unexpected Deployment/%s", object.Name)
-		}
-		if got := computeDeploymentHash(&object); got != record.StructuralHash {
-			return fmt.Errorf("structural hash mismatch for Deployment/%s: got %s, want %s", object.Name, got, record.StructuralHash)
-		}
-		if object.Status.AvailableReplicas != 1 {
-			return fmt.Errorf("Deployment/%s available replicas = %d, want 1", object.Name, object.Status.AvailableReplicas)
-		}
-	}
-	if err := runner.verifyPods(ctx, namespace, deployments.Items, expected, actual); err != nil {
-		return err
-	}
-	if len(actual) != len(expected) {
-		return fmt.Errorf("verified %d objects, expected %d", len(actual), len(expected))
-	}
-	return nil
-}
-
-func (runner *Runner) verifyPods(ctx context.Context, namespace string, deployments []appsv1.Deployment, expected map[string]ObjectRecord, actual map[string]bool) error {
-	pods, err := runner.client.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{LabelSelector: labels.Set{migrationLabel: "true"}.AsSelector().String()})
-	if err != nil {
-		return fmt.Errorf("list pods: %w", err)
-	}
-	readyByApp := map[string]int{}
-	for _, pod := range pods.Items {
-		logicalName := pod.Labels["app"]
-		payload, decodeErr := base64.StdEncoding.DecodeString(pod.Annotations[payloadAnnotation])
-		if decodeErr != nil {
-			return fmt.Errorf("decode Pod/%s payload: %w", pod.Name, decodeErr)
-		}
-		if err := verifyPayload(expected, actual, PodKind, logicalName, payload); err != nil {
-			return err
-		}
-		if pod.Status.Phase != corev1.PodRunning || !isPodReady(pod) {
-			continue
-		}
-		readyByApp[pod.Labels["app"]]++
-	}
-	for _, deployment := range deployments {
-		if readyByApp[deployment.Name] != 1 {
-			return fmt.Errorf("Deployment/%s ready pods = %d, want 1", deployment.Name, readyByApp[deployment.Name])
-		}
-	}
-	return nil
-}
-
-func isPodReady(pod corev1.Pod) bool {
-	for _, condition := range pod.Status.Conditions {
-		if condition.Type == corev1.PodReady && condition.Status == corev1.ConditionTrue {
-			return true
-		}
-	}
-	return false
-}
-
-func verifyPayload(expected map[string]ObjectRecord, actual map[string]bool, kind, name string, payload []byte) error {
-	key := kind + "/" + name
-	record, found := expected[key]
-	if !found {
-		return fmt.Errorf("unexpected object %s", key)
-	}
-	if got := computeHash(payload); got != record.PayloadHash {
-		return fmt.Errorf("payload hash mismatch for %s: got %s, want %s", key, got, record.PayloadHash)
-	}
-	actual[key] = true
-	return nil
 }

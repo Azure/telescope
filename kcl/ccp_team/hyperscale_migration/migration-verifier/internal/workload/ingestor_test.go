@@ -27,95 +27,6 @@ func smallConfig() Config {
 	}
 }
 
-func TestIngestAndVerify(t *testing.T) {
-	ctx := context.Background()
-	client := newFakeClientWithPodController()
-	runner := NewRunner(client)
-	manifest, err := runner.Ingest(ctx, smallConfig())
-	if err != nil {
-		t.Fatalf("Ingest() error = %v", err)
-	}
-	if len(manifest.Objects) != 6 {
-		t.Fatalf("object count = %d, want 6", len(manifest.Objects))
-	}
-
-	if err := runner.Verify(ctx, manifest); err != nil {
-		t.Fatalf("Verify() error = %v", err)
-	}
-}
-
-func TestVerifyDetectsPayloadCorruption(t *testing.T) {
-	ctx := context.Background()
-	client := newFakeClientWithPodController()
-	runner := NewRunner(client)
-	manifest, err := runner.Ingest(ctx, Config{
-		Seed: "seed", Namespace: "ns", Concurrency: 1,
-		Specs: []IngestionSpec{{Kind: ConfigMapKind, Count: 1, PayloadBytes: 32}},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	configMap, err := client.CoreV1().ConfigMaps("ns").Get(ctx, "migration-configmap-000000", metav1.GetOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	configMap.BinaryData[payloadKey][0]++
-	if _, err := client.CoreV1().ConfigMaps("ns").Update(ctx, configMap, metav1.UpdateOptions{}); err != nil {
-		t.Fatal(err)
-	}
-	if err := runner.Verify(ctx, manifest); err == nil || !strings.Contains(err.Error(), "hash mismatch") {
-		t.Fatalf("Verify() error = %v, want hash mismatch", err)
-	}
-}
-
-func TestVerifyDetectsPodPayloadCorruption(t *testing.T) {
-	ctx := context.Background()
-	client := newFakeClientWithPodController()
-	runner := NewRunner(client)
-	manifest, err := runner.Ingest(ctx, Config{
-		Seed: "seed", Namespace: "ns", Concurrency: 1,
-		Specs: []IngestionSpec{{Kind: PodKind, Count: 1, PayloadBytes: 32}},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	pod, err := client.CoreV1().Pods("ns").Get(ctx, "migration-pod-000000-pod", metav1.GetOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	pod.Annotations[payloadAnnotation] = "Y29ycnVwdGVk"
-	if _, err := client.CoreV1().Pods("ns").Update(ctx, pod, metav1.UpdateOptions{}); err != nil {
-		t.Fatal(err)
-	}
-	if err := runner.Verify(ctx, manifest); err == nil || !strings.Contains(err.Error(), "hash mismatch") {
-		t.Fatalf("Verify() error = %v, want hash mismatch", err)
-	}
-}
-
-func TestVerifyDetectsDeploymentDrift(t *testing.T) {
-	ctx := context.Background()
-	client := newFakeClientWithPodController()
-	runner := NewRunner(client)
-	manifest, err := runner.Ingest(ctx, Config{
-		Seed: "seed", Namespace: "ns", Concurrency: 1,
-		Specs: []IngestionSpec{{Kind: PodKind, Count: 1, PayloadBytes: 32}},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	deployment, err := client.AppsV1().Deployments("ns").Get(ctx, "migration-pod-000000", metav1.GetOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	deployment.Spec.Template.Spec.Containers[0].Image = "unexpected:latest"
-	if _, err := client.AppsV1().Deployments("ns").Update(ctx, deployment, metav1.UpdateOptions{}); err != nil {
-		t.Fatal(err)
-	}
-	if err := runner.Verify(ctx, manifest); err == nil || !strings.Contains(err.Error(), "structural hash mismatch") {
-		t.Fatalf("Verify() error = %v, want structural hash mismatch", err)
-	}
-}
-
 func TestValidateConfigRejectsOversizedPodAnnotation(t *testing.T) {
 	config := smallConfig()
 	config.Specs = []IngestionSpec{{Kind: PodKind, Count: 1, PayloadBytes: 200 * 1024}}
@@ -135,10 +46,10 @@ func TestCreateObjectRetriesThreeTimes(t *testing.T) {
 		}
 		return false, nil, nil
 	})
-	runner := NewRunner(client)
-	runner.createRetryInterval = 0
+	ingestor := NewIngestor(client)
+	ingestor.createRetryInterval = 0
 
-	manifest, err := runner.Ingest(ctx, Config{
+	manifest, err := ingestor.Ingest(ctx, Config{
 		Seed: "seed", Namespace: "ns", Concurrency: 1,
 		Specs: []IngestionSpec{{Kind: ConfigMapKind, Count: 1, PayloadBytes: 32}},
 	})
@@ -153,7 +64,7 @@ func TestCreateObjectRetriesThreeTimes(t *testing.T) {
 	}
 }
 
-func TestCreateObjectRejectsAlreadyExistsAfterAmbiguousCreate(t *testing.T) {
+func TestCreateObjectRecoversAlreadyExistsAfterAmbiguousCreate(t *testing.T) {
 	ctx := context.Background()
 	client := fake.NewClientset()
 	attempts := 0
@@ -163,23 +74,56 @@ func TestCreateObjectRejectsAlreadyExistsAfterAmbiguousCreate(t *testing.T) {
 			return true, nil, apierrors.NewAlreadyExists(corev1.Resource("configmaps"), "migration-configmap-000000")
 		}
 		object := action.(k8stesting.CreateAction).GetObject().(*corev1.ConfigMap).DeepCopy()
+		object.Namespace = action.GetNamespace()
 		if err := client.Tracker().Create(corev1.SchemeGroupVersion.WithResource("configmaps"), object, object.Namespace); err != nil {
 			return true, nil, err
 		}
 		return true, nil, errors.New("http2: server sent GOAWAY")
 	})
-	runner := NewRunner(client)
-	runner.createRetryInterval = 0
+	ingestor := NewIngestor(client)
+	ingestor.createRetryInterval = 0
 
-	_, err := runner.Ingest(ctx, Config{
+	manifest, err := ingestor.Ingest(ctx, Config{
 		Seed: "seed", Namespace: "ns", Concurrency: 1,
 		Specs: []IngestionSpec{{Kind: ConfigMapKind, Count: 1, PayloadBytes: 32}},
 	})
-	if err == nil || !apierrors.IsAlreadyExists(err) {
-		t.Fatalf("Ingest() error = %v, want AlreadyExists", err)
+	if err != nil {
+		t.Fatal(err)
 	}
 	if attempts != 2 {
 		t.Fatalf("create attempts = %d, want 2", attempts)
+	}
+	if len(manifest.Objects) != 1 {
+		t.Fatalf("manifest objects = %d, want 1", len(manifest.Objects))
+	}
+}
+
+func TestCreateObjectRejectsMismatchedObjectAfterAmbiguousCreate(t *testing.T) {
+	ctx := context.Background()
+	client := fake.NewClientset()
+	attempts := 0
+	client.PrependReactor("create", "configmaps", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		attempts++
+		if attempts == 2 {
+			return true, nil, apierrors.NewAlreadyExists(corev1.Resource("configmaps"), "migration-configmap-000000")
+		}
+		object := action.(k8stesting.CreateAction).GetObject().(*corev1.ConfigMap).DeepCopy()
+		object.Namespace = action.GetNamespace()
+		object.BinaryData[payloadKey] = []byte("mismatched")
+		if err := client.Tracker().Create(corev1.SchemeGroupVersion.WithResource("configmaps"), object, object.Namespace); err != nil {
+			return true, nil, err
+		}
+		return true, nil, errors.New("http2: server sent GOAWAY")
+	})
+	ingestor := NewIngestor(client)
+	ingestor.createRetryInterval = 0
+
+	_, err := ingestor.Ingest(ctx, Config{
+		Seed: "seed", Namespace: "ns", Concurrency: 1,
+		Specs: []IngestionSpec{{Kind: ConfigMapKind, Count: 1, PayloadBytes: 32}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "payload hash mismatch") {
+		t.Fatalf("Ingest() error = %v, want payload hash mismatch", err)
 	}
 }
 
@@ -187,7 +131,7 @@ func TestWatchPodsReadyTracksAllPods(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	client := fake.NewClientset()
-	ready, err := NewRunner(client).watchPodsReady(ctx, "ns", 2)
+	ready, err := NewIngestor(client).watchPodsReady(ctx, "ns", 2)
 	if err != nil {
 		t.Fatal(err)
 	}

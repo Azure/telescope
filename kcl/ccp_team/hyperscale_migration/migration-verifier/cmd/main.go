@@ -67,7 +67,7 @@ func ingest(args []string, output io.Writer) error {
 	if err != nil {
 		return err
 	}
-	manifest, ingestErr := workload.NewRunner(client).Ingest(context.Background(), workload.DefaultConfig())
+	manifest, ingestErr := workload.NewIngestor(client).Ingest(context.Background(), workload.DefaultConfig())
 	if err := workload.WriteManifest(*manifestPath, manifest); err != nil {
 		return err
 	}
@@ -94,7 +94,7 @@ func verify(args []string, output io.Writer) error {
 	if err != nil {
 		return err
 	}
-	runner := workload.NewRunner(client)
+	verifier := workload.NewVerifier(client)
 	for _, spec := range manifest.Specs {
 		if _, err := fmt.Fprintf(output, "verifying %s resources: expected=%d\n", spec.Kind, spec.Count); err != nil {
 			return err
@@ -102,7 +102,7 @@ func verify(args []string, output io.Writer) error {
 	}
 	deadline := time.Now().Add(workload.DefaultVerifyTimeout)
 	for {
-		err = runner.Verify(context.Background(), manifest)
+		err = verifier.Verify(context.Background(), manifest)
 		if err == nil {
 			_, writeErr := fmt.Fprintf(output, "verified %d objects with %d logical payload bytes\n", len(manifest.Objects), manifest.LogicalPayloadBytes)
 			return writeErr

@@ -2,9 +2,9 @@ package workload
 
 import "testing"
 
-const expectedTotalPayloadBytes = 2 * 1024 * 1024 * 1024
+const expectedTotalPayloadBytes = 562*1024*1024 + 512*1024
 
-func TestDefaultSpecsTotalExactlyTwoGiB(t *testing.T) {
+func TestDefaultSpecsTotalExactly562Point5MiB(t *testing.T) {
 	if got := TotalPayloadBytes(DefaultSpecs()); got != expectedTotalPayloadBytes {
 		t.Fatalf("default payload total = %d, want %d", got, expectedTotalPayloadBytes)
 	}

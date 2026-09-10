@@ -60,3 +60,12 @@ func computeDeploymentHash(deployment *appsv1.Deployment) string {
 func formatObjectName(kind string, objectIndex int) string {
 	return fmt.Sprintf("migration-%s-%06d", strings.ToLower(kind), objectIndex)
 }
+
+func isPodReady(pod corev1.Pod) bool {
+	for _, condition := range pod.Status.Conditions {
+		if condition.Type == corev1.PodReady && condition.Status == corev1.ConditionTrue {
+			return true
+		}
+	}
+	return false
+}
