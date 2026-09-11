@@ -1,0 +1,894 @@
+name: Underlay Validation
+pool: AKS-Telescope-Airlock
+trigger: none
+parameters:
+- name: region
+  displayName: Azure region
+  type: string
+  default: westus2
+- name: kubernetes_version
+  displayName: Kubernetes version
+  type: string
+  default: '1.35.5'
+- name: vm_sku
+  displayName: System and runner pool VM SKU
+  type: string
+  default: Standard_D8s_v4
+- name: user_pool_sku
+  displayName: User pool VM SKU
+  type: string
+  default: Standard_D2s_v4
+- name: custom_headers
+  displayName: AKS custom headers ('none' to omit)
+  type: string
+  default: none
+jobs:
+- job: underlay_validation
+  displayName: Validate underlay
+  timeoutInMinutes: 600
+  steps:
+  - bash: |2
+
+      set -eo pipefail
+
+      job_id="$(System.JobId)"
+      RUN_ID=$(Build.BuildId)-${job_id:0:8}
+      echo "Run ID: $RUN_ID"
+
+      echo "##vso[task.setvariable variable=RUN_ID]$RUN_ID"
+    displayName: Set Run ID
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+        az config set defaults.location="${{ parameters.region }}"
+        az account show
+    displayName: Login to Azure
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |+
+        set -exo pipefail
+
+        az group create \
+          --name "$(RUN_ID)" \
+          --location "${{ parameters.region }}" \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+
+    displayName: Create resource group in ${{ parameters.region }} (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az extension add --name aks-preview --version 20.0.0b6 --allow-preview true --upgrade --yes
+
+        EXTRA_ARGS=""
+        if [ "${{ parameters.custom_headers }}" != "none" ]; then
+            EXTRA_ARGS="--aks-custom-headers ${{ parameters.custom_headers }}"
+        fi
+
+        az aks create \
+            --name "underlay-validation" \
+          --resource-group "$(RUN_ID)" \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --location "${{ parameters.region }}" \
+            --kubernetes-version "${{ parameters.kubernetes_version }}" \
+            --dns-name-prefix "underlay-validation-dns" \
+            --tier standard \
+          --nodepool-name systempool \
+          --node-count 5 \
+            --node-vm-size "${{ parameters.vm_sku }}" \
+          --network-plugin azure \
+          --network-plugin-mode overlay \
+          --pod-cidr 10.244.0.0/14 \
+          --max-pods 250 \
+          --control-plane-scaling-size H8 \
+          --enable-managed-identity \
+          --generate-ssh-keys \
+          $EXTRA_ARGS
+    displayName: Create AKS cluster
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        deadline=$(($(date +%s) + 600))
+        sleep_between=30
+        attempt=0
+        while :; do
+          attempt=$((attempt + 1))
+          set +e
+          output=$(az aks nodepool add \
+            --cluster-name "underlay-validation" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --name "runner" \
+            --node-count 25 \
+            --node-vm-size "${{ parameters.vm_sku }}" \
+            --mode User \
+             2>&1)
+          rc=$?
+          set -e
+          echo "$output"
+          if [ $rc -eq 0 ]; then
+            exit 0
+          fi
+          if echo "$output" | grep -qiE "OperationNotAllowed"; then
+            now=$(date +%s)
+            if [ $now -ge $deadline ]; then
+              echo "Retriable error persisted past 600s retry window ($attempt attempts); giving up."
+              exit $rc
+            fi
+            remaining=$((deadline - now))
+            echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining seconds remain in retry window)."
+            sleep $sleep_between
+          else
+            echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+            exit $rc
+          fi
+        done
+    displayName: Create node pool runner
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        deadline=$(($(date +%s) + 600))
+        sleep_between=30
+        attempt=0
+        while :; do
+          attempt=$((attempt + 1))
+          set +e
+          output=$(az aks nodepool add \
+            --cluster-name "underlay-validation" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --name "userpool" \
+            --node-count 100 \
+            --node-vm-size "${{ parameters.user_pool_sku }}" \
+            --mode User \
+             2>&1)
+          rc=$?
+          set -e
+          echo "$output"
+          if [ $rc -eq 0 ]; then
+            exit 0
+          fi
+          if echo "$output" | grep -qiE "OperationNotAllowed"; then
+            now=$(date +%s)
+            if [ $now -ge $deadline ]; then
+              echo "Retriable error persisted past 600s retry window ($attempt attempts); giving up."
+              exit $rc
+            fi
+            remaining=$((deadline - now))
+            echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining seconds remain in retry window)."
+            sleep $sleep_between
+          else
+            echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+            exit $rc
+          fi
+        done
+    displayName: Create node pool userpool
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az aks get-credentials \
+          --name "underlay-validation" \
+          --resource-group "$(RUN_ID)" \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --overwrite-existing
+    displayName: Get credentials for underlay-validation
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        # AzCli wraps this script with `set -exo pipefail`. Disable xtrace here so
+        # tracing an assignment like `log_output=$(kubectl logs ...)` doesn't dump
+        # the full captured log to stdout. Also disable errexit so we can accumulate
+        # failures and report them at the end.
+        set +ex
+
+        failures=0
+        fail() { echo "FAILED WORKLOAD CHECK: $*"; failures=$((failures + 1)); }
+
+        # check_controllers KIND DESIRED_PATH READY_PATH [NAME]
+        # If NAME is given, check just that one; otherwise check every instance of KIND.
+        check_controllers() {
+          local kind=$1 desired_path=$2 ready_path=$3 name=$4
+          local names
+          if [ -n "$name" ]; then
+            names="$name"
+          else
+            names=$(kubectl -n "kube-system" get "$kind" -o jsonpath='{.items[*].metadata.name}')
+          fi
+          local n
+          for n in $names; do
+            # Probe existence first so a missing object / API error fails loudly
+            # instead of silently defaulting desired/ready to 0.
+            if ! kubectl -n "kube-system" get "$kind" "$n" -o name >/dev/null 2>&1; then
+              fail "$kind kube-system/$n: cannot read resource (missing or kubectl error)"
+              continue
+            fi
+            local desired=$(kubectl -n "kube-system" get "$kind" "$n" -o jsonpath="$desired_path")
+            local ready=$(kubectl -n "kube-system" get "$kind" "$n" -o jsonpath="$ready_path")
+            [ -z "$ready" ] && ready=0
+            [ -z "$desired" ] && desired=0
+            echo "$kind kube-system/$n: ready=$ready desired=$desired"
+            if [ "$ready" != "$desired" ]; then
+              fail "$kind kube-system/$n not fully ready ($ready/$desired)"
+            fi
+          done
+        }
+
+        # check_pods PODS_JSON_FILE
+        # PODS_JSON_FILE is a file holding a `kubectl get pods -o json` document with
+        # exactly the pods to check. For each: status is Running (Ready condition True,
+        # all containers ready) or Succeeded, then scan its logs for errorPatterns.
+        # Every field is read from the file, so the pod view is a single consistent
+        # snapshot the caller fetched in one API call. Fails if the file has no pods.
+        check_pods() {
+          local pods_file=$1
+          local names=$(jq -r '.items[].metadata.name' "$pods_file")
+          if [ -z "$names" ]; then
+            fail "no pods found for all workloads in kube-system"
+            return
+          fi
+          local pod
+          for pod in $names; do
+            echo "::: checking pod kube-system/$pod"
+            local pod_json=$(jq -c --arg n "$pod" '.items[] | select(.metadata.name==$n)' "$pods_file")
+            local phase=$(printf '%s' "$pod_json" | jq -r '.status.phase // ""')
+            case "$phase" in
+              Succeeded)
+                # Finished cleanly; skip readiness checks, still scan logs below.
+                ;;
+              Running)
+                local ready_cond=$(printf '%s' "$pod_json" \
+                  | jq -r '.status.conditions[]? | select(.type=="Ready") | .status')
+                if [ "$ready_cond" != "True" ]; then
+                  fail "pod kube-system/$pod Ready condition=$ready_cond (expected True)"
+                  continue
+                fi
+                local not_ready=$(printf '%s' "$pod_json" \
+                  | jq -r '[.status.containerStatuses[]? | select(.ready==false) | .name] | join(" ")')
+                if [ -n "$not_ready" ]; then
+                  fail "pod kube-system/$pod has not-ready containers: $not_ready"
+                  continue
+                fi
+                ;;
+              *)
+                fail "pod kube-system/$pod phase=$phase (expected Running or Succeeded)"
+                continue
+                ;;
+            esac
+            local log_output=$(kubectl -n "kube-system" logs "$pod" --all-containers=true --prefix=true 2>&1)
+            local matches=$(printf '%s\n' "$log_output" | grep -wEi 'panic|fatal')
+            if [ -n "$matches" ]; then
+              echo "--- error lines in kube-system/$pod ---"
+              printf '%s\n' "$matches"
+              echo "--- end ---"
+              fail "pod kube-system/$pod logs contain error pattern"
+            fi
+          done
+        }
+
+        # check_controller_pods KIND NAME
+        # Resolve the controller's pods via its matchLabels and scan them.
+        check_controller_pods() {
+          local kind=$1 name=$2
+          local selector=$(kubectl -n "kube-system" get "$kind" "$name" \
+            -o go-template='{{range $k,$v := .spec.selector.matchLabels}}{{$k}}={{$v}},{{end}}' \
+            | sed 's/,$//')
+          if [ -z "$selector" ]; then
+            fail "$kind kube-system/$name has no matchLabels selector (matchExpressions not supported)"
+            return
+          fi
+          # Dump only this controller's pods (label-filtered) to a file in one call,
+          # then let check_pods read it back (avoids passing a huge JSON blob as an arg).
+          kubectl -n "kube-system" get pods -l "$selector" -o json > "$PODS_JSON_FILE"
+          check_pods "$PODS_JSON_FILE"
+        }
+
+        # Reusable temp file for the pods snapshot: each check below writes only the
+        # pods it needs into it, then reads back from the file. Using a file avoids
+        # passing a potentially huge JSON blob through shell command substitution.
+        PODS_JSON_FILE=$(mktemp)
+        trap 'rm -f "$PODS_JSON_FILE"' EXIT
+
+        case "*" in
+          "*")
+            check_controllers deployment  '{.spec.replicas}'                 '{.status.readyReplicas}'
+            check_controllers statefulset '{.spec.replicas}'                 '{.status.readyReplicas}'
+            check_controllers daemonset   '{.status.desiredNumberScheduled}' '{.status.numberReady}'
+            # Wildcard genuinely needs every pod in the namespace.
+            kubectl -n "kube-system" get pods -o json > "$PODS_JSON_FILE"
+            check_pods "$PODS_JSON_FILE"
+            ;;
+          deployment|statefulset)
+            check_controllers "*" '{.spec.replicas}' '{.status.readyReplicas}' ""
+            check_controller_pods "*" ""
+            ;;
+          daemonset)
+            check_controllers daemonset '{.status.desiredNumberScheduled}' '{.status.numberReady}' ""
+            check_controller_pods "*" ""
+            ;;
+        esac
+
+        if [ "$failures" -gt 0 ]; then
+          echo "Validation failed with $failures error(s) for all workloads in kube-system"
+          exit 1
+        fi
+        echo "Validation passed for all workloads in kube-system"
+    continueOnError: true
+    displayName: Validate all workloads in kube-system
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        set +e
+
+        pod="aks-validation-dns-$RANDOM"
+        trap 'kubectl delete pod "$pod" --ignore-not-found >/dev/null 2>&1' EXIT
+        out=$(kubectl run "$pod" --image=mcr.microsoft.com/azurelinux/busybox:1.36 --restart=Never -i --rm --pod-running-timeout=120s   --command -- nslookup kubernetes.default.svc.cluster.local 2>&1)
+        echo "$out"
+        # busybox nslookup prints the resolved name followed by an Address line.
+        if ! echo "$out" | grep -A2 'kubernetes.default.svc.cluster.local' | grep -qiE 'Address.*[0-9]{1,3}(\.[0-9]{1,3}){3}'; then
+          echo "FAILED COREDNS CHECK: DNS query did not return a valid ClusterIP for kubernetes.default.svc.cluster.local"; exit 1
+        fi
+
+        echo "coredns validation passed"
+    continueOnError: true
+    displayName: Validate coredns
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        set +e
+        failures=0
+        fail() { echo "FAILED METRICS-SERVER CHECK: $*"; failures=$((failures + 1)); }
+
+        # Only the first 50 nodes are sampled to keep this check fast on large clusters.
+        sample_nodes=$(kubectl get nodes -o name 2>/dev/null | head -n 50 | cut -d/ -f2)
+        if [ -z "$sample_nodes" ]; then
+          fail "no nodes found"
+        fi
+        sampled=0
+        metrics_count=0
+        for n in $sample_nodes; do
+          sampled=$((sampled + 1))
+          line=$(kubectl top node "$n" --no-headers 2>&1)
+          echo "$line"
+          # The regex matches only the CPU columns (millicores + CPU%); memory is not
+          # separately validated, presence of a CPU reading implies metrics-server works.
+          if echo "$line" | grep -qE '[0-9]+m[[:space:]]+[0-9]+%'; then
+            metrics_count=$((metrics_count + 1))
+          else
+            fail "no metrics for node $n: $line"
+          fi
+        done
+        echo "sampled=$sampled nodes_with_metrics=$metrics_count"
+
+        if [ "$failures" -gt 0 ]; then
+          echo "metrics-server validation failed with $failures error(s)"; exit 1
+        fi
+        echo "metrics-server validation passed"
+    continueOnError: true
+    displayName: Validate metrics-server
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        set +e
+        pod="aks-validation-konnectivity-$RANDOM"
+        trap 'kubectl delete pod "$pod" --ignore-not-found >/dev/null 2>&1' EXIT
+        kubectl run "$pod" --image=mcr.microsoft.com/azurelinux/busybox:1.36 --restart=Never --command -- sleep 300
+        if ! kubectl wait --for=condition=Ready pod/"$pod" --timeout=120s; then
+          echo "konnectivity-agent validation failed: test pod did not become Ready"
+          exit 1
+        fi
+
+        # exec traverses the konnectivity tunnel to the kubelet.
+        exec_out=$(kubectl exec "$pod" -- printf pong 2>&1)
+        echo "exec output: $exec_out"
+        if [ "$exec_out" != "pong" ]; then
+          echo "konnectivity-agent validation failed: kubectl exec returned '$exec_out'"
+          exit 1
+        fi
+        echo "konnectivity-agent validation passed"
+    continueOnError: true
+    displayName: Validate konnectivity-agent
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        set +e
+
+        pod="aks-validation-cns-$RANDOM"
+        trap 'kubectl delete pod "$pod" --ignore-not-found >/dev/null 2>&1' EXIT
+
+        # Verify CNI IP allocation and routing to the kubernetes API ClusterIP.
+        # Kubernetes provides the API service address through KUBERNETES_SERVICE_HOST
+        # and KUBERNETES_SERVICE_PORT.
+        reach_out=$(kubectl run "$pod" --image=mcr.microsoft.com/azurelinux/busybox:1.36 --restart=Never -i --rm --pod-running-timeout=120s   --command -- sh -c 'nc -w5 "$KUBERNETES_SERVICE_HOST" "$KUBERNETES_SERVICE_PORT" && echo REACHABLE' 2>&1)
+        echo "dataplane check: $reach_out"
+        if ! echo "$reach_out" | grep -q 'REACHABLE'; then
+          echo "FAILED AZURE-CNS CHECK: pod did not start or could not reach in-cluster kubernetes service"; exit 1
+        fi
+        echo "azure-cns validation passed"
+    continueOnError: true
+    displayName: Validate azure-cns
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        set +e
+
+        # cloud-node-manager's job is to stamp each Node with a providerID; verify that
+        # in a single list call so no node is missed and large clusters stay fast.
+        node_table=$(kubectl get nodes --no-headers -o custom-columns='NAME:.metadata.name,PROVIDER:.spec.providerID' 2>/dev/null)
+        if [ -z "$node_table" ]; then
+          echo "FAILED CLOUD-NODE-MANAGER CHECK: no nodes found"; exit 1
+        fi
+
+        report=$(echo "$node_table" | awk '
+        {
+          total++
+          if ($2 == "<none>" || $2 == "") { print "node " $1 " missing providerID"; bad++ }
+        }
+        END { print "checked " total " nodes, " bad+0 " problem(s)"; exit (bad > 0) }')
+        rc=$?
+        echo "$report"
+        if [ "$rc" -ne 0 ]; then
+          echo "FAILED CLOUD-NODE-MANAGER CHECK: some nodes are missing providerID"; exit 1
+        fi
+
+        echo "cloud-node-manager validation passed"
+    continueOnError: true
+    displayName: Validate cloud-node-manager
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        set +e
+
+        suffix=$RANDOM
+        pvc="aks-validation-csi-pvc-$suffix"
+        pod="aks-validation-csi-pod-$suffix"
+        trap 'kubectl delete pod "$pod" --ignore-not-found >/dev/null 2>&1; kubectl delete pvc "$pvc" --ignore-not-found >/dev/null 2>&1' EXIT
+
+        if ! kubectl apply -f - <<EOF
+        apiVersion: v1
+        kind: PersistentVolumeClaim
+        metadata:
+          name: $pvc
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          storageClassName: managed-csi
+          resources:
+            requests:
+              storage: 1Gi
+        ---
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          name: $pod
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: writer
+              image: mcr.microsoft.com/azurelinux/busybox:1.36
+              command:
+                - sh
+                - -c
+                - 'echo telescope-csi-check > /mnt/test/data && [ "$(cat /mnt/test/data)" = telescope-csi-check ]'
+              volumeMounts:
+                - name: vol
+                  mountPath: /mnt/test
+          volumes:
+            - name: vol
+              persistentVolumeClaim:
+                claimName: $pvc
+        EOF
+        then
+          echo "FAILED CSI CHECK (managed-csi): could not create test PVC or pod"
+          exit 1
+        fi
+
+        # Wait for the pod to finish (Succeeded) or fail.
+        end=$((SECONDS + 300))
+        phase=""
+        while [ $SECONDS -lt $end ]; do
+          phase=$(kubectl get pod "$pod" -o jsonpath='{.status.phase}' 2>/dev/null)
+          [ "$phase" = "Succeeded" ] && break
+          [ "$phase" = "Failed" ] && break
+          sleep 5
+        done
+        echo "pod $pod phase=$phase"
+
+        if [ "$phase" != "Succeeded" ]; then
+          echo "FAILED CSI CHECK (managed-csi): pod did not succeed (phase=$phase); attach/mount likely failed"
+          echo "--- pod describe ---"
+          kubectl describe pod "$pod" | tail -30
+          echo "--- pvc describe ---"
+          kubectl describe pvc "$pvc" | tail -30
+          echo "--- pod logs ---"
+          kubectl logs "$pod" 2>&1
+          exit 1
+        fi
+
+        echo "CSI storage class managed-csi validation passed"
+    continueOnError: true
+    displayName: Validate CSI storage class managed-csi
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        set +e
+
+        suffix=$RANDOM
+        pvc="aks-validation-csi-pvc-$suffix"
+        pod="aks-validation-csi-pod-$suffix"
+        trap 'kubectl delete pod "$pod" --ignore-not-found >/dev/null 2>&1; kubectl delete pvc "$pvc" --ignore-not-found >/dev/null 2>&1' EXIT
+
+        if ! kubectl apply -f - <<EOF
+        apiVersion: v1
+        kind: PersistentVolumeClaim
+        metadata:
+          name: $pvc
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          storageClassName: azurefile-csi
+          resources:
+            requests:
+              storage: 1Gi
+        ---
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          name: $pod
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: writer
+              image: mcr.microsoft.com/azurelinux/busybox:1.36
+              command:
+                - sh
+                - -c
+                - 'echo telescope-csi-check > /mnt/test/data && [ "$(cat /mnt/test/data)" = telescope-csi-check ]'
+              volumeMounts:
+                - name: vol
+                  mountPath: /mnt/test
+          volumes:
+            - name: vol
+              persistentVolumeClaim:
+                claimName: $pvc
+        EOF
+        then
+          echo "FAILED CSI CHECK (azurefile-csi): could not create test PVC or pod"
+          exit 1
+        fi
+
+        # Wait for the pod to finish (Succeeded) or fail.
+        end=$((SECONDS + 300))
+        phase=""
+        while [ $SECONDS -lt $end ]; do
+          phase=$(kubectl get pod "$pod" -o jsonpath='{.status.phase}' 2>/dev/null)
+          [ "$phase" = "Succeeded" ] && break
+          [ "$phase" = "Failed" ] && break
+          sleep 5
+        done
+        echo "pod $pod phase=$phase"
+
+        if [ "$phase" != "Succeeded" ]; then
+          echo "FAILED CSI CHECK (azurefile-csi): pod did not succeed (phase=$phase); attach/mount likely failed"
+          echo "--- pod describe ---"
+          kubectl describe pod "$pod" | tail -30
+          echo "--- pvc describe ---"
+          kubectl describe pvc "$pvc" | tail -30
+          echo "--- pod logs ---"
+          kubectl logs "$pod" 2>&1
+          exit 1
+        fi
+
+        echo "CSI storage class azurefile-csi validation passed"
+    continueOnError: true
+    displayName: Validate CSI storage class azurefile-csi
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        fail() { echo "FAILED CLUSTERIP CHECK: $*"; exit 1; }
+
+        # ClusterIP reachability: deploy a service + backend and reach it from within
+        # the cluster to exercise service routing.
+        suffix=$RANDOM
+        app="aks-validation-clusterip-$suffix"
+        client="$app-client"
+        trap 'kubectl delete deploy/"$app" svc/"$app" pod/"$client" --ignore-not-found >/dev/null 2>&1' EXIT
+
+        cat <<EOF | kubectl apply -f -
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: $app
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              app: $app
+          template:
+            metadata:
+              labels:
+                app: $app
+            spec:
+              containers:
+                - name: web
+                  image: mcr.microsoft.com/azurelinux/busybox:1.36
+                  command:
+                    - sh
+                    - -c
+                    - "mkdir -p /www && echo pong > /www/ping && httpd -f -p 8080 -h /www"
+                  ports:
+                    - containerPort: 8080
+        ---
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: $app
+        spec:
+          selector:
+            app: $app
+          ports:
+            - port: 80
+              targetPort: 8080
+        EOF
+
+        if ! kubectl wait --for=condition=Available deploy/"$app" --timeout=120s; then
+          fail "backend deployment did not become Available"
+        fi
+
+        clusterip=$(kubectl get svc "$app" -o jsonpath='{.spec.clusterIP}')
+        echo "service ClusterIP: $clusterip"
+        # Reach the ClusterIP from a separate disposable client pod. The command
+        # verifies the response in the pod so kubectl's --rm output cannot affect it.
+        if ! out=$(kubectl run "$client" --image=mcr.microsoft.com/azurelinux/busybox:1.36 --restart=Never   -i --rm --pod-running-timeout=120s --command --   sh -c 'out=$(wget -T 10 -t 1 -qO- "http://'"$clusterip"':80/ping") && echo "$out" && [ "$out" = "pong" ]' 2>&1); then
+          fail "ClusterIP service not reachable (got '$out')"
+        fi
+
+        echo "client output: $out"
+        echo "ClusterIP service validation passed"
+    continueOnError: true
+    displayName: Validate ClusterIP service routing
+  - script: |2
+
+      set -euo pipefail
+      set -x
+
+      temp_dir=$(mktemp -p /tmp -d kperfinstall.XXXX)
+      docker rmi ghcr.io/xinweiwei24/kperf:20260709-pause 2>/dev/null || true
+      docker pull ghcr.io/xinweiwei24/kperf:20260709-pause
+      docker run --rm -v $temp_dir:/install-dir \
+        ghcr.io/xinweiwei24/kperf:20260709-pause bash -c "set -x; install /kperf /runkperf /install-dir"
+
+      sudo install $temp_dir/kperf $temp_dir/runkperf /usr/local/bin
+      rm -rf $temp_dir
+      docker rmi ghcr.io/xinweiwei24/kperf:20260709-pause 2>/dev/null || true
+    displayName: Install runkperf binary
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        # AzCli wraps this script with `set -exo pipefail`. Disable xtrace here so
+        # tracing an assignment like `log_output=$(kubectl logs ...)` doesn't dump
+        # the full captured log to stdout. Also disable errexit so we can accumulate
+        # failures and report them at the end.
+        set +ex
+
+        failures=0
+        fail() { echo "FAILED WORKLOAD CHECK: $*"; failures=$((failures + 1)); }
+
+        # check_controllers KIND DESIRED_PATH READY_PATH [NAME]
+        # If NAME is given, check just that one; otherwise check every instance of KIND.
+        check_controllers() {
+          local kind=$1 desired_path=$2 ready_path=$3 name=$4
+          local names
+          if [ -n "$name" ]; then
+            names="$name"
+          else
+            names=$(kubectl -n "kube-system" get "$kind" -o jsonpath='{.items[*].metadata.name}')
+          fi
+          local n
+          for n in $names; do
+            # Probe existence first so a missing object / API error fails loudly
+            # instead of silently defaulting desired/ready to 0.
+            if ! kubectl -n "kube-system" get "$kind" "$n" -o name >/dev/null 2>&1; then
+              fail "$kind kube-system/$n: cannot read resource (missing or kubectl error)"
+              continue
+            fi
+            local desired=$(kubectl -n "kube-system" get "$kind" "$n" -o jsonpath="$desired_path")
+            local ready=$(kubectl -n "kube-system" get "$kind" "$n" -o jsonpath="$ready_path")
+            [ -z "$ready" ] && ready=0
+            [ -z "$desired" ] && desired=0
+            echo "$kind kube-system/$n: ready=$ready desired=$desired"
+            if [ "$ready" != "$desired" ]; then
+              fail "$kind kube-system/$n not fully ready ($ready/$desired)"
+            fi
+          done
+        }
+
+        # check_pods PODS_JSON_FILE
+        # PODS_JSON_FILE is a file holding a `kubectl get pods -o json` document with
+        # exactly the pods to check. For each: status is Running (Ready condition True,
+        # all containers ready) or Succeeded, then scan its logs for errorPatterns.
+        # Every field is read from the file, so the pod view is a single consistent
+        # snapshot the caller fetched in one API call. Fails if the file has no pods.
+        check_pods() {
+          local pods_file=$1
+          local names=$(jq -r '.items[].metadata.name' "$pods_file")
+          if [ -z "$names" ]; then
+            fail "no pods found for all workloads in kube-system"
+            return
+          fi
+          local pod
+          for pod in $names; do
+            echo "::: checking pod kube-system/$pod"
+            local pod_json=$(jq -c --arg n "$pod" '.items[] | select(.metadata.name==$n)' "$pods_file")
+            local phase=$(printf '%s' "$pod_json" | jq -r '.status.phase // ""')
+            case "$phase" in
+              Succeeded)
+                # Finished cleanly; skip readiness checks, still scan logs below.
+                ;;
+              Running)
+                local ready_cond=$(printf '%s' "$pod_json" \
+                  | jq -r '.status.conditions[]? | select(.type=="Ready") | .status')
+                if [ "$ready_cond" != "True" ]; then
+                  fail "pod kube-system/$pod Ready condition=$ready_cond (expected True)"
+                  continue
+                fi
+                local not_ready=$(printf '%s' "$pod_json" \
+                  | jq -r '[.status.containerStatuses[]? | select(.ready==false) | .name] | join(" ")')
+                if [ -n "$not_ready" ]; then
+                  fail "pod kube-system/$pod has not-ready containers: $not_ready"
+                  continue
+                fi
+                ;;
+              *)
+                fail "pod kube-system/$pod phase=$phase (expected Running or Succeeded)"
+                continue
+                ;;
+            esac
+            local log_output=$(kubectl -n "kube-system" logs "$pod" --all-containers=true --prefix=true 2>&1)
+            local matches=$(printf '%s\n' "$log_output" | grep -wEi 'panic|fatal')
+            if [ -n "$matches" ]; then
+              echo "--- error lines in kube-system/$pod ---"
+              printf '%s\n' "$matches"
+              echo "--- end ---"
+              fail "pod kube-system/$pod logs contain error pattern"
+            fi
+          done
+        }
+
+        # check_controller_pods KIND NAME
+        # Resolve the controller's pods via its matchLabels and scan them.
+        check_controller_pods() {
+          local kind=$1 name=$2
+          local selector=$(kubectl -n "kube-system" get "$kind" "$name" \
+            -o go-template='{{range $k,$v := .spec.selector.matchLabels}}{{$k}}={{$v}},{{end}}' \
+            | sed 's/,$//')
+          if [ -z "$selector" ]; then
+            fail "$kind kube-system/$name has no matchLabels selector (matchExpressions not supported)"
+            return
+          fi
+          # Dump only this controller's pods (label-filtered) to a file in one call,
+          # then let check_pods read it back (avoids passing a huge JSON blob as an arg).
+          kubectl -n "kube-system" get pods -l "$selector" -o json > "$PODS_JSON_FILE"
+          check_pods "$PODS_JSON_FILE"
+        }
+
+        # Reusable temp file for the pods snapshot: each check below writes only the
+        # pods it needs into it, then reads back from the file. Using a file avoids
+        # passing a potentially huge JSON blob through shell command substitution.
+        PODS_JSON_FILE=$(mktemp)
+        trap 'rm -f "$PODS_JSON_FILE"' EXIT
+
+        case "*" in
+          "*")
+            check_controllers deployment  '{.spec.replicas}'                 '{.status.readyReplicas}'
+            check_controllers statefulset '{.spec.replicas}'                 '{.status.readyReplicas}'
+            check_controllers daemonset   '{.status.desiredNumberScheduled}' '{.status.numberReady}'
+            # Wildcard genuinely needs every pod in the namespace.
+            kubectl -n "kube-system" get pods -o json > "$PODS_JSON_FILE"
+            check_pods "$PODS_JSON_FILE"
+            ;;
+          deployment|statefulset)
+            check_controllers "*" '{.spec.replicas}' '{.status.readyReplicas}' ""
+            check_controller_pods "*" ""
+            ;;
+          daemonset)
+            check_controllers daemonset '{.status.desiredNumberScheduled}' '{.status.numberReady}' ""
+            check_controller_pods "*" ""
+            ;;
+        esac
+
+        if [ "$failures" -gt 0 ]; then
+          echo "Validation failed with $failures error(s) for all workloads in kube-system"
+          exit 1
+        fi
+        echo "Validation passed for all workloads in kube-system"
+    continueOnError: true
+    displayName: Validate all workloads in kube-system
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
+    condition: always()
+    displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
