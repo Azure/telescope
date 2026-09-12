@@ -50,7 +50,7 @@ stages:
               create_node_count: 0
               scale_node_count: 2
               scale_step_size: 1
-              step_time_out: 600
+              step_time_out: 1800
               step_wait_time: 30
               count: 1
               replicas: 10
@@ -82,7 +82,7 @@ stages:
               create_node_count: 0
               scale_node_count: 2
               scale_step_size: 1
-              step_time_out: 600
+              step_time_out: 1800
               step_wait_time: 30
               count: 1
               replicas: 10
@@ -117,7 +117,7 @@ stages:
               create_node_count: 0
               scale_node_count: 2
               scale_step_size: 1
-              step_time_out: 600
+              step_time_out: 1800
               step_wait_time: 30
               count: 1
               replicas: 10
@@ -149,7 +149,7 @@ stages:
               create_node_count: 0
               scale_node_count: 2
               scale_step_size: 1
-              step_time_out: 600
+              step_time_out: 1800
               step_wait_time: 30
               count: 1
               replicas: 10
@@ -183,7 +183,7 @@ stages:
               create_node_count: 0
               scale_node_count: 2
               scale_step_size: 1
-              step_time_out: 600
+              step_time_out: 1800
               step_wait_time: 30
               count: 1
               replicas: 10
@@ -217,7 +217,7 @@ stages:
               create_node_count: 0
               scale_node_count: 2
               scale_step_size: 1
-              step_time_out: 600
+              step_time_out: 1800
               step_wait_time: 30
               count: 1
               replicas: 10
@@ -248,7 +248,7 @@ stages:
               create_node_count: 0
               scale_node_count: 2
               scale_step_size: 1
-              step_time_out: 600
+              step_time_out: 1800
               step_wait_time: 30
               count: 1
               replicas: 10
@@ -280,7 +280,7 @@ stages:
               create_node_count: 0
               scale_node_count: 2
               scale_step_size: 1
-              step_time_out: 600
+              step_time_out: 1800
               step_wait_time: 30
               count: 1
               replicas: 10
