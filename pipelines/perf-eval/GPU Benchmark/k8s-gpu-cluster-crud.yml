@@ -162,8 +162,8 @@ stages:
 
   - stage: azure_A100_mig_mixed_gpu_test
     dependsOn: [azure_A100_fully_managed_gpu_test]
-    condition: |
-      in(dependencies.azure_A100_fully_managed_gpu_test.result, 'Succeeded', 'SucceededWithIssues')
+    # Temporarily disabled until the mixed MIG rollout reaches southcentralus.
+    condition: false
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
@@ -195,9 +195,9 @@ stages:
           timeout_in_minutes: 180
 
   - stage: azure_A100_mig_single_gpu_test
-    dependsOn: [azure_A100_mig_mixed_gpu_test]
+    dependsOn: [azure_A100_fully_managed_gpu_test]
     condition: |
-      in(dependencies.azure_A100_mig_mixed_gpu_test.result, 'Succeeded', 'SucceededWithIssues')
+      in(dependencies.azure_A100_fully_managed_gpu_test.result, 'Succeeded', 'SucceededWithIssues')
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
