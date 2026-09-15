@@ -1229,12 +1229,12 @@ def _wait_ns_gone(kubeconfig: str, namespace: str, timeout: int = 300) -> None:
     """Delete namespace and wait for it to disappear."""
     kubectl(kubeconfig, "delete", "ns", namespace, "--wait=false", check=False)
     deadline = time.monotonic() + timeout
-    finalization_attempted = False
+    next_finalize_attempt = 0.0
     while time.monotonic() < deadline:
         result = kubectl(kubeconfig, "get", "ns", namespace, "-o", "json", check=False)
         if result.returncode != 0:
             return
-        if not finalization_attempted:
+        if time.monotonic() >= next_finalize_attempt:
             try:
                 namespace_obj = json.loads(result.stdout)
             except (json.JSONDecodeError, TypeError):
@@ -1244,9 +1244,15 @@ def _wait_ns_gone(kubeconfig: str, namespace: str, timeout: int = 300) -> None:
                     "Namespace %s is empty but blocked by API discovery; "
                     "clearing its namespace finalizer", namespace,
                 )
-                _force_clear_namespace(kubeconfig, namespace)
-                finalization_attempted = True
-                continue
+                if _force_clear_namespace(kubeconfig, namespace):
+                    time.sleep(3)  # let the apiserver finish the delete
+                    continue
+                # _force_clear_namespace already retries internally, but the
+                # whole cycle can still lose a resourceVersion race against
+                # kube-controller-manager continuously rewriting .status --
+                # retry again shortly instead of waiting out the rest of
+                # `timeout` on a single failed attempt.
+                next_finalize_attempt = time.monotonic() + 15
         time.sleep(5)
     log.warning("Namespace %s still terminating after %ds", namespace, timeout)
 
