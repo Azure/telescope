@@ -733,6 +733,15 @@ _REAL_TARGET_JOBS_AGGREGATOR = """\
           - source_labels: [__meta_kubernetes_node_label_loadtest_io_tier_block]
             regex: '__TIER_BLOCK_REGEX__'
             action: keep
+          # honor_labels=true preserves the node-aggregator's own self-scrape
+          # instance="localhost:9090" label on process_resident_memory_bytes/
+          # process_cpu_seconds_total/go_goroutines (job="prometheus"), which
+          # is IDENTICAL across every pod -- collapsing all ~2000 pods'
+          # resource-usage series into a single overwritten series centrally.
+          # agg_node_ip is a new label name (no collision, unaffected by
+          # honor_labels) so these samples stay distinguishable per pod.
+          - source_labels: [__meta_kubernetes_pod_ip]
+            target_label: agg_node_ip
           - source_labels: [__meta_kubernetes_pod_ip]
             target_label: __address__
             replacement: $1:9090
