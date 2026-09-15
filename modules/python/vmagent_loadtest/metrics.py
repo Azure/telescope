@@ -800,6 +800,57 @@ def collect_metrics(cp_kubeconfig: str, dp_kubeconfig: str,
                     "konn_server_resident_memory_bytes"]:
             measurements.setdefault(key, 0)
 
+    # --- vmagent-proxy sidecar metrics (port 9090, same pod as vmagent-0) ---
+    # Client-side view of the tunnel: request/dial volume and active
+    # connections as seen by the CONNECT translator, complementing
+    # konn_server_*/konn_agent_* above (the tunnel's own two ends).
+    log.info("  querying vmagent-proxy metrics...")
+    try:
+        with PortForward(cp_kubeconfig, namespace, "vmagent-0", 9090, 19090) as pf:
+            proxy_resp = retry_request(f"{pf.url}/metrics")
+            proxy_metrics = proxy_resp.text
+
+            raw_dir = work_dir / "raw" / namespace
+            raw_dir.mkdir(parents=True, exist_ok=True)
+            (raw_dir / "vmagent_proxy_metrics.txt").write_text(proxy_metrics)
+
+            measurements["vmagent_proxy_requests_total"] = extract_prom_value(
+                proxy_metrics, r"^vmagent_proxy_requests_total\s")
+            measurements["vmagent_proxy_errors_total"] = extract_prom_sum(
+                proxy_metrics, r"^vmagent_proxy_errors_total\{")
+            measurements["vmagent_proxy_active_connections"] = extract_prom_value(
+                proxy_metrics, r"^vmagent_proxy_active_connections\s")
+            measurements["vmagent_proxy_dials_ok_total"] = extract_prom_value(
+                proxy_metrics, r'^vmagent_proxy_dials_total\{result="ok"')
+            measurements["vmagent_proxy_dials_error_total"] = extract_prom_value(
+                proxy_metrics, r'^vmagent_proxy_dials_total\{result="error"')
+            measurements["vmagent_proxy_dials_total"] = extract_prom_sum(
+                proxy_metrics, r"^vmagent_proxy_dials_total\{")
+
+            dial_hist = extract_histogram_percentiles(
+                proxy_metrics, "vmagent_proxy_dial_duration_seconds")
+            measurements["vmagent_proxy_dial_count"] = dial_hist["count"]
+            measurements["vmagent_proxy_dial_mean_seconds"] = dial_hist["mean"]
+            measurements["vmagent_proxy_dial_p50_seconds"] = dial_hist["p50"]
+            measurements["vmagent_proxy_dial_p90_seconds"] = dial_hist["p90"]
+            measurements["vmagent_proxy_dial_p99_seconds"] = dial_hist["p99"]
+
+            measurements["vmagent_proxy_process_cpu_seconds_total"] = extract_prom_value(
+                proxy_metrics, r"^process_cpu_seconds_total\s")
+            measurements["vmagent_proxy_resident_memory_bytes"] = extract_prom_value(
+                proxy_metrics, r"^process_resident_memory_bytes\s")
+    except Exception as e:
+        log.warning("Failed to collect vmagent-proxy metrics: %s", e)
+        for key in ["vmagent_proxy_requests_total", "vmagent_proxy_errors_total",
+                    "vmagent_proxy_active_connections", "vmagent_proxy_dials_ok_total",
+                    "vmagent_proxy_dials_error_total", "vmagent_proxy_dials_total",
+                    "vmagent_proxy_dial_count", "vmagent_proxy_dial_mean_seconds",
+                    "vmagent_proxy_dial_p50_seconds", "vmagent_proxy_dial_p90_seconds",
+                    "vmagent_proxy_dial_p99_seconds",
+                    "vmagent_proxy_process_cpu_seconds_total",
+                    "vmagent_proxy_resident_memory_bytes"]:
+            measurements.setdefault(key, 0)
+
     # --- Konnectivity agent metrics (via vmsingle — DP port-forward unreliable) ---
     log.info("  querying konnectivity-agent metrics via vmsingle...")
     try:

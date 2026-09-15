@@ -191,29 +191,27 @@ TIER_RESOURCE_BUCKETS = [
                "vmagent_proxy": VMAGENT_PROXY_PROD_RESOURCES,
                "konn_server":   _r("2",    "2Gi",   "2",    "4Gi")}),
 ]
-# Above the top bucket: shard so each vmagent holds ~TARGETS_PER_SHARD targets.
-TARGETS_PER_SHARD = 3700
-FAKE_ROLES_COUNT = 11  # keep in sync with len(FAKE_EXPORTER_ROLES)
 TIER_RESOURCES_OVER = {
     "vmagent":       VMAGENT_PROD_RESOURCES,
     "vmagent_proxy": VMAGENT_PROXY_PROD_RESOURCES,
     "konn_server":   _r("2", "2Gi", "2", "4Gi"),
 }
 
+# Real fleet ratio (aks-operator api/v1/vmagent_types.go's NodeToVMPodRatio):
+# replicas = max(1, ceil(nodeCount / ratio)). Shard count now mirrors this
+# exactly instead of the old empirical target-count-per-shard heuristic
+# above (TARGETS_PER_SHARD), which only coincidentally matched prod at some
+# tiers (e.g. 1000/1500) and diverged at others (500 gave 1 shard vs prod's
+# 2; 2000 gave 6 vs prod's 5).
+NODE_TO_VMAGENT_POD_RATIO = 450
+
 
 def compute_shard_count(tier: int) -> int:
-    """Return the vmagent replica (shard) count for `tier`.
-
-    Sharding splits scrape targets across vmagent replicas via native
-    clustering, so each shard runs its own proxy sidecar — removing the
-    single-proxy GIL bottleneck that capped throughput at ~5.7k targets.
+    """Return the vmagent replica (shard) count for `tier` nodes, matching
+    prod's real fleet formula exactly: max(1, ceil(node_count / ratio)).
     """
-    for upper, shards, _ in TIER_RESOURCE_BUCKETS:
-        if tier <= upper:
-            return shards
     import math
-    target_count = tier * FAKE_ROLES_COUNT
-    return max(1, math.ceil(target_count / TARGETS_PER_SHARD))
+    return max(1, math.ceil(tier / NODE_TO_VMAGENT_POD_RATIO))
 
 
 def compute_resources_for_tier(tier: int) -> dict:

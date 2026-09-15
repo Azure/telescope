@@ -31,7 +31,8 @@ def _force_clear_namespace(kubeconfig: str, namespace: str) -> bool:
     409, swallowed by check=False) and never retry. Returns True once the
     finalize PUT actually succeeds (or the namespace is already gone).
     """
-    kubectl(kubeconfig, "delete", "ns", namespace, "--grace-period=0", "--force", check=False)
+    kubectl(kubeconfig, "delete", "ns", namespace, "--grace-period=0", "--force",
+            "--wait=false", check=False)
     for attempt in range(5):
         result = kubectl(kubeconfig, "get", "ns", namespace, "-o", "json", check=False)
         if result.returncode != 0:
