@@ -190,8 +190,10 @@ def deploy_node_aggregator(dp_kubeconfig: str, namespace: str) -> None:
         "__NODE_AGGREGATOR_IMAGE__": NODE_AGGREGATOR_IMAGE,
     })
     kubectl_apply(dp_kubeconfig, manifest)
-    kubectl(dp_kubeconfig, "-n", namespace, "rollout", "status",
-            "daemonset/node-aggregator", "--timeout=300s")
+    # ConfigMap-only changes don't trigger a DaemonSet rollout on their own
+    # (pod template hash is unchanged) -- restart explicitly so a config
+    # change (e.g. added scrape jobs) is actually picked up.
+    rollout_restart(dp_kubeconfig, namespace, "daemonset/node-aggregator")
     log.info("node-aggregator ready in %s", namespace)
 
 
@@ -577,6 +579,120 @@ _REAL_TARGET_JOBS_DIRECT = """\
           - source_labels: [__address__]
             target_label: instance"""
 
+# Default: 3 direct per-node CSI jobs (role: pod in kube-system). Folded
+# into node-aggregator's own local scrape config instead when
+# node_aggregator=True -- see _DAEMONSET_POD_JOBS_AGGREGATOR below.
+_DAEMONSET_POD_JOBS_DIRECT = """\
+      - job_name: csi-azuredisk-node
+        stream_parse: true
+        proxy_url: "http://localhost:8080"
+        metrics_path: /metrics
+        kubernetes_sd_configs:
+          - role: pod
+            api_server: "__DP_API_SERVER__"
+            bearer_token_file: /var/run/secrets/kubelet/token
+            tls_config:
+              insecure_skip_verify: true
+            namespaces:
+              names: ["kube-system"]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: csi-azuredisk-node.*
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_label_kubernetes_azure_com_managedby, __meta_kubernetes_pod_label_app]
+            regex: aks;csi-azuredisk.*
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_container_name]
+            regex: azuredisk
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_container_port_name]
+            regex: metrics
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_ip, __meta_kubernetes_pod_container_port_number]
+            separator: ":"
+            target_label: __address__
+          - source_labels: [__address__]
+            target_label: instance
+        # Mirrors prod's csi-azuredisk-node metric_relabel_configs verbatim
+        # (aks-operator scale_scrape_configs.yaml).
+        metric_relabel_configs:
+          - action: keep
+            if: '{__name__=~"azuredisk_csi_driver_operation_duration_seconds_(bucket|count|sum)|azuredisk_csi_driver_operation_duration_seconds_labeled_(bucket|count|sum)|azuredisk_csi_driver_operations_total|go_memstats_heap_alloc_bytes|go_memstats_heap_idle_bytes|go_memstats_heap_inuse_bytes|go_memstats_heap_objects|go_memstats_alloc_bytes_total|go_gc_duration_seconds($|_count|_sum)|go_gc_pauses_seconds_(bucket|count|sum)|go_gc_cycles_automatic_gc_cycles_total|go_goroutines|go_threads|process_open_fds|process_cpu_seconds_total"}'
+
+      - job_name: csi-blob-node
+        stream_parse: true
+        proxy_url: "http://localhost:8080"
+        metrics_path: /metrics
+        kubernetes_sd_configs:
+          - role: pod
+            api_server: "__DP_API_SERVER__"
+            bearer_token_file: /var/run/secrets/kubelet/token
+            tls_config:
+              insecure_skip_verify: true
+            namespaces:
+              names: ["kube-system"]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_container_name]
+            regex: blob
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_label_app, __meta_kubernetes_pod_label_kubernetes_azure_com_managedby]
+            regex: csi-blob-node.*;aks
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_container_port_name]
+            regex: metrics
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_ip, __meta_kubernetes_pod_container_port_number]
+            separator: ":"
+            target_label: __address__
+          - source_labels: [__address__]
+            target_label: instance
+        # Mirrors prod's blob metric_relabel_configs verbatim (aks-operator
+        # scale_scrape_configs.yaml, job_name: blob).
+        metric_relabel_configs:
+          - action: keep
+            if: '{__name__=~"grpc_server_started_total|grpc_server_handled_total|grpc_server_msg_received_total|grpc_server_msg_sent_total|blob_csi_driver_operation_duration_seconds_(bucket|count|sum)|blob_csi_driver_operation_duration_seconds_labeled_(bucket|count|sum)|blob_csi_driver_operations_total|go_memstats_heap_alloc_bytes|go_memstats_heap_idle_bytes|go_memstats_heap_inuse_bytes|go_memstats_heap_objects|go_memstats_alloc_bytes_total|go_gc_duration_seconds($|_count|_sum)|go_gc_pauses_seconds_(bucket|count|sum)|go_gc_cycles_automatic_gc_cycles_total|go_goroutines|go_threads|process_open_fds|process_cpu_seconds_total"}'
+
+      - job_name: csi-azurefile-node
+        stream_parse: true
+        proxy_url: "http://localhost:8080"
+        metrics_path: /metrics
+        kubernetes_sd_configs:
+          - role: pod
+            api_server: "__DP_API_SERVER__"
+            bearer_token_file: /var/run/secrets/kubelet/token
+            tls_config:
+              insecure_skip_verify: true
+            namespaces:
+              names: ["kube-system"]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: csi-azurefile-node.*
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_label_kubernetes_azure_com_managedby, __meta_kubernetes_pod_label_app]
+            regex: aks;csi-azurefile.*
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_container_name]
+            regex: azurefile
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_container_port_name]
+            regex: metrics
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_ip, __meta_kubernetes_pod_container_port_number]
+            separator: ":"
+            target_label: __address__
+          - source_labels: [__address__]
+            target_label: instance
+        # Mirrors prod's csi-azurefile-node metric_relabel_configs verbatim
+        # (aks-operator scale_scrape_configs.yaml).
+        metric_relabel_configs:
+          - action: keep
+            if: '{__name__=~"grpc_server_started_total|grpc_server_handled_total|grpc_server_msg_received_total|grpc_server_msg_sent_total|cloudprovider_azure_api_request_throttled_count|cloudprovider_azure_api_request_ratelimited_count|cloudprovider_azure_api_request_errors|cloudprovider_azure_api_request_duration_seconds_(bucket|count|sum)|cloudprovider_azure_op_failure_count|cloudprovider_azure_op_duration_seconds_(bucket|count|sum)|azurefile_csi_driver_operation_duration_seconds_(bucket|count|sum)|azurefile_csi_driver_operation_duration_seconds_labeled_(bucket|count|sum)|azurefile_csi_driver_operations_total|arm_request_errors_counter_total|arm_request_rate_limit_counter_total|arm_request_throttle_counter_total|arm_request_duration_seconds_(bucket|count|sum)|go_memstats_heap_alloc_bytes|go_memstats_heap_idle_bytes|go_memstats_heap_inuse_bytes|go_memstats_heap_objects|go_memstats_alloc_bytes_total|go_gc_duration_seconds($|_count|_sum)|go_gc_pauses_seconds_(bucket|count|sum)|go_gc_cycles_automatic_gc_cycles_total|go_goroutines|go_threads|process_open_fds|process_cpu_seconds_total"}'"""
+
+# Aggregator mode folds all 3 CSI jobs into node-aggregator's own local
+# scrape config instead (see manifests/node-aggregator.yaml) -- central
+# vmagent picks them up for free via the same /federate call.
+_DAEMONSET_POD_JOBS_AGGREGATOR = ""
+
 # Prototype: 1 job per node, scraping the node-aggregator DaemonSet's real
 # Prometheus /federate instead of 6 direct scrapes. attach_metadata.node
 # recovers the tier-block label (role:pod SD has no node labels otherwise).
@@ -634,6 +750,7 @@ def _scrape_config_replacements(namespace: str, dp_api_server: str, tier_block_r
     # the same tokens, leaving them unresolved in the rendered output.
     return {
         "__REAL_TARGET_JOBS__": _REAL_TARGET_JOBS_AGGREGATOR if node_aggregator else _REAL_TARGET_JOBS_DIRECT,
+        "__DAEMONSET_POD_JOBS__": _DAEMONSET_POD_JOBS_AGGREGATOR if node_aggregator else _DAEMONSET_POD_JOBS_DIRECT,
         "__NAMESPACE__": namespace,
         "__DP_API_SERVER__": dp_api_server,
         "__DP_API_SERVER_HOST__": urlparse(dp_api_server).netloc or dp_api_server,

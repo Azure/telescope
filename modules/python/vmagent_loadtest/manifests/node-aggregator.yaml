@@ -113,6 +113,28 @@ data:
         static_configs:
           - targets: ["localhost:10257"]
 
+      # CSI drivers run hostNetwork:true (same as this pod), so their
+      # metrics ports are reachable on localhost too -- folds central
+      # vmagent's csi-azuredisk-node/csi-azurefile-node jobs into this
+      # single federate instead of 2 extra direct scrapes per node.
+      - job_name: csi-azuredisk-node
+        metrics_path: /metrics
+        static_configs:
+          - targets: ["localhost:29605"]
+        metric_relabel_configs:
+          - source_labels: [__name__]
+            regex: 'azuredisk_csi_driver_operation_duration_seconds_(bucket|count|sum)|azuredisk_csi_driver_operation_duration_seconds_labeled_(bucket|count|sum)|azuredisk_csi_driver_operations_total|go_memstats_heap_alloc_bytes|go_memstats_heap_idle_bytes|go_memstats_heap_inuse_bytes|go_memstats_heap_objects|go_memstats_alloc_bytes_total|go_gc_duration_seconds($|_count|_sum)|go_gc_pauses_seconds_(bucket|count|sum)|go_gc_cycles_automatic_gc_cycles_total|go_goroutines|go_threads|process_open_fds|process_cpu_seconds_total'
+            action: keep
+
+      - job_name: csi-azurefile-node
+        metrics_path: /metrics
+        static_configs:
+          - targets: ["localhost:29615"]
+        metric_relabel_configs:
+          - source_labels: [__name__]
+            regex: 'grpc_server_started_total|grpc_server_handled_total|grpc_server_msg_received_total|grpc_server_msg_sent_total|cloudprovider_azure_api_request_throttled_count|cloudprovider_azure_api_request_ratelimited_count|cloudprovider_azure_api_request_errors|cloudprovider_azure_api_request_duration_seconds_(bucket|count|sum)|cloudprovider_azure_op_failure_count|cloudprovider_azure_op_duration_seconds_(bucket|count|sum)|azurefile_csi_driver_operation_duration_seconds_(bucket|count|sum)|azurefile_csi_driver_operation_duration_seconds_labeled_(bucket|count|sum)|azurefile_csi_driver_operations_total|arm_request_errors_counter_total|arm_request_rate_limit_counter_total|arm_request_throttle_counter_total|arm_request_duration_seconds_(bucket|count|sum)|go_memstats_heap_alloc_bytes|go_memstats_heap_idle_bytes|go_memstats_heap_inuse_bytes|go_memstats_heap_objects|go_memstats_alloc_bytes_total|go_gc_duration_seconds($|_count|_sum)|go_gc_pauses_seconds_(bucket|count|sum)|go_gc_cycles_automatic_gc_cycles_total|go_goroutines|go_threads|process_open_fds|process_cpu_seconds_total'
+            action: keep
+
       # Self-scrape -- its own CPU/memory footprint, otherwise invisible.
       # Excluded from the upstream /federate match[] (see deploy.py's
       # _REAL_TARGET_JOBS_AGGREGATOR) so it's readable via vmsingle for our
@@ -133,6 +155,12 @@ spec:
   selector:
     matchLabels:
       app: node-aggregator
+  # No node selector -- this runs on every DP node regardless of tier-block,
+  # so the default maxUnavailable:1 would serialize a config-change restart
+  # one node at a time across thousands of nodes. Parallelize it.
+  updateStrategy:
+    rollingUpdate:
+      maxUnavailable: 25%
   template:
     metadata:
       labels:

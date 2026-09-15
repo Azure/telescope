@@ -674,10 +674,13 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
         # jobs into 1 combined real-node-aggregator job -- the expected
         # scrape-coverage count must follow, or the run spuriously fails
         # its coverage gate even when the aggregator is working correctly.
+        # node_aggregator also folds DAEMONSET_POD_TARGET_ROLES (CSI jobs)
+        # into the single federated target -- see _DAEMONSET_POD_JOBS_AGGREGATOR.
         real_target_role_count = 1 if node_aggregator else len(REAL_TARGET_ROLES)
+        daemonset_pod_role_count = 0 if node_aggregator else len(DAEMONSET_POD_TARGET_ROLES)
         per_node_roles = (real_target_role_count
                          + len(DAEMONSET_TARGET_ROLES)
-                         + len(DAEMONSET_POD_TARGET_ROLES))
+                         + daemonset_pod_role_count)
         singleton_roles = len(SINGLETON_POD_TARGET_ROLES)
         min_targets = dp_nodes * per_node_roles + singleton_roles
 
