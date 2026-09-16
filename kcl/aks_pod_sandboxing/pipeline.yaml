@@ -8,8 +8,7 @@ stages:
     displayName: Measure pause pod startup with Kata sandboxing
     timeoutInMinutes: 90
     steps:
-    - bash: |2
-
+    - bash: |
         set -eo pipefail
 
         job_id="$(System.JobId)"
@@ -25,7 +24,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
           az config set defaults.location="uksouth"
           az account show
@@ -37,7 +35,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |+
           set -exo pipefail
-
           az group create \
             --name "$(RUN_ID)" \
             --location "uksouth" \
@@ -51,7 +48,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az aks create \
             --name "kata-pod-startup" \
             --resource-group "$(RUN_ID)" \
@@ -72,7 +68,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az aks get-credentials \
             --name "kata-pod-startup" \
             --resource-group "$(RUN_ID)" \
@@ -91,7 +86,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           export KUBECONFIG="$(Pipeline.Workspace)/kubeconfig"
           export POD_NAME="pause-sandbox"
           export CLUSTER="kata-pod-startup"
@@ -119,7 +113,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az storage blob upload \
             --account-name "telescopev2" \
             --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" \
@@ -135,7 +128,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
       condition: always()
       displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
