@@ -35,7 +35,7 @@ while [ $(date +%s) -lt $deadline ]; do
     if [ -n "$job_json" ]; then
         printf '%s' "$job_json" | jq -r '"Job status: active=\(.status.active // 0) succeeded=\(.status.succeeded // 0) failed=\(.status.failed // 0)"'
     fi
-    sleep 30
+    sleep 60
 done
 
 kubectl -n "$NAMESPACE" logs -l job-name="$JOB_NAME" --all-containers --prefix --tail=-1 || true
