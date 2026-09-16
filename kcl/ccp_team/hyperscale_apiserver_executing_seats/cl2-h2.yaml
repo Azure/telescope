@@ -28,6 +28,9 @@ metadata:
   name: cl2
   namespace: clusterloader2
 spec:
+  # Parallel cl2 load-driver pods. 2 generates enough load to drive the H2 control
+  # plane near saturation without overloading the CCP or lengthening the run. It's
+  # slightly more than strictly needed, but only marginally over.
   completions: 2
   parallelism: 2
   backoffLimit: 0
