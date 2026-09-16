@@ -62,51 +62,32 @@ jobs:
       inlineScript: |
         set -exo pipefail
 
-        az rest \
-          --method put \
-          --uri "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/$(RUN_ID)/providers/Microsoft.ContainerService/managedClusters/stg-${{ parameters.scaling_size }}-hyperscale-apiserver-seats?api-version=2026-01-02-preview" \
-          --body "
-        {
-            \"location\": \"swedencentral\",
-            \"identity\": { \"type\": \"SystemAssigned\" },
-            \"sku\": {
-              \"name\": \"Base\",
-              \"tier\": \"Standard\"
-            },
-            \"tags\": {
-              \"SkipAKSCluster\": \"true\",
-              \"SkipASMAzSecPackAutoConfig\": \"true\",
-              \"SkipLinuxAzSecPack\": \"true\"
-            },
-            \"properties\": {
-              \"controlPlaneScalingProfile\": {\"scalingSize\": \"${{ parameters.scaling_size }}\"},
-              \"kubernetesVersion\": \"1.36\",
-              \"dnsPrefix\": \"stg-${{ parameters.scaling_size }}-hyperscale-apiserver-seats-dns\",
-              \"agentPoolProfiles\": [
-                {
-                  \"name\": \"systempool\",
-                  \"mode\": \"System\",
-                  \"count\": 3,
-                  \"vmSize\": \"Standard_D8dS_v4\",
-                  \"osType\": \"Linux\",
-                  \"maxPods\": 250
-                }
-              ],
-            \"networkProfile\": {
-               \"networkPlugin\": \"azure\",
-               \"networkPluginMode\": \"overlay\",
-               \"podCidr\": \"10.64.0.0/10\",
-               \"serviceCidr\": \"10.0.0.0/16\",
-               \"dnsServiceIP\": \"10.0.0.10\",
-               \"outboundType\": \"managedNATGateway\",
-               \"natGatewayProfile\": {
-                  \"managedOutboundIPProfile\": {
-                    \"count\": 10
-                  }
-                }
-              }
-            }
-          }"
+        az extension add --name aks-preview --version 20.0.0b6 --allow-preview true --yes
+
+        az aks create \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --resource-group "$(RUN_ID)" \
+            --name "stg-${{ parameters.scaling_size }}-hyperscale-apiserver-seats" \
+            --location "swedencentral" \
+            --kubernetes-version "1.36" \
+            --dns-name-prefix "stg-${{ parameters.scaling_size }}-hyperscale-apiserver-seats-dns" \
+            --tier standard \
+            --enable-managed-identity \
+            --generate-ssh-keys \
+            --nodepool-name systempool \
+            --node-count 3 \
+            --node-vm-size Standard_D8dS_v4 \
+            --max-pods 250 \
+            --network-plugin azure \
+            --network-plugin-mode overlay \
+            --pod-cidr 10.64.0.0/10 \
+            --service-cidr 10.0.0.0/16 \
+            --dns-service-ip 10.0.0.10 \
+            --outbound-type managedNATGateway \
+            --nat-gateway-managed-outbound-ip-count 10 \
+            --tags SkipAKSCluster=true SkipASMAzSecPackAutoConfig=true SkipLinuxAzSecPack=true \
+            --control-plane-scaling-size ${{ parameters.scaling_size }} \
+            --yes
     displayName: Create cluster
   - task: AzureCLI@2
     inputs:

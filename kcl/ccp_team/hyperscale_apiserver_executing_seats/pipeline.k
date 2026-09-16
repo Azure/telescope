@@ -4,7 +4,6 @@ import lib.const
 import lib.steps.azure
 import lib.steps.common
 import lib.steps.k8s
-import lib.util
 
 SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
 RESOURCE_GROUP = "$(RUN_ID)"
@@ -26,54 +25,33 @@ KWOK_POOL = azure.NodePool {
     labels = "kwok=true"
 }
 
-requestBody = util.escapeStr("""
-{
-    "location": "${LOCATION}",
-    "identity": { "type": "SystemAssigned" },
-    "sku": {
-      "name": "Base",
-      "tier": "Standard"
-    },
-    "tags": {
-      "SkipAKSCluster": "true",
-      "SkipASMAzSecPackAutoConfig": "true",
-      "SkipLinuxAzSecPack": "true"
-    },
-    "properties": {
-      "controlPlaneScalingProfile": {"scalingSize": "${CONTROL_PLANE_SCALING_SIZE}"},
-      "kubernetesVersion": "1.36",
-      "dnsPrefix": "${CLUSTER}-dns",
-      "agentPoolProfiles": [
-        {
-          "name": "systempool",
-          "mode": "System",
-          "count": 3,
-          "vmSize": "Standard_D8dS_v4",
-          "osType": "Linux",
-          "maxPods": 250
-        }
-      ],
-    "networkProfile": {
-       "networkPlugin": "azure",
-       "networkPluginMode": "overlay",
-       "podCidr": "10.64.0.0/10",
-       "serviceCidr": "10.0.0.0/16",
-       "dnsServiceIP": "10.0.0.10",
-       "outboundType": "managedNATGateway",
-       "natGatewayProfile": {
-          "managedOutboundIPProfile": {
-            "count": 10
-          }
-        }
-      }
-    }
-  }""")
-
 createClusterScript = """
-az rest \\
-  --method put \\
-  --uri "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.ContainerService/managedClusters/${CLUSTER}?api-version=2026-01-02-preview" \\
-  --body "${requestBody}"
+az extension add --name aks-preview --version 20.0.0b6 --allow-preview true --yes
+
+az aks create \\
+    --subscription "${SUBSCRIPTION_ID}" \\
+    --resource-group "${RESOURCE_GROUP}" \\
+    --name "${CLUSTER}" \\
+    --location "${LOCATION}" \\
+    --kubernetes-version "1.36" \\
+    --dns-name-prefix "${CLUSTER}-dns" \\
+    --tier standard \\
+    --enable-managed-identity \\
+    --generate-ssh-keys \\
+    --nodepool-name systempool \\
+    --node-count 3 \\
+    --node-vm-size Standard_D8dS_v4 \\
+    --max-pods 250 \\
+    --network-plugin azure \\
+    --network-plugin-mode overlay \\
+    --pod-cidr 10.64.0.0/10 \\
+    --service-cidr 10.0.0.0/16 \\
+    --dns-service-ip 10.0.0.10 \\
+    --outbound-type managedNATGateway \\
+    --nat-gateway-managed-outbound-ip-count 10 \\
+    --tags SkipAKSCluster=true SkipASMAzSecPackAutoConfig=true SkipLinuxAzSecPack=true \\
+    --control-plane-scaling-size ${CONTROL_PLANE_SCALING_SIZE} \\
+    --yes
 """
 
 output = ap.Pipeline {
