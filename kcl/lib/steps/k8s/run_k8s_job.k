@@ -2,7 +2,7 @@ import azure_pipelines.ap.steps
 
 # Apply a manifest containing a named Kubernetes Job, wait for it to reach a
 # terminal condition, and emit logs and diagnostics before returning.
-RunK8sJob = lambda namespace: str, jobName: str, manifestYaml: str, timeoutSeconds: int = 7200 -> steps.Bash {
+RunAndWaitK8sJob = lambda namespace: str, jobName: str, manifestYaml: str, timeoutSeconds: int = 7200 -> steps.Bash {
     steps.Bash {
         displayName = "Run Kubernetes Job: ${jobName}"
         bash = """
