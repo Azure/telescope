@@ -484,6 +484,7 @@ jobs:
         echo "ASI API Server Analyzer URL:"
         echo "https://asi.azure.ms/services/AKS/pages/API%20Server%20Analyzer?clusterVersion=$RESOURCE_UID&globalFrom=$FROM_ENCODED&globalTo=$TO_ENCODED"
         echo "============================================"
+    condition: always()
     continueOnError: true
     displayName: Print ASI dashboard URL
   - task: AzureCLI@2
