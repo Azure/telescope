@@ -56,7 +56,7 @@ az aks create \\
     --dns-service-ip 10.0.0.10 \\
     --outbound-type managedNATGateway \\
     --nat-gateway-managed-outbound-ip-count 10 \\
-    --tags SkipAKSCluster=true SkipASMAzSecPackAutoConfig=true SkipLinuxAzSecPack=true \\
+    --tags SkipAKSCluster=true \\
     --control-plane-scaling-size ${size} \\
     --yes
 """

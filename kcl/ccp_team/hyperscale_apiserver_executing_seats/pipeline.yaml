@@ -79,7 +79,7 @@ stages:
               --dns-service-ip 10.0.0.10 \
               --outbound-type managedNATGateway \
               --nat-gateway-managed-outbound-ip-count 10 \
-              --tags SkipAKSCluster=true SkipASMAzSecPackAutoConfig=true SkipLinuxAzSecPack=true \
+              --tags SkipAKSCluster=true \
               --control-plane-scaling-size H2 \
               --yes
       displayName: Create cluster
@@ -360,7 +360,7 @@ stages:
               --dns-service-ip 10.0.0.10 \
               --outbound-type managedNATGateway \
               --nat-gateway-managed-outbound-ip-count 10 \
-              --tags SkipAKSCluster=true SkipASMAzSecPackAutoConfig=true SkipLinuxAzSecPack=true \
+              --tags SkipAKSCluster=true \
               --control-plane-scaling-size H4 \
               --yes
       displayName: Create cluster
@@ -641,7 +641,7 @@ stages:
               --dns-service-ip 10.0.0.10 \
               --outbound-type managedNATGateway \
               --nat-gateway-managed-outbound-ip-count 10 \
-              --tags SkipAKSCluster=true SkipASMAzSecPackAutoConfig=true SkipLinuxAzSecPack=true \
+              --tags SkipAKSCluster=true \
               --control-plane-scaling-size H8 \
               --yes
       displayName: Create cluster
