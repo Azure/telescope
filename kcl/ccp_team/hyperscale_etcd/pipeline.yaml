@@ -39,8 +39,7 @@ jobs:
   displayName: Cluster Setup
   timeoutInMinutes: 1440
   steps:
-  - bash: |2
-
+  - bash: |
       set -eo pipefail
 
       if { [ "$PARAM_EXISTING_CLUSTER" = "none" ] && [ "$PARAM_EXISTING_RG" != "none" ]; } ||    { [ "$PARAM_EXISTING_CLUSTER" != "none" ] && [ "$PARAM_EXISTING_RG" = "none" ]; }; then
@@ -81,7 +80,6 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
-
         az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
         az config set defaults.location="westus2"
         az account show
@@ -93,7 +91,6 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |+
         set -exo pipefail
-
         az group create \
           --name "$(resolve.RESOURCE_GROUP)" \
           --location "westus2" \
@@ -108,7 +105,6 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
-
         az extension add --name aks-preview --version 20.0.0b6 --allow-preview true --yes
 
         az aks create \
@@ -144,7 +140,6 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
-
         while true; do
           STATE=$(az aks show \
             --name "$(resolve.CLUSTER)" \
@@ -165,8 +160,7 @@ jobs:
           sleep 30
         done
     displayName: Wait for cluster to succeed
-  - script: |2
-
+  - script: |
       set -euo pipefail
       START_TIME=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
       echo "Benchmark start time: $START_TIME"
@@ -189,15 +183,13 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
-
         az aks get-credentials \
           --name "$(CLUSTER)" \
           --resource-group "$(RESOURCE_GROUP)" \
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --overwrite-existing
     displayName: Get credentials for $(CLUSTER)
-  - script: |2
-
+  - script: |
       set -euo pipefail
       set -x
 
@@ -211,12 +203,14 @@ jobs:
       rm -rf $temp_dir
       docker rmi ghcr.io/liyu-ma/kperf:hyperscale-etcd 2>/dev/null || true
     displayName: Install runkperf binary
-  - script: |2
-
+  - script: |
       set -euo pipefail
       set -x
 
-      TOTAL_OBJECTS_COUNT=$(( ${{ parameters.ingest_configmap_gib }} * 1073741824 / 524288 ))
+      TOTAL_OBJECTS_COUNT=0
+      if [ "$TOTAL_OBJECTS_COUNT" -eq 0 ]; then
+        TOTAL_OBJECTS_COUNT=$(awk 'BEGIN{printf "%d", ${{ parameters.ingest_configmap_gib }} * 1073741824 / 524288}')
+      fi
       TOTAL_BATCHES=$(( (TOTAL_OBJECTS_COUNT + 2000 - 1) / 2000 ))
 
       kubectl create namespace kperf-configmap-data 2>/dev/null || true
@@ -235,14 +229,25 @@ jobs:
         run_batch() {
           runkperf data configmap \
             --namespace kperf-configmap-data \
-            add $(System.JobId)-b$batch-$1 \
+            add $(System.JobId)-b$batch \
             --qps 80 \
             --burst 80 \
             --total $COUNT \
             --size 524288 \
             --group-size 80
         }
-        run_batch first || run_batch retry
+
+        # add is not idempotent, so clear the partial batch before each retry.
+        for attempt in $(seq 1 2); do
+          run_batch && break
+          if [ "$attempt" -eq "2" ]; then
+            echo "Batch $batch failed after 2 attempts" >&2
+            exit 1
+          fi
+          echo "Batch $batch attempt $attempt failed; cleaning up before retry..."
+          # delete reconstructs names <set>-<0..total-1>, so total must cover the whole batch.
+          runkperf data configmap --namespace kperf-configmap-data delete $(System.JobId)-b$batch --total $COUNT || true
+        done
 
         completed=$((completed + COUNT))
         STORAGE_GIB=$(awk 'BEGIN{printf "%.1f", '$completed' * 524288 / 1073741824}')
@@ -250,8 +255,8 @@ jobs:
       done
 
       echo "Ingest complete: $completed configmaps created."
-    condition: and(succeeded(), ne('${{ parameters.ingest_configmap_gib }}', '0'))
-    displayName: Ingest configmap data (${{ parameters.ingest_configmap_gib }} GiB)
+    condition: and(succeeded(), or(ne('0', '0'), ne('${{ parameters.ingest_configmap_gib }}', '0')))
+    displayName: Ingest configmap data
 - job: ingest_events
   displayName: Ingest Events (${{ parameters.ingest_events_gib }} GiB)
   dependsOn: setup
@@ -268,15 +273,13 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
-
         az aks get-credentials \
           --name "$(CLUSTER)" \
           --resource-group "$(RESOURCE_GROUP)" \
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --overwrite-existing
     displayName: Get credentials for $(CLUSTER)
-  - script: |2
-
+  - script: |
       set -euo pipefail
       set -x
 
@@ -290,12 +293,14 @@ jobs:
       rm -rf $temp_dir
       docker rmi ghcr.io/liyu-ma/kperf:hyperscale-etcd 2>/dev/null || true
     displayName: Install runkperf binary
-  - script: |2
-
+  - script: |
       set -euo pipefail
       set -x
 
-      TOTAL_OBJECTS_COUNT=$(( ${{ parameters.ingest_events_gib }} * 1073741824 / 524288 ))
+      TOTAL_OBJECTS_COUNT=0
+      if [ "$TOTAL_OBJECTS_COUNT" -eq 0 ]; then
+        TOTAL_OBJECTS_COUNT=$(awk 'BEGIN{printf "%d", ${{ parameters.ingest_events_gib }} * 1073741824 / 524288}')
+      fi
       TOTAL_BATCHES=$(( (TOTAL_OBJECTS_COUNT + 2000 - 1) / 2000 ))
 
       kubectl create namespace kperf-event-data 2>/dev/null || true
@@ -314,14 +319,25 @@ jobs:
         run_batch() {
           runkperf data event \
             --namespace kperf-event-data \
-            add $(System.JobId)-b$batch-$1 \
+            add $(System.JobId)-b$batch \
             --qps 80 \
             --burst 80 \
             --total $COUNT \
             --size 524288 \
             --group-size 80
         }
-        run_batch first || run_batch retry
+
+        # add is not idempotent, so clear the partial batch before each retry.
+        for attempt in $(seq 1 2); do
+          run_batch && break
+          if [ "$attempt" -eq "2" ]; then
+            echo "Batch $batch failed after 2 attempts" >&2
+            exit 1
+          fi
+          echo "Batch $batch attempt $attempt failed; cleaning up before retry..."
+          # delete reconstructs names <set>-<0..total-1>, so total must cover the whole batch.
+          runkperf data event --namespace kperf-event-data delete $(System.JobId)-b$batch --total $COUNT || true
+        done
 
         completed=$((completed + COUNT))
         STORAGE_GIB=$(awk 'BEGIN{printf "%.1f", '$completed' * 524288 / 1073741824}')
@@ -329,8 +345,8 @@ jobs:
       done
 
       echo "Ingest complete: $completed events created."
-    condition: and(succeeded(), ne('${{ parameters.ingest_events_gib }}', '0'))
-    displayName: Ingest event data (${{ parameters.ingest_events_gib }} GiB)
+    condition: and(succeeded(), or(ne('0', '0'), ne('${{ parameters.ingest_events_gib }}', '0')))
+    displayName: Ingest event data
 - job: ingest_secrets
   displayName: Ingest Secrets (${{ parameters.ingest_secrets_gib }} GiB)
   dependsOn: setup
@@ -347,15 +363,13 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
-
         az aks get-credentials \
           --name "$(CLUSTER)" \
           --resource-group "$(RESOURCE_GROUP)" \
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --overwrite-existing
     displayName: Get credentials for $(CLUSTER)
-  - script: |2
-
+  - script: |
       set -euo pipefail
       set -x
 
@@ -369,12 +383,14 @@ jobs:
       rm -rf $temp_dir
       docker rmi ghcr.io/liyu-ma/kperf:hyperscale-etcd 2>/dev/null || true
     displayName: Install runkperf binary
-  - script: |2
-
+  - script: |
       set -euo pipefail
       set -x
 
-      TOTAL_OBJECTS_COUNT=$(( ${{ parameters.ingest_secrets_gib }} * 1073741824 / 524288 ))
+      TOTAL_OBJECTS_COUNT=0
+      if [ "$TOTAL_OBJECTS_COUNT" -eq 0 ]; then
+        TOTAL_OBJECTS_COUNT=$(awk 'BEGIN{printf "%d", ${{ parameters.ingest_secrets_gib }} * 1073741824 / 524288}')
+      fi
       TOTAL_BATCHES=$(( (TOTAL_OBJECTS_COUNT + 2000 - 1) / 2000 ))
 
       kubectl create namespace kperf-secret-data 2>/dev/null || true
@@ -393,14 +409,25 @@ jobs:
         run_batch() {
           runkperf data secret \
             --namespace kperf-secret-data \
-            add $(System.JobId)-b$batch-$1 \
+            add $(System.JobId)-b$batch \
             --qps 80 \
             --burst 80 \
             --total $COUNT \
             --size 524288 \
             --group-size 80
         }
-        run_batch first || run_batch retry
+
+        # add is not idempotent, so clear the partial batch before each retry.
+        for attempt in $(seq 1 2); do
+          run_batch && break
+          if [ "$attempt" -eq "2" ]; then
+            echo "Batch $batch failed after 2 attempts" >&2
+            exit 1
+          fi
+          echo "Batch $batch attempt $attempt failed; cleaning up before retry..."
+          # delete reconstructs names <set>-<0..total-1>, so total must cover the whole batch.
+          runkperf data secret --namespace kperf-secret-data delete $(System.JobId)-b$batch --total $COUNT || true
+        done
 
         completed=$((completed + COUNT))
         STORAGE_GIB=$(awk 'BEGIN{printf "%.1f", '$completed' * 524288 / 1073741824}')
@@ -408,8 +435,8 @@ jobs:
       done
 
       echo "Ingest complete: $completed secrets created."
-    condition: and(succeeded(), ne('${{ parameters.ingest_secrets_gib }}', '0'))
-    displayName: Ingest secret data (${{ parameters.ingest_secrets_gib }} GiB)
+    condition: and(succeeded(), or(ne('0', '0'), ne('${{ parameters.ingest_secrets_gib }}', '0')))
+    displayName: Ingest secret data
 - job: finalize
   displayName: Report and Cleanup
   dependsOn:
@@ -431,7 +458,6 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
-
         RESOURCE_UID=$(az aks show \
           --resource-group "$(RESOURCE_GROUP)" \
           --name "$(CLUSTER)" \
@@ -467,7 +493,6 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
-
         az group delete --name "$(RESOURCE_GROUP)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
     condition: and(always(), not(and(ne('${{ parameters.existing_cluster_name }}', 'none'), ne('${{ parameters.existing_cluster_resource_group }}', 'none'))), not(${{ parameters.keep_cluster }}))
     displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
