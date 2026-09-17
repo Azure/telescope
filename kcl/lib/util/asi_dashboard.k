@@ -36,5 +36,6 @@ echo "ASI API Server Analyzer URL:"
 echo "${ASI_API_SERVER_ANALYZER_URL}"
 echo "============================================"
 """,
-        continueOnError=True)
+        continueOnError=True,
+        condition="always()")
 }

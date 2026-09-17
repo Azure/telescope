@@ -21,8 +21,7 @@ stages:
     displayName: Benchmark (workload_low)
     timeoutInMinutes: 360
     steps:
-    - bash: |2
-
+    - bash: |
         set -eo pipefail
 
         job_id="$(System.JobId)"
@@ -38,7 +37,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
           az config set defaults.location="uksouth"
           az account show
@@ -50,7 +48,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |+
           set -exo pipefail
-
           az group create \
             --name "$(RUN_ID)" \
             --location "uksouth" \
@@ -64,7 +61,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az aks create \
             --name "configmaps100" \
             --resource-group "$(RUN_ID)" \
@@ -86,7 +82,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az aks get-credentials \
             --name "configmaps100" \
             --resource-group "$(RUN_ID)" \
@@ -101,7 +96,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           deadline=$(($(date +%s) + 600))
           sleep_between=30
           attempt=0
@@ -138,8 +132,7 @@ stages:
             fi
           done
       displayName: Create node pool runner
-    - script: |2
-
+    - script: |
         set -euo pipefail
         set -x
 
@@ -160,7 +153,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
           # Collect cloud info
@@ -226,7 +218,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az storage blob upload \
             --account-name "telescopev2" \
             --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" \
@@ -242,7 +233,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
       condition: always()
       displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
@@ -253,8 +243,7 @@ stages:
     displayName: Benchmark (exempt)
     timeoutInMinutes: 360
     steps:
-    - bash: |2
-
+    - bash: |
         set -eo pipefail
 
         job_id="$(System.JobId)"
@@ -270,7 +259,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
           az config set defaults.location="uksouth"
           az account show
@@ -282,7 +270,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |+
           set -exo pipefail
-
           az group create \
             --name "$(RUN_ID)" \
             --location "uksouth" \
@@ -296,7 +283,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az aks create \
             --name "configmaps100" \
             --resource-group "$(RUN_ID)" \
@@ -318,7 +304,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az aks get-credentials \
             --name "configmaps100" \
             --resource-group "$(RUN_ID)" \
@@ -333,7 +318,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           deadline=$(($(date +%s) + 600))
           sleep_between=30
           attempt=0
@@ -370,8 +354,7 @@ stages:
             fi
           done
       displayName: Create node pool runner
-    - script: |2
-
+    - script: |
         set -euo pipefail
         set -x
 
@@ -392,7 +375,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
           # Collect cloud info
@@ -458,7 +440,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az storage blob upload \
             --account-name "telescopev2" \
             --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" \
@@ -474,7 +455,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
       condition: always()
       displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
