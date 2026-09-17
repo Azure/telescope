@@ -235,7 +235,7 @@ stages:
           timeout_in_minutes: 120
           credential_type: service_connection
           ssh_key_enabled: false
-  
+
   - stage: azure_swedencentral_ubuntu2604_1_36
     dependsOn: []
     jobs:
