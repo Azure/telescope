@@ -46,7 +46,10 @@ def configure_clusterloader2(
     provider,
     cilium_enabled,
     scrape_containerd,
-    override_file
+    override_file,
+    prometheus_cpu_scale_factor=30.0,
+    prometheus_memory_limit_factor=100.0,
+    prometheus_memory_scale_factor=100.0,
 ):
 
     steps = node_count // node_per_step
@@ -64,9 +67,9 @@ def configure_clusterloader2(
         file.write(f"CL2_STEPS: {steps}\n")
         file.write(f"CL2_OPERATION_TIMEOUT: {operation_timeout}\n")
         file.write("CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
-        file.write("CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR: 100.0\n")
-        file.write("CL2_PROMETHEUS_MEMORY_SCALE_FACTOR: 100.0\n")
-        file.write("CL2_PROMETHEUS_CPU_SCALE_FACTOR: 30.0\n")
+        file.write(f"CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR: {prometheus_memory_limit_factor}\n")
+        file.write(f"CL2_PROMETHEUS_MEMORY_SCALE_FACTOR: {prometheus_memory_scale_factor}\n")
+        file.write(f"CL2_PROMETHEUS_CPU_SCALE_FACTOR: {prometheus_cpu_scale_factor}\n")
         file.write("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
         file.write("CL2_POD_STARTUP_LATENCY_THRESHOLD: 3m\n")
 
@@ -207,6 +210,12 @@ def main():
                                   help="Whether cilium is enabled. Must be either True or False")
     parser_configure.add_argument("--scrape_containerd", type=str2bool, choices=[True, False], default=False,
                                   help="Whether to scrape containerd metrics. Must be either True or False")
+    parser_configure.add_argument("--prometheus_cpu_scale_factor", type=float, default=30.0,
+                                  help="Prometheus CPU request scale factor")
+    parser_configure.add_argument("--prometheus_memory_limit_factor", type=float, default=100.0,
+                                  help="Prometheus memory limit scale factor")
+    parser_configure.add_argument("--prometheus_memory_scale_factor", type=float, default=100.0,
+                                  help="Prometheus memory request scale factor")
     parser_configure.add_argument("--cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
 
     # Sub-command for validate_clusterloader2
@@ -251,6 +260,9 @@ def main():
             args.cilium_enabled,
             args.scrape_containerd,
             args.cl2_override_file,
+            args.prometheus_cpu_scale_factor,
+            args.prometheus_memory_limit_factor,
+            args.prometheus_memory_scale_factor,
         )
     elif args.command == "validate":
         validate_clusterloader2(
