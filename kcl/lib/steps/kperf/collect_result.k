@@ -3,7 +3,7 @@ import lib.steps.azure
 
 # CollectKperfResult collects cloud info via az aks show, checks error rate,
 # and writes the formatted result to outputPath for upload.
-CollectKperfResult = lambda benchmarkSubcmdArgs: str, flowcontrol: str, cluster: str, resourceGroup: str, subscription: str, serviceConnection: str, inputPath: str = "/tmp/tmp_results.json", outputPath: str = "/tmp/run-result.json", errorRateThreshold: float = 0.1 -> steps.Step {
+CollectKperfResult = lambda serviceConnection: str, subscription: str, resourceGroup: str, cluster: str, benchmarkSubcmdArgs: str, flowcontrol: str, errorRateThreshold: float = 0.1, inputPath: str = "/tmp/tmp_results.json", outputPath: str = "/tmp/run-result.json" -> steps.Step {
     azure.AzCli(serviceConnection, "Collect kperf benchmark result", """
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 

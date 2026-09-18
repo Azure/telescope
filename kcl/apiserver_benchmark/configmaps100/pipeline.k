@@ -80,13 +80,13 @@ makeBenchmarkJob = lambda flowcontrol: str, flowcontrolLabel: str -> job.Job {
                 "kperf",
                 RESULT_PATH),
             kperf.CollectKperfResult(
+                const.DEFAULT_SERVICE_CONNECTION,
+                SUBSCRIPTION_ID,
+                RESOURCE_GROUP,
+                CLUSTER,
                 BENCHMARK_ARGS,
                 flowcontrol,
-                CLUSTER,
-                RESOURCE_GROUP,
-                SUBSCRIPTION_ID,
-                const.DEFAULT_SERVICE_CONNECTION,
-                RESULT_PATH),
+                inputPath = RESULT_PATH),
             common.UploadResult(
                 const.DEFAULT_SERVICE_CONNECTION,
                 const.DEFAULT_STORAGE_ACCOUNT,
