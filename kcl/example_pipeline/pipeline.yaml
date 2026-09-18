@@ -1,14 +1,13 @@
-name: Example Pipeline
+name: AI Inferencing Cost Efficiency Benchmark
 pool: AKS-Telescope-Airlock
 trigger:
 - v2
 jobs:
-- job: benchmarking
-  displayName: Benchmarking
-  timeoutInMinutes: 1440
+- job: vllm_qwen25_7b
+  displayName: vLLM Qwen2.5 7B cost efficiency benchmark
+  timeoutInMinutes: 240
   steps:
-  - bash: |2
-
+  - bash: |
       set -eo pipefail
 
       job_id="$(System.JobId)"
@@ -29,9 +28,8 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
-
-        az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
-        az config set defaults.location="westus2"
+        az account set --subscription "f6e2f77f-9959-42ad-87f0-c30a6abc0133"
+        az config set defaults.location="australiaeast"
         az account show
     displayName: Login to Azure
   - task: AzureCLI@2
@@ -39,15 +37,14 @@ jobs:
       azureSubscription: Azure-for-Telescope-internal
       scriptType: bash
       scriptLocation: inlineScript
-      inlineScript: |+
+      inlineScript: |
         set -exo pipefail
-
         az group create \
           --name "$(RUN_ID)" \
-          --location "westus2" \
-          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-
-    displayName: Create resource group in westus2 (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+          --location "australiaeast" \
+          --subscription "f6e2f77f-9959-42ad-87f0-c30a6abc0133" \
+        --tags scenario=vllm-qwen25-7b-cost-efficiency
+    displayName: Create resource group in australiaeast (f6e2f77f-9959-42ad-87f0-c30a6abc0133)
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
@@ -55,129 +52,47 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
-
         az aks create \
-          --name "example-yaolei" \
+          --name "ai-inference-cost" \
           --resource-group "$(RUN_ID)" \
-          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-          --location "westus2" \
-          --kubernetes-version "1.35.0" \
-          --dns-name-prefix "example-yaolei-dns" \
+          --subscription "f6e2f77f-9959-42ad-87f0-c30a6abc0133" \
+          --location "australiaeast" \
           --tier standard \
           --nodepool-name systempool \
           --node-count 3 \
-          --node-vm-size "Standard_D8S_v4" \
-          --max-pods 250 \
+          --node-vm-size "Standard_D8s_v5" \
           --network-plugin azure \
           --network-plugin-mode overlay \
           --pod-cidr 10.64.0.0/10 \
           --service-cidr 10.0.0.0/16 \
           --dns-service-ip 10.0.0.10 \
           --outbound-type managedNATGateway \
-          --nat-gateway-managed-outbound-ip-count 10 \
           --enable-managed-identity \
           --generate-ssh-keys
-    displayName: Create cluster
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: Azure-for-Telescope-internal
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
 
-        while true; do
-          STATE=$(az aks show \
-            --name "stg-H2-yaolei" \
-            --resource-group "$(RUN_ID)" \
-            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-            --query "provisioningState" \
-            --output tsv)
-          echo "Cluster provisioning state: $STATE"
-          if [ "$STATE" = "Succeeded" ]; then
-            echo "Cluster is ready."
-            break
-          elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
-            echo "Cluster failed with state: $STATE."
-            exit 1
-          else
-            echo "Provisioning state: $STATE. Retry in 30 seconds"
-          fi
-          sleep 30
-        done
-    displayName: Wait for cluster to succeed
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: Azure-for-Telescope-internal
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
-
-        deadline=$(($(date +%s) + 600))
-        sleep_between=30
-        attempt=0
-        while :; do
-          attempt=$((attempt + 1))
-          set +e
-          output=$(az aks nodepool add \
-            --cluster-name "stg-H2-yaolei" \
-            --resource-group "$(RUN_ID)" \
-            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-            --name "cl2pool" \
-            --node-count 4 \
-            --node-vm-size "Standard_D8S_v4" \
-            --mode User \
-            --node-taints cl2pool=true:NoSchedule 2>&1)
-          rc=$?
-          set -e
-          echo "$output"
-          if [ $rc -eq 0 ]; then
-            exit 0
-          fi
-          if echo "$output" | grep -qiE "OperationNotAllowed"; then
-            now=$(date +%s)
-            if [ $now -ge $deadline ]; then
-              echo "Retriable error persisted past 600s retry window ($attempt attempts); giving up."
-              exit $rc
-            fi
-            remaining=$((deadline - now))
-            echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining seconds remain in retry window)."
-            sleep $sleep_between
-          else
-            echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
-            exit $rc
-          fi
-        done
-    displayName: Create node pool cl2pool
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: Azure-for-Telescope-internal
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
-
-        az aks get-credentials \
-          --name "example-yaolei" \
+        az aks nodepool add \
+          --cluster-name "ai-inference-cost" \
           --resource-group "$(RUN_ID)" \
-          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --subscription "f6e2f77f-9959-42ad-87f0-c30a6abc0133" \
+          --name "gpupool" \
+          --node-vm-size "Standard_NC40ads_H100_v5" \
+          --node-count 1 \
+          --node-taints sku=gpu:NoSchedule \
+          --gpu-driver Install
+    displayName: Create AKS GPU benchmark cluster
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        az aks get-credentials \
+          --name "ai-inference-cost" \
+          --resource-group "$(RUN_ID)" \
+          --subscription "f6e2f77f-9959-42ad-87f0-c30a6abc0133" \
           --overwrite-existing
-    displayName: Get credentials for example-yaolei
-  - script: |2-
-
-      set -exo pipefail
-      export PYTHONPATH=$PYTHONPATH:$(pwd)
-      python3 kwok/kwok.py   --action create   --node-count 100   --node-manifest-path $(Pipeline.Workspace)/s/kcl/example_pipeline/kwok-node.yaml
-    workingDirectory: modules/python
-    displayName: Create KWOK Nodes
-  - script: |2-
-
-      set -exo pipefail
-      export PYTHONPATH=$PYTHONPATH:$(pwd)
-      python3 kwok/kwok.py   --action validate   --node-count 100   --node-manifest-path $(Pipeline.Workspace)/s/kcl/example_pipeline/kwok-node.yaml
-    workingDirectory: modules/python
-    displayName: Validate KWOK Nodes
+    displayName: Get credentials for ai-inference-cost
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
@@ -185,100 +100,156 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
+        kubectl create namespace "vllm-benchmark"
 
-        set +eo pipefail
-        kubectl create namespace "clusterloader2" || true
-        kubectl apply -f $(Pipeline.Workspace)/s/kcl/example_pipeline/cl2.yaml
-        # Wait
-        consecutive_errors=0
-        while true; do
-          # Under consistent API server errors, we would want to exit early instead of waiting for the entire timeout duration.
-          phases="$(kubectl get pods --namespace="clusterloader2" -o jsonpath='{range .items[*]}{.status.phase}{"\n"}{end}' 2>/tmp/kubectl_err)"
-          kubectl_exit_code=$?
-          if [ $kubectl_exit_code -ne 0 ]; then
-            consecutive_errors=$((consecutive_errors + 1))
-            echo "kubectl get pods failed (exit_code=$kubectl_exit_code, consecutive=$consecutive_errors/20):"
-            cat /tmp/kubectl_err
-            if [ "$consecutive_errors" -ge "20" ]; then
-              echo "API server unresponsive for $consecutive_errors consecutive polls; aborting."
-              exit 1
-            fi
-            sleep 30
-            continue
-          fi
-          consecutive_errors=0
+        cat <<EOF | kubectl apply -f -
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: vllm
+          namespace: vllm-benchmark
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              app: vllm
+          template:
+            metadata:
+              labels:
+                app: vllm
+            spec:
+              nodeSelector:
+                kubernetes.azure.com/agentpool: gpupool
+              tolerations:
+              - key: sku
+                operator: Equal
+                value: gpu
+                effect: NoSchedule
+              containers:
+              - name: vllm
+                image: vllm/vllm-openai:latest
+                args:
+                - --model
+                - Qwen/Qwen2.5-7B-Instruct
+                - --host
+                - 0.0.0.0
+                - --port
+                - "8000"
+                ports:
+                - containerPort: 8000
+                resources:
+                  limits:
+                    nvidia.com/gpu: 1
+                readinessProbe:
+                  httpGet:
+                    path: /health
+                    port: 8000
+                  initialDelaySeconds: 60
+                  periodSeconds: 15
+        ---
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: vllm
+          namespace: vllm-benchmark
+        spec:
+          selector:
+            app: vllm
+          ports:
+          - port: 8000
+            targetPort: 8000
+        EOF
 
-          total=0
-          terminal=0
+        kubectl rollout status deployment/vllm --namespace="vllm-benchmark" --timeout=45m
 
-          if [ -n "$phases" ]; then
-            while IFS= read -r phase; do
-              if [ -z "$phase" ]; then
-                continue
-              fi
+        START_SECONDS=$(date +%s)
 
-              total=$((total + 1))
-              if [ "$phase" = "Succeeded" ] || [ "$phase" = "Failed" ]; then
-                terminal=$((terminal + 1))
-              fi
-            done <<< "$phases"
-          fi
+        cat <<EOF | kubectl apply -f -
+        apiVersion: batch/v1
+        kind: Job
+        metadata:
+          name: vllm-bench
+          namespace: vllm-benchmark
+        spec:
+          backoffLimit: 0
+          template:
+            spec:
+              restartPolicy: Never
+              containers:
+              - name: bench
+                image: vllm/vllm-openai:latest
+                command:
+                - bash
+                - -lc
+                - |
+                  vllm bench serve \
+                    --backend openai-chat \
+                    --base-url http://vllm:8000 \
+                    --endpoint /v1/chat/completions \
+                    --model Qwen/Qwen2.5-7B-Instruct \
+                    --dataset-name random \
+                    --random-input-len 512 \
+                    --random-output-len 128 \
+                    --request-rate 10 \
+                    --num-prompts 1000 \
+                    --save-result \
+                    --result-filename /tmp/vllm-bench-result.json
+                  cat /tmp/vllm-bench-result.json
+        EOF
 
-          if [ "$total" -gt 0 ] && [ "$terminal" -eq "$total" ]; then
-            echo "All cl2 pods reached terminal state (Succeeded or Failed)"
-            kubectl get pods --namespace="clusterloader2" -l job-name=cl2 -o wide
+        kubectl wait --for=condition=complete job/vllm-bench --namespace="vllm-benchmark" --timeout=60m
 
-            break
-          fi
+        END_SECONDS=$(date +%s)
+        DURATION_SECONDS=$((END_SECONDS - START_SECONDS))
 
-          sleep 30
-        done
-    displayName: Run cluster loader 2
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: Azure-for-Telescope-internal
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
-
-        for pod in $(kubectl get pods --namespace="clusterloader2" -l job-name=cl2 -o jsonpath='{.items[*].metadata.name}'); do
-          echo "===== Logs for pod: $pod ====="
-          kubectl logs --namespace="clusterloader2" "$pod" || true
-        done
-    displayName: Print cl2 pod logs
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: Azure-for-Telescope-internal
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
+        BENCH_POD=$(kubectl get pod --namespace="vllm-benchmark" -l job-name=vllm-bench -o jsonpath='{.items[0].metadata.name}')
+        kubectl cp "vllm-benchmark/${BENCH_POD}:/tmp/vllm-bench-result.json" /tmp/vllm-bench-result.json
 
         TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-        STATUS="succeeded"
+        python3 - <<PY
+        import json
 
-        # Check if any cl2 pod failed
-        FAILED=$(kubectl get pods --namespace="clusterloader2" -l job-name=cl2 -o jsonpath='{range .items[*]}{.status.phase}{"\n"}{end}' | grep -c "^Failed$" || true)
-        if [ "$FAILED" -gt 0 ]; then
-          STATUS="failed"
-        fi
+        with open("/tmp/vllm-bench-result.json", "r", encoding="utf-8") as f:
+            bench = json.load(f)
 
-        cat > /tmp/run-result.json << EOF
+        duration_seconds = int("$DURATION_SECONDS")
+        gpu_node_count = 1
+        hourly_cost = float("6.98")
+        total_cost = gpu_node_count * hourly_cost * duration_seconds / 3600.0
+        total_tokens = 1000 * (512 + 128)
 
-        {
-          "timestamp": "${TIMESTAMP}",
-          "run_id": "$(RUN_ID)",
-          "run_url": "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)",
-          "pipeline": "$(Build.DefinitionName)",
-          "result": {
-            "cl2_status": "${STATUS}",
-            "region": "westus2"
-          }
+        result = {
+            "scenario": "vllm-qwen25-7b-cost-efficiency",
+            "region": "australiaeast",
+            "cluster": "ai-inference-cost",
+            "model": "Qwen/Qwen2.5-7B-Instruct",
+            "runtime": "vllm",
+            "gpu_vm_size": "Standard_NC40ads_H100_v5",
+            "gpu_node_count": gpu_node_count,
+            "request_rate": 10,
+            "num_prompts": 1000,
+            "input_tokens_per_prompt": 512,
+            "output_tokens_per_prompt": 128,
+            "duration_seconds": duration_seconds,
+            "estimated_cost_usd": total_cost,
+            "estimated_cost_per_1m_tokens_usd": total_cost * 1_000_000 / total_tokens,
+            "vllm_benchmark": bench,
         }
-        EOF
+
+        wrapped_result = {
+            "timestamp": "$TIMESTAMP",
+            "run_id": "$(RUN_ID)",
+            "run_url": "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)",
+            "pipeline": "$(Build.DefinitionName)",
+            "result": result,
+        }
+
+        with open("/tmp/run-result.json", "w", encoding="utf-8") as f:
+            json.dump(wrapped_result, f)
+        PY
+
         cat /tmp/run-result.json
-    displayName: Collect cl2 pods status
+    displayName: Deploy vLLM and run benchmark
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
@@ -286,7 +257,6 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
-
         az storage blob upload \
           --account-name "telescopev2" \
           --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" \
@@ -302,7 +272,6 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
-
-        az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
+        az group delete --name "$(RUN_ID)" --subscription "f6e2f77f-9959-42ad-87f0-c30a6abc0133" --yes
     condition: always()
-    displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+    displayName: Delete resource group (f6e2f77f-9959-42ad-87f0-c30a6abc0133)
