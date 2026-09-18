@@ -10,6 +10,6 @@ boto3==1.36.5
 botocore==1.36.5
 coverage==7.6.12
 semver==3.0.4
-requests==2.32.4
+requests==2.33.0
 pyyaml==6.0.2
 pyOpenSSL==26.0.0
