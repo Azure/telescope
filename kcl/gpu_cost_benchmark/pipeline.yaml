@@ -1,0 +1,277 @@
+name: AI Inferencing Cost Efficiency Benchmark
+pool: AKS-Telescope-Airlock
+trigger:
+- v2
+jobs:
+- job: vllm_qwen25_7b
+  displayName: vLLM Qwen2.5 7B cost efficiency benchmark
+  timeoutInMinutes: 240
+  steps:
+  - bash: |
+      set -eo pipefail
+
+      job_id="$(System.JobId)"
+      RUN_ID=$(Build.BuildId)-${job_id:0:8}
+      echo "Run ID: $RUN_ID"
+
+      echo "##vso[task.setvariable variable=RUN_ID]$RUN_ID"
+    displayName: Set Run ID
+  - bash: |-
+      set -exo pipefail
+      pip3 install --upgrade "pip<24"
+      pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
+    displayName: Install Python dependencies
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        az account set --subscription "f6e2f77f-9959-42ad-87f0-c30a6abc0133"
+        az config set defaults.location="australiaeast"
+        az account show
+    displayName: Login to Azure
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        az group create \
+          --name "$(RUN_ID)" \
+          --location "australiaeast" \
+          --subscription "f6e2f77f-9959-42ad-87f0-c30a6abc0133" \
+        --tags scenario=vllm-qwen25-7b-cost-efficiency
+    displayName: Create resource group in australiaeast (f6e2f77f-9959-42ad-87f0-c30a6abc0133)
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        az aks create \
+          --name "ai-inference-cost" \
+          --resource-group "$(RUN_ID)" \
+          --subscription "f6e2f77f-9959-42ad-87f0-c30a6abc0133" \
+          --location "australiaeast" \
+          --tier standard \
+          --nodepool-name systempool \
+          --node-count 3 \
+          --node-vm-size "Standard_D8s_v5" \
+          --network-plugin azure \
+          --network-plugin-mode overlay \
+          --pod-cidr 10.64.0.0/10 \
+          --service-cidr 10.0.0.0/16 \
+          --dns-service-ip 10.0.0.10 \
+          --outbound-type managedNATGateway \
+          --enable-managed-identity \
+          --generate-ssh-keys
+
+        az aks nodepool add \
+          --cluster-name "ai-inference-cost" \
+          --resource-group "$(RUN_ID)" \
+          --subscription "f6e2f77f-9959-42ad-87f0-c30a6abc0133" \
+          --name "gpupool" \
+          --node-vm-size "Standard_NC40ads_H100_v5" \
+          --node-count 1 \
+          --node-taints sku=gpu:NoSchedule \
+          --gpu-driver Install
+    displayName: Create AKS GPU benchmark cluster
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        az aks get-credentials \
+          --name "ai-inference-cost" \
+          --resource-group "$(RUN_ID)" \
+          --subscription "f6e2f77f-9959-42ad-87f0-c30a6abc0133" \
+          --overwrite-existing
+    displayName: Get credentials for ai-inference-cost
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        kubectl create namespace "vllm-benchmark"
+
+        cat <<EOF | kubectl apply -f -
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: vllm
+          namespace: vllm-benchmark
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              app: vllm
+          template:
+            metadata:
+              labels:
+                app: vllm
+            spec:
+              nodeSelector:
+                kubernetes.azure.com/agentpool: gpupool
+              tolerations:
+              - key: sku
+                operator: Equal
+                value: gpu
+                effect: NoSchedule
+              containers:
+              - name: vllm
+                image: vllm/vllm-openai:latest
+                args:
+                - --model
+                - Qwen/Qwen2.5-7B-Instruct
+                - --host
+                - 0.0.0.0
+                - --port
+                - "8000"
+                ports:
+                - containerPort: 8000
+                resources:
+                  limits:
+                    nvidia.com/gpu: 1
+                readinessProbe:
+                  httpGet:
+                    path: /health
+                    port: 8000
+                  initialDelaySeconds: 60
+                  periodSeconds: 15
+        ---
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: vllm
+          namespace: vllm-benchmark
+        spec:
+          selector:
+            app: vllm
+          ports:
+          - port: 8000
+            targetPort: 8000
+        EOF
+
+        kubectl rollout status deployment/vllm --namespace="vllm-benchmark" --timeout=45m
+
+        START_SECONDS=$(date +%s)
+
+        cat <<EOF | kubectl apply -f -
+        apiVersion: batch/v1
+        kind: Job
+        metadata:
+          name: vllm-bench
+          namespace: vllm-benchmark
+        spec:
+          backoffLimit: 0
+          template:
+            spec:
+              restartPolicy: Never
+              containers:
+              - name: bench
+                image: vllm/vllm-openai:latest
+                command:
+                - bash
+                - -lc
+                - |
+                  vllm bench serve \
+                    --backend openai-chat \
+                    --base-url http://vllm:8000 \
+                    --endpoint /v1/chat/completions \
+                    --model Qwen/Qwen2.5-7B-Instruct \
+                    --dataset-name random \
+                    --random-input-len 512 \
+                    --random-output-len 128 \
+                    --request-rate 10 \
+                    --num-prompts 1000 \
+                    --save-result \
+                    --result-filename /tmp/vllm-bench-result.json
+                  cat /tmp/vllm-bench-result.json
+        EOF
+
+        kubectl wait --for=condition=complete job/vllm-bench --namespace="vllm-benchmark" --timeout=60m
+
+        END_SECONDS=$(date +%s)
+        DURATION_SECONDS=$((END_SECONDS - START_SECONDS))
+
+        BENCH_POD=$(kubectl get pod --namespace="vllm-benchmark" -l job-name=vllm-bench -o jsonpath='{.items[0].metadata.name}')
+        kubectl cp "vllm-benchmark/${BENCH_POD}:/tmp/vllm-bench-result.json" /tmp/vllm-bench-result.json
+
+        TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+        python3 - <<PY
+        import json
+
+        with open("/tmp/vllm-bench-result.json", "r", encoding="utf-8") as f:
+            bench = json.load(f)
+
+        duration_seconds = int("$DURATION_SECONDS")
+        gpu_node_count = 1
+        hourly_cost = float("6.98")
+        total_cost = gpu_node_count * hourly_cost * duration_seconds / 3600.0
+        total_tokens = 1000 * (512 + 128)
+
+        result = {
+            "scenario": "vllm-qwen25-7b-cost-efficiency",
+            "region": "australiaeast",
+            "cluster": "ai-inference-cost",
+            "model": "Qwen/Qwen2.5-7B-Instruct",
+            "runtime": "vllm",
+            "gpu_vm_size": "Standard_NC40ads_H100_v5",
+            "gpu_node_count": gpu_node_count,
+            "request_rate": 10,
+            "num_prompts": 1000,
+            "input_tokens_per_prompt": 512,
+            "output_tokens_per_prompt": 128,
+            "duration_seconds": duration_seconds,
+            "estimated_cost_usd": total_cost,
+            "estimated_cost_per_1m_tokens_usd": total_cost * 1_000_000 / total_tokens,
+            "vllm_benchmark": bench,
+        }
+
+        wrapped_result = {
+            "timestamp": "$TIMESTAMP",
+            "run_id": "$(RUN_ID)",
+            "run_url": "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)",
+            "pipeline": "$(Build.DefinitionName)",
+            "result": result,
+        }
+
+        with open("/tmp/run-result.json", "w", encoding="utf-8") as f:
+            json.dump(wrapped_result, f)
+        PY
+
+        cat /tmp/run-result.json
+    displayName: Deploy vLLM and run benchmark
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        az storage blob upload \
+          --account-name "telescopev2" \
+          --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" \
+          --container-name "aks" \
+          --name "$(RUN_ID)/run-result.json" \
+          --file /tmp/run-result.json \
+          --auth-mode key
+    displayName: Upload result to storage account
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        az group delete --name "$(RUN_ID)" --subscription "f6e2f77f-9959-42ad-87f0-c30a6abc0133" --yes
+    condition: always()
+    displayName: Delete resource group (f6e2f77f-9959-42ad-87f0-c30a6abc0133)
