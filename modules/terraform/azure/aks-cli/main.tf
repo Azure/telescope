@@ -281,7 +281,7 @@ resource "terraform_data" "enable_aks_cli_preview_extension" {
     EOT
       ) : (
       <<EOT
-      az extension add -n aks-preview --version 19.0.0b27
+      az extension add -n aks-preview --version 21.0.0b14
       az version
     EOT
     )
@@ -404,4 +404,3 @@ resource "azurerm_role_assignment" "des_reader_cluster" {
     local.aks_system_assigned_principal_id != null ? local.aks_system_assigned_principal_id : error("Unable to determine AKS system-assigned identity principalId via azapi; cannot grant DES Reader role.")
   )
 }
-
