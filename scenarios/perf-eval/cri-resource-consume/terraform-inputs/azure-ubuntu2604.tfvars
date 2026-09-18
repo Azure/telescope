@@ -9,6 +9,7 @@ aks_cli_config_list = [
     aks_name           = "cri-resource-consume"
     sku_tier           = "standard"
     kubernetes_version = "1.36"
+    use_aks_preview_cli_extension = true
     default_node_pool = {
       name       = "default"
       node_count = 3
