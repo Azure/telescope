@@ -12,6 +12,11 @@
 # Template variables:
 #   __NAMESPACE__            — test namespace
 #   __NODE_AGGREGATOR_IMAGE__ — Prometheus image
+#   NODE_AGGREGATOR_NODE_AFFINITY (double-underscore wrapped) — nodeAffinity
+#                              block (or "" for none), scoping the DaemonSet
+#                              to the current tier-block scrape scope; see
+#                              deploy.py's deploy_node_aggregator /
+#                              _tier_block_node_affinity.
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -155,9 +160,12 @@ spec:
   selector:
     matchLabels:
       app: node-aggregator
-  # No node selector -- this runs on every DP node regardless of tier-block,
-  # so the default maxUnavailable:1 would serialize a config-change restart
-  # one node at a time across thousands of nodes. Parallelize it.
+  # Node affinity (rendered below, in template.spec) scopes this to nodes
+  # within the current tier-block scrape scope when fixed_pools is used,
+  # instead of running on every DP node regardless of tier -- see
+  # deploy.py's deploy_node_aggregator. maxUnavailable is bumped from the
+  # default 1 since a config-change restart across thousands of nodes with
+  # no node selector would otherwise serialize one node at a time.
   updateStrategy:
     rollingUpdate:
       maxUnavailable: 25%
@@ -169,6 +177,7 @@ spec:
       serviceAccountName: node-aggregator
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
+__NODE_AGGREGATOR_NODE_AFFINITY__
       containers:
         - name: prometheus
           image: __NODE_AGGREGATOR_IMAGE__
@@ -183,10 +192,10 @@ spec:
           resources:
             requests:
               cpu: 20m
-              memory: 64Mi
+              memory: 176Mi
             limits:
               cpu: 250m
-              memory: 256Mi
+              memory: 320Mi
           volumeMounts:
             - name: config
               mountPath: /etc/prometheus

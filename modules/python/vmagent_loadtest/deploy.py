@@ -11,7 +11,8 @@ from .config import (
     AGENT_TAINT_KEY, AGENT_TAINT_VALUE,
     FAKE_EXPORTER_DIR, FAKE_EXPORTER_IMAGE, FAKE_EXPORTER_NS,
     FAKE_EXPORTER_ROLES, KONN_AGENT_AUTOSCALER_IMAGE, KONN_AGENT_IMAGE, KONN_SERVER_IMAGE,
-    KUBELET_SA_NAME, MANIFEST_DIR, NODE_AGGREGATOR_IMAGE, VMAGENT_IMAGE, VMAGENT_PROXY_IMAGE,
+    KUBELET_SA_NAME, MANIFEST_DIR, NODE_AGGREGATOR_IMAGE, TIER_BLOCK_NODE_LABEL_KEY,
+    VMAGENT_IMAGE, VMAGENT_PROXY_IMAGE,
     VMSINGLE_IMAGE,
     VMAGENT_RATE_LIMIT, VMAGENT_FLUSH_INTERVAL,
     log,
@@ -200,17 +201,54 @@ def update_konn_agent_autoscaler_floor(kubeconfig: str, namespace: str, min_repl
     rollout_restart(kubeconfig, namespace, "deployment/konnectivity-agent-autoscaler")
 
 
-def deploy_node_aggregator(dp_kubeconfig: str, namespace: str) -> None:
+def _tier_block_node_affinity(tier_block_regex: str) -> str:
+    """Node affinity YAML scoping node-aggregator to nodes within the current
+    tier-block scrape scope -- the same loadtest.io/tier-block label/regex
+    central vmagent's own scrape config is gated on (config.tier_block_regex),
+    itself standing in for prod's node-count/subscription-mode gating
+    (full_scale_only / scale_and_toggle_mode / default_no_scale). Without
+    this, the DaemonSet runs unconditionally on every node regardless of
+    whether vmagent is scraping it yet -- a fleet-wide tax on out-of-scope
+    nodes (see wiki Cons). "" or ".*" (no tier-block gating) returns "" ->
+    no affinity restriction, i.e. every node, matching prior behavior.
+    """
+    if tier_block_regex in ("", ".*"):
+        return ""
+    blocks = tier_block_regex.split("|")
+    values = "\n".join(f"                      - {b}" for b in blocks)
+    return (
+        f"      affinity:\n"
+        f"        nodeAffinity:\n"
+        f"          requiredDuringSchedulingIgnoredDuringExecution:\n"
+        f"            nodeSelectorTerms:\n"
+        f"              - matchExpressions:\n"
+        f"                  - key: {TIER_BLOCK_NODE_LABEL_KEY}\n"
+        f"                    operator: In\n"
+        f"                    values:\n"
+        f"{values}"
+    )
+
+
+def deploy_node_aggregator(dp_kubeconfig: str, namespace: str,
+                          tier_block_regex: str = ".*") -> None:
     """Deploy the real per-node Prometheus aggregator DaemonSet (prototype).
 
     Scrapes kubelet/cadvisor/kube-proxy/azure-cns/node-exporter/node-runtime
     locally on each DP node and exposes them combined via /federate, so
     central vmagent can scrape one target per node instead of six.
+
+    tier_block_regex (fixed_pools mode only) scopes the DaemonSet to the
+    nodes currently in central vmagent's scrape scope instead of every node
+    -- pass the same value used for vmagent's own scrape-config regex
+    (config.tier_block_regex(tier)) and re-call on every tier change so the
+    DaemonSet's node affinity grows in lockstep.
     """
-    log.info("Deploying node-aggregator DaemonSet in %s...", namespace)
+    log.info("Deploying node-aggregator DaemonSet in %s (tier_block_regex=%s)...",
+             namespace, tier_block_regex)
     manifest = render_template(MANIFEST_DIR / "node-aggregator.yaml", {
         "__NAMESPACE__": namespace,
         "__NODE_AGGREGATOR_IMAGE__": NODE_AGGREGATOR_IMAGE,
+        "__NODE_AGGREGATOR_NODE_AFFINITY__": _tier_block_node_affinity(tier_block_regex),
     })
     kubectl_apply(dp_kubeconfig, manifest)
     # ConfigMap-only changes don't trigger a DaemonSet rollout on their own

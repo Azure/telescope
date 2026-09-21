@@ -593,7 +593,8 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
         dp_api_server = get_dp_api_server(dp_kubeconfig)
 
         if node_aggregator:
-            deploy_node_aggregator(dp_kubeconfig, namespace)
+            deploy_node_aggregator(dp_kubeconfig, namespace,
+                                    tier_block_regex=tier_block_regex(first_tier) if fixed_pools else ".*")
 
         deploy_vmsingle(cp_kubeconfig, namespace)
         deploy_vmagent(cp_kubeconfig, namespace, dp_api_server,
@@ -651,6 +652,12 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
             deploy_konnectivity_server(cp_kubeconfig, namespace, server_count=server_count,
                                         resources=tier_resources["konn_server"], wait=True,
                                         server_image=konn_server_image)
+            if node_aggregator:
+                # Grow the DaemonSet's node affinity in lockstep with
+                # vmagent's own tier-block scrape scope below, so it never
+                # runs on nodes vmagent isn't scraping yet.
+                deploy_node_aggregator(dp_kubeconfig, namespace,
+                                        tier_block_regex=tier_block_regex(tier) if fixed_pools else ".*")
             # konnectivity-agent itself and its autoscaler are deployed once,
             # at bootstrap -- not touched per tier. The autoscaler owns live
             # replica count from here via its own packet-metrics reconcile
@@ -720,7 +727,12 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
         adx_export_konnectivity_logs_if_configured(cp_kubeconfig, dp_kubeconfig, namespace, run_id, tier,
                                                    mode="real-targets", run_label=run_label or "")
         log.info("Collecting peak resource usage for summary row...")
-        step_measurements.update(adx_collect_resource_peaks(cp_kubeconfig, namespace, ramp_start_ts))
+        # Windowed to this tier's own step_start_ts, not ramp_start_ts --
+        # using ramp_start_ts made every peak (esp. VmagentMemMaxBytes)
+        # cumulative-since-ramp-start, carrying an earlier tier's peak
+        # forward into later tiers' rows and making tier-by-tier trend
+        # comparisons unreliable.
+        step_measurements.update(adx_collect_resource_peaks(cp_kubeconfig, namespace, step_start_ts))
 
         log.info("Pushing run summary row to ADX...")
         adx_export_summary_if_configured(
@@ -1073,7 +1085,9 @@ def run_fake_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
         adx_export_konnectivity_logs_if_configured(cp_kubeconfig, dp_kubeconfig, namespace, run_id, tier,
                                                    mode="fake-targets", run_label=run_label or "")
         log.info("Collecting peak resource usage for summary row...")
-        step_measurements.update(adx_collect_resource_peaks(cp_kubeconfig, namespace, ramp_start_ts))
+        # See run_real_targets_ramp: windowed to this tier's step_start_ts,
+        # not ramp_start_ts, so peaks aren't cumulative across the ramp.
+        step_measurements.update(adx_collect_resource_peaks(cp_kubeconfig, namespace, step_start_ts))
 
         log.info("Pushing run summary row to ADX...")
         adx_export_summary_if_configured(
