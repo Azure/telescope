@@ -252,7 +252,7 @@ def override_config_clusterloader2(
         desired_node_count = 0
 
     is_complex = cl2_config_file == "ms_complex_config.yaml"
-    if not is_complex:
+    if not is_complex and not pod_cpu_request:
         pod_cpu_request = calculate_cpu_request_for_clusterloader2(
             node_label_selector,
             node_count,
