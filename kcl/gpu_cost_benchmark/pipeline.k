@@ -66,6 +66,7 @@ metadata:
   namespace: ${NAMESPACE}
 spec:
   replicas: 1
+  progressDeadlineSeconds: 1800
   selector:
     matchLabels:
       app: vllm
@@ -116,7 +117,14 @@ spec:
     targetPort: 8000
 EOF
 
-kubectl rollout status deployment/vllm --namespace="${NAMESPACE}" --timeout=45m
+if ! kubectl rollout status deployment/vllm --namespace="${NAMESPACE}" --timeout=35m; then
+  kubectl get pods --namespace="${NAMESPACE}" -o wide
+  kubectl get events --namespace="${NAMESPACE}" --sort-by=.lastTimestamp
+  kubectl describe deployment/vllm --namespace="${NAMESPACE}"
+  kubectl describe pods --namespace="${NAMESPACE}"
+  kubectl logs --namespace="${NAMESPACE}" deployment/vllm --all-containers=true --tail=200 || true
+  exit 1
+fi
 
 START_SECONDS=$(date +%s)
 
