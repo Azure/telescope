@@ -82,6 +82,9 @@ jobs:
       regions: ${{ parameters.regions }}
       topology: ${{ parameters.topology }}
       engine: ${{ parameters.engine }}
+  - bash: sleep 1800
+    displayName: Wait 30 minutes before starting test
+    condition: and(succeeded(), eq(variables['WAIT_BEFORE_TEST'], 'true'))
   - template: /steps/execute-tests.yml
     parameters:
       cloud: ${{ parameters.cloud }}

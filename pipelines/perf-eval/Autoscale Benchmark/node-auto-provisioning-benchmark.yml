@@ -70,6 +70,7 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: nap
+  WAIT_BEFORE_TEST: 'true'
 
 stages:
   - stage: azure_staging_small_scale
