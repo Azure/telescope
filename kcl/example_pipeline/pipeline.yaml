@@ -110,6 +110,7 @@ jobs:
           namespace: vllm-benchmark
         spec:
           replicas: 1
+          progressDeadlineSeconds: 1800
           selector:
             matchLabels:
               app: vllm
@@ -160,7 +161,14 @@ jobs:
             targetPort: 8000
         EOF
 
-        kubectl rollout status deployment/vllm --namespace="vllm-benchmark" --timeout=45m
+        if ! kubectl rollout status deployment/vllm --namespace="vllm-benchmark" --timeout=35m; then
+          kubectl get pods --namespace="vllm-benchmark" -o wide
+          kubectl get events --namespace="vllm-benchmark" --sort-by=.lastTimestamp
+          kubectl describe deployment/vllm --namespace="vllm-benchmark"
+          kubectl describe pods --namespace="vllm-benchmark"
+          kubectl logs --namespace="vllm-benchmark" deployment/vllm --all-containers=true --tail=200 || true
+          exit 1
+        fi
 
         START_SECONDS=$(date +%s)
 
