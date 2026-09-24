@@ -88,7 +88,7 @@ jobs:
           --subscription "f6e2f77f-9959-42ad-87f0-c30a6abc0133" \
           --name "gpupool" \
           --node-vm-size "Standard_NC40ads_H100_v5" \
-          --node-count 1 \
+          --node-count 0 \
           --node-taints sku=gpu:NoSchedule \
           $GPU_NODEPOOL_FLAGS
     displayName: Create AKS GPU benchmark cluster
@@ -114,12 +114,22 @@ jobs:
         set -exo pipefail
         kubectl create namespace "vllm-benchmark"
 
+        GPU_SCALE_START_SECONDS=$(date +%s)
+        az aks nodepool scale \
+          --cluster-name "ai-inference-cost" \
+          --resource-group "$(RUN_ID)" \
+          --subscription "f6e2f77f-9959-42ad-87f0-c30a6abc0133" \
+          --name "gpupool" \
+          --node-count 1
+
         wait_for_gpu_allocatable() {
+          attempts="$1"
           GPU_ALLOCATABLE=""
-          for i in $(seq 1 60); do
+          for i in $(seq 1 "$attempts"); do
             GPU_ALLOCATABLE=$(kubectl get nodes -l kubernetes.azure.com/agentpool="gpupool" -o jsonpath='{.items[0].status.allocatable.nvidia\.com/gpu}' 2>/dev/null || true)
             echo "GPU allocatable on gpupool: $GPU_ALLOCATABLE"
             if [ "$GPU_ALLOCATABLE" = "1" ]; then
+              GPU_READY_SECONDS=$(($(date +%s) - GPU_SCALE_START_SECONDS))
               return 0
             fi
             sleep 30
@@ -127,12 +137,12 @@ jobs:
           return 1
         }
 
-        if ! wait_for_gpu_allocatable; then
+        if ! wait_for_gpu_allocatable 20; then
           echo "GPU is not allocatable yet; installing the NVIDIA device plugin for self-managed GPU setup."
           kubectl apply -f https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v0.17.1/deployments/static/nvidia-device-plugin.yml
           kubectl -n kube-system patch daemonset nvidia-device-plugin-daemonset --type='merge' -p '{"spec":{"template":{"spec":{"nodeSelector":{"kubernetes.azure.com/agentpool":"gpupool"},"tolerations":[{"key":"sku","operator":"Equal","value":"gpu","effect":"NoSchedule"},{"key":"nvidia.com/gpu","operator":"Exists","effect":"NoSchedule"}]}}}}'
           kubectl -n kube-system rollout status daemonset/nvidia-device-plugin-daemonset --timeout=15m
-          wait_for_gpu_allocatable
+          wait_for_gpu_allocatable 60
         fi
 
         if [ "$GPU_ALLOCATABLE" != "1" ]; then
@@ -143,6 +153,7 @@ jobs:
           exit 1
         fi
 
+        VLLM_DEPLOY_START_SECONDS=$(date +%s)
         cat <<EOF | kubectl apply -f -
         apiVersion: apps/v1
         kind: Deployment
@@ -211,6 +222,35 @@ jobs:
           kubectl logs --namespace="vllm-benchmark" deployment/vllm --all-containers=true --tail=200 || true
           exit 1
         fi
+        VLLM_READY_SECONDS=$(($(date +%s) - VLLM_DEPLOY_START_SECONDS))
+
+        VLLM_POD=$(kubectl get pod --namespace="vllm-benchmark" -l app=vllm -o jsonpath='{.items[0].metadata.name}')
+        kubectl logs --namespace="vllm-benchmark" "$VLLM_POD" > /tmp/vllm-server.log || true
+        MODEL_LOAD_SECONDS=$(python3 - <<'PY'
+        import re
+
+        patterns = [
+            r"Loading model weights took ([0-9.]+) seconds",
+            r"Model loading took ([0-9.]+) seconds",
+            r"Loaded model .* in ([0-9.]+) seconds",
+            r"init engine .* took ([0-9.]+) s",
+        ]
+
+        try:
+            text = open("/tmp/vllm-server.log", encoding="utf-8").read()
+        except FileNotFoundError:
+            text = ""
+
+        for pattern in patterns:
+            matches = re.findall(pattern, text, flags=re.IGNORECASE)
+            if matches:
+                print(matches[-1])
+                break
+        PY
+        )
+        echo "GPU ready seconds: $GPU_READY_SECONDS"
+        echo "vLLM ready seconds: $VLLM_READY_SECONDS"
+        echo "Model load seconds: $MODEL_LOAD_SECONDS"
 
         START_SECONDS=$(date +%s)
 
@@ -278,6 +318,10 @@ jobs:
             bench = json.load(f)
 
         duration_seconds = int("$DURATION_SECONDS")
+        gpu_ready_seconds = int("$GPU_READY_SECONDS")
+        vllm_ready_seconds = int("$VLLM_READY_SECONDS")
+        model_load_seconds_raw = "$MODEL_LOAD_SECONDS".strip()
+        model_load_seconds = float(model_load_seconds_raw) if model_load_seconds_raw else None
         gpu_node_count = 1
         hourly_cost = float("6.98")
         total_cost = gpu_node_count * hourly_cost * duration_seconds / 3600.0
@@ -296,6 +340,10 @@ jobs:
             "input_tokens_per_prompt": 512,
             "output_tokens_per_prompt": 128,
             "duration_seconds": duration_seconds,
+            "gpu_ready_seconds": gpu_ready_seconds,
+            "vllm_ready_seconds": vllm_ready_seconds,
+            "model_load_seconds": model_load_seconds,
+            "startup_seconds": gpu_ready_seconds + vllm_ready_seconds,
             "estimated_cost_usd": total_cost,
             "estimated_cost_per_1m_tokens_usd": total_cost * 1_000_000 / total_tokens,
             "vllm_benchmark": bench,
