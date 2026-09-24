@@ -160,6 +160,7 @@ jobs:
               labels:
                 app: vllm
             spec:
+              enableServiceLinks: false
               nodeSelector:
                 kubernetes.azure.com/agentpool: gpupool
               tolerations:
@@ -223,6 +224,7 @@ jobs:
           backoffLimit: 0
           template:
             spec:
+              enableServiceLinks: false
               restartPolicy: Never
               containers:
               - name: bench
