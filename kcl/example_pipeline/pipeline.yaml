@@ -245,7 +245,9 @@ jobs:
                     --num-prompts 1000 \
                     --save-result \
                     --result-filename /tmp/vllm-bench-result.json
+                  echo "__VLLM_RESULT_JSON_BEGIN__"
                   cat /tmp/vllm-bench-result.json
+                  echo "__VLLM_RESULT_JSON_END__"
         EOF
 
         kubectl wait --for=condition=complete job/vllm-bench --namespace="vllm-benchmark" --timeout=60m
@@ -254,7 +256,10 @@ jobs:
         DURATION_SECONDS=$((END_SECONDS - START_SECONDS))
 
         BENCH_POD=$(kubectl get pod --namespace="vllm-benchmark" -l job-name=vllm-bench -o jsonpath='{.items[0].metadata.name}')
-        kubectl cp "vllm-benchmark/${BENCH_POD}:/tmp/vllm-bench-result.json" /tmp/vllm-bench-result.json
+        kubectl logs --namespace="vllm-benchmark" "$BENCH_POD" > /tmp/vllm-bench.log
+        sed -n '/__VLLM_RESULT_JSON_BEGIN__/,/__VLLM_RESULT_JSON_END__/p' /tmp/vllm-bench.log \
+          | sed '1d;$d' > /tmp/vllm-bench-result.json
+        cat /tmp/vllm-bench-result.json
 
         TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
         python3 - <<PY
