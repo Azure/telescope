@@ -249,7 +249,7 @@ jobs:
                   test -s /tmp/vllm-bench-result.json
                   echo "__VLLM_RESULT_JSON_BEGIN__"
                   cat /tmp/vllm-bench-result.json
-                  echo "__VLLM_RESULT_JSON_END__"
+                  printf '\n__VLLM_RESULT_JSON_END__\n'
         EOF
 
         kubectl wait --for=condition=complete job/vllm-bench --namespace="vllm-benchmark" --timeout=60m
