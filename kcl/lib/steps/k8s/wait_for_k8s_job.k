@@ -2,9 +2,10 @@ import azure_pipelines.ap.steps
 
 # Wait for a named Kubernetes Job to reach a terminal condition, then emit
 # logs and diagnostics before returning.
-WaitForK8sJobFinished = lambda namespace: str, jobName: str, timeoutSeconds: int = 7200 -> steps.Bash {
+WaitForK8sJobFinished = lambda namespace: str, jobName: str, timeoutSeconds: int = 7200, continueOnError: bool = False -> steps.Bash {
     steps.Bash {
         displayName = "Wait for k8s job to finish: ${jobName}"
+        continueOnError = continueOnError
         bash = """
 set -euo pipefail
 
