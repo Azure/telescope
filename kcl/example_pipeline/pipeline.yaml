@@ -233,6 +233,7 @@ jobs:
                 - bash
                 - -lc
                 - |
+                  set -euo pipefail
                   vllm bench serve \
                     --backend openai-chat \
                     --base-url http://vllm:8000 \
@@ -245,6 +246,7 @@ jobs:
                     --num-prompts 1000 \
                     --save-result \
                     --result-filename /tmp/vllm-bench-result.json
+                  test -s /tmp/vllm-bench-result.json
                   echo "__VLLM_RESULT_JSON_BEGIN__"
                   cat /tmp/vllm-bench-result.json
                   echo "__VLLM_RESULT_JSON_END__"
@@ -260,6 +262,13 @@ jobs:
         sed -n '/__VLLM_RESULT_JSON_BEGIN__/,/__VLLM_RESULT_JSON_END__/p' /tmp/vllm-bench.log \
           | sed '1d;$d' > /tmp/vllm-bench-result.json
         cat /tmp/vllm-bench-result.json
+
+        if [ ! -s /tmp/vllm-bench-result.json ]; then
+          echo "Benchmark result JSON was not found in the benchmark pod logs."
+          echo "Full benchmark pod logs:"
+          cat /tmp/vllm-bench.log
+          exit 1
+        fi
 
         TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
         python3 - <<PY
