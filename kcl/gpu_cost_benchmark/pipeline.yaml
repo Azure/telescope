@@ -78,7 +78,7 @@ jobs:
           --node-vm-size "Standard_NC40ads_H100_v5" \
           --node-count 1 \
           --node-taints sku=gpu:NoSchedule \
-          --gpu-driver Install
+          --enable-managed-gpu=true
     displayName: Create AKS GPU benchmark cluster
   - task: AzureCLI@2
     inputs:

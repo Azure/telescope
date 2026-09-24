@@ -52,7 +52,7 @@ az aks nodepool add \\
   --node-vm-size "${GPU_VM_SIZE}" \\
   --node-count ${GPU_NODE_COUNT} \\
   --node-taints sku=gpu:NoSchedule \\
-  --gpu-driver Install
+  --enable-managed-gpu=true
 """
 
 deployAndBenchmarkScript = """
