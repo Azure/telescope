@@ -52,6 +52,18 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
+        az version
+        az upgrade --yes --only-show-errors || echo "Azure CLI upgrade failed or is unavailable on this agent; continuing with installed CLI."
+        az config set extension.dynamic_install_allow_preview=true
+        az extension add --name aks-preview --upgrade --allow-preview true || az extension add --name aks-preview --upgrade || az extension update --name aks-preview || true
+        az version
+
+        GPU_NODEPOOL_FLAGS="--gpu-driver Install"
+        if az aks nodepool add --help 2>/dev/null | grep -q -- "--enable-managed-gpu"; then
+          GPU_NODEPOOL_FLAGS="--enable-managed-gpu=true"
+        fi
+        echo "Using GPU node pool flags: $GPU_NODEPOOL_FLAGS"
+
         az aks create \
           --name "ai-inference-cost" \
           --resource-group "$(RUN_ID)" \
@@ -78,7 +90,7 @@ jobs:
           --node-vm-size "Standard_NC40ads_H100_v5" \
           --node-count 1 \
           --node-taints sku=gpu:NoSchedule \
-          --enable-managed-gpu=true
+          $GPU_NODEPOOL_FLAGS
     displayName: Create AKS GPU benchmark cluster
   - task: AzureCLI@2
     inputs:
@@ -101,6 +113,35 @@ jobs:
       inlineScript: |
         set -exo pipefail
         kubectl create namespace "vllm-benchmark"
+
+        wait_for_gpu_allocatable() {
+          GPU_ALLOCATABLE=""
+          for i in $(seq 1 60); do
+            GPU_ALLOCATABLE=$(kubectl get nodes -l kubernetes.azure.com/agentpool="gpupool" -o jsonpath='{.items[0].status.allocatable.nvidia\.com/gpu}' 2>/dev/null || true)
+            echo "GPU allocatable on gpupool: $GPU_ALLOCATABLE"
+            if [ "$GPU_ALLOCATABLE" = "1" ]; then
+              return 0
+            fi
+            sleep 30
+          done
+          return 1
+        }
+
+        if ! wait_for_gpu_allocatable; then
+          echo "GPU is not allocatable yet; installing the NVIDIA device plugin for self-managed GPU setup."
+          kubectl apply -f https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v0.17.1/deployments/static/nvidia-device-plugin.yml
+          kubectl -n kube-system patch daemonset nvidia-device-plugin-daemonset --type='merge' -p '{"spec":{"template":{"spec":{"nodeSelector":{"kubernetes.azure.com/agentpool":"gpupool"},"tolerations":[{"key":"sku","operator":"Equal","value":"gpu","effect":"NoSchedule"},{"key":"nvidia.com/gpu","operator":"Exists","effect":"NoSchedule"}]}}}}'
+          kubectl -n kube-system rollout status daemonset/nvidia-device-plugin-daemonset --timeout=15m
+          wait_for_gpu_allocatable
+        fi
+
+        if [ "$GPU_ALLOCATABLE" != "1" ]; then
+          kubectl get nodes -l kubernetes.azure.com/agentpool="gpupool" -o wide
+          kubectl describe nodes -l kubernetes.azure.com/agentpool="gpupool"
+          kubectl -n kube-system get pods -l name=nvidia-device-plugin-ds -o wide
+          kubectl -n kube-system logs daemonset/nvidia-device-plugin-daemonset --all-containers=true --tail=200 || true
+          exit 1
+        fi
 
         cat <<EOF | kubectl apply -f -
         apiVersion: apps/v1
