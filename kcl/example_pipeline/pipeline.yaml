@@ -91,6 +91,35 @@ jobs:
           --node-count 0 \
           --node-taints sku=gpu:NoSchedule \
           $GPU_NODEPOOL_FLAGS
+
+        for i in $(seq 1 60); do
+          GPU_POOL_STATE=$(az aks nodepool show \
+            --cluster-name "ai-inference-cost" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "f6e2f77f-9959-42ad-87f0-c30a6abc0133" \
+            --name "gpupool" \
+            --query provisioningState -o tsv)
+          CLUSTER_STATE=$(az aks show \
+            --name "ai-inference-cost" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "f6e2f77f-9959-42ad-87f0-c30a6abc0133" \
+            --query provisioningState -o tsv)
+          echo "Cluster provisioningState: $CLUSTER_STATE; GPU nodepool provisioningState: $GPU_POOL_STATE"
+          if [ "$CLUSTER_STATE" = "Succeeded" ] && [ "$GPU_POOL_STATE" = "Succeeded" ]; then
+            break
+          fi
+          sleep 30
+        done
+
+        if [ "$CLUSTER_STATE" != "Succeeded" ] || [ "$GPU_POOL_STATE" != "Succeeded" ]; then
+          echo "AKS cluster or GPU nodepool did not reach Succeeded before scale-out test."
+          az aks nodepool show \
+            --cluster-name "ai-inference-cost" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "f6e2f77f-9959-42ad-87f0-c30a6abc0133" \
+            --name "gpupool" -o json
+          exit 1
+        fi
     displayName: Create AKS GPU benchmark cluster
   - task: AzureCLI@2
     inputs:
@@ -115,12 +144,30 @@ jobs:
         kubectl create namespace "vllm-benchmark"
 
         GPU_SCALE_START_SECONDS=$(date +%s)
-        az aks nodepool scale \
-          --cluster-name "ai-inference-cost" \
-          --resource-group "$(RUN_ID)" \
-          --subscription "f6e2f77f-9959-42ad-87f0-c30a6abc0133" \
-          --name "gpupool" \
-          --node-count 1
+        SCALE_SUCCEEDED=false
+        for i in $(seq 1 20); do
+          if az aks nodepool scale \
+            --cluster-name "ai-inference-cost" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "f6e2f77f-9959-42ad-87f0-c30a6abc0133" \
+            --name "gpupool" \
+            --node-count 1; then
+            SCALE_SUCCEEDED=true
+            break
+          fi
+          echo "GPU nodepool scale attempt $i failed, likely due to a transient AKS operation conflict. Retrying in 30s..."
+          sleep 30
+        done
+
+        if [ "$SCALE_SUCCEEDED" != "true" ]; then
+          echo "Failed to scale GPU nodepool after retries."
+          az aks nodepool show \
+            --cluster-name "ai-inference-cost" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "f6e2f77f-9959-42ad-87f0-c30a6abc0133" \
+            --name "gpupool" -o json
+          exit 1
+        fi
 
         wait_for_gpu_allocatable() {
           attempts="$1"
