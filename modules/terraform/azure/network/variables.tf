@@ -33,6 +33,7 @@ variable "network_config" {
       service_endpoints                         = optional(list(string))
       pls_network_policies_enabled              = optional(bool)
       private_endpoint_network_policies_enabled = optional(bool)
+      default_outbound_access_enabled           = optional(bool)
       delegations = optional(list(object({
         name                       = string
         service_delegation_name    = string

@@ -40,6 +40,7 @@ resource "azurerm_virtual_network" "vnet" {
       address_prefixes                              = [subnet.value.address_prefix]
       service_endpoints                             = subnet.value.service_endpoints != null ? subnet.value.service_endpoints : []
       private_link_service_network_policies_enabled = subnet.value.pls_network_policies_enabled != null ? subnet.value.pls_network_policies_enabled : true
+      default_outbound_access_enabled               = subnet.value.default_outbound_access_enabled != null ? subnet.value.default_outbound_access_enabled : true
 
       private_endpoint_network_policies = subnet.value.private_endpoint_network_policies_enabled == null ? null : (
         subnet.value.private_endpoint_network_policies_enabled ? "Enabled" : "Disabled"
