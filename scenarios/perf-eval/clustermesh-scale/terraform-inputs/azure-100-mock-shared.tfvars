@@ -9,8 +9,10 @@ owner          = "aks"
 # Derived from azure-100.tfvars (shared-VNet real n=100): IDENTICAL network,
 # fleet, service-cidr, and subnet plan — the ONLY change is the default_node_pool,
 # swapped from the real 10 × Standard_D4_v3 workload pool to a THIN 2 × Standard_
-# D8_v3 pool that hosts only the mock-cilium-agent Pods. The 100 virtual nodes per
-# cluster are simulated by KWOK + mock-cilium-agent (real Cilium control plane,
+# D8_v3 pool that hosts only the mock-cilium-agent Pods. The dedicated Prometheus
+# pool uses Standard_D8s_v5 to avoid consuming the constrained Dv3 family quota.
+# The 100 virtual nodes per cluster are simulated by KWOK + mock-cilium-agent
+# (real Cilium control plane,
 # DryMode datapath), deployed AFTER terraform by the clustermesh-scale-mock
 # topology step (provision-kwok-layer.sh). This is the ~10x vCPU reduction at the
 # 10k-node headline tier: a real workload node is a whole VM; a virtual node is a
@@ -24,9 +26,10 @@ owner          = "aks"
 # Per-cluster sizing:
 #   - default pool: 2 × Standard_D8_v3 = 16 vCPU (Dv3) — hosts 100 mock-agents
 #     (~9m CPU/56Mi each, measured) + the CL2 measurement client. max-pods 110.
-#   - prompool:     1 × Standard_D8_v3 = 8  vCPU (Dv3) — labeled prometheus=true.
-#   Total per cluster: 24 vCPU. N=100 total: 2400 vCPU (vs real n=100's 4800;
-#   fits Dv3 family quota on subscription 37deca37, eastus2euap).
+#   - prompool:     1 × Standard_D8s_v5 = 8 vCPU (DSv5) — labeled prometheus=true.
+#   Total per cluster: 24 vCPU. N=100 total: 1600 Dv3 + 800 DSv5 vCPU (vs real
+#   n=100's 4800), fitting the existing family quotas on subscription 37deca37
+#   in eastus2euap without a quota increase.
 #
 # Topology (UNCHANGED from azure-100.tfvars):
 #   - 1 shared VNet 10.0.0.0/8 (packs 255 clusters cleanly).
@@ -1584,7 +1587,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -1635,7 +1638,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -1671,7 +1674,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -1707,7 +1710,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -1743,7 +1746,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -1779,7 +1782,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -1815,7 +1818,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -1851,7 +1854,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -1887,7 +1890,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -1923,7 +1926,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -1959,7 +1962,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -1995,7 +1998,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -2031,7 +2034,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -2067,7 +2070,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -2103,7 +2106,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -2139,7 +2142,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -2175,7 +2178,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -2211,7 +2214,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -2247,7 +2250,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -2283,7 +2286,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -2319,7 +2322,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -2355,7 +2358,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -2391,7 +2394,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -2427,7 +2430,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -2463,7 +2466,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -2499,7 +2502,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -2535,7 +2538,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -2571,7 +2574,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -2607,7 +2610,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -2643,7 +2646,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -2679,7 +2682,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -2715,7 +2718,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -2751,7 +2754,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -2787,7 +2790,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -2823,7 +2826,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -2859,7 +2862,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -2895,7 +2898,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -2931,7 +2934,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -2967,7 +2970,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -3003,7 +3006,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -3039,7 +3042,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -3075,7 +3078,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -3111,7 +3114,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -3147,7 +3150,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -3183,7 +3186,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -3219,7 +3222,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -3255,7 +3258,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -3291,7 +3294,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -3327,7 +3330,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -3363,7 +3366,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -3399,7 +3402,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -3435,7 +3438,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -3471,7 +3474,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -3507,7 +3510,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -3543,7 +3546,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -3579,7 +3582,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -3615,7 +3618,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -3651,7 +3654,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -3687,7 +3690,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -3723,7 +3726,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -3759,7 +3762,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -3795,7 +3798,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -3831,7 +3834,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -3867,7 +3870,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -3903,7 +3906,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -3939,7 +3942,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -3975,7 +3978,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -4011,7 +4014,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -4047,7 +4050,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -4083,7 +4086,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -4119,7 +4122,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -4155,7 +4158,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -4191,7 +4194,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -4227,7 +4230,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -4263,7 +4266,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -4299,7 +4302,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -4335,7 +4338,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -4371,7 +4374,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -4407,7 +4410,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -4443,7 +4446,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -4479,7 +4482,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -4515,7 +4518,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -4551,7 +4554,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -4587,7 +4590,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -4623,7 +4626,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -4659,7 +4662,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -4695,7 +4698,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -4731,7 +4734,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -4767,7 +4770,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -4803,7 +4806,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -4839,7 +4842,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -4875,7 +4878,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -4911,7 +4914,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -4947,7 +4950,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -4983,7 +4986,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -5019,7 +5022,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -5055,7 +5058,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -5091,7 +5094,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -5127,7 +5130,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -5163,7 +5166,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]

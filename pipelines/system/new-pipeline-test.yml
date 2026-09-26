@@ -48,7 +48,7 @@ parameters:
       - clustermesh-scale-mock
   - name: scaleDebugRequiredFamilyVcpus
     type: number
-    default: 2536
+    default: 1736
   - name: scaleDebugRunWorkload
     type: boolean
     default: true

@@ -368,6 +368,15 @@ def test_fresh_preserve_n100_lease_is_seven_days():
     assert 'deletion_delay = "168h"' in tfvars
 
 
+def test_fresh_preserve_n100_splits_vm_family_quota():
+    pipeline = PIPELINE_PATH.read_text(encoding="utf-8")
+    tfvars = N100_TFVARS_PATH.read_text(encoding="utf-8")
+
+    assert "default: 1736" in pipeline
+    assert tfvars.count('vm_size              = "Standard_D8_v3"') == 101
+    assert tfvars.count('vm_size              = "Standard_D8s_v5"') == 100
+
+
 def test_global_cilium_policy_is_injected_into_aks_cli_configs():
     terraform = AZURE_TERRAFORM_MAIN.read_text(encoding="utf-8")
 
