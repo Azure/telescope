@@ -62,7 +62,12 @@ AZURE_TERRAFORM_MAIN = (
 )
 
 
-def _write_validation_fixture(tmp_path, *, include_second_node_group):
+def _write_validation_fixture(
+    tmp_path,
+    *,
+    include_second_node_group,
+    failed_running_roles=(),
+):
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
     az_log = tmp_path / "az.log"
@@ -94,7 +99,9 @@ def _write_validation_fixture(tmp_path, *, include_second_node_group):
                 f"MC_{parent_rg}_clustermesh-{index}_eastus2euap"
             ),
             "powerState": {"code": "Running"},
-            "provisioningState": "Succeeded",
+            "provisioningState": (
+                "Failed" if role in failed_running_roles else "Succeeded"
+            ),
             "tags": {"role": role},
         }
         for index, role in enumerate(("mesh-1", "mesh-2"), start=1)
@@ -368,6 +375,7 @@ def test_resume_job_skips_terraform_and_preserves_resources():
     )
     assert "${{ if parameters.run_workload }}:" in resume
     assert 'CLUSTERMESH_DEBUG_EXTEND_LEASE_HOURS: "336"' in resume
+    assert 'CLUSTERMESH_DEBUG_ALLOW_FAILED_RUNNING_CLUSTERS: "true"' in resume
     assert (
         "${{ if and(parameters.run_workload, parameters.publish_results) }}:"
         in resume
@@ -528,6 +536,37 @@ def test_preserved_validation_extends_child_leases_before_parent(tmp_path):
     assert manifest["node_resource_group_count"] == 2
     assert manifest["node_resource_groups_extended"] == 1
     assert len(manifest["node_resource_groups"]) == 2
+
+
+def test_preserved_validation_requires_opt_in_for_failed_running_clusters(
+    tmp_path,
+):
+    env, _, _ = _write_validation_fixture(
+        tmp_path,
+        include_second_node_group=True,
+        failed_running_roles=("mesh-2",),
+    )
+
+    rejected = subprocess.run(
+        ["bash", str(VALIDATE_SCRIPT)],
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert rejected.returncode != 0
+    assert "unhealthy clusters" in rejected.stderr
+
+    env["CLUSTERMESH_DEBUG_ALLOW_FAILED_RUNNING_CLUSTERS"] = "true"
+    allowed = subprocess.run(
+        ["bash", str(VALIDATE_SCRIPT)],
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert allowed.returncode == 0, allowed.stderr
+    assert "Allowing Failed/Running AKS records" in allowed.stdout
 
 
 def test_preserved_resume_recovery_runs_before_authoritative_validation():

@@ -10,6 +10,7 @@ expected_tfvars_sha="${CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256:?CLUSTERMESH_DEB
 extend_lease_hours="${CLUSTERMESH_DEBUG_EXTEND_LEASE_HOURS:-0}"
 manifest_path="${CLUSTERMESH_DEBUG_MANIFEST_PATH:-$(pwd)/scale-reuse-validation.json}"
 require_overlay_reset="${CLUSTERMESH_DEBUG_REQUIRE_OVERLAY_RESET:-false}"
+allow_failed_running_clusters="${CLUSTERMESH_DEBUG_ALLOW_FAILED_RUNNING_CLUSTERS:-false}"
 validation_tmp_dir=$(mktemp -d)
 node_resource_groups_file="$validation_tmp_dir/node-resource-groups.json"
 subscription_groups_file="$validation_tmp_dir/subscription-groups.json"
@@ -34,6 +35,11 @@ if ! [[ "$expected_count" =~ ^[1-9][0-9]*$ ]]; then
 fi
 if ! [[ "$extend_lease_hours" =~ ^[0-9]+$ ]]; then
   echo "CLUSTERMESH_DEBUG_EXTEND_LEASE_HOURS must be a non-negative integer." >&2
+  exit 1
+fi
+if [[ "$allow_failed_running_clusters" != "true" &&
+      "$allow_failed_running_clusters" != "false" ]]; then
+  echo "CLUSTERMESH_DEBUG_ALLOW_FAILED_RUNNING_CLUSTERS must be true or false." >&2
   exit 1
 fi
 
@@ -107,15 +113,27 @@ if [ "$(jq 'length' <<< "$aks")" -ne "$expected_count" ]; then
   echo "Expected exactly $expected_count total AKS clusters in the preserved RG." >&2
   exit 1
 fi
-unhealthy=$(jq -c '
+unhealthy=$(jq -c --arg allow_failed_running "$allow_failed_running_clusters" '
   [.[] | select(
-    .provisioningState != "Succeeded" or
-    ((.powerState.code // "Running") != "Running")
+    ((.powerState.code // "Running") != "Running") or
+    (
+      .provisioningState != "Succeeded" and
+      (($allow_failed_running == "true" and .provisioningState == "Failed") | not)
+    )
   ) | {name, provisioningState, powerState}]
 ' <<< "$aks")
 if [ "$(jq 'length' <<< "$unhealthy")" -ne 0 ]; then
   echo "Preserved AKS inventory contains unhealthy clusters: $unhealthy" >&2
   exit 1
+fi
+tolerated_failed=$(jq -c '
+  [.[] | select(
+    .provisioningState == "Failed" and
+    ((.powerState.code // "Running") == "Running")
+  ) | {name, provisioningState, powerState}]
+' <<< "$aks")
+if [ "$(jq 'length' <<< "$tolerated_failed")" -ne 0 ]; then
+  echo "Allowing Failed/Running AKS records for downstream worker and Fleet validation: $tolerated_failed"
 fi
 
 node_resource_groups=$(jq -c '
