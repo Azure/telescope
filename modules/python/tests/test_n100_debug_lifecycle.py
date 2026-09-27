@@ -235,6 +235,7 @@ def test_debug_stages_are_explicitly_mode_gated():
     assert "- name: scaleDebugTfvarsPath" in pipeline
     assert "- name: scaleDebugTopology" in pipeline
     assert "- name: scaleDebugRequiredFamilyVcpus" in pipeline
+    assert "- name: scaleDebugDeployMockLayer" in pipeline
     assert "- name: scaleDebugRunWorkload" in pipeline
 
     assert "CLUSTERMESH_DEBUG_MODE'], 'fresh-preserve'" in fresh
@@ -288,6 +289,7 @@ def test_debug_stages_are_explicitly_mode_gated():
     assert "parameters.scaleDebugTfvarsPath" in resume
     assert "parameters.scaleDebugClusterCount" in resume
     assert "parameters.scaleDebugTopology" in resume
+    assert "parameters.scaleDebugDeployMockLayer" in resume
     assert "parameters.scaleDebugRunWorkload" in resume
     assert 'cl2_prom_snapshot_storage_account: "cmshscaleprom"' in resume
     assert 'AKS_AMW_CLUSTERS_PER_WORKSPACE: "1"' in resume
@@ -352,8 +354,18 @@ def test_resume_job_skips_terraform_and_preserves_resources():
     assert 'elif [ -n "${RUN_ID:-}" ]' in set_run_id
     assert "RUN_ID: ${{ parameters.run_id }}" not in set_run_id
     assert "- name: expected_cluster_count" in resume
+    assert "- name: deploy_mock_layer" in resume
     assert "- name: run_workload" in resume
     assert "- name: publish_results" in resume
+    assert (
+        "${{ if and(parameters.deploy_mock_layer, "
+        "not(parameters.run_workload)) }}:"
+        in resume
+    )
+    assert (
+        "/steps/topology/clustermesh-scale-mock/deploy-mock-layer.yml"
+        in resume
+    )
     assert "${{ if parameters.run_workload }}:" in resume
     assert 'CLUSTERMESH_DEBUG_EXTEND_LEASE_HOURS: "168"' in resume
     assert (

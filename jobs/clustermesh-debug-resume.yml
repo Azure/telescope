@@ -31,6 +31,9 @@ parameters:
 - name: expected_cluster_count
   type: number
   default: 100
+- name: deploy_mock_layer
+  type: boolean
+  default: false
 - name: run_workload
   type: boolean
   default: true
@@ -106,6 +109,14 @@ jobs:
       - ${{ parameters.region }}
       topology: ${{ parameters.topology }}
       engine: ${{ parameters.engine }}
+
+  - ${{ if and(parameters.deploy_mock_layer, not(parameters.run_workload)) }}:
+    - template: /steps/topology/clustermesh-scale-mock/deploy-mock-layer.yml
+      parameters:
+        cloud: azure
+        engine: ${{ parameters.engine }}
+        regions:
+        - ${{ parameters.region }}
 
   - ${{ if parameters.run_workload }}:
     - template: /steps/execute-tests.yml

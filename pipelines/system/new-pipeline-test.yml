@@ -49,6 +49,9 @@ parameters:
   - name: scaleDebugRequiredFamilyVcpus
     type: number
     default: 1736
+  - name: scaleDebugDeployMockLayer
+    type: boolean
+    default: false
   - name: scaleDebugRunWorkload
     type: boolean
     default: true
@@ -2994,6 +2997,7 @@ stages:
           tfvars_path: ${{ parameters.scaleDebugTfvarsPath }}
           expected_subscription_id: ${{ parameters.lifecycleSubscriptionId }}
           expected_cluster_count: ${{ parameters.scaleDebugClusterCount }}
+          deploy_mock_layer: ${{ parameters.scaleDebugDeployMockLayer }}
           run_workload: ${{ parameters.scaleDebugRunWorkload }}
           publish_results: ${{ parameters.scaleDebugRunWorkload }}
           manifest_subdir: scale-resume
