@@ -367,7 +367,7 @@ def test_resume_job_skips_terraform_and_preserves_resources():
         in resume
     )
     assert "${{ if parameters.run_workload }}:" in resume
-    assert 'CLUSTERMESH_DEBUG_EXTEND_LEASE_HOURS: "168"' in resume
+    assert 'CLUSTERMESH_DEBUG_EXTEND_LEASE_HOURS: "336"' in resume
     assert (
         "${{ if and(parameters.run_workload, parameters.publish_results) }}:"
         in resume
