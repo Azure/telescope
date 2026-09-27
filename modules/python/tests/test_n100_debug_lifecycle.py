@@ -307,7 +307,11 @@ def test_debug_stages_are_explicitly_mode_gated():
     assert 'AKS_AMW_REBALANCE_SETTLE_SECONDS: "600"' in resume
     assert 'AKS_AMW_MAX_ACTIVE_TIME_SERIES: "1000000"' in resume
     assert 'AKS_AMW_MAX_EVENTS_PER_MINUTE: "1000000"' in resume
-    assert 'CLUSTERMESH_PRESERVED_WORKER_RECOVERY_ENABLED: "true"' in resume
+    assert (
+        "CLUSTERMESH_PRESERVED_WORKER_RECOVERY_ENABLED: "
+        "${{ not(parameters.scaleDebugDeployMockLayer) }}"
+        in resume
+    )
     assert 'CLUSTERMESH_DEBUG_MAX_WORKER_REPAIR_CLUSTERS: "5"' in resume
     assert 'CLUSTERMESH_LIVE_DATA_PLANE_REPAIR_ENABLED: "true"' in resume
     assert 'CLUSTERMESH_NODE_READINESS_SELECTOR: "type!=kwok"' in resume
