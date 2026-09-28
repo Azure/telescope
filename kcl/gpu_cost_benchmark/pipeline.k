@@ -26,6 +26,18 @@ INPUT_TOKENS = 512
 OUTPUT_TOKENS = 128
 
 createClusterScript = """
+az version
+az upgrade --yes --only-show-errors || echo "Azure CLI upgrade failed or is unavailable on this agent; continuing with installed CLI."
+az config set extension.dynamic_install_allow_preview=true
+az extension add --name aks-preview --upgrade --allow-preview true || az extension add --name aks-preview --upgrade || az extension update --name aks-preview || true
+az version
+
+GPU_NODEPOOL_FLAGS="--gpu-driver Install"
+if az aks nodepool add --help 2>/dev/null | grep -q -- "--enable-managed-gpu"; then
+  GPU_NODEPOOL_FLAGS="--enable-managed-gpu=true"
+fi
+echo "Using GPU node pool flags: $GPU_NODEPOOL_FLAGS"
+
 az aks create \\
   --name "${CLUSTER}" \\
   --resource-group "${RESOURCE_GROUP}" \\
@@ -50,14 +62,101 @@ az aks nodepool add \\
   --subscription "${SUBSCRIPTION_ID}" \\
   --name "${GPU_POOL}" \\
   --node-vm-size "${GPU_VM_SIZE}" \\
-  --node-count ${GPU_NODE_COUNT} \\
+  --node-count 0 \\
   --node-taints sku=gpu:NoSchedule \\
-  --enable-managed-gpu=true
+  $GPU_NODEPOOL_FLAGS
+
+for i in $(seq 1 60); do
+  GPU_POOL_STATE=$(az aks nodepool show \\
+    --cluster-name "${CLUSTER}" \\
+    --resource-group "${RESOURCE_GROUP}" \\
+    --subscription "${SUBSCRIPTION_ID}" \\
+    --name "${GPU_POOL}" \\
+    --query provisioningState -o tsv)
+  CLUSTER_STATE=$(az aks show \\
+    --name "${CLUSTER}" \\
+    --resource-group "${RESOURCE_GROUP}" \\
+    --subscription "${SUBSCRIPTION_ID}" \\
+    --query provisioningState -o tsv)
+  echo "Cluster provisioningState: $CLUSTER_STATE; GPU nodepool provisioningState: $GPU_POOL_STATE"
+  if [ "$CLUSTER_STATE" = "Succeeded" ] && [ "$GPU_POOL_STATE" = "Succeeded" ]; then
+    break
+  fi
+  sleep 30
+done
+
+if [ "$CLUSTER_STATE" != "Succeeded" ] || [ "$GPU_POOL_STATE" != "Succeeded" ]; then
+  echo "AKS cluster or GPU nodepool did not reach Succeeded before scale-out test."
+  az aks nodepool show \\
+    --cluster-name "${CLUSTER}" \\
+    --resource-group "${RESOURCE_GROUP}" \\
+    --subscription "${SUBSCRIPTION_ID}" \\
+    --name "${GPU_POOL}" -o json
+  exit 1
+fi
 """
 
 deployAndBenchmarkScript = """
 kubectl create namespace "${NAMESPACE}"
 
+GPU_SCALE_START_SECONDS=$(date +%s)
+SCALE_SUCCEEDED=false
+for i in $(seq 1 20); do
+  if az aks nodepool scale \\
+    --cluster-name "${CLUSTER}" \\
+    --resource-group "${RESOURCE_GROUP}" \\
+    --subscription "${SUBSCRIPTION_ID}" \\
+    --name "${GPU_POOL}" \\
+    --node-count ${GPU_NODE_COUNT}; then
+    SCALE_SUCCEEDED=true
+    break
+  fi
+  echo "GPU nodepool scale attempt $i failed, likely due to a transient AKS operation conflict. Retrying in 30s..."
+  sleep 30
+done
+
+if [ "$SCALE_SUCCEEDED" != "true" ]; then
+  echo "Failed to scale GPU nodepool after retries."
+  az aks nodepool show \\
+    --cluster-name "${CLUSTER}" \\
+    --resource-group "${RESOURCE_GROUP}" \\
+    --subscription "${SUBSCRIPTION_ID}" \\
+    --name "${GPU_POOL}" -o json
+  exit 1
+fi
+
+wait_for_gpu_allocatable() {
+  attempts="$1"
+  GPU_ALLOCATABLE=""
+  for i in $(seq 1 "$attempts"); do
+    GPU_ALLOCATABLE=$(kubectl get nodes -l kubernetes.azure.com/agentpool="${GPU_POOL}" -o jsonpath='{.items[0].status.allocatable.nvidia\.com/gpu}' 2>/dev/null || true)
+    echo "GPU allocatable on ${GPU_POOL}: $GPU_ALLOCATABLE"
+    if [ "$GPU_ALLOCATABLE" = "1" ]; then
+      GPU_READY_SECONDS=$(($(date +%s) - GPU_SCALE_START_SECONDS))
+      return 0
+    fi
+    sleep 30
+  done
+  return 1
+}
+
+if ! wait_for_gpu_allocatable 20; then
+  echo "GPU is not allocatable yet; installing the NVIDIA device plugin for self-managed GPU setup."
+  kubectl apply -f https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v0.17.1/deployments/static/nvidia-device-plugin.yml
+  kubectl -n kube-system patch daemonset nvidia-device-plugin-daemonset --type='merge' -p '{"spec":{"template":{"spec":{"nodeSelector":{"kubernetes.azure.com/agentpool":"${GPU_POOL}"},"tolerations":[{"key":"sku","operator":"Equal","value":"gpu","effect":"NoSchedule"},{"key":"nvidia.com/gpu","operator":"Exists","effect":"NoSchedule"}]}}}}'
+  kubectl -n kube-system rollout status daemonset/nvidia-device-plugin-daemonset --timeout=15m
+  wait_for_gpu_allocatable 60
+fi
+
+if [ "$GPU_ALLOCATABLE" != "1" ]; then
+  kubectl get nodes -l kubernetes.azure.com/agentpool="${GPU_POOL}" -o wide
+  kubectl describe nodes -l kubernetes.azure.com/agentpool="${GPU_POOL}"
+  kubectl -n kube-system get pods -l name=nvidia-device-plugin-ds -o wide
+  kubectl -n kube-system logs daemonset/nvidia-device-plugin-daemonset --all-containers=true --tail=200 || true
+  exit 1
+fi
+
+VLLM_DEPLOY_START_SECONDS=$(date +%s)
 cat <<EOF | kubectl apply -f -
 apiVersion: apps/v1
 kind: Deployment
@@ -75,6 +174,7 @@ spec:
       labels:
         app: vllm
     spec:
+      enableServiceLinks: false
       nodeSelector:
         kubernetes.azure.com/agentpool: ${GPU_POOL}
       tolerations:
@@ -125,6 +225,128 @@ if ! kubectl rollout status deployment/vllm --namespace="${NAMESPACE}" --timeout
   kubectl logs --namespace="${NAMESPACE}" deployment/vllm --all-containers=true --tail=200 || true
   exit 1
 fi
+VLLM_READY_EPOCH=$(date +%s)
+VLLM_READY_SECONDS=$((VLLM_READY_EPOCH - VLLM_DEPLOY_START_SECONDS))
+
+VLLM_POD=$(kubectl get pod --namespace="${NAMESPACE}" -l app=vllm -o jsonpath='{.items[0].metadata.name}')
+kubectl logs --namespace="${NAMESPACE}" "$VLLM_POD" > /tmp/vllm-server.log || true
+kubectl get pod --namespace="${NAMESPACE}" "$VLLM_POD" -o json > /tmp/vllm-pod.json
+kubectl get events --namespace="${NAMESPACE}" --field-selector involvedObject.name="$VLLM_POD" -o json > /tmp/vllm-pod-events.json || echo '{"items":[]}' > /tmp/vllm-pod-events.json
+VLLM_READY_EPOCH="$VLLM_READY_EPOCH" python3 - <<'PY'
+import json
+import os
+import re
+from datetime import datetime, timezone
+
+def parse_ts(value):
+    if not value:
+        return None
+    value = value.replace("Z", "+00:00")
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        return None
+
+def seconds_between(start, end):
+    if not start or not end:
+        return None
+    return max(0.0, (end - start).total_seconds())
+
+def metric_from_events(events, start_reason, end_reason):
+    starts = [event["ts"] for event in events if event["reason"] == start_reason and event["ts"]]
+    ends = [event["ts"] for event in events if event["reason"] == end_reason and event["ts"]]
+    if not starts or not ends:
+        return None
+    end = max(ends)
+    start_candidates = [ts for ts in starts if ts <= end]
+    start = min(start_candidates) if start_candidates else min(starts)
+    return seconds_between(start, end)
+
+def last_float(patterns, text):
+    for pattern in patterns:
+        matches = re.findall(pattern, text, flags=re.IGNORECASE)
+        if matches:
+            return float(matches[-1])
+    return None
+
+with open("/tmp/vllm-pod-events.json", encoding="utf-8") as f:
+    raw_events = json.load(f).get("items", [])
+
+events = []
+for event in raw_events:
+    ts = parse_ts(event.get("eventTime")) or parse_ts(event.get("lastTimestamp")) or parse_ts(event.get("firstTimestamp"))
+    events.append({
+        "reason": event.get("reason"),
+        "ts": ts,
+        "message": event.get("message", ""),
+    })
+
+with open("/tmp/vllm-pod.json", encoding="utf-8") as f:
+    pod = json.load(f)
+
+container_statuses = pod.get("status", {}).get("containerStatuses", [])
+container_started_at = None
+if container_statuses:
+    container_started_at = parse_ts(container_statuses[0].get("state", {}).get("running", {}).get("startedAt"))
+if not container_started_at:
+    started_events = [event["ts"] for event in events if event["reason"] == "Started" and event["ts"]]
+    container_started_at = max(started_events) if started_events else None
+
+try:
+    text = open("/tmp/vllm-server.log", encoding="utf-8").read()
+except FileNotFoundError:
+    text = ""
+
+vllm_ready_epoch = int(os.environ["VLLM_READY_EPOCH"])
+vllm_ready_at = datetime.fromtimestamp(vllm_ready_epoch, tz=timezone.utc)
+
+model_load_to_gpu_seconds = last_float([
+    r"Loading model weights took ([0-9.]+) seconds",
+    r"Model loading took ([0-9.]+) seconds",
+    r"Loaded model .* in ([0-9.]+) seconds",
+], text)
+engine_init_seconds = last_float([
+    r"init engine .* took ([0-9.]+) s",
+], text)
+cuda_graph_seconds = last_float([
+    r"Graph capturing finished in ([0-9.]+) secs",
+    r"Graph capturing finished in ([0-9.]+) seconds",
+], text)
+
+metrics = {
+    "t_image_pull_seconds": metric_from_events(events, "Pulling", "Pulled"),
+    "t_container_start_seconds": metric_from_events(events, "Created", "Started"),
+    "t_model_download_seconds": last_float([
+        r"Downloaded .* in ([0-9.]+) seconds",
+        r"Fetching .* took ([0-9.]+) seconds",
+        r"snapshot_download.* took ([0-9.]+) seconds",
+    ], text),
+    "t_model_load_to_gpu_seconds": model_load_to_gpu_seconds,
+    "t_engine_warmup_seconds": engine_init_seconds if engine_init_seconds is not None else cuda_graph_seconds,
+    "t_readiness_routing_seconds": seconds_between(container_started_at, vllm_ready_at),
+    "engine_init_seconds": engine_init_seconds,
+    "cuda_graph_capture_seconds": cuda_graph_seconds,
+}
+
+with open("/tmp/startup-metrics.json", "w", encoding="utf-8") as f:
+    json.dump(metrics, f)
+
+print(json.dumps(metrics, indent=2))
+PY
+
+MODEL_LOAD_SECONDS=$(python3 - <<'PY'
+import json
+
+with open("/tmp/startup-metrics.json", encoding="utf-8") as f:
+    metrics = json.load(f)
+value = metrics.get("t_model_load_to_gpu_seconds") or metrics.get("engine_init_seconds")
+if value is not None:
+    print(value)
+PY
+)
+echo "GPU ready seconds: $GPU_READY_SECONDS"
+echo "vLLM ready seconds: $VLLM_READY_SECONDS"
+echo "Model load seconds: $MODEL_LOAD_SECONDS"
 
 START_SECONDS=$(date +%s)
 
@@ -138,6 +360,7 @@ spec:
   backoffLimit: 0
   template:
     spec:
+      enableServiceLinks: false
       restartPolicy: Never
       containers:
       - name: bench
@@ -146,6 +369,7 @@ spec:
         - bash
         - -lc
         - |
+          set -euo pipefail
           vllm bench serve \\
             --backend openai-chat \\
             --base-url http://vllm:8000 \\
@@ -158,7 +382,10 @@ spec:
             --num-prompts ${NUM_PROMPTS} \\
             --save-result \\
             --result-filename /tmp/vllm-bench-result.json
+          test -s /tmp/vllm-bench-result.json
+          echo "__VLLM_RESULT_JSON_BEGIN__"
           cat /tmp/vllm-bench-result.json
+          printf '\\n__VLLM_RESULT_JSON_END__\\n'
 EOF
 
 kubectl wait --for=condition=complete job/vllm-bench --namespace="${NAMESPACE}" --timeout=60m
@@ -167,7 +394,17 @@ END_SECONDS=$(date +%s)
 DURATION_SECONDS=$((END_SECONDS - START_SECONDS))
 
 BENCH_POD=$(kubectl get pod --namespace="${NAMESPACE}" -l job-name=vllm-bench -o jsonpath='{.items[0].metadata.name}')
-kubectl cp "${NAMESPACE}/\${BENCH_POD}:/tmp/vllm-bench-result.json" /tmp/vllm-bench-result.json
+kubectl logs --namespace="${NAMESPACE}" "$BENCH_POD" > /tmp/vllm-bench.log
+sed -n '/__VLLM_RESULT_JSON_BEGIN__/,/__VLLM_RESULT_JSON_END__/p' /tmp/vllm-bench.log \\
+  | sed '1d;$d' > /tmp/vllm-bench-result.json
+cat /tmp/vllm-bench-result.json
+
+if [ ! -s /tmp/vllm-bench-result.json ]; then
+  echo "Benchmark result JSON was not found in the benchmark pod logs."
+  echo "Full benchmark pod logs:"
+  cat /tmp/vllm-bench.log
+  exit 1
+fi
 
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 python3 - <<PY
@@ -176,7 +413,14 @@ import json
 with open("/tmp/vllm-bench-result.json", "r", encoding="utf-8") as f:
     bench = json.load(f)
 
+with open("/tmp/startup-metrics.json", "r", encoding="utf-8") as f:
+    startup_metrics = json.load(f)
+
 duration_seconds = int("$DURATION_SECONDS")
+gpu_ready_seconds = int("$GPU_READY_SECONDS")
+vllm_ready_seconds = int("$VLLM_READY_SECONDS")
+model_load_seconds_raw = "$MODEL_LOAD_SECONDS".strip()
+model_load_seconds = float(model_load_seconds_raw) if model_load_seconds_raw else None
 gpu_node_count = ${GPU_NODE_COUNT}
 hourly_cost = float("${GPU_NODE_HOURLY_COST_USD}")
 total_cost = gpu_node_count * hourly_cost * duration_seconds / 3600.0
@@ -195,6 +439,11 @@ result = {
     "input_tokens_per_prompt": ${INPUT_TOKENS},
     "output_tokens_per_prompt": ${OUTPUT_TOKENS},
     "duration_seconds": duration_seconds,
+    "gpu_ready_seconds": gpu_ready_seconds,
+    "vllm_ready_seconds": vllm_ready_seconds,
+    "model_load_seconds": model_load_seconds,
+    "startup_seconds": gpu_ready_seconds + vllm_ready_seconds,
+    **startup_metrics,
     "estimated_cost_usd": total_cost,
     "estimated_cost_per_1m_tokens_usd": total_cost * 1_000_000 / total_tokens,
     "vllm_benchmark": bench,
