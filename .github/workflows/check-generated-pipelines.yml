@@ -16,7 +16,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
 
-      - name: Install KCL CLI from module edition
+      - name: Install KCL CLI and k8s module
         shell: bash
         run: |
           set -euo pipefail
@@ -30,22 +30,20 @@ jobs:
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/kcl" version
 
-      - name: Install k8s KCL module
-        shell: bash
-        run: |
-          set -euo pipefail
-          k8s_version=$(sed -nE 's/^[[:space:]]*k8s[[:space:]]*=[[:space:]]*"([0-9]+\.[0-9]+\.[0-9]+)"[[:space:]]*$/\1/p' kcl/kcl.mod)
-          if [[ "$k8s_version" != "1.32.4" ]]; then
-            echo "::error::Unsupported k8s version in kcl/kcl.mod; update the pinned module source"
+          if ! grep -Fxq 'k8s = "1.32.4"' kcl/kcl.mod; then
+            echo "::error::Expected k8s = \"1.32.4\" in kcl/kcl.mod; update the pinned module source"
             exit 1
           fi
           archive="$RUNNER_TEMP/kcl-modules.tar.gz"
           curl -fsSL "https://codeload.github.com/kcl-lang/modules/tar.gz/3a0edd10ee39f56ca793d4a45996bd8e26733167" -o "$archive"
-          echo "a47b604bb3079593d21c59ab32e9dafeba0099b187fe62b92334be255f3c2661  $archive" | sha256sum -c -
-          module_dir="$HOME/.local/share/kcl/modules/k8s_${k8s_version}"
+          module_dir="$HOME/.local/share/kcl/modules/k8s_1.32.4"
           mkdir -p "$module_dir"
           tar -xzf "$archive" -C "$module_dir" --strip-components=3 \
             modules-3a0edd10ee39f56ca793d4a45996bd8e26733167/k8s/1.32
+          if ! grep -Fxq 'version = "1.32.4"' "$module_dir/kcl.mod"; then
+            echo "::error::Downloaded k8s module version does not match 1.32.4"
+            exit 1
+          fi
 
       - name: Check committed pipeline YAML
         shell: bash
