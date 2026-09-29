@@ -63,10 +63,15 @@ jobs:
             elif ! diff -u "$directory/pipeline.yaml" "$generated_yaml"; then
               echo "::error::Outdated or missing $directory/pipeline.yaml"
               failed=1
+            else
+              echo "PASS $directory/pipeline.yaml"
             fi
           done < <(find kcl -type f -name pipeline.k -print0)
           if (( ! found )); then
             echo "::error::No pipeline.k files found under kcl/"
             exit 1
+          fi
+          if (( ! failed )); then
+            echo "::notice::All generated pipeline YAML files match their KCL sources."
           fi
           exit "$failed"
