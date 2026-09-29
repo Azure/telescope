@@ -419,8 +419,10 @@ jobs:
                     CASE_NAME="in512-out128-rps${CASE_RPS}"
                     CASE_RESULT="/tmp/vllm-bench-result-${CASE_NAME}.json"
                     CASE_NUM_PROMPTS=$((CASE_RPS * 60))
+                    CASE_START_SECONDS=$(date +%s)
                     echo "Running benchmark case ${CASE_NAME}"
-                    vllm bench serve \
+                    set +e
+                    timeout 1200s vllm bench serve \
                       --backend openai-chat \
                       --base-url http://vllm:8000 \
                       --endpoint /v1/chat/completions \
@@ -432,10 +434,21 @@ jobs:
                       --num-prompts "$CASE_NUM_PROMPTS" \
                       --save-result \
                       --result-filename "$CASE_RESULT"
-                    test -s "$CASE_RESULT"
+                    CASE_EXIT_CODE=$?
+                    set -e
                     echo "__VLLM_CASE_JSON_BEGIN__ ${CASE_NAME} ${CASE_RPS} ${CASE_NUM_PROMPTS}"
-                    cat "$CASE_RESULT"
+                    if [ "$CASE_EXIT_CODE" -eq 0 ] && [ -s "$CASE_RESULT" ]; then
+                      cat "$CASE_RESULT"
+                    else
+                      CASE_DURATION_SECONDS=$(($(date +%s) - CASE_START_SECONDS))
+                      printf '{"error":"benchmark_failed_or_timeout","exit_code":%s,"duration":%s,"completed":0,"failed":%s,"request_rate":%s,"request_throughput":0,"p99_ttft_ms":null}\n' \
+                        "$CASE_EXIT_CODE" "$CASE_DURATION_SECONDS" "$CASE_NUM_PROMPTS" "$CASE_RPS"
+                    fi
                     printf '\n__VLLM_CASE_JSON_END__\n'
+                    if [ "$CASE_EXIT_CODE" -ne 0 ]; then
+                      echo "Stopping RPS sweep after ${CASE_NAME}; benchmark failed or timed out with exit code $CASE_EXIT_CODE."
+                      break
+                    fi
                   done
         EOF
 
