@@ -394,7 +394,7 @@ jobs:
 
         START_SECONDS=$(date +%s)
 
-        cat <<EOF | kubectl apply -f -
+        cat <<'EOF' | kubectl apply -f -
         apiVersion: batch/v1
         kind: Job
         metadata:
