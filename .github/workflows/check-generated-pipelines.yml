@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 jobs:
   check-generated-pipelines:
@@ -29,6 +30,14 @@ jobs:
             tar -xz -C "$RUNNER_TEMP" kcl
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/kcl" version
+
+      - name: Authenticate to GHCR
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: echo "$GHCR_TOKEN" | kcl registry login ghcr.io --username "${{ github.actor }}" --password-stdin
+
+      - name: Pull KCL dependencies
+        run: cd kcl && kcl mod pull
 
       - name: Check committed pipeline YAML
         shell: bash
