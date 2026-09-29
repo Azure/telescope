@@ -21,6 +21,9 @@ BYTES_PER_GIB = 1073741824
 # kperf load profiles can target a batch by its prefix.
 RunKperfDataIngest = lambda dataType: str, namespace: str, name: str, totalGiB: str = "0", total: int = 0, qps: int = DEFAULT_QPS, burst: int = DEFAULT_BURST, size: int = DEFAULT_SIZE_BYTES, groupSize: int = DEFAULT_GROUP_SIZE, batchSize: int = 2000 -> steps.Step {
   assert total == 0 or totalGiB == "0", "total and totalGiB cannot both be set"
+    # Pod deletion is asynchronous; wait before recreating the same batch names.
+    # Other types reconstruct names, so total must cover the whole batch.
+    deleteCommand = "kubectl delete pods --namespace ${namespace} --selector app=runkperf,podSetName=${name}-b$batch --wait=true" if dataType == "pod" else "runkperf data ${dataType} --namespace ${namespace} delete ${name}-b$batch --total $COUNT || true"
     steps.Script {
         script = """
 set -euo pipefail
@@ -64,8 +67,7 @@ for batch in $(seq 1 $TOTAL_BATCHES); do
       exit 1
     fi
     echo "Batch $batch attempt $attempt failed; cleaning up before retry..."
-    # delete reconstructs names <set>-<0..total-1>, so total must cover the whole batch.
-    runkperf data ${dataType} --namespace ${namespace} delete ${name}-b$batch --total $COUNT || true
+    ${deleteCommand}
   done
 
   completed=$((completed + COUNT))

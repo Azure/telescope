@@ -46,7 +46,7 @@ az aks create \\
     --yes
 """
 
-makeIngestionJob = lambda jobName: str, displayName: str, dataType: str, namespace: str, totalGiB: str -> job.Job {
+makeIngestionJob = lambda jobName: str, displayName: str, dataType: str, namespace: str, totalGiB: str, size: int = kperf.DEFAULT_SIZE_BYTES -> job.Job {
     job.Job {
         job = jobName
         displayName = displayName
@@ -68,7 +68,8 @@ makeIngestionJob = lambda jobName: str, displayName: str, dataType: str, namespa
                 dataType=dataType,
                 namespace=namespace,
                 name="$(System.JobId)",
-                totalGiB=totalGiB),
+                totalGiB=totalGiB,
+                size=size),
         ]
     }
 }
@@ -109,19 +110,25 @@ output = ap.Pipeline {
             name = "ingest_configmap_gib"
             displayName = "ConfigMap ingest size (GiB)"
             type = "number"
-            default = 4
+            default = 5
         }
         ap.Parameter {
             name = "ingest_events_gib"
             displayName = "Events ingest size (GiB)"
             type = "number"
-            default = 3
+            default = 5
         }
         ap.Parameter {
             name = "ingest_secrets_gib"
             displayName = "Secrets ingest size (GiB)"
             type = "number"
-            default = 4
+            default = 5
+        }
+        ap.Parameter {
+            name = "ingest_pods_gib"
+            displayName = "Pods ingest size (GiB)"
+            type = "number"
+            default = 1
         }
     ]
 
@@ -154,6 +161,18 @@ output = ap.Pipeline {
                     RESOLVED_CLUSTER,
                     RESOLVED_RESOURCE_GROUP,
                     SUBSCRIPTION_ID),
+                azure.CreateNodePool(
+                    const.DEFAULT_SERVICE_CONNECTION,
+                    RESOLVED_CLUSTER,
+                    RESOLVED_RESOURCE_GROUP,
+                    SUBSCRIPTION_ID,
+                    azure.NodePool {
+                        name = "workerpool"
+                        sku = "Standard_D2_v4"
+                        count = 1000
+                        maxPods = 50
+                    },
+                    condition="and(succeeded(), not(${USE_EXISTING_CLUSTER}))"),
                 steps.Script {
                     script = """
 set -euo pipefail
@@ -184,11 +203,18 @@ echo "##vso[task.setvariable variable=BENCHMARK_START_TIME;isOutput=true]$START_
             "secret",
             "kperf-secret-data",
             "\${{ parameters.ingest_secrets_gib }}"),
+        makeIngestionJob(
+            "ingest_pods",
+            "Ingest Pods (\${{ parameters.ingest_pods_gib }} GiB)",
+            "pod",
+            "kperf-pod-data",
+            "\${{ parameters.ingest_pods_gib }}",
+            size=10240),  # 10 KiB padding per Pod
         job.Job {
             job = "finalize"
             displayName = "Report and Cleanup"
             timeoutInMinutes = 60
-            dependsOn = ["setup", "ingest_configmap", "ingest_events", "ingest_secrets"]
+            dependsOn = ["setup", "ingest_configmap", "ingest_events", "ingest_secrets", "ingest_pods"]
             condition = "always()"
             variables = {
                 CLUSTER = "$[ dependencies.setup.outputs['resolve.CLUSTER'] ]"

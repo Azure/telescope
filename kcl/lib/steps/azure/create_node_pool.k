@@ -18,7 +18,7 @@ CREATE_NODEPOOL_RETRY_WINDOW_SEC = 600
 # Transient errors to retry when creating node pools (separated with '|')
 CREATE_NODEPOOL_TRANSIENT_ERRORS = "OperationNotAllowed"
 
-CreateNodePool = lambda serviceConnection: str, cluster: str, resourceGroup: str, subscription: str, pool: NodePool, noWait: bool = False -> steps.Step {
+CreateNodePool = lambda serviceConnection: str, cluster: str, resourceGroup: str, subscription: str, pool: NodePool, noWait: bool = False, condition: str = Undefined -> steps.Step {
     flagDecision = [
         "--node-taints ${pool.taintPrefix}=true:NoSchedule" if pool.taintPrefix else "",
         "--labels \"${pool.labels}\"" if pool.labels else "",
@@ -66,7 +66,7 @@ while :; do
   fi
 done
 """
-    AzCli(serviceConnection, "Create node pool ${pool.name}", script)
+    AzCli(serviceConnection, "Create node pool ${pool.name}", script, condition=condition)
 }
 
 # PlanNodePools expands a {sku: totalNodes} map into an ordered list of
