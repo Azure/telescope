@@ -491,7 +491,26 @@ jobs:
                     if current is None:
                         continue
                     payload = "\n".join(buf).strip()
-                    benchmark = json.loads(payload)
+                    json_start = payload.find("{")
+                    json_end = payload.rfind("}")
+                    if json_start >= 0 and json_end > json_start:
+                        payload_json = payload[json_start:json_end + 1]
+                    else:
+                        payload_json = payload
+                    try:
+                        benchmark = json.loads(payload_json)
+                    except json.JSONDecodeError as exc:
+                        benchmark = {
+                            "error": "benchmark_result_parse_failed",
+                            "parse_error": str(exc),
+                            "raw_payload_preview": payload[:500],
+                            "completed": 0,
+                            "failed": current["num_prompts"] or 0,
+                            "request_rate": current["request_rate"],
+                            "request_throughput": 0,
+                            "p99_ttft_ms": None,
+                            "duration": 0,
+                        }
                     current["vllm_benchmark"] = benchmark
                     if current["request_rate"] is None:
                         current["request_rate"] = float(benchmark.get("request_rate"))
