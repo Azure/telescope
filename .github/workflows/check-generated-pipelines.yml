@@ -37,7 +37,7 @@ jobs:
         run: echo "$GHCR_TOKEN" | kcl registry login ghcr.io --username "${{ github.actor }}" --password-stdin
 
       - name: Pull KCL dependencies
-        run: cd kcl && kcl mod pull
+        run: cd kcl && kcl mod pull k8s:1.32.4
 
       - name: Check committed pipeline YAML
         shell: bash
