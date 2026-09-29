@@ -471,13 +471,19 @@ jobs:
             for raw_line in f:
                 line = raw_line.rstrip("\n")
                 if line.startswith("__VLLM_CASE_JSON_BEGIN__"):
-                    _, case_name, case_rps, case_num_prompts = line.split()
+                    parts = line.split()
+                    if len(parts) >= 4:
+                        _, case_name, case_rps, case_num_prompts = parts[:4]
+                    else:
+                        case_name = None
+                        case_rps = None
+                        case_num_prompts = None
                     current = {
                         "case": case_name,
-                        "request_rate": float(case_rps),
+                        "request_rate": float(case_rps) if case_rps is not None else None,
                         "input_tokens_per_prompt": 512,
                         "output_tokens_per_prompt": 128,
-                        "num_prompts": int(case_num_prompts),
+                        "num_prompts": int(case_num_prompts) if case_num_prompts is not None else None,
                     }
                     buf = []
                     continue
@@ -485,7 +491,14 @@ jobs:
                     if current is None:
                         continue
                     payload = "\n".join(buf).strip()
-                    current["vllm_benchmark"] = json.loads(payload)
+                    benchmark = json.loads(payload)
+                    current["vllm_benchmark"] = benchmark
+                    if current["request_rate"] is None:
+                        current["request_rate"] = float(benchmark.get("request_rate"))
+                    if current["num_prompts"] is None:
+                        current["num_prompts"] = int(benchmark.get("num_prompts", 0) or 0)
+                    if current["case"] is None:
+                        current["case"] = f"in512-out128-rps{int(current['request_rate'])}"
                     results.append(current)
                     current = None
                     buf = []
