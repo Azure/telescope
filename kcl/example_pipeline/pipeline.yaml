@@ -415,7 +415,7 @@ jobs:
                 - |
                   set -euo pipefail
                   echo "[]" > /tmp/vllm-bench-results.json
-                  for CASE_RPS in 10 20 40 80 120 160 200; do
+                  for CASE_RPS in 20 25 30 35 40; do
                     CASE_NAME="in512-out128-rps${CASE_RPS}"
                     CASE_RESULT="/tmp/vllm-bench-result-${CASE_NAME}.json"
                     CASE_NUM_PROMPTS=$((CASE_RPS * 60))
@@ -617,7 +617,7 @@ jobs:
             "runtime": "vllm",
             "gpu_vm_size": "Standard_NC40ads_H100_v5",
             "gpu_node_count": gpu_node_count,
-            "request_rates": [10, 20, 40, 80, 120, 160, 200],
+            "request_rates": [20, 25, 30, 35, 40],
             "target_duration_seconds_per_case": 60,
             "input_tokens_per_prompt": 512,
             "output_tokens_per_prompt": 128,
