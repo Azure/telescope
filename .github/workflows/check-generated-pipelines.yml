@@ -6,7 +6,6 @@ on:
 
 permissions:
   contents: read
-  packages: read
 
 jobs:
   check-generated-pipelines:
@@ -31,13 +30,17 @@ jobs:
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/kcl" version
 
-      - name: Authenticate to GHCR
-        env:
-          GHCR_TOKEN: ${{ github.token }}
-        run: echo "$GHCR_TOKEN" | kcl registry login ghcr.io --username "${{ github.actor }}" --password-stdin
-
-      - name: Pull KCL dependencies
-        run: cd kcl && kcl mod pull k8s:1.32.4
+      - name: Install k8s KCL module
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/kcl-modules.tar.gz"
+          curl -fsSL "https://codeload.github.com/kcl-lang/modules/tar.gz/3a0edd10ee39f56ca793d4a45996bd8e26733167" -o "$archive"
+          echo "a47b604bb3079593d21c59ab32e9dafeba0099b187fe62b92334be255f3c2661  $archive" | sha256sum -c -
+          module_dir="$HOME/.local/share/kcl/modules/k8s_1.32.4"
+          mkdir -p "$module_dir"
+          tar -xzf "$archive" -C "$module_dir" --strip-components=3 \
+            modules-3a0edd10ee39f56ca793d4a45996bd8e26733167/k8s/1.32
 
       - name: Check committed pipeline YAML
         shell: bash
