@@ -67,8 +67,8 @@ steps:
       retry() {
         local i=1
         until "$@"; do
-          if [ "$i" -gt 10 ]; then
-            echo "Command failed after 10 attempts: $*"
+          if [ "$i" -gt 20 ]; then
+            echo "Command failed after 20 retries: $*"
             return 1
           fi
           echo "Attempt ${i} failed: $*. Retrying in 30s..."
