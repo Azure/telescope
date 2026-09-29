@@ -46,9 +46,9 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - eastus2
+            - westus2
           terraform_input_file_mapping:
-            - eastus2: "scenarios/perf-eval/pod-diff-node-same-zone/terraform-inputs/azure-v3-ubuntu2404-azure.tfvars"
+            - westus2: "scenarios/perf-eval/pod-diff-node-same-zone/terraform-inputs/azure-v3-ubuntu2404-azure.tfvars"
           topology: pod-to-pod/diff-nodes
           engine: iperf3
           engine_input:
@@ -82,9 +82,9 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - eastus2
+            - westus2
           terraform_input_file_mapping:
-            - eastus2: "scenarios/perf-eval/pod-diff-node-same-zone/terraform-inputs/azure-v3-ubuntu2404-cilium.tfvars"
+            - westus2: "scenarios/perf-eval/pod-diff-node-same-zone/terraform-inputs/azure-v3-ubuntu2404-cilium.tfvars"
           topology: pod-to-pod/diff-nodes
           engine: iperf3
           engine_input:
@@ -118,9 +118,9 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - eastus2
+            - westus2
           terraform_input_file_mapping:
-            - eastus2: "scenarios/perf-eval/pod-diff-node-same-zone/terraform-inputs/azure-v5-ubuntu2404-azure.tfvars"
+            - westus2: "scenarios/perf-eval/pod-diff-node-same-zone/terraform-inputs/azure-v5-ubuntu2404-azure.tfvars"
           topology: pod-to-pod/diff-nodes
           engine: iperf3
           engine_input:
@@ -154,9 +154,9 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - eastus2
+            - westus2
           terraform_input_file_mapping:
-            - eastus2: "scenarios/perf-eval/pod-diff-node-same-zone/terraform-inputs/azure-v5-ubuntu2404-cilium.tfvars"
+            - westus2: "scenarios/perf-eval/pod-diff-node-same-zone/terraform-inputs/azure-v5-ubuntu2404-cilium.tfvars"
           topology: pod-to-pod/diff-nodes
           engine: iperf3
           engine_input:
@@ -190,7 +190,7 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - eastus2
+            - westus2
           topology: pod-to-pod/diff-nodes
           engine: iperf3
           engine_input:
@@ -223,9 +223,9 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - eastus2
+            - westus2
           terraform_input_file_mapping:
-            - eastus2: "scenarios/perf-eval/pod-diff-node-same-zone/terraform-inputs/azure-ubuntu2404.tfvars"
+            - westus2: "scenarios/perf-eval/pod-diff-node-same-zone/terraform-inputs/azure-ubuntu2404.tfvars"
           topology: pod-to-pod/diff-nodes
           engine: iperf3
           engine_input:
