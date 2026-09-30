@@ -21,9 +21,12 @@ MODEL = "Qwen/Qwen2.5-7B-Instruct"
 VLLM_IMAGE = "vllm/vllm-openai:latest"
 
 REQUEST_RATE = 10
-NUM_PROMPTS = 1000
+TARGET_DURATION_SECONDS = 60
+CASE_TIMEOUT_SECONDS = 1200
 INPUT_TOKENS = 512
 OUTPUT_TOKENS = 128
+BENCHMARK_CASES = ["20", "25", "30", "35", "40"]
+BENCHMARK_CASE_RPS = "20 25 30 35 40"
 
 createClusterScript = """
 az version
@@ -350,7 +353,7 @@ echo "Model load seconds: $MODEL_LOAD_SECONDS"
 
 START_SECONDS=$(date +%s)
 
-cat <<EOF | kubectl apply -f -
+cat <<'EOF' | kubectl apply -f -
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -370,37 +373,129 @@ spec:
         - -lc
         - |
           set -euo pipefail
-          vllm bench serve \\
-            --backend openai-chat \\
-            --base-url http://vllm:8000 \\
-            --endpoint /v1/chat/completions \\
-            --model ${MODEL} \\
-            --dataset-name random \\
-            --random-input-len ${INPUT_TOKENS} \\
-            --random-output-len ${OUTPUT_TOKENS} \\
-            --request-rate ${REQUEST_RATE} \\
-            --num-prompts ${NUM_PROMPTS} \\
-            --save-result \\
-            --result-filename /tmp/vllm-bench-result.json
-          test -s /tmp/vllm-bench-result.json
-          echo "__VLLM_RESULT_JSON_BEGIN__"
-          cat /tmp/vllm-bench-result.json
-          printf '\\n__VLLM_RESULT_JSON_END__\\n'
+          echo "[]" > /tmp/vllm-bench-results.json
+          for CASE_RPS in ${BENCHMARK_CASE_RPS}; do
+            CASE_NAME="in${INPUT_TOKENS}-out${OUTPUT_TOKENS}-rps\${CASE_RPS}"
+            CASE_RESULT="/tmp/vllm-bench-result-\${CASE_NAME}.json"
+            CASE_NUM_PROMPTS=$((CASE_RPS * ${TARGET_DURATION_SECONDS}))
+            CASE_START_SECONDS=$(date +%s)
+            echo "Running benchmark case \${CASE_NAME}"
+            set +e
+            timeout ${CASE_TIMEOUT_SECONDS}s vllm bench serve \\
+              --backend openai-chat \\
+              --base-url http://vllm:8000 \\
+              --endpoint /v1/chat/completions \\
+              --model ${MODEL} \\
+              --dataset-name random \\
+              --random-input-len ${INPUT_TOKENS} \\
+              --random-output-len ${OUTPUT_TOKENS} \\
+              --request-rate "$CASE_RPS" \\
+              --num-prompts "$CASE_NUM_PROMPTS" \\
+              --save-result \\
+              --result-filename "$CASE_RESULT"
+            CASE_EXIT_CODE=$?
+            set -e
+            echo "__VLLM_CASE_JSON_BEGIN__ \${CASE_NAME} \${CASE_RPS} \${CASE_NUM_PROMPTS}"
+            if [ "$CASE_EXIT_CODE" -eq 0 ] && [ -s "$CASE_RESULT" ]; then
+              cat "$CASE_RESULT"
+            else
+              CASE_DURATION_SECONDS=$(($(date +%s) - CASE_START_SECONDS))
+              printf '{"error":"benchmark_failed_or_timeout","exit_code":%s,"duration":%s,"completed":0,"failed":%s,"request_rate":%s,"request_throughput":0,"p99_ttft_ms":null}\\n' \\
+                "$CASE_EXIT_CODE" "$CASE_DURATION_SECONDS" "$CASE_NUM_PROMPTS" "$CASE_RPS"
+            fi
+            printf '\\n__VLLM_CASE_JSON_END__\\n'
+            if [ "$CASE_EXIT_CODE" -ne 0 ]; then
+              echo "Stopping RPS sweep after \${CASE_NAME}; benchmark failed or timed out with exit code $CASE_EXIT_CODE."
+              break
+            fi
+          done
 EOF
 
-kubectl wait --for=condition=complete job/vllm-bench --namespace="${NAMESPACE}" --timeout=60m
+kubectl wait --for=condition=complete job/vllm-bench --namespace="${NAMESPACE}" --timeout=120m
 
 END_SECONDS=$(date +%s)
 DURATION_SECONDS=$((END_SECONDS - START_SECONDS))
 
 BENCH_POD=$(kubectl get pod --namespace="${NAMESPACE}" -l job-name=vllm-bench -o jsonpath='{.items[0].metadata.name}')
 kubectl logs --namespace="${NAMESPACE}" "$BENCH_POD" > /tmp/vllm-bench.log
-sed -n '/__VLLM_RESULT_JSON_BEGIN__/,/__VLLM_RESULT_JSON_END__/p' /tmp/vllm-bench.log \\
-  | sed '1d;$d' > /tmp/vllm-bench-result.json
-cat /tmp/vllm-bench-result.json
+python3 - <<'PY'
+import json
+import re
 
-if [ ! -s /tmp/vllm-bench-result.json ]; then
-  echo "Benchmark result JSON was not found in the benchmark pod logs."
+results = []
+current = None
+buf = []
+
+with open("/tmp/vllm-bench.log", encoding="utf-8") as f:
+    for raw_line in f:
+        line = raw_line.rstrip("\\n")
+        if line.startswith("__VLLM_CASE_JSON_BEGIN__"):
+            parts = line.split()
+            if len(parts) >= 4:
+                _, case_name, case_rps, case_num_prompts = parts[:4]
+            else:
+                case_name = None
+                case_rps = None
+                case_num_prompts = None
+            current = {
+                "case": case_name,
+                "request_rate": float(case_rps) if case_rps is not None else None,
+                "input_tokens_per_prompt": ${INPUT_TOKENS},
+                "output_tokens_per_prompt": ${OUTPUT_TOKENS},
+                "num_prompts": int(case_num_prompts) if case_num_prompts is not None else None,
+            }
+            buf = []
+            continue
+        if line == "__VLLM_CASE_JSON_END__":
+            if current is None:
+                continue
+            payload = "\\n".join(buf).strip()
+            json_start = payload.find("{")
+            json_end = payload.rfind("}")
+            if json_start >= 0 and json_end > json_start:
+                payload_json = payload[json_start:json_end + 1]
+            else:
+                payload_json = payload
+            try:
+                benchmark = json.loads(payload_json)
+            except json.JSONDecodeError as exc:
+                benchmark = {
+                    "error": "benchmark_result_parse_failed",
+                    "parse_error": str(exc),
+                    "raw_payload_preview": payload[:500],
+                    "completed": 0,
+                    "failed": current["num_prompts"] or 0,
+                    "request_rate": current["request_rate"],
+                    "request_throughput": 0,
+                    "p99_ttft_ms": None,
+                    "duration": 0,
+                }
+            current["vllm_benchmark"] = benchmark
+            if current["request_rate"] is None:
+                benchmark_request_rate = benchmark.get("request_rate")
+                current["request_rate"] = float(benchmark_request_rate) if benchmark_request_rate is not None else None
+            if current["num_prompts"] is None:
+                current["num_prompts"] = int(benchmark.get("num_prompts", 0) or 0)
+            if current["case"] is None:
+                rps_suffix = int(current["request_rate"]) if current["request_rate"] is not None else "unknown"
+                current["case"] = f"in${INPUT_TOKENS}-out${OUTPUT_TOKENS}-rps{rps_suffix}"
+            results.append(current)
+            current = None
+            buf = []
+            continue
+        if current is not None:
+            buf.append(line)
+
+with open("/tmp/vllm-bench-results.json", "w", encoding="utf-8") as f:
+    json.dump(results, f)
+
+if not results:
+    raise RuntimeError("No benchmark case JSON payloads were found in /tmp/vllm-bench.log")
+PY
+cat /tmp/vllm-bench-results.json
+
+if [ ! -s /tmp/vllm-bench-results.json ]; then
+  echo "Benchmark results JSON was not found in the benchmark pod logs."
   echo "Full benchmark pod logs:"
   cat /tmp/vllm-bench.log
   exit 1
@@ -410,11 +505,11 @@ TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 python3 - <<PY
 import json
 
-with open("/tmp/vllm-bench-result.json", "r", encoding="utf-8") as f:
-    bench = json.load(f)
-
 with open("/tmp/startup-metrics.json", "r", encoding="utf-8") as f:
     startup_metrics = json.load(f)
+
+with open("/tmp/vllm-bench-results.json", "r", encoding="utf-8") as f:
+    benchmark_cases = json.load(f)
 
 duration_seconds = int("$DURATION_SECONDS")
 gpu_ready_seconds = int("$GPU_READY_SECONDS")
@@ -424,18 +519,65 @@ model_load_seconds = float(model_load_seconds_raw) if model_load_seconds_raw els
 gpu_node_count = ${GPU_NODE_COUNT}
 hourly_cost = float("${GPU_NODE_HOURLY_COST_USD}")
 total_cost = gpu_node_count * hourly_cost * duration_seconds / 3600.0
-total_tokens = ${NUM_PROMPTS} * (${INPUT_TOKENS} + ${OUTPUT_TOKENS})
+total_tokens = 0
+for case in benchmark_cases:
+    benchmark = case["vllm_benchmark"]
+    case_tokens = int(benchmark.get("total_input_tokens", 0)) + int(benchmark.get("total_output_tokens", 0))
+    case["total_tokens"] = case_tokens
+    case["traffic_cost_usd"] = gpu_node_count * hourly_cost * float(benchmark.get("duration", 0)) / 3600.0
+    case["traffic_cost_per_1m_tokens_usd"] = case["traffic_cost_usd"] * 1_000_000 / case_tokens if case_tokens else None
+    target_rps = float(case["request_rate"]) if case.get("request_rate") is not None else 0.0
+    throughput = float(benchmark.get("request_throughput", 0) or 0)
+    case["throughput_to_target_ratio"] = throughput / target_rps if target_rps else None
+    total_tokens += case_tokens
+
+baseline_p99_ttft = float(benchmark_cases[0]["vllm_benchmark"].get("p99_ttft_ms", 0) or 0) if benchmark_cases else 0
+saturation_case = None
+for case in benchmark_cases:
+    benchmark = case["vllm_benchmark"]
+    failed = int(benchmark.get("failed", 0) or 0)
+    p99_ttft = float(benchmark.get("p99_ttft_ms", 0) or 0)
+    throughput_ratio = case.get("throughput_to_target_ratio")
+    reasons = []
+    if failed > 0:
+        reasons.append("failed_requests")
+    if throughput_ratio is not None and throughput_ratio < 0.95:
+        reasons.append("throughput_below_95pct_of_target")
+    if baseline_p99_ttft and p99_ttft > max(100.0, 2.0 * baseline_p99_ttft):
+        reasons.append("p99_ttft_gt_2x_baseline_or_100ms")
+    if reasons:
+        saturation_case = {
+            "case": case["case"],
+            "request_rate": case.get("request_rate"),
+            "reasons": reasons,
+            "request_throughput": benchmark.get("request_throughput"),
+            "throughput_to_target_ratio": throughput_ratio,
+            "p99_ttft_ms": p99_ttft,
+            "baseline_p99_ttft_ms": baseline_p99_ttft,
+            "failed_requests": failed,
+        }
+        break
+
+saturation_detection = {
+    "detected": saturation_case is not None,
+    "first_saturation_case": saturation_case,
+    "criteria": [
+        "failed_requests > 0",
+        "request_throughput / request_rate < 0.95",
+        "p99_ttft_ms > max(100ms, 2x baseline p99 TTFT)",
+    ],
+}
 
 result = {
-    "scenario": "vllm-qwen25-7b-cost-efficiency",
+    "scenario": "vllm-qwen25-7b-cost-efficiency-rps-sweep",
     "region": "${LOCATION}",
     "cluster": "${CLUSTER}",
     "model": "${MODEL}",
     "runtime": "vllm",
     "gpu_vm_size": "${GPU_VM_SIZE}",
     "gpu_node_count": gpu_node_count,
-    "request_rate": ${REQUEST_RATE},
-    "num_prompts": ${NUM_PROMPTS},
+    "request_rates": [20, 25, 30, 35, 40],
+    "target_duration_seconds_per_case": ${TARGET_DURATION_SECONDS},
     "input_tokens_per_prompt": ${INPUT_TOKENS},
     "output_tokens_per_prompt": ${OUTPUT_TOKENS},
     "duration_seconds": duration_seconds,
@@ -445,8 +587,9 @@ result = {
     "startup_seconds": gpu_ready_seconds + vllm_ready_seconds,
     **startup_metrics,
     "estimated_cost_usd": total_cost,
-    "estimated_cost_per_1m_tokens_usd": total_cost * 1_000_000 / total_tokens,
-    "vllm_benchmark": bench,
+    "estimated_cost_per_1m_tokens_usd": total_cost * 1_000_000 / total_tokens if total_tokens else None,
+    "saturation_detection": saturation_detection,
+    "benchmark_cases": benchmark_cases,
 }
 
 wrapped_result = {
