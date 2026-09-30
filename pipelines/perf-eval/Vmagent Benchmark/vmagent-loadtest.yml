@@ -22,6 +22,12 @@ parameters:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: vmagent-loadtest
+  # Needed whenever SKIP_RESOURCE_MANAGEMENT=true (BYO/persistent-cluster
+  # mode, e.g. reusing the terraform-provisioned fixed tier-block pools
+  # across runs) -- validate-resources.yml's "Validate OWNER info" step
+  # requires this to be non-empty in that mode. Matches terraform-inputs'
+  # own "owner" value; harmless when terraform is provisioning normally.
+  OWNER: aks
 
 stages:
   - stage: azure_vmagent_loadtest
