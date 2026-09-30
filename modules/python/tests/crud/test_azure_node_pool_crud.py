@@ -597,6 +597,8 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
         operation_info = self._read_operation_info()
         self.assertEqual(operation_info["name"], "create_jobs")
         self.assertTrue(operation_info["success"])
+        self.assertEqual(operation_info["metadata"]["completions_per_instance"], 1)
+        self.assertNotIn("replicas_per_instance", operation_info["metadata"])
 
     def test_create_job_failure(self):
         """Test job creation failure"""

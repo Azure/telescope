@@ -482,7 +482,11 @@ class NodePoolCRUD:
             "workload_type": workload_type,
             "node_pool_name": node_pool_name,
             "workload_count": number_of_workloads,
-            "replicas_per_instance": count,
+            (
+                "completions_per_instance"
+                if workload_type == "job"
+                else "replicas_per_instance"
+            ): count,
             "namespace": namespace,
         }
         with OperationContext(
