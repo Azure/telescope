@@ -1,5 +1,7 @@
 trigger: none
 
+pool:
+  name: 'AKS-Telescope-Airlock'
 parameters:
   # Each entry is a full konnectivity-server/agent image config to run
   # SEQUENTIALLY against the SAME provisioned CP/DP cluster pair (see

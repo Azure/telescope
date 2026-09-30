@@ -56,6 +56,13 @@ spec:
             - --cluster-key=/certs/server.key
             - --proxy-strategies=default,destHost,defaultRoute
             - --keepalive-time=30s
+            # Added in apiserver-network-proxy v0.27.0 (supported by both
+            # the baseline v0.32.1-11 and candidate images under test):
+            # backend dial timeout guards against slow/hung agent-side
+            # dials; frontend write channel size bounds the per-connection
+            # write buffer to avoid unbounded memory growth under load.
+            - --backend-dial-timeout=30s
+            - --frontend-write-channel-size=10
             - --enable-profiling
             - --admin-port=8096
             - --admin-bind-address=0.0.0.0
