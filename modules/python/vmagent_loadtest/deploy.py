@@ -7,6 +7,8 @@ from pathlib import Path
 import yaml
 
 from .config import (
+    AGENT_NODE_LABEL_KEY, AGENT_NODE_LABEL_VALUE, AGENT_TAINT_EFFECT,
+    AGENT_TAINT_KEY, AGENT_TAINT_VALUE,
     FAKE_EXPORTER_DIR, FAKE_EXPORTER_IMAGE, FAKE_EXPORTER_NS,
     FAKE_EXPORTER_ROLES, KONN_AGENT_IMAGE, KONN_SERVER_IMAGE,
     KUBELET_SA_NAME, MANIFEST_DIR, VMAGENT_IMAGE, VMAGENT_PROXY_IMAGE, VMSINGLE_IMAGE,
@@ -82,14 +84,28 @@ def get_server_lb_ip(kubeconfig: str, namespace: str, timeout: int = 300) -> str
 @retry(max_attempts=3, backoff=5.0)
 def deploy_konnectivity_agents(kubeconfig: str, namespace: str, server_host: str,
                                 agent_replicas: int,
-                                agent_image: str = KONN_AGENT_IMAGE) -> None:
-    log.info("Deploying %d konnectivity-agents in %s on dataplane...", agent_replicas, namespace)
+                                agent_image: str = KONN_AGENT_IMAGE,
+                                dedicated_pool: bool = False) -> None:
+    log.info("Deploying %d konnectivity-agents in %s on dataplane%s...",
+             agent_replicas, namespace, " (dedicated nodepool)" if dedicated_pool else "")
+    node_affinity = ""
+    if dedicated_pool:
+        node_affinity = (
+            f"      nodeSelector:\n"
+            f"        {AGENT_NODE_LABEL_KEY}: {AGENT_NODE_LABEL_VALUE}\n"
+            f"      tolerations:\n"
+            f"        - key: {AGENT_TAINT_KEY}\n"
+            f"          operator: Equal\n"
+            f"          value: {AGENT_TAINT_VALUE}\n"
+            f"          effect: {AGENT_TAINT_EFFECT}"
+        )
     manifest = render_template(MANIFEST_DIR / "konnectivity-agent.yaml", {
         "__NAMESPACE__": namespace,
         "__AGENT_IMAGE__": agent_image,
         "__SERVER_HOST__": server_host,
         "__SERVER_PORT__": "8081",
         "__AGENT_REPLICAS__": str(agent_replicas),
+        "__AGENT_NODE_AFFINITY__": node_affinity,
     })
     kubectl_apply(kubeconfig, manifest)
     kubectl(kubeconfig, "-n", namespace, "rollout", "status",
@@ -216,11 +232,12 @@ def get_dp_api_server(dp_kubeconfig: str) -> str:
     return kc["clusters"][0]["cluster"]["server"]
 
 
-def get_node_ips(kubeconfig: str) -> list[str]:
-    result = kubectl(
-        kubeconfig, "get", "nodes",
-        "-o", "jsonpath={range .items[*]}{.status.addresses[?(@.type==\"InternalIP\")].address}{\"\\n\"}{end}",
-    )
+def get_node_ips(kubeconfig: str, label_selector: str = "") -> list[str]:
+    args = ["get", "nodes", "-o",
+            "jsonpath={range .items[*]}{.status.addresses[?(@.type==\"InternalIP\")].address}{\"\\n\"}{end}"]
+    if label_selector:
+        args += ["-l", label_selector]
+    result = kubectl(kubeconfig, *args)
     return [ip.strip() for ip in result.stdout.strip().split("\n") if ip.strip()]
 
 
@@ -305,11 +322,12 @@ def deploy_vmagent(kubeconfig: str, namespace: str, dp_api_server: str,
                    rate_limit: int = VMAGENT_RATE_LIMIT,
                    max_block_size: int = 8388608,
                    queues: int = 8,
-                   max_rows_per_block: int = 10000) -> None:
+                   max_rows_per_block: int = 10000,
+                   tier_block_regex: str = ".*") -> None:
     log.info("Deploying VMAgent in %s (SD via %s, %d shard(s), rateLimit=%d, maxBlockSize=%d, "
-             "flushInterval=%s, queues=%d, maxRowsPerBlock=%d)...",
+             "flushInterval=%s, queues=%d, maxRowsPerBlock=%d, tierBlockRegex=%s)...",
              namespace, dp_api_server, replicas, rate_limit, max_block_size, VMAGENT_FLUSH_INTERVAL,
-             queues, max_rows_per_block)
+             queues, max_rows_per_block, tier_block_regex)
     vm = vmagent_resources or {"cpu_req": "500m", "mem_req": "1Gi",
                                "cpu_lim": "2", "mem_lim": "4Gi"}
     px = proxy_resources or {"cpu_req": "500m", "mem_req": "256Mi",
@@ -318,6 +336,7 @@ def deploy_vmagent(kubeconfig: str, namespace: str, dp_api_server: str,
         "__NAMESPACE__": namespace,
         "__DP_API_SERVER__": dp_api_server,
         "__DP_API_SERVER_HOST__": urlparse(dp_api_server).netloc or dp_api_server,
+        "__TIER_BLOCK_REGEX__": tier_block_regex,
     }
     scrape_manifest = render_template(MANIFEST_DIR / "scrape-config.yaml", scrape_replacements)
     kubectl_apply(kubeconfig, scrape_manifest)
@@ -346,6 +365,23 @@ def deploy_vmagent(kubeconfig: str, namespace: str, dp_api_server: str,
     kubectl(kubeconfig, "-n", namespace, "rollout", "status",
             "statefulset/vmagent", "--timeout=600s")
     log.info("VMAgent ready in %s (%d shard(s))", namespace, replicas)
+
+
+def set_tier_block_regex(kubeconfig: str, namespace: str, dp_api_server: str,
+                         tier_block_regex: str) -> None:
+    """Re-apply just the scrape-config ConfigMap to switch tier-block scope --
+    no vmagent restart, no node scaling.
+    """
+    scrape_replacements = {
+        "__NAMESPACE__": namespace,
+        "__DP_API_SERVER__": dp_api_server,
+        "__DP_API_SERVER_HOST__": urlparse(dp_api_server).netloc or dp_api_server,
+        "__TIER_BLOCK_REGEX__": tier_block_regex,
+    }
+    scrape_manifest = render_template(MANIFEST_DIR / "scrape-config.yaml", scrape_replacements)
+    kubectl_apply(kubeconfig, scrape_manifest)
+    log.info("Tier-block regex set to %r in %s (vmagent picks it up within ~10s)",
+             tier_block_regex, namespace)
 
 
 def rollout_restart(kubeconfig: str, namespace: str, resource: str) -> None:

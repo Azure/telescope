@@ -20,13 +20,13 @@ from .config import (
     SYSTEM_CPU_PER_NODE, SYSTEM_MEM_PER_NODE_MI, VMAGENT_IMAGE,
     VMAGENT_PROXY_IMAGE, VMAGENT_FLUSH_INTERVAL, VMAGENT_RATE_LIMIT,
     VMSINGLE_IMAGE, compute_cp_nodes_needed, compute_resources_for_tier, compute_shard_count,
-    konnectivity_agent_replicas_for_node_count, log,
+    konnectivity_agent_replicas_for_node_count, tier_block_regex, tier_block_label_selector, log,
 )
 from .deploy import (
     deploy_fake_exporters, deploy_konnectivity_agents,
     deploy_konnectivity_server, deploy_vmagent, deploy_vmsingle,
     ensure_namespace, get_dp_api_server, get_node_ips, get_server_lb_ip,
-    rollout_restart, scale_fake_exporters, setup_dp_access,
+    rollout_restart, scale_fake_exporters, set_tier_block_regex, setup_dp_access,
     wait_for_fake_exporters_gone,
 )
 from .adx import (
@@ -491,7 +491,8 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
                           konn_server_image: str = KONN_SERVER_IMAGE,
                           konn_agent_image: str = KONN_AGENT_IMAGE,
                           resume: bool = False,
-                          final_tier_dwell_minutes: int = 5) -> dict:
+                          final_tier_dwell_minutes: int = 5,
+                          fixed_pools: bool = False) -> dict:
     """Ramp the DP nodepool through every node count in `tiers` (ascending)
     inside ONE continuous namespace/deployment, mirroring how a real prod
     cluster is actually scaled up (e.g. 0->400->800->...->2000) and watched
@@ -514,14 +515,21 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
     with `tiers` trimmed to `[failed_tier, ...]`) instead of tearing down and
     re-ramping from the very first tier -- avoids redoing already-passed
     tiers and double-counting their data in ADX.
+
+    fixed_pools=True uses the pre-provisioned tier-block nodepools
+    (azure.tfvars) instead: each tier becomes a scrape-config regex change
+    (~10s, config.tier_block_regex) rather than a node scale, and agents
+    land on the dedicated dpagentpool. The base "dataplane" nodepool is left
+    untouched in this mode.
     """
     steps = sorted(set(tiers))
     namespace = f"loadtest-{run_label}-ramp" if run_label else "loadtest-ramp"
 
     log.info("")
     log.info("=" * 60)
-    log.info("REAL-TARGETS RAMP: %d -> %d nodes (%d steps: %s)%s",
-             steps[0], steps[-1], len(steps), steps, " [RESUMED]" if resume else "")
+    log.info("REAL-TARGETS RAMP: %d -> %d nodes (%d steps: %s)%s%s",
+             steps[0], steps[-1], len(steps), steps, " [RESUMED]" if resume else "",
+             " [FIXED POOLS]" if fixed_pools else "")
     log.info("=" * 60)
 
     def _reconcile_cp_stack(tier: int) -> tuple[int, int, dict]:
@@ -564,7 +572,7 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
 
         deploy_konnectivity_agents(dp_kubeconfig, namespace, server_ip,
                                     konnectivity_agent_replicas_for_node_count(first_tier),
-                                    agent_image=konn_agent_image)
+                                    agent_image=konn_agent_image, dedicated_pool=fixed_pools)
         rollout_restart(dp_kubeconfig, namespace, "deployment/konnectivity-agent")
 
         setup_dp_access(dp_kubeconfig, cp_kubeconfig, namespace)
@@ -578,7 +586,8 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
                        rate_limit=rate_limit,
                        max_block_size=max_block_size,
                        queues=queues,
-                       max_rows_per_block=max_rows_per_block)
+                       max_rows_per_block=max_rows_per_block,
+                       tier_block_regex=tier_block_regex(first_tier) if fixed_pools else ".*")
     ramp_start_ts = time.time()
 
     all_samples: list[dict] = []
@@ -587,7 +596,8 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
     def _run_tier_step(tier: int) -> None:
         log.info("")
         log.info("-" * 60)
-        log.info("RAMP STEP: scaling DP nodepool to %d nodes", tier)
+        log.info("RAMP STEP: %s to %d nodes",
+                "setting tier-block regex" if fixed_pools else "scaling DP nodepool", tier)
         log.info("-" * 60)
         step_start_ts = time.time()
 
@@ -599,12 +609,21 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
         if resume or tier != first_tier:
             scale_cp_nodepool(resource_group, cp_cluster_name, cp_nodepool, cp_nodes_needed)
 
-        # Scale while continuously sampling every 60s -- covers the whole
-        # climb instead of blocking silently on node-readiness.
-        _, scaling_samples = scale_and_sample(cp_kubeconfig, dp_kubeconfig, namespace,
-                                              resource_group, dp_cluster_name, nodepool, tier,
-                                              poll_interval=60, timeout_minutes=30)
-        all_samples.extend(scaling_samples)
+        if fixed_pools:
+            # Fixed DP nodes -- flip the tier-block regex (~10s reload), then
+            # dwell so scrape coverage actually catches up (a fast regex
+            # flip, unlike a real node scale, doesn't give SD/scrape cycles
+            # time on its own -- ends early once coverage hits 100%).
+            set_tier_block_regex(cp_kubeconfig, namespace, dp_api_server, tier_block_regex(tier))
+            all_samples.extend(dwell_and_sample(cp_kubeconfig, dp_kubeconfig, namespace,
+                                                tier, duration_minutes=4))
+        else:
+            # Scale while continuously sampling every 60s -- covers the whole
+            # climb instead of blocking silently on node-readiness.
+            _, scaling_samples = scale_and_sample(cp_kubeconfig, dp_kubeconfig, namespace,
+                                                  resource_group, dp_cluster_name, nodepool, tier,
+                                                  poll_interval=60, timeout_minutes=30)
+            all_samples.extend(scaling_samples)
 
         # Reconcile CP-side sizing for the new node count (idempotent
         # applies). Skipped only for a fresh (non-resumed) ramp's first
@@ -621,7 +640,7 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
                                         resources=tier_resources["konn_server"], wait=True,
                                         server_image=konn_server_image)
             deploy_konnectivity_agents(dp_kubeconfig, namespace, server_ip, agent_replica_count,
-                                        agent_image=konn_agent_image)
+                                        agent_image=konn_agent_image, dedicated_pool=fixed_pools)
             deploy_vmagent(cp_kubeconfig, namespace, dp_api_server,
                            vmagent_resources=tier_resources["vmagent"],
                            proxy_resources=tier_resources["vmagent_proxy"],
@@ -629,9 +648,11 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
                            rate_limit=rate_limit,
                            max_block_size=max_block_size,
                            queues=queues,
-                           max_rows_per_block=max_rows_per_block)
+                           max_rows_per_block=max_rows_per_block,
+                           tier_block_regex=tier_block_regex(tier) if fixed_pools else ".*")
 
-        node_ips = get_node_ips(dp_kubeconfig)
+        node_ips = get_node_ips(dp_kubeconfig,
+                                label_selector=tier_block_label_selector(tier) if fixed_pools else "")
         dp_nodes = len(node_ips)
         per_node_roles = (len(REAL_TARGET_ROLES)
                          + len(DAEMONSET_TARGET_ROLES)
@@ -701,6 +722,7 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
                 "enable_tunnel_reuse": True,
                 "vmsingle_image": VMSINGLE_IMAGE,
                 "nodepool": nodepool,
+                "fixed_pools": fixed_pools,
             },
         )
 
@@ -757,6 +779,7 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
             "vmagent_proxy_image": VMAGENT_PROXY_IMAGE,
             "enable_tunnel_reuse": True,
             "vmsingle_image": VMSINGLE_IMAGE,
+            "fixed_pools": fixed_pools,
         },
         "steps": step_results,
         "resource_samples": all_samples,

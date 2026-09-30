@@ -26,12 +26,12 @@ aks_config_list = [
     }
     extra_node_pool = [
       {
-        name                = "controlplane"
-        node_count          = 9
+        name                 = "controlplane"
+        node_count           = 9
         auto_scaling_enabled = false
-        vm_size             = "Standard_D4_v3"
-        os_disk_type        = "Managed"
-        max_pods            = 250
+        vm_size              = "Standard_D4_v3"
+        os_disk_type         = "Managed"
+        max_pods             = 250
       }
     ]
   },
@@ -50,7 +50,7 @@ aks_config_list = [
       # 172.16.0.0/12 was rejected after AKS tightened pod-CIDR overlap
       # validation. /10 gives 16k /24 node blocks — ample for 5K+ nodes.
       # Same choice as the cnl-azurecni-overlay-cilium scenario.
-      pod_cidr            = "100.64.0.0/10"
+      pod_cidr = "100.64.0.0/10"
     }
     default_node_pool = {
       name                         = "nodepool1"
@@ -64,12 +64,71 @@ aks_config_list = [
     }
     extra_node_pool = [
       {
-        name                = "dataplane"
-        node_count          = 1
+        name                 = "dataplane"
+        node_count           = 1
         auto_scaling_enabled = false
-        vm_size             = "Standard_D2_v3"
-        os_disk_type        = "Managed"
-        max_pods            = 250
+        vm_size              = "Standard_D2_v3"
+        os_disk_type         = "Managed"
+        max_pods             = 250
+      },
+      # Fixed tier-block pools (see config.TIER_BLOCK_REGEX) -- permanent,
+      # never scaled/deleted per run; --fixed-pools selects tiers via scrape
+      # regex instead. dpagentpool is a dedicated, tainted pool for agents.
+      {
+        name                 = "dpblocka"
+        node_count           = 500
+        auto_scaling_enabled = false
+        vm_size              = "Standard_D2_v3"
+        os_disk_type         = "Managed"
+        max_pods             = 250
+        node_labels = {
+          "loadtest.io/tier-block" = "a"
+        }
+      },
+      {
+        name                 = "dpblockb"
+        node_count           = 500
+        auto_scaling_enabled = false
+        vm_size              = "Standard_D2_v3"
+        os_disk_type         = "Managed"
+        max_pods             = 250
+        node_labels = {
+          "loadtest.io/tier-block" = "b"
+        }
+      },
+      {
+        name                 = "dpblockc"
+        node_count           = 500
+        auto_scaling_enabled = false
+        vm_size              = "Standard_D2_v3"
+        os_disk_type         = "Managed"
+        max_pods             = 250
+        node_labels = {
+          "loadtest.io/tier-block" = "c"
+        }
+      },
+      {
+        name                 = "dpblockd"
+        node_count           = 500
+        auto_scaling_enabled = false
+        vm_size              = "Standard_D2_v3"
+        os_disk_type         = "Managed"
+        max_pods             = 250
+        node_labels = {
+          "loadtest.io/tier-block" = "d"
+        }
+      },
+      {
+        name                 = "dpagentpool"
+        node_count           = 10
+        auto_scaling_enabled = false
+        vm_size              = "Standard_D2_v3"
+        os_disk_type         = "Managed"
+        max_pods             = 250
+        node_labels = {
+          "loadtest.io/role" = "konn-agent"
+        }
+        node_taints = ["dedicated=konn-agent:NoSchedule"]
       }
     ]
   }

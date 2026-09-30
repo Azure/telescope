@@ -107,9 +107,9 @@ def main() -> None:
                         help="Max retries per tier on failure (default: 2)")
     parser.add_argument("--rate-limit", type=int, default=VMAGENT_RATE_LIMIT,
                         help=f"-remoteWrite.rateLimit bytes/sec passed to vmagent "
-                             f"(default: {VMAGENT_RATE_LIMIT} = 2 MiB/s, matches prod; "
-                             f"prod's own 2k-node test found even this insufficient — "
-                             f"raise further to validate)")
+                             f"(default: {VMAGENT_RATE_LIMIT} = 10 MiB/s, matches prod's "
+                             f"5x canary increase from the 2 MiB/s bottleneck observed "
+                             f"in large clusters)")
     parser.add_argument("--max-block-size", type=int, default=8388608,
                         help="-remoteWrite.maxBlockSize bytes passed to vmagent "
                              "(default: 8388608 = 8 MiB, VictoriaMetrics stock default; "
@@ -126,6 +126,12 @@ def main() -> None:
                              "(default: 10000, VictoriaMetrics stock default; prod "
                              "doesn't set this either — VM guidance is to raise it "
                              "alongside --max-block-size, still unvalidated)")
+    parser.add_argument("--fixed-pools", action="store_true",
+                        help="Real-targets only: use the pre-provisioned tier-block DP "
+                             "nodepools (azure.tfvars) instead of az-cli-scaling the base "
+                             "pool -- each --tiers step becomes a scrape-config regex "
+                             "change (~10s) instead of a node ramp, and agents schedule "
+                             "onto the dedicated dpagentpool.")
     parser.add_argument("--konn-server-image", default=KONN_SERVER_IMAGE,
                         help=f"konnectivity-server image to deploy "
                              f"(default: {KONN_SERVER_IMAGE}). Use this to load-test "
@@ -476,6 +482,7 @@ def main() -> None:
                     konn_agent_image=args.konn_agent_image,
                     resume=resume,
                     final_tier_dwell_minutes=args.final_tier_dwell_minutes,
+                    fixed_pools=args.fixed_pools,
                 )
                 all_results.append(result)
                 break
@@ -498,8 +505,10 @@ def main() -> None:
                     all_results.append(result)
                     failed_tiers.extend(tiers)
         cleanup_ramp(args.cp_kubeconfig, args.dp_kubeconfig, run_label=args.run_label, mode="real")
-        scale_down_for_teardown(args.resource_group, args.dp_cluster_name, args.nodepool_name,
-                               cp_cluster_name=args.cp_cluster_name, cp_nodepool=args.cp_nodepool_name)
+        if not args.fixed_pools:
+            # Fixed tier-block pools are terraform-managed, not torn down here.
+            scale_down_for_teardown(args.resource_group, args.dp_cluster_name, args.nodepool_name,
+                                   cp_cluster_name=args.cp_cluster_name, cp_nodepool=args.cp_nodepool_name)
     else:
         # Fake targets ramp through every tier as exporter replica counts
         # inside ONE continuous deployment (see run_fake_targets_ramp)

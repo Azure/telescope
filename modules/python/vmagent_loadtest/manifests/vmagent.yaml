@@ -19,7 +19,7 @@
 #   __VMAGENT_PROXY_IMAGE__    — vmagent-proxy image (real Go binary; fixed to prod's pinned version)
 #   __PROXY_CPU_REQ__   / __PROXY_MEM_REQ__   — vmagent-proxy requests (per shard)
 #   __PROXY_CPU_LIM__   / __PROXY_MEM_LIM__   — vmagent-proxy limits (per shard)
-#   __VMAGENT_RATE_LIMIT__      — -remoteWrite.rateLimit bytes/sec (prod default since 2026-07-28: 2097152 = 2 MiB/s; prod's own 2k-node test found this still insufficient)
+#   __VMAGENT_RATE_LIMIT__      — -remoteWrite.rateLimit bytes/sec (prod default since 2026-07-28: 10485760 = 10 MiB/s, a 5x canary increase from the 2 MiB/s bottleneck observed in large clusters)
 #   __VMAGENT_MAX_BLOCK_SIZE__  — -remoteWrite.maxBlockSize bytes (prod still pinned at 524288 = .5 MiB; 8388608 = 8 MiB VM stock default is the pending/unvalidated recommendation)
 #   __VMAGENT_MAX_ROWS_PER_BLOCK__ — -remoteWrite.maxRowsPerBlock (prod doesn't set this; VM stock default 10000 — raise alongside maxBlockSize per VM guidance)
 #   __VMAGENT_FLUSH_INTERVAL__  — -remoteWrite.flushInterval duration (prod default since 2026-07-28: 1s, was 30s)
@@ -58,6 +58,7 @@ spec:
                   fieldPath: metadata.name
           args:
             - -promscrape.config=/config/prometheus.yml
+            - -promscrape.configCheckInterval=10s
             - -httpListenAddr=:8429
             - -promscrape.cluster.membersCount=__VMAGENT_REPLICAS__
             - -promscrape.cluster.memberNum=$(POD_NAME)

@@ -3,6 +3,9 @@
 # Template variables:
 #   __NAMESPACE__        — test namespace
 #   __DP_API_SERVER__    — DP cluster API server URL (for kubernetes_sd_configs)
+#   __TIER_BLOCK_REGEX__ — kept against node label loadtest.io/tier-block on
+#                          every role:node job; selects in-scope fixed node
+#                          blocks (default ".*" = unaffected by tier-blocks).
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -278,6 +281,9 @@ data:
             tls_config:
               insecure_skip_verify: true
         relabel_configs:
+          - source_labels: [__meta_kubernetes_node_label_loadtest_io_tier_block]
+            regex: '__TIER_BLOCK_REGEX__'
+            action: keep
           - source_labels: [__meta_kubernetes_node_address_InternalIP]
             target_label: __address__
             replacement: $1:10250
@@ -306,6 +312,9 @@ data:
             tls_config:
               insecure_skip_verify: true
         relabel_configs:
+          - source_labels: [__meta_kubernetes_node_label_loadtest_io_tier_block]
+            regex: '__TIER_BLOCK_REGEX__'
+            action: keep
           - source_labels: [__meta_kubernetes_node_address_InternalIP]
             target_label: __address__
             replacement: $1:10250
@@ -323,6 +332,9 @@ data:
             tls_config:
               insecure_skip_verify: true
         relabel_configs:
+          - source_labels: [__meta_kubernetes_node_label_loadtest_io_tier_block]
+            regex: '__TIER_BLOCK_REGEX__'
+            action: keep
           - source_labels: [__meta_kubernetes_node_address_InternalIP]
             target_label: __address__
             replacement: $1:10249
@@ -340,6 +352,9 @@ data:
             tls_config:
               insecure_skip_verify: true
         relabel_configs:
+          - source_labels: [__meta_kubernetes_node_label_loadtest_io_tier_block]
+            regex: '__TIER_BLOCK_REGEX__'
+            action: keep
           - source_labels: [__meta_kubernetes_node_address_InternalIP]
             target_label: __address__
             replacement: $1:10092
@@ -357,6 +372,9 @@ data:
             tls_config:
               insecure_skip_verify: true
         relabel_configs:
+          - source_labels: [__meta_kubernetes_node_label_loadtest_io_tier_block]
+            regex: '__TIER_BLOCK_REGEX__'
+            action: keep
           - source_labels: [__meta_kubernetes_node_label_kubernetes_io_os]
             action: keep
             regex: linux
@@ -377,6 +395,9 @@ data:
             tls_config:
               insecure_skip_verify: true
         relabel_configs:
+          - source_labels: [__meta_kubernetes_node_label_loadtest_io_tier_block]
+            regex: '__TIER_BLOCK_REGEX__'
+            action: keep
           - source_labels: [__meta_kubernetes_node_address_InternalIP]
             target_label: __address__
             replacement: $1:10257

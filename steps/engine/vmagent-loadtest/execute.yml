@@ -21,11 +21,16 @@ steps:
     RUN_LABEL="${RUN_LABEL:-}"
     PARALLEL="${PARALLEL:-false}"
     MAX_CONCURRENCY="${MAX_CONCURRENCY:-}"
+    # Real-targets only: use the pre-provisioned tier-block DP nodepools
+    # (azure.tfvars) instead of az-cli-scaling the base pool.
+    FIXED_POOLS="${FIXED_POOLS:-false}"
     COLLECT_DIAGNOSTICS="${COLLECT_DIAGNOSTICS:-false}"
     # -remoteWrite.rateLimit / -remoteWrite.maxBlockSize passed to vmagent.
-    # Defaults match prod's pre-change values (524288 = .5 MiB/s, .5 MiB).
-    RATE_LIMIT="${RATE_LIMIT:-524288}"
-    MAX_BLOCK_SIZE="${MAX_BLOCK_SIZE:-524288}"
+    # Defaults match prod's current values (10485760 = 10 MiB/s -- 5x canary
+    # increase from the 2 MiB/s bottleneck observed in large clusters --
+    # and 8388608 = 8 MiB, VictoriaMetrics stock default).
+    RATE_LIMIT="${RATE_LIMIT:-10485760}"
+    MAX_BLOCK_SIZE="${MAX_BLOCK_SIZE:-8388608}"
     # -remoteWrite.queues passed to vmagent (default matches prod's current value).
     QUEUES="${QUEUES:-8}"
     # -remoteWrite.maxRowsPerBlock passed to vmagent (default matches vmagent's own stock default; prod doesn't set it).
@@ -46,6 +51,7 @@ steps:
     if [[ "$REAL_TARGETS" == "true" ]]; then
       EXTRA_ARGS="$EXTRA_ARGS --real-targets"
     fi
+    [[ "$FIXED_POOLS" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --fixed-pools"
     if [[ -n "$RUN_LABEL" ]]; then
       EXTRA_ARGS="$EXTRA_ARGS --run-label $RUN_LABEL"
     fi
@@ -174,6 +180,7 @@ steps:
     REAL_TARGETS: $(REAL_TARGETS)
     RUN_LABEL: $(RUN_LABEL)
     PARALLEL: $(PARALLEL)
+    FIXED_POOLS: $(FIXED_POOLS)
     COLLECT_DIAGNOSTICS: $(COLLECT_DIAGNOSTICS)
     RATE_LIMIT: $(RATE_LIMIT)
     MAX_BLOCK_SIZE: $(MAX_BLOCK_SIZE)
