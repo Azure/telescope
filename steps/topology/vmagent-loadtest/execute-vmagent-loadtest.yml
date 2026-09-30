@@ -18,3 +18,4 @@ steps:
     dp_kubeconfig: $(Pipeline.Workspace)/kubeconfigs/dp.kubeconfig
     dp_resource_group: $(DP_AKS_RG)
     dp_cluster_name: $(DP_AKS_NAME)
+    config_combinations: ${{ parameters.engine_input.config_combinations }}

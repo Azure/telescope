@@ -1,5 +1,22 @@
 trigger: none
 
+parameters:
+  # Each entry is a full konnectivity-server/agent image config to run
+  # SEQUENTIALLY against the SAME provisioned CP/DP cluster pair (see
+  # steps/engine/vmagent-loadtest/execute.yml's config_combinations
+  # each-loop) -- avoids paying for a separate terraform apply/destroy
+  # per image comparison. TIERS/SOAK_MINUTES/REAL_TARGETS/FIXED_POOLS
+  # below are shared/global across every combination.
+  - name: config_combinations
+    type: object
+    default:
+      - run_label: konnectivity-base-images
+        konn_server_image: "mcr.microsoft.com/oss/v2/kubernetes/apiserver-network-proxy/server:v0.32.1-11"
+        konn_agent_image: "mcr.microsoft.com/oss/v2/kubernetes/apiserver-network-proxy/agent:v0.32.1-11"
+      - run_label: konnectivity-v0-37-0-1
+        konn_server_image: "imranpochi/proxy-server:v0.37.0-1"
+        konn_agent_image: "imranpochi/proxy-agent:v0.37.0-1"
+
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: vmagent-loadtest
@@ -15,24 +32,22 @@ stages:
             - westus2
           topology: vmagent-loadtest
           engine: vmagent-loadtest
+          engine_input:
+            config_combinations: ${{ parameters.config_combinations }}
           matrix:
-            baseline_images:
+            # Single leg, ONE provisioned cluster pair -- every entry in
+            # config_combinations (baseline vs candidate images) runs
+            # sequentially against it (see engine_input above). FIXED_POOLS
+            # uses the terraform-provisioned tier-block pools (dpblocka-d +
+            # dpagentpool) instead of az-cli-scaling nodepool1 per combo --
+            # no re-ramp/teardown between combos.
+            konnectivity_image_ab:
               TIERS: "500,1000,1500,2000"
               SOAK_MINUTES: 15
               REAL_TARGETS: "true"
               FIXED_POOLS: "true"
-              RUN_LABEL: "konnectivity-base-images"
-              KONN_SERVER_IMAGE: "mcr.microsoft.com/oss/v2/kubernetes/apiserver-network-proxy/server:v0.32.1-11"
-              KONN_AGENT_IMAGE: "mcr.microsoft.com/oss/v2/kubernetes/apiserver-network-proxy/agent:v0.32.1-11"
-            candidate_images:
-              TIERS: "500,1000,1500,2000"
-              SOAK_MINUTES: 15
-              REAL_TARGETS: "true"
-              FIXED_POOLS: "true"
-              RUN_LABEL: "konnectivity-v0-37-0-1"
-              KONN_SERVER_IMAGE: "imranpochi/proxy-server:v0.37.0-1"
-              KONN_AGENT_IMAGE: "imranpochi/proxy-agent:v0.37.0-1"
           max_parallel: 1
           timeout_in_minutes: 600
           credential_type: service_connection
           ssh_key_enabled: false
+
