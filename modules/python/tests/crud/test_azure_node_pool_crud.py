@@ -3,7 +3,10 @@
 Unit tests for NodePoolCRUD class
 """
 
+import json
 import os
+import shutil
+import tempfile
 import unittest
 from unittest import mock
 from crud.azure.node_pool_crud import NodePoolCRUD
@@ -28,8 +31,7 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
         self.mock_configure_credential.return_value = self.mock_credential
 
         # Create test directory for result files
-        self.test_result_dir = "/tmp/test_results"
-        os.makedirs(self.test_result_dir, exist_ok=True)
+        self.test_result_dir = tempfile.mkdtemp()
 
         # Setup NodePoolCRUD client
         self.node_pool_crud = NodePoolCRUD(
@@ -44,10 +46,17 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
         self.credential_patcher.stop()
         self.aks_client_patcher.stop()
 
-        try:
-            os.rmdir(self.test_result_dir)
-        except OSError:
-            pass
+        shutil.rmtree(self.test_result_dir)
+
+    def _read_operation_info(self):
+        result_files = os.listdir(self.test_result_dir)
+        self.assertEqual(len(result_files), 1)
+        with open(
+            os.path.join(self.test_result_dir, result_files[0]),
+            "r",
+            encoding="utf-8",
+        ) as result_file:
+            return json.load(result_file)["operation_info"]
 
     def test_authentication_configuration(self):
         """Credential configuration is injected with the requested MI behavior."""
@@ -416,6 +425,24 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
 
         # Verify
         self.assertTrue(result)
+        operation_info = self._read_operation_info()
+        self.assertEqual(operation_info["name"], "create_pods")
+        self.assertTrue(operation_info["success"])
+        self.assertIsNotNone(operation_info["start_timestamp"])
+        self.assertIsNotNone(operation_info["end_timestamp"])
+        self.assertIsNotNone(operation_info["duration"])
+        self.assertEqual(operation_info["unit"], "seconds")
+        self.assertEqual(
+            operation_info["metadata"],
+            {
+                "workload_type": "deployment",
+                "node_pool_name": "test-pool",
+                "workload_count": 1,
+                "replicas_per_instance": 10,
+                "namespace": "default",
+                "successful_workloads": 1,
+            },
+        )
 
     def test_create_deployment_failure(self):
         """Test deployment creation failure"""
@@ -442,6 +469,9 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
 
         # Verify
         self.assertFalse(result)
+        operation_info = self._read_operation_info()
+        self.assertFalse(operation_info["success"])
+        self.assertEqual(operation_info["error_message"], "Kubernetes client not available")
 
     def test_create_deployment_partial_success(self):
         """Test deployment creation when some deployments succeed and others fail"""
@@ -472,6 +502,11 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
         # Verify create_template was called 3 times (attempted all deployments)
         self.assertEqual(mock_k8s_client.create_template.call_count, 3)
 
+        operation_info = self._read_operation_info()
+        self.assertEqual(operation_info["name"], "create_pods")
+        self.assertFalse(operation_info["success"])
+        self.assertEqual(operation_info["metadata"]["successful_workloads"], 2)
+
     def test_create_statefulset_success(self):
         """Test successful statefulset creation"""
         # Setup
@@ -486,6 +521,9 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
 
         # Verify
         self.assertTrue(result)
+        operation_info = self._read_operation_info()
+        self.assertEqual(operation_info["name"], "create_statefulset")
+        self.assertTrue(operation_info["success"])
 
     def test_create_statefulset_failure(self):
         """Test statefulset creation failure"""
@@ -556,6 +594,9 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
 
         # Verify
         self.assertTrue(result)
+        operation_info = self._read_operation_info()
+        self.assertEqual(operation_info["name"], "create_jobs")
+        self.assertTrue(operation_info["success"])
 
     def test_create_job_failure(self):
         """Test job creation failure"""
