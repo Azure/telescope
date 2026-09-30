@@ -12,6 +12,7 @@ import time
 import yaml
 
 from clients.aks_client import AKSClient
+from crud.operation import OperationContext
 from utils.constants import AzureNodePoolTypeConstants
 from utils.logger_config import get_logger, setup_logging
 from utils.azure_auth import configure_credential
@@ -50,6 +51,12 @@ WORKLOAD_CONFIG = {
     },
 }
 
+WORKLOAD_OPERATION_NAMES = {
+    "deployment": "create_pods",
+    "statefulset": "create_statefulset",
+    "job": "create_jobs",
+}
+
 class NodePoolCRUD:
     """Performs AKS node pool operations - metrics collection is handled directly by AKSClient"""
 
@@ -82,6 +89,7 @@ class NodePoolCRUD:
 
         # Get the cluster name when initializing
         self.cluster_name = self.aks_client.get_cluster_name()
+        self.result_dir = result_dir
         self.step_timeout = step_timeout
 
     def create_node_pool(
@@ -470,35 +478,62 @@ class NodePoolCRUD:
         logger.info("Replicas per %s: %d", workload_type, count)
         logger.info("Using manifest directory: %s", manifest_dir)
 
-        k8s_client = self.aks_client.k8s_client
-        if not k8s_client:
-            logger.error("Kubernetes client not available")
+        metadata = {
+            "workload_type": workload_type,
+            "node_pool_name": node_pool_name,
+            "workload_count": number_of_workloads,
+            (
+                "completions_per_instance"
+                if workload_type == "job"
+                else "replicas_per_instance"
+            ): count,
+            "namespace": namespace,
+        }
+        with OperationContext(
+            WORKLOAD_OPERATION_NAMES[workload_type],
+            "azure",
+            metadata,
+            result_dir=self.result_dir,
+        ) as operation:
+            k8s_client = self.aks_client.k8s_client
+            if not k8s_client:
+                error_message = "Kubernetes client not available"
+                logger.error(error_message)
+                operation.success = False
+                operation.error_message = error_message
+                operation.add_metadata("successful_workloads", 0)
+                return False
+
+            successes = 0
+            for index in range(1, number_of_workloads + 1):
+                logger.info("Creating %s %d/%d", workload_type, index, number_of_workloads)
+                try:
+                    self._apply_workload(
+                        k8s_client=k8s_client,
+                        workload_type=workload_type,
+                        node_pool_name=node_pool_name,
+                        index=index,
+                        count=count,
+                        manifest_dir=manifest_dir,
+                        label_selector=label_selector,
+                        namespace=namespace
+                    )
+                    successes += 1
+                except Exception as e:
+                    logger.error("Failed to create %s %d: %s", workload_type, index, e)
+                    continue
+
+            operation.add_metadata("successful_workloads", successes)
+            operation.success = successes == number_of_workloads
+            if operation.success:
+                logger.info("Successfully created all %d %s(s)", number_of_workloads, workload_type_display)
+                return True
+
+            operation.error_message = (
+                f"Created {successes}/{number_of_workloads} {workload_type_display}(s)"
+            )
+            logger.warning(operation.error_message)
             return False
-
-        successes = 0
-        for index in range(1, number_of_workloads + 1):
-            logger.info("Creating %s %d/%d", workload_type, index, number_of_workloads)
-            try:
-                self._apply_workload(
-                    k8s_client=k8s_client,
-                    workload_type=workload_type,
-                    node_pool_name=node_pool_name,
-                    index=index,
-                    count=count,
-                    manifest_dir=manifest_dir,
-                    label_selector=label_selector,
-                    namespace=namespace
-                )
-                successes += 1
-            except Exception as e:
-                logger.error("Failed to create %s %d: %s", workload_type, index, e)
-                continue
-
-        if successes == number_of_workloads:
-            logger.info("Successfully created all %d %s(s)", number_of_workloads, workload_type_display)
-            return True
-        logger.warning("Created %d/%d %s(s)", successes, number_of_workloads, workload_type_display)
-        return False
 
     def _apply_workload(
         self,

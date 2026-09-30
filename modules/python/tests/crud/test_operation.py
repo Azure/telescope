@@ -413,6 +413,13 @@ class TestOperationContext(unittest.TestCase):
         self.assertTrue(files[0].startswith("azure_test_operation_"))
         self.assertTrue(files[0].endswith(".json"))
 
+    def test_operation_context_preserves_explicit_failure(self):
+        """Test OperationContext preserves a failure without an exception."""
+        with OperationContext("test_operation", "azure") as op:
+            op.success = False
+
+        self.assertFalse(op.success)
+
     @mock.patch("crud.operation.datetime")
     def test_operation_context_failure(self, mock_datetime):
         """Test OperationContext with failed operation"""

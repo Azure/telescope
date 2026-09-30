@@ -644,6 +644,55 @@ class TestCollectBenchmarkResults(unittest.TestCase):
             self.assertEqual(len(lines), 2)  # Two result entries
 
     @mock.patch("crud.main.get_env_vars")
+    def test_collect_benchmark_results_preserves_workload_operations(
+        self, mock_get_env_vars
+    ):
+        """Test aggregate workload records are collected as distinct rows."""
+        env_vars = {
+            "RESULT_DIR": self.test_dir,
+            "RUN_URL": "https://example.com/run/123",
+            "RUN_ID": "test-run-123",
+            "REGION": "eastus",
+        }
+        mock_get_env_vars.side_effect = env_vars.get
+
+        operation_names = ["create_pods", "create_statefulset", "create_jobs"]
+        for operation_name in operation_names:
+            operation_file = os.path.join(self.test_dir, f"{operation_name}.json")
+            with open(operation_file, "w", encoding="utf-8") as result_file:
+                json.dump(
+                    {
+                        "operation_info": {
+                            "name": operation_name,
+                            "cloud": "azure",
+                            "duration": 10.0,
+                            "success": True,
+                            "metadata": {"workload_type": operation_name},
+                            "unit": "seconds",
+                        }
+                    },
+                    result_file,
+                )
+
+        result = collect_benchmark_results()
+
+        self.assertEqual(result, 0)
+        with open(
+            os.path.join(self.test_dir, "results.json"), "r", encoding="utf-8"
+        ) as results_file:
+            rows = [json.loads(line) for line in results_file]
+
+        self.assertEqual(len(rows), 3)
+        collected_names = {
+            json.loads(row["operation_info"])["name"] for row in rows
+        }
+        self.assertEqual(collected_names, set(operation_names))
+        for row in rows:
+            self.assertEqual(row["region"], "eastus")
+            self.assertEqual(row["run_id"], "test-run-123")
+            self.assertEqual(row["run_url"], "https://example.com/run/123")
+
+    @mock.patch("crud.main.get_env_vars")
     @mock.patch("crud.main.glob.glob")
     def test_collect_benchmark_results_skip_results_json(
         self, mock_glob, mock_get_env_vars
