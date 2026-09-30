@@ -19,6 +19,16 @@ parameters:
         konn_server_image: "imranpochi/proxy-server:v0.37.0-1"
         konn_agent_image: "imranpochi/proxy-agent:v0.37.0-1"
 
+  # BYO/persistent mode: nodepools for this run are pre-provisioned outside
+  # terraform, so every trigger reuses the SAME CP/DP clusters instead of a
+  # fresh per-build resource group. Must be set together with the
+  # SKIP_RESOURCE_MANAGEMENT runtime variable at queue time (excluded from
+  # main by design -- see aks-vm-extension CloudNativeCompute wiki's
+  # Telescope Best-Practices doc, "BYO resources"/SKIP_RESOURCE_MANAGEMENT).
+  - name: run_id
+    type: string
+    default: 'vmagent-loadtesting'
+
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: vmagent-loadtest
@@ -40,6 +50,7 @@ stages:
             - westus2
           topology: vmagent-loadtest
           engine: vmagent-loadtest
+          run_id: ${{ parameters.run_id }}
           engine_input:
             config_combinations: ${{ parameters.config_combinations }}
           matrix:
