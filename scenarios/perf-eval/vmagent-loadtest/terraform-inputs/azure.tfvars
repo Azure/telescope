@@ -1,6 +1,16 @@
 scenario_type  = "perf-eval"
 scenario_name  = "vmagent-loadtest"
-deletion_delay = "10h"
+# This scenario is reused as a PERSISTENT BYO cluster pair across many
+# pipeline runs over weeks (SKIP_RESOURCE_MANAGEMENT=true + fixed
+# run_id="vmagent-loadtesting", see pipelines/perf-eval/Vmagent Benchmark/
+# vmagent-loadtest.yml) -- NOT per-run ephemeral infra. The 10h value this
+# scenario was originally created with let Telescope's external GC reaper
+# (which enforces the deletion_due_time tag regardless of
+# SKIP_RESOURCE_MANAGEMENT) delete both CP and DP clusters ~40 days after
+# creation, once it caught up to the long-overdue tag. Azure's
+# deletion_delay has no enforced max (unlike AWS's 72h cap) -- set to 1
+# year here so the reaper leaves this pair alone for the long term.
+deletion_delay = "8760h"
 owner          = "aks"
 
 aks_config_list = [
