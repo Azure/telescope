@@ -65,6 +65,19 @@ stages:
               SOAK_MINUTES: 15
               REAL_TARGETS: "true"
               FIXED_POOLS: "true"
+              # Explicitly set (rather than left to execute.yml's bash
+              # fallback) because ADO's $(VAR) macro in execute.yml's env:
+              # block only resolves when VAR exists as a pipeline/matrix
+              # variable -- if unset, it's left as the literal text
+              # "$(VAR)" instead of empty, which defeats bash's
+              # ${VAR:-default} fallback and breaks main.py's int parsing.
+              RATE_LIMIT: 10485760     # 10 MiB/s -- prod's current value
+              MAX_BLOCK_SIZE: 8388608  # 8 MiB -- VictoriaMetrics stock default
+              QUEUES: 8
+              MAX_ROWS_PER_BLOCK: 10000
+              COLLECT_DIAGNOSTICS: "false"
+              MEASURE_DRAIN: "false"
+              DRAIN_OBSERVE_SECONDS: 120
           max_parallel: 1
           timeout_in_minutes: 600
           credential_type: service_connection
