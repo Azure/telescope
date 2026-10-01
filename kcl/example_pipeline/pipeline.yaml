@@ -415,7 +415,7 @@ jobs:
                 - |
                   set -euo pipefail
                   echo "[]" > /tmp/vllm-bench-results.json
-                  for CASE_SPEC in 35:1024:512 35:2048:2048; do
+                  for CASE_SPEC in 5:1024:512 10:1024:512 15:1024:512 1:2048:2048 2:2048:2048 3:2048:2048 5:2048:2048; do
                     IFS=':' read -r CASE_RPS CASE_INPUT_TOKENS CASE_OUTPUT_TOKENS <<< "$CASE_SPEC"
                     CASE_NAME="in${CASE_INPUT_TOKENS}-out${CASE_OUTPUT_TOKENS}-rps${CASE_RPS}"
                     CASE_RESULT="/tmp/vllm-bench-result-${CASE_NAME}.json"
@@ -624,8 +624,16 @@ jobs:
             "runtime": "vllm",
             "gpu_vm_size": "Standard_NC40ads_H100_v5",
             "gpu_node_count": gpu_node_count,
-            "request_rates": [35],
-            "benchmark_case_specs": ["35:1024:512", "35:2048:2048"],
+            "request_rates": [1, 2, 3, 5, 10, 15],
+            "benchmark_case_specs": [
+                "5:1024:512",
+                "10:1024:512",
+                "15:1024:512",
+                "1:2048:2048",
+                "2:2048:2048",
+                "3:2048:2048",
+                "5:2048:2048",
+            ],
             "target_duration_seconds_per_case": 60,
             "duration_seconds": duration_seconds,
             "gpu_ready_seconds": gpu_ready_seconds,
