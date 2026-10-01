@@ -468,6 +468,49 @@ jobs:
         current = None
         buf = []
 
+        RAW_SERIES_FIELDS = [
+            "latencies",
+            "queue_times",
+            "ttfts",
+            "itls",
+            "tpots",
+            "input_lens",
+            "output_lens",
+            "generated_texts",
+        ]
+
+        def percentile(values, p):
+            values = sorted(v for v in values if isinstance(v, (int, float)))
+            if not values:
+                return None
+            k = (len(values) - 1) * p / 100.0
+            lower = int(k)
+            upper = min(lower + 1, len(values) - 1)
+            if lower == upper:
+                return values[lower]
+            return values[lower] * (upper - k) + values[upper] * (k - lower)
+
+        def summarize_seconds(values):
+            values = [v for v in values if isinstance(v, (int, float))]
+            if not values:
+                return None
+            return {
+                "count": len(values),
+                "mean_ms": sum(values) / len(values) * 1000.0,
+                "p50_ms": percentile(values, 50) * 1000.0,
+                "p95_ms": percentile(values, 95) * 1000.0,
+                "p99_ms": percentile(values, 99) * 1000.0,
+            }
+
+        def compact_benchmark(benchmark):
+            for field in ("latencies", "queue_times"):
+                summary = summarize_seconds(benchmark.get(field, []))
+                if summary is not None:
+                    benchmark[f"{field}_summary"] = summary
+            for field in RAW_SERIES_FIELDS:
+                benchmark.pop(field, None)
+            return benchmark
+
         with open("/tmp/vllm-bench.log", encoding="utf-8") as f:
             for raw_line in f:
                 line = raw_line.rstrip("\n")
@@ -501,7 +544,7 @@ jobs:
                     else:
                         payload_json = payload
                     try:
-                        benchmark = json.loads(payload_json)
+                        benchmark = compact_benchmark(json.loads(payload_json))
                     except json.JSONDecodeError as exc:
                         benchmark = {
                             "error": "benchmark_result_parse_failed",
