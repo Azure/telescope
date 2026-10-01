@@ -23,10 +23,21 @@ VLLM_IMAGE = "vllm/vllm-openai:latest"
 REQUEST_RATE = 10
 TARGET_DURATION_SECONDS = 60
 CASE_TIMEOUT_SECONDS = 1200
-INPUT_TOKENS = 512
-OUTPUT_TOKENS = 128
-BENCHMARK_CASES = ["20", "25", "30", "35", "40"]
-BENCHMARK_CASE_RPS = "20 25 30 35 40"
+INPUT_TOKENS = 1024
+OUTPUT_TOKENS = 512
+BENCHMARK_CASES = [
+    "30:512:128",
+    "35:512:128",
+    "40:512:128",
+    "5:1024:512",
+    "10:1024:512",
+    "15:1024:512",
+    "1:2048:2048",
+    "2:2048:2048",
+    "3:2048:2048",
+    "5:2048:2048",
+]
+BENCHMARK_CASE_SPECS = "30:512:128 35:512:128 40:512:128 5:1024:512 10:1024:512 15:1024:512 1:2048:2048 2:2048:2048 3:2048:2048 5:2048:2048"
 
 createClusterScript = """
 az version
@@ -374,8 +385,9 @@ spec:
         - |
           set -euo pipefail
           echo "[]" > /tmp/vllm-bench-results.json
-          for CASE_RPS in ${BENCHMARK_CASE_RPS}; do
-            CASE_NAME="in${INPUT_TOKENS}-out${OUTPUT_TOKENS}-rps\${CASE_RPS}"
+          for CASE_SPEC in ${BENCHMARK_CASE_SPECS}; do
+            IFS=':' read -r CASE_RPS CASE_INPUT_TOKENS CASE_OUTPUT_TOKENS <<< "$CASE_SPEC"
+            CASE_NAME="in\${CASE_INPUT_TOKENS}-out\${CASE_OUTPUT_TOKENS}-rps\${CASE_RPS}"
             CASE_RESULT="/tmp/vllm-bench-result-\${CASE_NAME}.json"
             CASE_NUM_PROMPTS=$((CASE_RPS * ${TARGET_DURATION_SECONDS}))
             CASE_START_SECONDS=$(date +%s)
@@ -387,15 +399,15 @@ spec:
               --endpoint /v1/chat/completions \\
               --model ${MODEL} \\
               --dataset-name random \\
-              --random-input-len ${INPUT_TOKENS} \\
-              --random-output-len ${OUTPUT_TOKENS} \\
+              --random-input-len "$CASE_INPUT_TOKENS" \\
+              --random-output-len "$CASE_OUTPUT_TOKENS" \\
               --request-rate "$CASE_RPS" \\
               --num-prompts "$CASE_NUM_PROMPTS" \\
               --save-result \\
               --result-filename "$CASE_RESULT"
             CASE_EXIT_CODE=$?
             set -e
-            echo "__VLLM_CASE_JSON_BEGIN__ \${CASE_NAME} \${CASE_RPS} \${CASE_NUM_PROMPTS}"
+            echo "__VLLM_CASE_JSON_BEGIN__ \${CASE_NAME} \${CASE_RPS} \${CASE_INPUT_TOKENS} \${CASE_OUTPUT_TOKENS} \${CASE_NUM_PROMPTS}"
             if [ "$CASE_EXIT_CODE" -eq 0 ] && [ -s "$CASE_RESULT" ]; then
               cat "$CASE_RESULT"
             else
@@ -426,22 +438,67 @@ results = []
 current = None
 buf = []
 
+RAW_SERIES_FIELDS = [
+    "latencies",
+    "queue_times",
+    "ttfts",
+    "itls",
+    "tpots",
+    "input_lens",
+    "output_lens",
+    "generated_texts",
+]
+
+def percentile(values, p):
+    values = sorted(v for v in values if isinstance(v, (int, float)))
+    if not values:
+        return None
+    k = (len(values) - 1) * p / 100.0
+    lower = int(k)
+    upper = min(lower + 1, len(values) - 1)
+    if lower == upper:
+        return values[lower]
+    return values[lower] * (upper - k) + values[upper] * (k - lower)
+
+def summarize_seconds(values):
+    values = [v for v in values if isinstance(v, (int, float))]
+    if not values:
+        return None
+    return {
+        "count": len(values),
+        "mean_ms": sum(values) / len(values) * 1000.0,
+        "p50_ms": percentile(values, 50) * 1000.0,
+        "p95_ms": percentile(values, 95) * 1000.0,
+        "p99_ms": percentile(values, 99) * 1000.0,
+    }
+
+def compact_benchmark(benchmark):
+    for field in ("latencies", "queue_times"):
+        summary = summarize_seconds(benchmark.get(field, []))
+        if summary is not None:
+            benchmark[f"{field}_summary"] = summary
+    for field in RAW_SERIES_FIELDS:
+        benchmark.pop(field, None)
+    return benchmark
+
 with open("/tmp/vllm-bench.log", encoding="utf-8") as f:
     for raw_line in f:
         line = raw_line.rstrip("\\n")
         if line.startswith("__VLLM_CASE_JSON_BEGIN__"):
             parts = line.split()
-            if len(parts) >= 4:
-                _, case_name, case_rps, case_num_prompts = parts[:4]
+            if len(parts) >= 6:
+                _, case_name, case_rps, case_input_tokens, case_output_tokens, case_num_prompts = parts[:6]
             else:
                 case_name = None
                 case_rps = None
+                case_input_tokens = None
+                case_output_tokens = None
                 case_num_prompts = None
             current = {
                 "case": case_name,
                 "request_rate": float(case_rps) if case_rps is not None else None,
-                "input_tokens_per_prompt": ${INPUT_TOKENS},
-                "output_tokens_per_prompt": ${OUTPUT_TOKENS},
+                "input_tokens_per_prompt": int(case_input_tokens) if case_input_tokens is not None else None,
+                "output_tokens_per_prompt": int(case_output_tokens) if case_output_tokens is not None else None,
                 "num_prompts": int(case_num_prompts) if case_num_prompts is not None else None,
             }
             buf = []
@@ -457,7 +514,7 @@ with open("/tmp/vllm-bench.log", encoding="utf-8") as f:
             else:
                 payload_json = payload
             try:
-                benchmark = json.loads(payload_json)
+                benchmark = compact_benchmark(json.loads(payload_json))
             except json.JSONDecodeError as exc:
                 benchmark = {
                     "error": "benchmark_result_parse_failed",
@@ -476,9 +533,13 @@ with open("/tmp/vllm-bench.log", encoding="utf-8") as f:
                 current["request_rate"] = float(benchmark_request_rate) if benchmark_request_rate is not None else None
             if current["num_prompts"] is None:
                 current["num_prompts"] = int(benchmark.get("num_prompts", 0) or 0)
+            if current["input_tokens_per_prompt"] is None:
+                current["input_tokens_per_prompt"] = ${INPUT_TOKENS}
+            if current["output_tokens_per_prompt"] is None:
+                current["output_tokens_per_prompt"] = ${OUTPUT_TOKENS}
             if current["case"] is None:
                 rps_suffix = int(current["request_rate"]) if current["request_rate"] is not None else "unknown"
-                current["case"] = f"in${INPUT_TOKENS}-out${OUTPUT_TOKENS}-rps{rps_suffix}"
+                current["case"] = f"in{current['input_tokens_per_prompt']}-out{current['output_tokens_per_prompt']}-rps{rps_suffix}"
             results.append(current)
             current = None
             buf = []
@@ -576,10 +637,20 @@ result = {
     "runtime": "vllm",
     "gpu_vm_size": "${GPU_VM_SIZE}",
     "gpu_node_count": gpu_node_count,
-    "request_rates": [20, 25, 30, 35, 40],
+    "request_rates": [1, 2, 3, 5, 10, 15],
+    "benchmark_case_specs": [
+        "30:512:128",
+        "35:512:128",
+        "40:512:128",
+        "5:1024:512",
+        "10:1024:512",
+        "15:1024:512",
+        "1:2048:2048",
+        "2:2048:2048",
+        "3:2048:2048",
+        "5:2048:2048",
+    ],
     "target_duration_seconds_per_case": ${TARGET_DURATION_SECONDS},
-    "input_tokens_per_prompt": ${INPUT_TOKENS},
-    "output_tokens_per_prompt": ${OUTPUT_TOKENS},
     "duration_seconds": duration_seconds,
     "gpu_ready_seconds": gpu_ready_seconds,
     "vllm_ready_seconds": vllm_ready_seconds,
