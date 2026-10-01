@@ -47,8 +47,12 @@ steps:
           if [[ ${{ parameters.command }} == "apply" && "$CLOUD" == "azure" ]]; then
             echo "Delete resources and remove state file before retrying"
             ids=$(az resource list --location $region --resource-group $RUN_ID --query [*].id -o tsv)
-            az resource delete --ids $ids --verbose
-            rm -r terraform.tfstate.d/$region
+            if [[ -n "$ids" ]]; then
+              az resource delete --ids $ids --verbose
+            else
+              echo "No resources found in $RUN_ID ($region) to clean up -- skipping delete (e.g. apply failed before any resources were created, or ARM/Resource Graph hasn't indexed them yet)."
+            fi
+            rm -rf terraform.tfstate.d/$region
           fi
           if [[ ${{ parameters.command }} == "destroy" && "$CLOUD" == "aws" ]]; then
             echo "Delete all the network interfaces before retrying"
