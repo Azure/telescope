@@ -77,6 +77,16 @@ steps:
         done
       }
 
+      # Proactively stop/disable the background apt-daily timers (unattended-upgrades) that
+      # intermittently hold /var/lib/dpkg/lock-frontend for several minutes right as agents
+      # come online, causing "Install Dependencies" to fail outright (this step has no
+      # task-level retry, so a single flake here silently skips every later step in the job
+      # -- including cluster validation/test execution -- even if they'd otherwise succeed).
+      # Stopping the units (not just waiting out the retry budget) removes the race instead of
+      # hoping the 5-minute retry window outlasts it.
+      sudo systemctl stop apt-daily.timer apt-daily-upgrade.timer apt-daily.service apt-daily-upgrade.service 2>/dev/null || true
+      sudo killall unattended-upgrade 2>/dev/null || true
+
       # Recover from interrupted or broken package installations. The '|| true' ensures the script continues even if dpkg returns a non-zero exit code.
       sudo dpkg --configure -a || true
       retry sudo apt-get update
