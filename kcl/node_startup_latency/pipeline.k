@@ -7,7 +7,9 @@ import lib.util.asi_dashboard
 
 # Pipeline variables, set when the pipeline is registered. Set
 # NODE_STARTUP_SUBSCRIPTION_ID to the benchmark subscription, and
-# NODE_STARTUP_SERVICE_CONNECTION to a service connection with Contributor on it.
+# NODE_STARTUP_SERVICE_CONNECTION to a service connection with Contributor on it. Because
+# the connection is referenced through a variable, authorize it for this pipeline in
+# advance (service connection > Security > Pipeline permissions).
 SUBSCRIPTION_ID = "$(NODE_STARTUP_SUBSCRIPTION_ID)"
 SERVICE_CONNECTION = "$(NODE_STARTUP_SERVICE_CONNECTION)"
 RESOURCE_GROUP = "$(RUN_ID)"
@@ -41,8 +43,14 @@ LIFECYCLE_TAGS = "owner=carvela creation_time=$(date -u +%Y-%m-%dT%H:%M:%SZ) del
 
 output = ap.Pipeline {
     name = "Node Startup Latency"
-    # Agent pool name, set as a pipeline variable when the pipeline is registered.
-    pool = "$(BUILD_POOL_NAME_DEFAULT)"
+    # Manual and scheduled runs only. CI and PR triggers would need GitHub webhook
+    # admin rights on Azure/telescope when the pipeline is registered.
+    trigger = "none"
+    pr = "none"
+    # Microsoft-hosted agent. ubuntu-22.04 ships Python 3.10, az, kubectl and jq, which
+    # the steps use, and still allows the plain `pip3 install` in InstallPythonDependencies
+    # (Ubuntu 24.04 images reject it with an externally-managed-environment error).
+    pool = {vmImage = "ubuntu-22.04"}
     # Manual runs can override the checked-in defaults at queue time; the values
     # used are recorded in every result (result.config).
     parameters = [

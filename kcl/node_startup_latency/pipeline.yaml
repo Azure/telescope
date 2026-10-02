@@ -1,5 +1,7 @@
 name: Node Startup Latency
-pool: $(BUILD_POOL_NAME_DEFAULT)
+pool:
+  vmImage: ubuntu-22.04
+trigger: none
 parameters:
 - name: iterations
   displayName: Iterations per scenario
@@ -9,6 +11,7 @@ parameters:
   displayName: Cooldown between iterations, Cluster Autoscaler stages (seconds)
   type: number
   default: 240
+pr: none
 stages:
 - stage: managed_cilium
   displayName: Azure CNI Overlay with managed Cilium
