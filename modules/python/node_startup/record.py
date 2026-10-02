@@ -4,7 +4,7 @@ The envelope (timestamp, run_id, run_url, pipeline) is added by the pipeline;
 this module builds the `result` payload.
 """
 SCHEMA_VERSION = "1"
-BENCHMARK = "node-startup-latency"
+TEST_NAME = "node-startup-latency"
 
 
 def cluster_info(aks_cluster, node_pool_name):
@@ -52,7 +52,7 @@ def build_record(scenario, provisioner, iteration, total_iterations, valid_itera
                  operation, cluster, config, environment, measurement):
     return {
         "schema_version": SCHEMA_VERSION,
-        "benchmark": BENCHMARK,
+        "test": TEST_NAME,
         "scenario": scenario,
         "provisioner": provisioner,
         "iteration": iteration,

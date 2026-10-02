@@ -54,7 +54,7 @@ class BuildRecordTest(unittest.TestCase):
             measurement={"node_name": "n"})
         self.assertEqual(built, {
             "schema_version": "1",
-            "benchmark": "node-startup-latency",
+            "test": "node-startup-latency",
             "scenario": "managed-cilium",
             "provisioner": "cluster-autoscaler",
             "iteration": 2,

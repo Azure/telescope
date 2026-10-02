@@ -1,5 +1,5 @@
 name: Node Startup Latency
-pool: AKS-Telescope-Airlock
+pool: $(BUILD_POOL_NAME_DEFAULT)
 parameters:
 - name: iterations
   displayName: Iterations per scenario
@@ -42,7 +42,7 @@ stages:
       displayName: Install Python dependencies
     - task: AzureCLI@2
       inputs:
-        azureSubscription: Azure-for-Telescope-internal
+        azureSubscription: $(NODE_STARTUP_SERVICE_CONNECTION)
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
@@ -53,7 +53,7 @@ stages:
       displayName: Login to Azure
     - task: AzureCLI@2
       inputs:
-        azureSubscription: Azure-for-Telescope-internal
+        azureSubscription: $(NODE_STARTUP_SERVICE_CONNECTION)
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
@@ -66,7 +66,7 @@ stages:
       displayName: Create resource group in australiaeast ($(NODE_STARTUP_SUBSCRIPTION_ID))
     - task: AzureCLI@2
       inputs:
-        azureSubscription: Azure-for-Telescope-internal
+        azureSubscription: $(NODE_STARTUP_SERVICE_CONNECTION)
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
@@ -92,7 +92,7 @@ stages:
       displayName: Create AKS cluster
     - task: AzureCLI@2
       inputs:
-        azureSubscription: Azure-for-Telescope-internal
+        azureSubscription: $(NODE_STARTUP_SERVICE_CONNECTION)
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
@@ -139,7 +139,7 @@ stages:
       displayName: Create node pool userpool
     - task: AzureCLI@2
       inputs:
-        azureSubscription: Azure-for-Telescope-internal
+        azureSubscription: $(NODE_STARTUP_SERVICE_CONNECTION)
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
@@ -153,7 +153,7 @@ stages:
       displayName: Get credentials for nsl-cilium
     - task: AzureCLI@2
       inputs:
-        azureSubscription: Azure-for-Telescope-internal
+        azureSubscription: $(NODE_STARTUP_SERVICE_CONNECTION)
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
@@ -298,7 +298,7 @@ stages:
       displayName: Validate daemonset/cilium
     - task: AzureCLI@2
       inputs:
-        azureSubscription: Azure-for-Telescope-internal
+        azureSubscription: $(NODE_STARTUP_SERVICE_CONNECTION)
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
@@ -322,7 +322,7 @@ stages:
       displayName: Record current time as BENCHMARK_START_TIME
     - task: AzureCLI@2
       inputs:
-        azureSubscription: Azure-for-Telescope-internal
+        azureSubscription: $(NODE_STARTUP_SERVICE_CONNECTION)
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
@@ -374,7 +374,7 @@ stages:
       displayName: Record current time as BENCHMARK_END_TIME
     - task: AzureCLI@2
       inputs:
-        azureSubscription: Azure-for-Telescope-internal
+        azureSubscription: $(NODE_STARTUP_SERVICE_CONNECTION)
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
@@ -410,7 +410,7 @@ stages:
       displayName: Print ASI dashboard URL
     - task: AzureCLI@2
       inputs:
-        azureSubscription: Azure-for-Telescope-internal
+        azureSubscription: $(NODE_STARTUP_SERVICE_CONNECTION)
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |

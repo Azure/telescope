@@ -1,16 +1,15 @@
 import azure_pipelines.ap
 import azure_pipelines.ap.jobs.job
-import lib.const
 import lib.steps.azure
 import lib.steps.common
 import lib.steps.health
 import lib.util.asi_dashboard
 
-# Set this pipeline variable to the benchmark subscription authorized by the
-# selected service connection.
+# Pipeline variables, set when the pipeline is registered. Set
+# NODE_STARTUP_SUBSCRIPTION_ID to the benchmark subscription, and
+# NODE_STARTUP_SERVICE_CONNECTION to a service connection with Contributor on it.
 SUBSCRIPTION_ID = "$(NODE_STARTUP_SUBSCRIPTION_ID)"
-# Telescope's default service connection must have Contributor on SUBSCRIPTION_ID.
-SERVICE_CONNECTION = const.DEFAULT_SERVICE_CONNECTION
+SERVICE_CONNECTION = "$(NODE_STARTUP_SERVICE_CONNECTION)"
 RESOURCE_GROUP = "$(RUN_ID)"
 # australiaeast matches Telescope's AKS Automatic runs. v1 used eastus2euap and
 # Standard_D8s_v3, but DSv3 is over quota there in SUBSCRIPTION_ID. The Ddsv5
@@ -42,7 +41,8 @@ LIFECYCLE_TAGS = "owner=carvela creation_time=$(date -u +%Y-%m-%dT%H:%M:%SZ) del
 
 output = ap.Pipeline {
     name = "Node Startup Latency"
-    pool = const.DEFAULT_POOL
+    # Agent pool name, set as a pipeline variable when the pipeline is registered.
+    pool = "$(BUILD_POOL_NAME_DEFAULT)"
     # Manual runs can override the checked-in defaults at queue time; the values
     # used are recorded in every result (result.config).
     parameters = [
