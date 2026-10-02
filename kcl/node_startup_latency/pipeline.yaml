@@ -1,0 +1,423 @@
+name: Node Startup Latency
+pool:
+  vmImage: ubuntu-22.04
+trigger: none
+parameters:
+- name: iterations
+  displayName: Iterations per scenario
+  type: number
+  default: 5
+- name: cluster_autoscaler_cooldown_seconds
+  displayName: Cooldown between iterations, Cluster Autoscaler stages (seconds)
+  type: number
+  default: 240
+pr: none
+stages:
+- stage: managed_cilium
+  displayName: Azure CNI Overlay with managed Cilium
+  dependsOn: []
+  jobs:
+  - job: node_startup_latency
+    displayName: Measure autoscaled node startup latency
+    timeoutInMinutes: 240
+    variables:
+      KUBECONFIG: $(Pipeline.Workspace)/kubeconfig
+    steps:
+    - bash: |
+        set -exo pipefail
+        TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+        echo "JOB_START_TIME: $TIMESTAMP"
+        echo "##vso[task.setvariable variable=JOB_START_TIME]$TIMESTAMP"
+      displayName: Record current time as JOB_START_TIME
+    - bash: |
+        set -eo pipefail
+
+        job_id="$(System.JobId)"
+        RUN_ID=$(Build.BuildId)-${job_id:0:8}
+        echo "Run ID: $RUN_ID"
+
+        echo "##vso[task.setvariable variable=RUN_ID]$RUN_ID"
+      displayName: Set Run ID
+    - bash: |-
+        set -exo pipefail
+        pip3 install --upgrade "pip<24"
+        pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
+      displayName: Install Python dependencies
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(TELESCOPE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az account set --subscription "$(TELESCOPE_SUBSCRIPTION_ID)"
+          az config set defaults.location="australiaeast"
+          az account show
+      displayName: Login to Azure
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(TELESCOPE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az group create \
+            --name "$(RUN_ID)" \
+            --location "australiaeast" \
+            --subscription "$(TELESCOPE_SUBSCRIPTION_ID)" \
+          --tags owner=carvela creation_time=$(date -u +%Y-%m-%dT%H:%M:%SZ) deletion_due_time=$(date -u -d '+3 days' +%Y-%m-%dT%H:%M:%SZ)
+      displayName: Create resource group in australiaeast ($(TELESCOPE_SUBSCRIPTION_ID))
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(TELESCOPE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az aks create \
+            --name "nsl-cilium" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "$(TELESCOPE_SUBSCRIPTION_ID)" \
+            --location "australiaeast" \
+            --kubernetes-version "1.36" \
+            --tier standard \
+            --network-plugin azure \
+            --network-plugin-mode overlay \
+            --network-dataplane cilium \
+            --service-cidr 192.168.0.0/16 \
+            --dns-service-ip 192.168.0.10 \
+            --nodepool-name default \
+            --node-count 1 \
+            --node-vm-size "Standard_D4ds_v5" \
+            --node-osdisk-type Ephemeral \
+            --nodepool-taints "CriticalAddonsOnly=true:NoSchedule" \
+            --tags SkipAKSCluster=true SkipASMAzSecPackAutoConfig=true SkipLinuxAzSecPack=true owner=carvela creation_time=$(date -u +%Y-%m-%dT%H:%M:%SZ) deletion_due_time=$(date -u -d '+3 days' +%Y-%m-%dT%H:%M:%SZ)
+      displayName: Create AKS cluster
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(TELESCOPE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          deadline=$(($(date +%s) + 600))
+          sleep_between=30
+          attempt=0
+          while :; do
+            attempt=$((attempt + 1))
+            set +e
+            output=$(az aks nodepool add \
+              --cluster-name "nsl-cilium" \
+              --resource-group "$(RUN_ID)" \
+              --subscription "$(TELESCOPE_SUBSCRIPTION_ID)" \
+              --name "userpool" \
+              --node-count 1 \
+              --node-vm-size "Standard_D4ds_v5" \
+              --mode User \
+              --labels "node-startup-latency=true" \
+            --enable-cluster-autoscaler \
+            --min-count 1 \
+            --max-count 10 \
+            --node-osdisk-type Ephemeral 2>&1)
+            rc=$?
+            set -e
+            echo "$output"
+            if [ $rc -eq 0 ]; then
+              exit 0
+            fi
+            if echo "$output" | grep -qiE "OperationNotAllowed"; then
+              now=$(date +%s)
+              if [ $now -ge $deadline ]; then
+                echo "Retriable error persisted past 600s retry window ($attempt attempts); giving up."
+                exit $rc
+              fi
+              remaining=$((deadline - now))
+              echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining seconds remain in retry window)."
+              sleep $sleep_between
+            else
+              echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+              exit $rc
+            fi
+          done
+      displayName: Create node pool userpool
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(TELESCOPE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az aks get-credentials \
+            --name "nsl-cilium" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "$(TELESCOPE_SUBSCRIPTION_ID)" \
+            --overwrite-existing \
+            -f $(Pipeline.Workspace)/kubeconfig
+      displayName: Get credentials for nsl-cilium
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(TELESCOPE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          # AzCli wraps this script with `set -exo pipefail`. Disable xtrace here so
+          # tracing an assignment like `log_output=$(kubectl logs ...)` doesn't dump
+          # the full captured log to stdout. Also disable errexit so we can accumulate
+          # failures and report them at the end.
+          set +ex
+
+          failures=0
+          fail() { echo "FAILED WORKLOAD CHECK: $*"; failures=$((failures + 1)); }
+
+          # check_controllers KIND DESIRED_PATH READY_PATH [NAME]
+          # If NAME is given, check just that one; otherwise check every instance of KIND.
+          check_controllers() {
+            local kind=$1 desired_path=$2 ready_path=$3 name=$4
+            local names
+            if [ -n "$name" ]; then
+              names="$name"
+            else
+              names=$(kubectl -n "kube-system" get "$kind" -o jsonpath='{.items[*].metadata.name}')
+            fi
+            local n
+            for n in $names; do
+              # Probe existence first so a missing object / API error fails loudly
+              # instead of silently defaulting desired/ready to 0.
+              if ! kubectl -n "kube-system" get "$kind" "$n" -o name >/dev/null 2>&1; then
+                fail "$kind kube-system/$n: cannot read resource (missing or kubectl error)"
+                continue
+              fi
+              local desired=$(kubectl -n "kube-system" get "$kind" "$n" -o jsonpath="$desired_path")
+              local ready=$(kubectl -n "kube-system" get "$kind" "$n" -o jsonpath="$ready_path")
+              [ -z "$ready" ] && ready=0
+              [ -z "$desired" ] && desired=0
+              echo "$kind kube-system/$n: ready=$ready desired=$desired"
+              if [ "$ready" != "$desired" ]; then
+                fail "$kind kube-system/$n not fully ready ($ready/$desired)"
+              fi
+            done
+          }
+
+          # check_pods PODS_JSON_FILE
+          # PODS_JSON_FILE is a file holding a `kubectl get pods -o json` document with
+          # exactly the pods to check. For each: status is Running (Ready condition True,
+          # all containers ready) or Succeeded, then scan its logs for errorPatterns.
+          # Every field is read from the file, so the pod view is a single consistent
+          # snapshot the caller fetched in one API call. Fails if the file has no pods.
+          check_pods() {
+            local pods_file=$1
+            local names=$(jq -r '.items[].metadata.name' "$pods_file")
+            if [ -z "$names" ]; then
+              fail "no pods found for daemonset kube-system/cilium"
+              return
+            fi
+            local pod
+            for pod in $names; do
+              echo "::: checking pod kube-system/$pod"
+              local pod_json=$(jq -c --arg n "$pod" '.items[] | select(.metadata.name==$n)' "$pods_file")
+              local phase=$(printf '%s' "$pod_json" | jq -r '.status.phase // ""')
+              case "$phase" in
+                Succeeded)
+                  # Finished cleanly; skip readiness checks, still scan logs below.
+                  ;;
+                Running)
+                  local ready_cond=$(printf '%s' "$pod_json" \
+                    | jq -r '.status.conditions[]? | select(.type=="Ready") | .status')
+                  if [ "$ready_cond" != "True" ]; then
+                    fail "pod kube-system/$pod Ready condition=$ready_cond (expected True)"
+                    continue
+                  fi
+                  local not_ready=$(printf '%s' "$pod_json" \
+                    | jq -r '[.status.containerStatuses[]? | select(.ready==false) | .name] | join(" ")')
+                  if [ -n "$not_ready" ]; then
+                    fail "pod kube-system/$pod has not-ready containers: $not_ready"
+                    continue
+                  fi
+                  ;;
+                *)
+                  fail "pod kube-system/$pod phase=$phase (expected Running or Succeeded)"
+                  continue
+                  ;;
+              esac
+              local log_output=$(kubectl -n "kube-system" logs "$pod" --all-containers=true --prefix=true 2>&1)
+              local matches=$(printf '%s\n' "$log_output" | grep -wEi 'panic|fatal')
+              if [ -n "$matches" ]; then
+                echo "--- error lines in kube-system/$pod ---"
+                printf '%s\n' "$matches"
+                echo "--- end ---"
+                fail "pod kube-system/$pod logs contain error pattern"
+              fi
+            done
+          }
+
+          # check_controller_pods KIND NAME
+          # Resolve the controller's pods via its matchLabels and scan them.
+          check_controller_pods() {
+            local kind=$1 name=$2
+            local selector=$(kubectl -n "kube-system" get "$kind" "$name" \
+              -o go-template='{{range $k,$v := .spec.selector.matchLabels}}{{$k}}={{$v}},{{end}}' \
+              | sed 's/,$//')
+            if [ -z "$selector" ]; then
+              fail "$kind kube-system/$name has no matchLabels selector (matchExpressions not supported)"
+              return
+            fi
+            # Dump only this controller's pods (label-filtered) to a file in one call,
+            # then let check_pods read it back (avoids passing a huge JSON blob as an arg).
+            kubectl -n "kube-system" get pods -l "$selector" -o json > "$PODS_JSON_FILE"
+            check_pods "$PODS_JSON_FILE"
+          }
+
+          # Reusable temp file for the pods snapshot: each check below writes only the
+          # pods it needs into it, then reads back from the file. Using a file avoids
+          # passing a potentially huge JSON blob through shell command substitution.
+          PODS_JSON_FILE=$(mktemp)
+          trap 'rm -f "$PODS_JSON_FILE"' EXIT
+
+          case "daemonset" in
+            "*")
+              check_controllers deployment  '{.spec.replicas}'                 '{.status.readyReplicas}'
+              check_controllers statefulset '{.spec.replicas}'                 '{.status.readyReplicas}'
+              check_controllers daemonset   '{.status.desiredNumberScheduled}' '{.status.numberReady}'
+              # Wildcard genuinely needs every pod in the namespace.
+              kubectl -n "kube-system" get pods -o json > "$PODS_JSON_FILE"
+              check_pods "$PODS_JSON_FILE"
+              ;;
+            deployment|statefulset)
+              check_controllers "daemonset" '{.spec.replicas}' '{.status.readyReplicas}' "cilium"
+              check_controller_pods "daemonset" "cilium"
+              ;;
+            daemonset)
+              check_controllers daemonset '{.status.desiredNumberScheduled}' '{.status.numberReady}' "cilium"
+              check_controller_pods "daemonset" "cilium"
+              ;;
+          esac
+
+          if [ "$failures" -gt 0 ]; then
+            echo "Validation failed with $failures error(s) for daemonset kube-system/cilium"
+            exit 1
+          fi
+          echo "Validation passed for daemonset kube-system/cilium"
+      displayName: Validate daemonset/cilium
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(TELESCOPE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          defender=$(az aks show \
+            --name "nsl-cilium" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "$(TELESCOPE_SUBSCRIPTION_ID)" \
+            --query "securityProfile.defender.securityMonitoring.enabled" \
+            --output tsv)
+          if [ "$defender" = "true" ]; then
+            echo "FAILED ENVIRONMENT CHECK: Defender sensor is enabled on the cluster"
+            exit 1
+          fi
+      displayName: Check Defender sensor is off
+    - bash: |
+        set -exo pipefail
+        TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+        echo "BENCHMARK_START_TIME: $TIMESTAMP"
+        echo "##vso[task.setvariable variable=BENCHMARK_START_TIME]$TIMESTAMP"
+      displayName: Record current time as BENCHMARK_START_TIME
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(TELESCOPE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az aks show \
+            --name "nsl-cilium" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "$(TELESCOPE_SUBSCRIPTION_ID)" \
+            --output json > /tmp/aks-cluster.json
+
+          deadline=$(( $(date -u -d "$(JOB_START_TIME)" +%s) + (240 - 45) * 60 ))
+
+          cd "$(Pipeline.Workspace)/s/modules/python"
+          export PYTHONPATH=$PYTHONPATH:$(pwd)
+          python3 node_startup/main.py \
+            --scenario managed-cilium \
+            --provisioner cluster-autoscaler \
+            --cluster-info-file /tmp/aks-cluster.json \
+            --node-pool-name "userpool" \
+            --node-label-key agentpool \
+            --cni-daemonset-label k8s-app=cilium \
+            --cni-blocking-taint node.cilium.io/agent-not-ready \
+            --supplementary-cni-pod azure_cns=k8s-app=azure-cns \
+            --probe-namespace node-startup-latency \
+            --iterations ${{ parameters.iterations }} \
+            --iteration-cooldown-seconds ${{ parameters.cluster_autoscaler_cooldown_seconds }} \
+            --step-timeout-seconds 600 \
+            --deadline-epoch-seconds "$deadline" \
+            --uses-default-settings ${{ and(eq(parameters.iterations, 5), eq(parameters.cluster_autoscaler_cooldown_seconds, 240)) }} \
+            --records-file /tmp/node-startup-records.jsonl
+
+          # One JSON line per valid iteration, in the envelope Telescope result storage expects.
+          # Results are only printed to the log. Uploading is intentionally disabled.
+          # TODO: add common.UploadResult once the results storage and Kusto ingestion exist.
+          jq -c '{
+            timestamp: .operation.end_timestamp,
+            run_id: "$(RUN_ID)",
+            run_url: "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)",
+            pipeline: "$(Build.DefinitionName)",
+            result: .
+          }' /tmp/node-startup-records.jsonl > /tmp/run-result.json
+          cat /tmp/run-result.json
+      displayName: Measure node startup latency
+    - bash: |
+        set -exo pipefail
+        TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+        echo "BENCHMARK_END_TIME: $TIMESTAMP"
+        echo "##vso[task.setvariable variable=BENCHMARK_END_TIME]$TIMESTAMP"
+      displayName: Record current time as BENCHMARK_END_TIME
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(TELESCOPE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          RESOURCE_UID=$(az aks show \
+            --resource-group "$(RUN_ID)" \
+            --name "nsl-cilium" \
+            --subscription "$(TELESCOPE_SUBSCRIPTION_ID)" \
+            --query "resourceUid" -o tsv)
+
+          if [ -z "$RESOURCE_UID" ]; then
+            echo "##[warning]Failed to fetch resourceUid, skipping ASI URL"
+            exit 1
+          fi
+
+          END_TIME="$(BENCHMARK_END_TIME)"
+          if [ -z "$END_TIME" ]; then
+            END_TIME=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+          fi
+
+          FROM_ENCODED=$(echo "$(BENCHMARK_START_TIME)" | sed 's/:/%3A/g')
+          TO_ENCODED=$(echo "$END_TIME" | sed 's/:/%3A/g')
+
+          echo "============================================"
+          echo "ASI Managed Cluster Dashboard URL:"
+          echo "https://asi.azure.ms/services/AKS/pages/Managed%20Cluster?clusterVersion=$RESOURCE_UID&globalFrom=$FROM_ENCODED&globalTo=$TO_ENCODED"
+          echo ""
+          echo "ASI API Server Analyzer URL:"
+          echo "https://asi.azure.ms/services/AKS/pages/API%20Server%20Analyzer?clusterVersion=$RESOURCE_UID&globalFrom=$FROM_ENCODED&globalTo=$TO_ENCODED"
+          echo "============================================"
+      condition: always()
+      continueOnError: true
+      displayName: Print ASI dashboard URL
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(TELESCOPE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az group delete --name "$(RUN_ID)" --subscription "$(TELESCOPE_SUBSCRIPTION_ID)" --yes
+      condition: always()
+      displayName: Delete resource group ($(TELESCOPE_SUBSCRIPTION_ID))
