@@ -45,18 +45,18 @@ stages:
       displayName: Install Python dependencies
     - task: AzureCLI@2
       inputs:
-        azureSubscription: $(NODE_STARTUP_SERVICE_CONNECTION)
+        azureSubscription: $(TELESCOPE_SERVICE_CONNECTION)
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-          az account set --subscription "$(NODE_STARTUP_SUBSCRIPTION_ID)"
+          az account set --subscription "$(TELESCOPE_SUBSCRIPTION_ID)"
           az config set defaults.location="australiaeast"
           az account show
       displayName: Login to Azure
     - task: AzureCLI@2
       inputs:
-        azureSubscription: $(NODE_STARTUP_SERVICE_CONNECTION)
+        azureSubscription: $(TELESCOPE_SERVICE_CONNECTION)
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
@@ -64,12 +64,12 @@ stages:
           az group create \
             --name "$(RUN_ID)" \
             --location "australiaeast" \
-            --subscription "$(NODE_STARTUP_SUBSCRIPTION_ID)" \
+            --subscription "$(TELESCOPE_SUBSCRIPTION_ID)" \
           --tags owner=carvela creation_time=$(date -u +%Y-%m-%dT%H:%M:%SZ) deletion_due_time=$(date -u -d '+3 days' +%Y-%m-%dT%H:%M:%SZ)
-      displayName: Create resource group in australiaeast ($(NODE_STARTUP_SUBSCRIPTION_ID))
+      displayName: Create resource group in australiaeast ($(TELESCOPE_SUBSCRIPTION_ID))
     - task: AzureCLI@2
       inputs:
-        azureSubscription: $(NODE_STARTUP_SERVICE_CONNECTION)
+        azureSubscription: $(TELESCOPE_SERVICE_CONNECTION)
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
@@ -77,7 +77,7 @@ stages:
           az aks create \
             --name "nsl-cilium" \
             --resource-group "$(RUN_ID)" \
-            --subscription "$(NODE_STARTUP_SUBSCRIPTION_ID)" \
+            --subscription "$(TELESCOPE_SUBSCRIPTION_ID)" \
             --location "australiaeast" \
             --kubernetes-version "1.36" \
             --tier standard \
@@ -95,7 +95,7 @@ stages:
       displayName: Create AKS cluster
     - task: AzureCLI@2
       inputs:
-        azureSubscription: $(NODE_STARTUP_SERVICE_CONNECTION)
+        azureSubscription: $(TELESCOPE_SERVICE_CONNECTION)
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
@@ -109,7 +109,7 @@ stages:
             output=$(az aks nodepool add \
               --cluster-name "nsl-cilium" \
               --resource-group "$(RUN_ID)" \
-              --subscription "$(NODE_STARTUP_SUBSCRIPTION_ID)" \
+              --subscription "$(TELESCOPE_SUBSCRIPTION_ID)" \
               --name "userpool" \
               --node-count 1 \
               --node-vm-size "Standard_D4ds_v5" \
@@ -142,7 +142,7 @@ stages:
       displayName: Create node pool userpool
     - task: AzureCLI@2
       inputs:
-        azureSubscription: $(NODE_STARTUP_SERVICE_CONNECTION)
+        azureSubscription: $(TELESCOPE_SERVICE_CONNECTION)
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
@@ -150,13 +150,13 @@ stages:
           az aks get-credentials \
             --name "nsl-cilium" \
             --resource-group "$(RUN_ID)" \
-            --subscription "$(NODE_STARTUP_SUBSCRIPTION_ID)" \
+            --subscription "$(TELESCOPE_SUBSCRIPTION_ID)" \
             --overwrite-existing \
             -f $(Pipeline.Workspace)/kubeconfig
       displayName: Get credentials for nsl-cilium
     - task: AzureCLI@2
       inputs:
-        azureSubscription: $(NODE_STARTUP_SERVICE_CONNECTION)
+        azureSubscription: $(TELESCOPE_SERVICE_CONNECTION)
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
@@ -301,7 +301,7 @@ stages:
       displayName: Validate daemonset/cilium
     - task: AzureCLI@2
       inputs:
-        azureSubscription: $(NODE_STARTUP_SERVICE_CONNECTION)
+        azureSubscription: $(TELESCOPE_SERVICE_CONNECTION)
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
@@ -309,7 +309,7 @@ stages:
           defender=$(az aks show \
             --name "nsl-cilium" \
             --resource-group "$(RUN_ID)" \
-            --subscription "$(NODE_STARTUP_SUBSCRIPTION_ID)" \
+            --subscription "$(TELESCOPE_SUBSCRIPTION_ID)" \
             --query "securityProfile.defender.securityMonitoring.enabled" \
             --output tsv)
           if [ "$defender" = "true" ]; then
@@ -325,7 +325,7 @@ stages:
       displayName: Record current time as BENCHMARK_START_TIME
     - task: AzureCLI@2
       inputs:
-        azureSubscription: $(NODE_STARTUP_SERVICE_CONNECTION)
+        azureSubscription: $(TELESCOPE_SERVICE_CONNECTION)
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
@@ -333,7 +333,7 @@ stages:
           az aks show \
             --name "nsl-cilium" \
             --resource-group "$(RUN_ID)" \
-            --subscription "$(NODE_STARTUP_SUBSCRIPTION_ID)" \
+            --subscription "$(TELESCOPE_SUBSCRIPTION_ID)" \
             --output json > /tmp/aks-cluster.json
 
           deadline=$(( $(date -u -d "$(JOB_START_TIME)" +%s) + (240 - 45) * 60 ))
@@ -377,7 +377,7 @@ stages:
       displayName: Record current time as BENCHMARK_END_TIME
     - task: AzureCLI@2
       inputs:
-        azureSubscription: $(NODE_STARTUP_SERVICE_CONNECTION)
+        azureSubscription: $(TELESCOPE_SERVICE_CONNECTION)
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
@@ -385,7 +385,7 @@ stages:
           RESOURCE_UID=$(az aks show \
             --resource-group "$(RUN_ID)" \
             --name "nsl-cilium" \
-            --subscription "$(NODE_STARTUP_SUBSCRIPTION_ID)" \
+            --subscription "$(TELESCOPE_SUBSCRIPTION_ID)" \
             --query "resourceUid" -o tsv)
 
           if [ -z "$RESOURCE_UID" ]; then
@@ -413,11 +413,11 @@ stages:
       displayName: Print ASI dashboard URL
     - task: AzureCLI@2
       inputs:
-        azureSubscription: $(NODE_STARTUP_SERVICE_CONNECTION)
+        azureSubscription: $(TELESCOPE_SERVICE_CONNECTION)
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-          az group delete --name "$(RUN_ID)" --subscription "$(NODE_STARTUP_SUBSCRIPTION_ID)" --yes
+          az group delete --name "$(RUN_ID)" --subscription "$(TELESCOPE_SUBSCRIPTION_ID)" --yes
       condition: always()
-      displayName: Delete resource group ($(NODE_STARTUP_SUBSCRIPTION_ID))
+      displayName: Delete resource group ($(TELESCOPE_SUBSCRIPTION_ID))

@@ -5,13 +5,14 @@ import lib.steps.common
 import lib.steps.health
 import lib.util.asi_dashboard
 
-# Pipeline variables, set when the pipeline is registered. Set
-# NODE_STARTUP_SUBSCRIPTION_ID to the benchmark subscription, and
-# NODE_STARTUP_SERVICE_CONNECTION to a service connection with Contributor on it. Because
-# the connection is referenced through a variable, authorize it for this pipeline in
-# advance (service connection > Security > Pipeline permissions).
-SUBSCRIPTION_ID = "$(NODE_STARTUP_SUBSCRIPTION_ID)"
-SERVICE_CONNECTION = "$(NODE_STARTUP_SERVICE_CONNECTION)"
+# Pipeline variables, set when the pipeline is registered. They are generic so other
+# Telescope test pipelines can share them. Set TELESCOPE_SUBSCRIPTION_ID to the
+# subscription the tests run in, and TELESCOPE_SERVICE_CONNECTION to a service
+# connection with Contributor on it. Because the connection is referenced through a
+# variable, authorize it for this pipeline in advance (service connection > Security >
+# Pipeline permissions).
+SUBSCRIPTION_ID = "$(TELESCOPE_SUBSCRIPTION_ID)"
+SERVICE_CONNECTION = "$(TELESCOPE_SERVICE_CONNECTION)"
 RESOURCE_GROUP = "$(RUN_ID)"
 # australiaeast matches Telescope's AKS Automatic runs. v1 used eastus2euap and
 # Standard_D8s_v3, but DSv3 is over quota there in SUBSCRIPTION_ID. The Ddsv5
