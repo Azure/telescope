@@ -229,7 +229,7 @@ class OperationContext:
             exc_val: The exception value if an exception occurred, None otherwise.
             exc_tb: The traceback if an exception occurred, None otherwise.
         """
-        success = exc_type is None
+        success = self.operation.success if exc_type is None else False
         error = exc_val if exc_type is not None else None
         self.operation.end(success=success, error=error)
 

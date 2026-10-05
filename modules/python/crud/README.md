@@ -14,6 +14,9 @@ The CRUD module provides comprehensive node pool management operations for Kuber
 * **scale**: Scale an existing node pool up or down
 * **delete**: Delete an existing node pool  
 * **all**: Run complete lifecycle (create → scale up → scale down → delete)
+* **deployment**: Create Deployments and record aggregate readiness time
+* **statefulset**: Create StatefulSets and record aggregate readiness time
+* **job**: Create Jobs and record aggregate completion time
 * **collect**: Collect and process benchmark results
 
 ## Define Variables
@@ -22,7 +25,6 @@ The CRUD module provides comprehensive node pool management operations for Kuber
 
 ```bash
 pushd modules/python
-PYTHON_SCRIPT_FILE=crud/main.py
 CREATE_NODE_COUNT=0
 SCALE_NODE_COUNT=2
 SCALE_STEP_SIZE=1
@@ -62,7 +64,7 @@ export AWS_DEFAULT_REGION="us-east-1"
 Create a new node pool in your Kubernetes cluster:
 
 ```bash
-PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE create \
+python3 -m crud.main create \
     --cloud $CLOUD \
     --run-id $RUN_ID \
     --result-dir "$RESULT_DIR" \
@@ -78,7 +80,7 @@ PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE create \
 
 ```bash
 
-PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE scale \
+python3 -m crud.main scale \
     --cloud $CLOUD \
     --run-id $RUN_ID \
     --result-dir $RESULT_DIR \
@@ -93,7 +95,7 @@ PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE scale \
 ## Scale Down Node Pool
 
 ```bash
-PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE scale \
+python3 -m crud.main scale \
     --cloud $CLOUD \
     --run-id $RUN_ID \
     --result-dir $RESULT_DIR \
@@ -110,7 +112,7 @@ PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE scale \
 Delete an existing node pool:
 
 ```bash
-PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE delete \
+python3 -m crud.main delete \
     --cloud $CLOUD \
     --run-id $RUN_ID \
     --result-dir $RESULT_DIR \
@@ -124,7 +126,7 @@ Run the complete node pool lifecycle - create, scale up, scale down, and delete:
 
 ```bash
 
-PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE all \
+python3 -m crud.main all \
     --cloud $CLOUD \
     --run-id $RUN_ID \
     --result-dir $RESULT_DIR \
@@ -138,6 +140,41 @@ PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE all \
     ${GPU_NODE_POOL:+--gpu-node-pool}
 ```
 
+## Workload Timing
+
+Each workload command writes one aggregate operation record to `RESULT_DIR`.
+The duration covers all requested workload instances through their Available,
+Ready, or Complete condition.
+
+```bash
+python3 -m crud.main deployment \
+    --cloud azure \
+    --run-id "$RUN_ID" \
+    --result-dir "$RESULT_DIR" \
+    --node-pool-name "$NODE_POOL_NAME" \
+    --count 1 \
+    --replicas 10 \
+    --step-timeout "$STEP_TIME_OUT"
+
+python3 -m crud.main statefulset \
+    --cloud azure \
+    --run-id "$RUN_ID" \
+    --result-dir "$RESULT_DIR" \
+    --node-pool-name "$NODE_POOL_NAME" \
+    --count 1 \
+    --replicas 10 \
+    --step-timeout "$STEP_TIME_OUT"
+
+python3 -m crud.main job \
+    --cloud azure \
+    --run-id "$RUN_ID" \
+    --result-dir "$RESULT_DIR" \
+    --node-pool-name "$NODE_POOL_NAME" \
+    --count 1 \
+    --completions 1 \
+    --step-timeout "$STEP_TIME_OUT"
+```
+
 ## Collect Benchmark Results
 
 Collect and process benchmark results from JSON files:
@@ -147,5 +184,5 @@ Collect and process benchmark results from JSON files:
 export RESULT_DIR=/tmp/${RUN_ID}
 export RUN_URL="https://example.com/pipeline/run"
 
-PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect
+python3 -m crud.main collect
 ```
