@@ -1,0 +1,7 @@
+# Pins mirror ../requirements.txt
+azure-identity==1.25.0
+azure-kusto-data==6.0.3
+azure-kusto-ingest==6.0.3
+kubernetes==33.1.0
+requests==2.32.4
+pyyaml==6.0.2

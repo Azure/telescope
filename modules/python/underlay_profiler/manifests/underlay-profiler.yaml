@@ -1,0 +1,178 @@
+# Continuous underlay profiler. Placeholders (__X__) follow the load-test manifest convention:
+#   __IMAGE__           collector image
+#   __UNDERLAY__        value for the Underlay column (e.g. the underlay/cluster name)
+#   __ENV__             lab | prod
+#   __KUSTO_CLUSTER_URI__ / __KUSTO_DATABASE__   ADX target (tables must exist, or set ensureSchema: true)
+#   __KUSTO_AUTH__      workload | msi
+#   __WORKLOAD_CLIENT_ID__  federated identity client id (workload auth only)
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: underlay-profiler
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: underlay-profiler-low
+value: -100
+globalDefault: false
+description: Profiling is best effort; evict it before real workloads.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: underlay-profiler
+  namespace: underlay-profiler
+  annotations:
+    azure.workload.identity/client-id: "__WORKLOAD_CLIENT_ID__"
+---
+# Read-only: list pods (discovery) and read their usage (guard rails). No exec, portforward or secrets.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: underlay-profiler
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: ["metrics.k8s.io"]
+    resources: ["pods"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: underlay-profiler
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: underlay-profiler
+subjects:
+  - kind: ServiceAccount
+    name: underlay-profiler
+    namespace: underlay-profiler
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: underlay-profiler-config
+  namespace: underlay-profiler
+data:
+  # Re-read every cycle: edits (including collector.enabled: false) apply without a restart.
+  # Changing the sink section needs a pod restart.
+  config.yaml: |
+    cluster:
+      env: __ENV__
+      underlay: __UNDERLAY__
+    collector:
+      enabled: true
+      cycleSeconds: 600
+      maxWorkers: 8
+      maxConcurrentCpu: 2
+      minPodAgeSeconds: 600
+      maxMemoryUtilPct: 85
+      maxCpuUtilPct: 85
+      rollup: {topFlat: 40, topCum: 15}
+    sink:
+      type: kusto
+      kusto:
+        clusterUri: __KUSTO_CLUSTER_URI__
+        database: __KUSTO_DATABASE__
+        auth: __KUSTO_AUTH__
+        ensureSchema: false
+    targets:
+      - component: vmagent
+        selector: app=vmagent
+        container: vmagent
+        port: 8429
+        perCycle: 3
+        profiles:
+          cpu: {seconds: 10}
+          heap: {}
+          allocs: {everyCycles: 6}
+          goroutine: {everyCycles: 6}
+      - component: vmsingle
+        selector: app=vmsingle
+        container: vmsingle
+        port: 8428
+        perCycle: 1
+        profiles:
+          cpu: {seconds: 10}
+          heap: {}
+          allocs: {everyCycles: 6}
+      - component: konn-server
+        selector: app=konnectivity-server
+        container: konnectivity-server
+        port: 8096
+        perCycle: 3
+        profiles:
+          cpu: {seconds: 10}
+          heap: {}
+          allocs: {everyCycles: 6}
+          goroutine: {everyCycles: 6}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: underlay-profiler
+  namespace: underlay-profiler
+  labels:
+    app: underlay-profiler
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate   # a single collector; overlapping instances would double-profile
+  selector:
+    matchLabels:
+      app: underlay-profiler
+  template:
+    metadata:
+      labels:
+        app: underlay-profiler
+        azure.workload.identity/use: "true"
+      annotations:
+        adx-mon/scrape: "true"
+        adx-mon/port: "9102"
+        adx-mon/path: "/metrics"
+    spec:
+      serviceAccountName: underlay-profiler
+      priorityClassName: underlay-profiler-low
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: profiler
+          image: __IMAGE__
+          args: ["--config", "/etc/profiler/config.yaml"]
+          ports:
+            - name: metrics
+              containerPort: 9102
+          readinessProbe:
+            httpGet: {path: /healthz, port: metrics}
+          livenessProbe:
+            httpGet: {path: /healthz, port: metrics}
+            initialDelaySeconds: 10
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {cpu: "1", memory: 512Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /etc/profiler
+            - name: tmp           # the root filesystem is read-only; SDKs may write temp files
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: underlay-profiler-config
+        - name: tmp
+          emptyDir: {sizeLimit: 64Mi}

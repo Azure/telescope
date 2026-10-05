@@ -1,0 +1,27 @@
+# Apply only where the underlay enforces default-deny egress / ingress on the profiled namespaces.
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: underlay-profiler-egress
+  namespace: underlay-profiler
+spec:
+  podSelector:
+    matchLabels:
+      app: underlay-profiler
+  policyTypes: ["Egress"]
+  egress:
+    - ports:                       # DNS
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+    - ports:                       # kube-apiserver, AAD and the Kusto ingest endpoint
+        - {protocol: TCP, port: 443}
+    - to:                          # pprof ports of the profiled components, in any namespace
+        - namespaceSelector: {}
+      ports:
+        - {protocol: TCP, port: 8429}   # vmagent
+        - {protocol: TCP, port: 8428}   # vmsingle
+        - {protocol: TCP, port: 8096}   # konnectivity-server admin
+        - {protocol: TCP, port: 8094}   # konnectivity-agent admin
+# Profiled namespaces that enforce default-deny ingress also need a policy allowing the above ports from
+# namespace underlay-profiler (pod label app=underlay-profiler).
