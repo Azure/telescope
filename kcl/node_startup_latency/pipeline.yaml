@@ -358,8 +358,7 @@ stages:
             --records-file /tmp/node-startup-records.jsonl
 
           # One JSON line per valid iteration, in the envelope Telescope result storage expects.
-          # Results are only printed to the log. Uploading is intentionally disabled.
-          # TODO: add common.UploadResult once the results storage and Kusto ingestion exist.
+          # Printed to the log, then uploaded by the next step.
           jq -c '{
             timestamp: .operation.end_timestamp,
             run_id: "$(RUN_ID)",
@@ -369,6 +368,21 @@ stages:
           }' /tmp/node-startup-records.jsonl > /tmp/run-result.json
           cat /tmp/run-result.json
       displayName: Measure node startup latency
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(TELESCOPE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az storage blob upload \
+            --account-name "telescopev2" \
+            --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" \
+            --container-name "aks" \
+            --name "$(RUN_ID)/run-result.json" \
+            --file /tmp/run-result.json \
+            --auth-mode key
+      displayName: Upload result to storage account
     - bash: |
         set -exo pipefail
         TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")

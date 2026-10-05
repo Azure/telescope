@@ -1,5 +1,6 @@
 import azure_pipelines.ap
 import azure_pipelines.ap.jobs.job
+import lib.const
 import lib.steps.azure
 import lib.steps.common
 import lib.steps.health
@@ -196,8 +197,7 @@ python3 node_startup/main.py \\
   --records-file /tmp/node-startup-records.jsonl
 
 # One JSON line per valid iteration, in the envelope Telescope result storage expects.
-# Results are only printed to the log. Uploading is intentionally disabled.
-# TODO: add common.UploadResult once the results storage and Kusto ingestion exist.
+# Printed to the log, then uploaded by the next step.
 jq -c '{
   timestamp: .operation.end_timestamp,
   run_id: "$(RUN_ID)",
@@ -207,6 +207,17 @@ jq -c '{
 }' /tmp/node-startup-records.jsonl > /tmp/run-result.json
 cat /tmp/run-result.json
 """),
+                    # Telescope's shared results storage, ingested into Kusto by the Telescope
+                    # team. UploadResult uses storage account keys, so SERVICE_CONNECTION's
+                    # identity needs permission to list keys on that account. The default
+                    # condition (succeeded()) is also true for SucceededWithIssues, so a stage
+                    # with dropped iterations still uploads its valid ones; a stage with none
+                    # fails earlier and uploads nothing.
+                    common.UploadResult(
+                        SERVICE_CONNECTION,
+                        const.DEFAULT_STORAGE_ACCOUNT,
+                        const.DEFAULT_STORAGE_SUBSCRIPTION_ID,
+                        const.DEFAULT_STORAGE_CONTAINER),
                     common.RecordCurrentTime("BENCHMARK_END_TIME"),
                     asi_dashboard.PrintAsiDashboardUrl(
                         SERVICE_CONNECTION,
