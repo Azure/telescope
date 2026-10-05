@@ -38,6 +38,7 @@ from .metrics import (
     collect_diagnostics, collect_metrics, collect_pprof, dwell_and_sample,
     evaluate_pass_fail, observe_remotewrite_drain, sample_step, wait_for_targets,
 )
+from .profiling import collect_and_export as collect_and_export_profiles
 from .scaling import scale_cp_nodepool, scale_dp_nodepool, wait_for_nodes_ready
 from .utils import kubectl
 
@@ -492,7 +493,9 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
                           konn_agent_image: str = KONN_AGENT_IMAGE,
                           resume: bool = False,
                           final_tier_dwell_minutes: int = 5,
-                          fixed_pools: bool = False) -> dict:
+                          fixed_pools: bool = False,
+                          collect_profiles: bool = False,
+                          profile_seconds: int = 30) -> dict:
     """Ramp the DP nodepool through every node count in `tiers` (ascending)
     inside ONE continuous namespace/deployment, mirroring how a real prod
     cluster is actually scaled up (e.g. 0->400->800->...->2000) and watched
@@ -686,6 +689,18 @@ def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[in
             # just don't gate a pass/fail verdict on them here -- only the
             # final tier's result determines the ramp's overall outcome.
             step_pass_fail["overall"] = "not_evaluated"
+        if collect_profiles:
+            # Steady state: scrape coverage has caught up and the stack is under
+            # full load for this tier -- the representative moment to profile.
+            try:
+                profile_summary = collect_and_export_profiles(
+                    cp_kubeconfig, dp_kubeconfig, namespace, work_dir, results_dir,
+                    run_id, tier, run_label=run_label or "", underlay=cp_cluster_name,
+                    cpu_seconds=profile_seconds)
+                step_measurements["profiles"] = {
+                    k: profile_summary[k] for k in ("pods_profiled", "rows", "cpu_cores_profiled")}
+            except Exception as e:
+                log.warning("Profile collection failed for tier %d (non-fatal): %s", tier, e)
         # Push this step's time series to ADX (no-op unless ADX_CLUSTER_URI/ADX_DATABASE set)
         log.info("Pushing time-series to ADX...")
         adx_export_if_configured(cp_kubeconfig, namespace, run_id, tier,

@@ -149,6 +149,13 @@ def main() -> None:
                         help="Collect pprof + per-pod log/diagnostics. Default "
                              "is to SKIP them (much faster). Opt in only when "
                              "debugging a failure.")
+    parser.add_argument("--collect-profiles", action="store_true",
+                        help="Real-targets ramp only: at each tier's steady state, collect "
+                             "pprof (cpu/heap/allocs/goroutine) from every konn-server/"
+                             "konn-agent/vmagent/vmsingle replica plus per-container usage, "
+                             "and export to ADX (ProfileSamples/ProfileMeta/ComponentUsage).")
+    parser.add_argument("--profile-seconds", type=int, default=30,
+                        help="CPU profile duration per pod for --collect-profiles (default: 30)")
     parser.add_argument("--run-label", default="",
                         help="Label prefix for namespaces (avoids collisions in parallel runs)")
     parser.add_argument("--parallel", action="store_true",
@@ -483,6 +490,8 @@ def main() -> None:
                     resume=resume,
                     final_tier_dwell_minutes=args.final_tier_dwell_minutes,
                     fixed_pools=args.fixed_pools,
+                    collect_profiles=args.collect_profiles,
+                    profile_seconds=args.profile_seconds,
                 )
                 all_results.append(result)
                 break
