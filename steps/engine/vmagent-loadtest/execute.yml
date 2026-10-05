@@ -35,6 +35,9 @@ steps:
       SOAK_MINUTES="${SOAK_MINUTES:-10}"
       FIXED_POOLS="${FIXED_POOLS:-false}"
       COLLECT_DIAGNOSTICS="${COLLECT_DIAGNOSTICS:-false}"
+      # Real-targets ramp only: pprof from every replica + container usage at each
+      # tier's steady state, exported to ADX (ProfileSamples/ProfileMeta/ComponentUsage).
+      COLLECT_PROFILES="${COLLECT_PROFILES:-false}"
       MEASURE_DRAIN="${MEASURE_DRAIN:-false}"
       DRAIN_OBSERVE_SECONDS="${DRAIN_OBSERVE_SECONDS:-120}"
       # -remoteWrite.rateLimit / -remoteWrite.maxBlockSize passed to vmagent.
@@ -69,6 +72,7 @@ steps:
       [[ -n "$combo_konn_agent_image" ]] && args="$args --konn-agent-image $combo_konn_agent_image"
       [[ "$MEASURE_DRAIN" == "true" ]] && args="$args --measure-drain --drain-observe-seconds $DRAIN_OBSERVE_SECONDS"
       [[ "$COLLECT_DIAGNOSTICS" == "true" ]] && args="$args --collect-diagnostics"
+      [[ "$COLLECT_PROFILES" == "true" ]] && args="$args --collect-profiles"
       [[ "$FIXED_POOLS" == "true" ]] && args="$args --fixed-pools"
 
       echo ""
@@ -95,6 +99,7 @@ steps:
         cp -v "${WORK_DIR}/results"/*.csv "$(TEST_RESULTS_DIR)/" 2>/dev/null || true
         cp -v "${WORK_DIR}/results"/*.md "$(TEST_RESULTS_DIR)/" 2>/dev/null || true
         [[ -d "${WORK_DIR}/diagnostics" ]] && mkdir -p "$(TEST_RESULTS_DIR)/diagnostics" && cp -rv "${WORK_DIR}/diagnostics"/. "$(TEST_RESULTS_DIR)/diagnostics/" 2>/dev/null || true
+        [[ -d "${WORK_DIR}/pprof" ]] && mkdir -p "$(TEST_RESULTS_DIR)/pprof" && cp -rv "${WORK_DIR}/pprof"/. "$(TEST_RESULTS_DIR)/pprof/" 2>/dev/null || true
         echo "Ramp results collected (run_label=${{ combo.run_label }})."
         ls -l "$(TEST_RESULTS_DIR)/"
       else
@@ -111,6 +116,7 @@ steps:
       REAL_TARGETS: $(REAL_TARGETS)
       FIXED_POOLS: $(FIXED_POOLS)
       COLLECT_DIAGNOSTICS: $(COLLECT_DIAGNOSTICS)
+      COLLECT_PROFILES: $(COLLECT_PROFILES)
       RATE_LIMIT: $(RATE_LIMIT)
       MAX_BLOCK_SIZE: $(MAX_BLOCK_SIZE)
       QUEUES: $(QUEUES)
@@ -139,6 +145,9 @@ steps:
       # (azure.tfvars) instead of az-cli-scaling the base pool.
       FIXED_POOLS="${FIXED_POOLS:-false}"
       COLLECT_DIAGNOSTICS="${COLLECT_DIAGNOSTICS:-false}"
+      # Real-targets ramp only: pprof from every replica + container usage at each
+      # tier's steady state, exported to ADX (ProfileSamples/ProfileMeta/ComponentUsage).
+      COLLECT_PROFILES="${COLLECT_PROFILES:-false}"
       # -remoteWrite.rateLimit / -remoteWrite.maxBlockSize passed to vmagent.
       # Defaults match prod's current values (10485760 = 10 MiB/s -- 5x canary
       # increase from the 2 MiB/s bottleneck observed in large clusters --
@@ -176,6 +185,7 @@ steps:
       if [[ "$COLLECT_DIAGNOSTICS" == "true" ]]; then
         EXTRA_ARGS="$EXTRA_ARGS --collect-diagnostics"
       fi
+      [[ "$COLLECT_PROFILES" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --collect-profiles"
 
       # Parallel mode: invoke main.py ONCE with all tiers. Only supported for
       # fake-targets (real-targets reshapes the DP nodepool per tier).
@@ -237,6 +247,7 @@ steps:
           cp -v "${WORK_DIR}/results"/*.csv "$(TEST_RESULTS_DIR)/" 2>/dev/null || true
           cp -v "${WORK_DIR}/results"/*.md "$(TEST_RESULTS_DIR)/" 2>/dev/null || true
           [[ -d "${WORK_DIR}/diagnostics" ]] && mkdir -p "$(TEST_RESULTS_DIR)/diagnostics" && cp -rv "${WORK_DIR}/diagnostics"/. "$(TEST_RESULTS_DIR)/diagnostics/" 2>/dev/null || true
+          [[ -d "${WORK_DIR}/pprof" ]] && mkdir -p "$(TEST_RESULTS_DIR)/pprof" && cp -rv "${WORK_DIR}/pprof"/. "$(TEST_RESULTS_DIR)/pprof/" 2>/dev/null || true
           echo "Ramp results collected."
           ls -l "$(TEST_RESULTS_DIR)/"
         else
@@ -296,6 +307,7 @@ steps:
       PARALLEL: $(PARALLEL)
       FIXED_POOLS: $(FIXED_POOLS)
       COLLECT_DIAGNOSTICS: $(COLLECT_DIAGNOSTICS)
+      COLLECT_PROFILES: $(COLLECT_PROFILES)
       RATE_LIMIT: $(RATE_LIMIT)
       MAX_BLOCK_SIZE: $(MAX_BLOCK_SIZE)
       QUEUES: $(QUEUES)

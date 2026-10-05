@@ -76,6 +76,8 @@ stages:
               QUEUES: 8
               MAX_ROWS_PER_BLOCK: 10000
               COLLECT_DIAGNOSTICS: "false"
+              # pprof + usage per tier -> ADX ProfileSamples/ProfileMeta/ComponentUsage
+              COLLECT_PROFILES: "true"
               MEASURE_DRAIN: "false"
               DRAIN_OBSERVE_SECONDS: 120
           max_parallel: 1
