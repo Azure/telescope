@@ -29,8 +29,13 @@ jobs:
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/kcl" version
 
+          k8s_version=$(sed -nE 's/^[[:space:]]*k8s[[:space:]]*=[[:space:]]*"([0-9]+\.[0-9]+\.[0-9]+)"[[:space:]]*$/\1/p' kcl/kcl.mod)
+          if [[ -z "$k8s_version" || "$k8s_version" == *$'\n'* ]]; then
+            echo "::error::Missing or invalid k8s version in kcl/kcl.mod"
+            exit 1
+          fi
           cd kcl
-          "$RUNNER_TEMP/kcl" mod pull k8s:1.32.4
+          "$RUNNER_TEMP/kcl" mod pull "k8s:$k8s_version"
 
       - name: Check committed pipeline YAML
         shell: bash
