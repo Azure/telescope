@@ -1,0 +1,61 @@
+name: Check generated pipeline YAML
+
+on:
+  pull_request:
+    branches: [v2]
+
+permissions:
+  contents: read
+
+jobs:
+  check-generated-pipelines:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install KCL CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(sed -nE 's/^[[:space:]]*edition[[:space:]]*=[[:space:]]*"(v[0-9]+\.[0-9]+\.[0-9]+)"[[:space:]]*$/\1/p' kcl/kcl.mod)
+          if [[ -z "$version" || "$version" == *$'\n'* ]]; then
+            echo "::error::Missing or invalid edition in kcl/kcl.mod"
+            exit 1
+          fi
+          curl -fsSL "https://github.com/kcl-lang/cli/releases/download/$version/kcl-$version-linux-amd64.tar.gz" |
+            tar -xz -C "$RUNNER_TEMP" kcl
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/kcl" version
+
+      - name: Check committed pipeline YAML
+        shell: bash
+        run: |
+          set -euo pipefail
+          failed=0
+          found=0
+          while IFS= read -r -d '' pipeline_file; do
+            found=1
+            directory=${pipeline_file%/pipeline.k}
+            generated_yaml="$RUNNER_TEMP/pipeline.yaml"
+            rm -f "$generated_yaml"
+            echo "Checking $directory"
+            if ! kcl run "$directory" -S output -o "$generated_yaml"; then
+              echo "::error::Failed to generate $directory/pipeline.yaml"
+              failed=1
+            elif ! diff -u "$directory/pipeline.yaml" "$generated_yaml"; then
+              echo "::error::Outdated or missing $directory/pipeline.yaml"
+              failed=1
+            else
+              echo "PASS $directory/pipeline.yaml"
+            fi
+          done < <(find kcl -type f -name pipeline.k -print0)
+          if (( ! found )); then
+            echo "::error::No pipeline.k files found under kcl/"
+            exit 1
+          fi
+          if (( ! failed )); then
+            echo "::notice::All generated pipeline YAML files match their KCL sources."
+          fi
+          exit "$failed"
