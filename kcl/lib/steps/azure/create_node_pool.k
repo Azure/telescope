@@ -1,7 +1,9 @@
 import azure_pipelines.ap.steps
 
 # NodePool describes a single AKS node pool: a unique pool name, the VM SKU,
-# the desired node count, and optional taint/labels
+# the desired node count, and optional taint/labels. Setting minCount and
+# maxCount enables the cluster autoscaler on the pool, with count as its
+# starting size.
 schema NodePool:
     name: str
     sku: str
@@ -11,6 +13,13 @@ schema NodePool:
     maxPods?: int
     vnetSubnetId?: str
     osSKU?: str
+    minCount?: int
+    maxCount?: int
+    osDiskType?: "Ephemeral" | "Managed"
+
+    check:
+        (minCount == Undefined) == (maxCount == Undefined), "minCount and maxCount must be set together"
+        minCount <= count <= maxCount if maxCount != Undefined, "count must be within [minCount, maxCount]"
 
 # CREATE_NODEPOOL_RETRY_WINDOW_SEC is the maximum time (in seconds) to keep retrying node pool creation when AKS returns a transient retriable error.
 CREATE_NODEPOOL_RETRY_WINDOW_SEC = 600
@@ -25,6 +34,10 @@ CreateNodePool = lambda serviceConnection: str, cluster: str, resourceGroup: str
         "--max-pods ${pool.maxPods}" if pool.maxPods else "",
         "--vnet-subnet-id \"${pool.vnetSubnetId}\"" if pool.vnetSubnetId else "",
         "--os-sku ${pool.osSKU}" if pool.osSKU else "",
+        "--enable-cluster-autoscaler" if pool.maxCount != Undefined else "",
+        "--min-count ${pool.minCount}" if pool.minCount != Undefined else "",
+        "--max-count ${pool.maxCount}" if pool.maxCount != Undefined else "",
+        "--node-osdisk-type ${pool.osDiskType}" if pool.osDiskType else "",
         "--no-wait" if noWait else "",
     ]
     flags = " \\\n  ".join([f for f in flagDecision if f])
