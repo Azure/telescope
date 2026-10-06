@@ -20,6 +20,24 @@ from .utils import kubectl, kubectl_apply, render_template, retry, run
 from urllib.parse import urlparse
 
 
+def _log_rollout_diagnostics(kubeconfig: str, namespace: str, deployment: str) -> None:
+    """Dump pod/event state for a deployment that failed its rollout, so a timed-out
+    `kubectl rollout status` isn't a dead end -- captures the exact reason (image pull,
+    probe failure, scheduling, etc.) in the log before the caller's exception propagates.
+    """
+    log.error("Rollout diagnostics for %s/%s:", namespace, deployment)
+    for args, label in [
+        (["get", "pods", "-l", f"app={deployment}", "-o", "wide"], "pods"),
+        (["describe", "pods", "-l", f"app={deployment}"], "describe"),
+        (["get", "events", "--sort-by=.lastTimestamp"], "events"),
+    ]:
+        try:
+            result = kubectl(kubeconfig, "-n", namespace, *args, check=False)
+            log.error("--- %s ---\n%s", label, result.stdout or result.stderr)
+        except Exception as e:
+            log.error("  (failed to collect %s: %s)", label, e)
+
+
 def ensure_namespace(kubeconfig: str, namespace: str) -> None:
     for _ in range(60):
         result = kubectl(kubeconfig, "get", "ns", namespace, "-o", "jsonpath={.status.phase}", check=False)
@@ -108,8 +126,12 @@ def deploy_konnectivity_agents(kubeconfig: str, namespace: str, server_host: str
         "__AGENT_NODE_AFFINITY__": node_affinity,
     })
     kubectl_apply(kubeconfig, manifest)
-    kubectl(kubeconfig, "-n", namespace, "rollout", "status",
-            "deployment/konnectivity-agent", "--timeout=600s")
+    try:
+        kubectl(kubeconfig, "-n", namespace, "rollout", "status",
+                "deployment/konnectivity-agent", "--timeout=600s")
+    except Exception:
+        _log_rollout_diagnostics(kubeconfig, namespace, "konnectivity-agent")
+        raise
     log.info("Konnectivity agents ready in %s", namespace)
 
 
@@ -386,4 +408,8 @@ def set_tier_block_regex(kubeconfig: str, namespace: str, dp_api_server: str,
 
 def rollout_restart(kubeconfig: str, namespace: str, resource: str) -> None:
     kubectl(kubeconfig, "-n", namespace, "rollout", "restart", resource)
-    kubectl(kubeconfig, "-n", namespace, "rollout", "status", resource, "--timeout=600s")
+    try:
+        kubectl(kubeconfig, "-n", namespace, "rollout", "status", resource, "--timeout=600s")
+    except Exception:
+        _log_rollout_diagnostics(kubeconfig, namespace, resource.split("/", 1)[-1])
+        raise
