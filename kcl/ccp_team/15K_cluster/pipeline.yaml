@@ -344,7 +344,7 @@ jobs:
           --resource-group "$(RUN_ID)" \
           --name "$(cluster_name)-jumpbox" \
           --image Ubuntu2204 \
-          --size Standard_D16ds_v5 \
+          --size Standard_D32ds_v5 \
           --vnet-name "$(cluster_name)-net" \
           --subnet jumpbox \
           --public-ip-address "$(cluster_name)-jumpbox-pip" \

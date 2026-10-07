@@ -158,6 +158,108 @@
                         },
                         {
                             "fqdnTags": [],
+                            "name": "auth.docker.io",
+                            "protocols": [
+                                {
+                                    "port": 443,
+                                    "protocolType": "Https"
+                                }
+                            ],
+                            "sourceAddresses": [
+                                "10.0.0.0/8"
+                            ],
+                            "sourceIpGroups": [],
+                            "targetFqdns": [
+                                "auth.docker.io"
+                            ]
+                        },
+                        {
+                            "fqdnTags": [],
+                            "name": "registry-1.docker.io",
+                            "protocols": [
+                                {
+                                    "port": 443,
+                                    "protocolType": "Https"
+                                }
+                            ],
+                            "sourceAddresses": [
+                                "10.0.0.0/8"
+                            ],
+                            "sourceIpGroups": [],
+                            "targetFqdns": [
+                                "registry-1.docker.io"
+                            ]
+                        },
+                        {
+                            "fqdnTags": [],
+                            "name": "production.cloudfront.docker.com",
+                            "protocols": [
+                                {
+                                    "port": 443,
+                                    "protocolType": "Https"
+                                }
+                            ],
+                            "sourceAddresses": [
+                                "10.0.0.0/8"
+                            ],
+                            "sourceIpGroups": [],
+                            "targetFqdns": [
+                                "production.cloudfront.docker.com"
+                            ]
+                        },
+                        {
+                            "fqdnTags": [],
+                            "name": "acstest.azurecr.io",
+                            "protocols": [
+                                {
+                                    "port": 443,
+                                    "protocolType": "Https"
+                                }
+                            ],
+                            "sourceAddresses": [
+                                "10.0.0.0/8"
+                            ],
+                            "sourceIpGroups": [],
+                            "targetFqdns": [
+                                "acstest.azurecr.io"
+                            ]
+                        },
+                        {
+                            "fqdnTags": [],
+                            "name": "*.azurecr.io",
+                            "protocols": [
+                                {
+                                    "port": 443,
+                                    "protocolType": "Https"
+                                }
+                            ],
+                            "sourceAddresses": [
+                                "10.0.0.0/8"
+                            ],
+                            "sourceIpGroups": [],
+                            "targetFqdns": [
+                                "*.azurecr.io"
+                            ]
+                        },
+                        {
+                            "fqdnTags": [],
+                            "name": "*.registry.k8s.io",
+                            "protocols": [
+                                {
+                                    "port": 443,
+                                    "protocolType": "Https"
+                                }
+                            ],
+                            "sourceAddresses": [
+                                "10.0.0.0/8"
+                            ],
+                            "sourceIpGroups": [],
+                            "targetFqdns": [
+                                "*.registry.k8s.io"
+                            ]
+                        },
+                        {
+                            "fqdnTags": [],
                             "name": "*.gcr.io",
                             "protocols": [
                                 {
