@@ -183,6 +183,7 @@ def handle_autoscale_latency(node_pool_crud, args):
                     pod_name=pod_name,
                     operation_timeout_in_minutes=args.step_timeout // 60 or 15,
                     node_label_key=getattr(args, "node_label_key", "agentpool"),
+                    disable_node_scale_down=getattr(args, "disable_node_scale_down", False),
                 )
                 result["iteration"] = iteration
                 result["total_iterations"] = iterations
@@ -477,6 +478,12 @@ def main():
         default=0,
         help="Seconds to wait between iterations for autoscaler cooldown (default: 0). "
              "Set to 180-300 to avoid autoscaler backoff delays in total_e2e_seconds.",
+    )
+    autoscale_parser.add_argument(
+        "--disable-node-scale-down",
+        action="store_true",
+        help="Annotate each new node with cluster-autoscaler.kubernetes.io/scale-down-disabled "
+             "so the nodes survive for post-run inspection",
     )
     autoscale_parser.set_defaults(func=handle_autoscale_latency)
 

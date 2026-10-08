@@ -9,6 +9,7 @@ parameters:
   node_label_key: "agentpool"
   iterations: 5
   iteration_cooldown: 0
+  disable_node_scale_down: ""
 
 steps:
 - script: |
@@ -24,6 +25,12 @@ steps:
       CNI_TAINT_ARG="--cni-blocking-taint $CNI_BLOCKING_TAINT"
     fi
 
+    # An undefined pipeline macro stays literal, so only the exact value "true" enables it
+    SCALE_DOWN_ARG=""
+    if [ "$DISABLE_NODE_SCALE_DOWN" = "true" ]; then
+      SCALE_DOWN_ARG="--disable-node-scale-down"
+    fi
+
     # Trigger autoscaler by deploying probe pod and collect latency metrics
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" autoscale-latency \
       --cloud "$CLOUD" \
@@ -35,7 +42,8 @@ steps:
       --iterations "$ITERATIONS" \
       --iteration-cooldown "$ITERATION_COOLDOWN" \
       $CNI_LABEL_ARG \
-      $CNI_TAINT_ARG
+      $CNI_TAINT_ARG \
+      $SCALE_DOWN_ARG
 
   displayName: 'Autoscale Latency for ${{ parameters.cloud }}'
   workingDirectory: modules/python
@@ -51,5 +59,6 @@ steps:
     NODE_LABEL_KEY: ${{ parameters.node_label_key }}
     ITERATIONS: ${{ parameters.iterations }}
     ITERATION_COOLDOWN: ${{ parameters.iteration_cooldown }}
+    DISABLE_NODE_SCALE_DOWN: ${{ parameters.disable_node_scale_down }}
 
 

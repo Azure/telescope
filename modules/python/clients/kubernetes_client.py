@@ -1497,11 +1497,34 @@ class KubernetesClient:
             else:
                 raise
 
+    def disable_node_scale_down(self, node_name):
+        """
+        Annotate a node so the cluster autoscaler never removes it.
+
+        Failures are logged and ignored: the annotation only keeps the node around
+        for later inspection and must not fail the measurement.
+
+        Returns:
+            True if the annotation was applied, False otherwise
+        """
+        try:
+            self.api.patch_node(
+                name=node_name,
+                body={"metadata": {"annotations": {
+                    "cluster-autoscaler.kubernetes.io/scale-down-disabled": "true"}}},
+            )
+            logger.info("Disabled cluster autoscaler scale-down for node '%s'", node_name)
+            return True
+        except Exception as e:
+            logger.warning("Failed to disable scale-down for node '%s': %s", node_name, e)
+            return False
+
     def collect_autoscale_latency(self, node_pool_name, cni_daemonset_label=None,
                                   cni_blocking_taint=None, namespace="default",
                                   pod_name="latency-probe",
                                   operation_timeout_in_minutes=15,
-                                  node_label_key="agentpool"):
+                                  node_label_key="agentpool",
+                                  disable_node_scale_down=False):
         """
         Measure node and pod startup latency via cluster autoscaler.
 
@@ -1532,6 +1555,8 @@ class KubernetesClient:
             namespace: Namespace for the probe pod
             pod_name: Name of the probe pod
             operation_timeout_in_minutes: Timeout for the entire operation
+            disable_node_scale_down: Annotate the new node so the cluster autoscaler
+                                     never removes it (keeps the node for inspection)
 
         Returns:
             Dict with all timestamps, intermediate states, and computed latency metrics
@@ -1619,6 +1644,9 @@ class KubernetesClient:
             # Identify the new node (the one the pod was scheduled on)
             new_node_name = pod.spec.node_name
             logger.info("Probe pod scheduled on node '%s'", new_node_name)
+
+            if disable_node_scale_down:
+                self.disable_node_scale_down(new_node_name)
 
             # Collect node timestamps
             new_node = self.api.read_node(name=new_node_name)

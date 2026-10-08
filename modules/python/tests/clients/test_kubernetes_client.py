@@ -56,6 +56,23 @@ class TestKubernetesClient(unittest.TestCase):
             spec=V1NodeSpec(unschedulable=unschedulable, taints=taints)
         )
 
+    def test_disable_node_scale_down_annotates_node(self):
+        self.client.api = MagicMock()
+
+        self.assertTrue(self.client.disable_node_scale_down("node-1"))
+
+        self.client.api.patch_node.assert_called_once_with(
+            name="node-1",
+            body={"metadata": {"annotations": {
+                "cluster-autoscaler.kubernetes.io/scale-down-disabled": "true"}}},
+        )
+
+    def test_disable_node_scale_down_ignores_api_errors(self):
+        self.client.api = MagicMock()
+        self.client.api.patch_node.side_effect = ApiException(status=403)
+
+        self.assertFalse(self.client.disable_node_scale_down("node-1"))
+
     @patch('clients.kubernetes_client.KubernetesClient.get_nodes')
     def test_get_ready_nodes_with_network_unavailable(self, mock_get_nodes):
         """Test getting ready nodes when network is unavailable."""

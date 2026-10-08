@@ -8,6 +8,10 @@ stages:
   - stage: azure_cilium
     variables:
       SCENARIO_NAME: node-startup-latency-cilium
+      # Keep the cluster and its nodes for post-run inspection (manual runs only).
+      # Delete manually afterwards: az group delete --name <run_id> --yes
+      SKIP_RESOURCE_DELETION: "true"
+      DISABLE_NODE_SCALE_DOWN: "true"
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml

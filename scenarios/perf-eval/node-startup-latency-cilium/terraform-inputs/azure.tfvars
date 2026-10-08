@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
 scenario_name  = "nsl-cilium"
-deletion_delay = "2h"
+deletion_delay = "48h"
 owner          = "aks"
 
 network_config_list = [
@@ -48,7 +48,7 @@ aks_config_list = [
         node_count           = 1
         auto_scaling_enabled = true
         min_count            = 1
-        max_count            = 10
+        max_count            = 20
         vm_size              = "Standard_D8s_v3"
         os_disk_type         = "Ephemeral"
         node_labels          = { "node-startup-latency" = "true" }

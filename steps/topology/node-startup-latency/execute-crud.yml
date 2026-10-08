@@ -20,3 +20,4 @@ steps:
     cni_daemonset_label: $(CNI_DAEMONSET_LABEL)
     cni_blocking_taint: $(CNI_BLOCKING_TAINT)
     iteration_cooldown: 240
+    disable_node_scale_down: $(DISABLE_NODE_SCALE_DOWN)

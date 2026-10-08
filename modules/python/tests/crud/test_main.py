@@ -18,6 +18,7 @@ from crud.main import (
     check_for_progressive_scaling,
     collect_benchmark_results,
     handle_node_pool_all,
+    handle_autoscale_latency,
 )
 
 
@@ -1528,6 +1529,38 @@ class TestMainErrorHandlingEdgeCases(unittest.TestCase):
 
         # Should log error but not call sys.exit
         mock_logger.error.assert_called_with("Operation failed with exit code: 1")
+
+
+class TestHandleAutoscaleLatency(unittest.TestCase):
+    """Tests for the autoscale-latency handler"""
+
+    def _run(self, **overrides):
+        args = mock.MagicMock()
+        args.cloud = "azure"
+        args.cni_daemonset_label = "k8s-app=cilium"
+        args.cni_blocking_taint = None
+        args.iterations = 1
+        args.iteration_cooldown = 0
+        args.node_pool_name = "userpool"
+        args.node_label_key = "agentpool"
+        args.step_timeout = 600
+        args.result_dir = tempfile.gettempdir()
+        for key, value in overrides.items():
+            setattr(args, key, value)
+        node_pool_crud = mock.MagicMock()
+        k8s_client = node_pool_crud.aks_client.k8s_client
+        k8s_client.collect_autoscale_latency.return_value = {}
+        with mock.patch("crud.main.OperationContext"):
+            self.assertEqual(handle_autoscale_latency(node_pool_crud, args), 0)
+        return k8s_client.collect_autoscale_latency
+
+    def test_scale_down_stays_enabled_by_default(self):
+        collect = self._run(disable_node_scale_down=False)
+        self.assertFalse(collect.call_args.kwargs["disable_node_scale_down"])
+
+    def test_disable_node_scale_down_is_passed_through(self):
+        collect = self._run(disable_node_scale_down=True)
+        self.assertTrue(collect.call_args.kwargs["disable_node_scale_down"])
 
 
 if __name__ == "__main__":
