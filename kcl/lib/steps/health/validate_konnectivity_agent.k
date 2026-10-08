@@ -5,7 +5,7 @@ import lib.steps.azure
 # konnectivity-agent: the tunnel from control plane to nodes works, exercised
 # via kubectl exec against a temporary pod. For pod/controller health, pair with
 # ValidateWorkloadHealth(kind="deployment", name="konnectivity-agent", namespace="kube-system").
-ValidateKonnectivityAgent = lambda serviceConnection: str, displayName: str = "", continueOnError: bool = Undefined -> steps.Step {
+ValidateKonnectivityAgent = lambda serviceConnection: str, displayName: str = "", continueOnError: bool = True -> steps.Step {
     title = displayName if displayName else "Validate konnectivity-agent"
     script = """
 set +e

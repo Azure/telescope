@@ -5,7 +5,7 @@ import lib.steps.azure
 # Validate a CSI-backed StorageClass by creating a PVC, mounting it in a
 # short-lived pod, and writing and reading a file. This validates provisioning
 # and node mount behavior; validate the driver workloads separately.
-ValidateCsiNode = lambda serviceConnection: str, storageClass: str, displayName: str = "", continueOnError: bool = Undefined -> steps.Step {
+ValidateCsiNode = lambda serviceConnection: str, storageClass: str, displayName: str = "", continueOnError: bool = True -> steps.Step {
   assert storageClass != "", "storageClass must be non-empty"
   title = displayName if displayName else "Validate CSI storage class ${storageClass}"
     script = """

@@ -20,7 +20,7 @@ ValidateWorkloadHealth = lambda \
     namespace: str = "default", \
     errorPatterns: str = "panic|fatal", \
     displayName: str = "", \
-    continueOnError: bool = Undefined \
+    continueOnError: bool = True \
     -> steps.Step {
     assert (kind == "*" and name == "") or (kind != "*" and name != ""), \
         "name must be empty when kind=='*' and non-empty otherwise (got kind='${kind}', name='${name}')"

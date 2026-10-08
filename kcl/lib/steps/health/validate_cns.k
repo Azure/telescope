@@ -5,7 +5,7 @@ import lib.steps.azure
 # azure-cns: a new pod gets an IP from the CNI IPAM, and the pod dataplane can
 # reach in-cluster services. For daemonset/pod health, pair with
 # ValidateWorkloadHealth(kind="daemonset", name="azure-cns", namespace="kube-system").
-ValidateAzureCNS = lambda serviceConnection: str, displayName: str = "", continueOnError: bool = Undefined -> steps.Step {
+ValidateAzureCNS = lambda serviceConnection: str, displayName: str = "", continueOnError: bool = True -> steps.Step {
     title = displayName if displayName else "Validate azure-cns"
     script = """
 set +e
