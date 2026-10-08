@@ -37,7 +37,7 @@ aks_config_list = [
     default_node_pool = {
       name                         = "default"
       node_count                   = 1
-      vm_size              = "Standard_D8s_v3"
+      vm_size              = "Standard_D8ds_v4"
       os_disk_type         = "Ephemeral"
       only_critical_addons_enabled = true
       temporary_name_for_rotation  = "defaulttmp"
@@ -48,8 +48,8 @@ aks_config_list = [
         node_count           = 1
         auto_scaling_enabled = true
         min_count            = 1
-        max_count            = 20
-        vm_size              = "Standard_D8s_v3"
+        max_count            = 11
+        vm_size              = "Standard_D8ds_v4"
         os_disk_type         = "Ephemeral"
         node_labels          = { "node-startup-latency" = "true" }
       }

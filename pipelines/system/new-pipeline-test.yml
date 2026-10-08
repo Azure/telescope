@@ -24,7 +24,7 @@ stages:
           matrix:
             cilium_node_startup:
               pool_name: userpool
-              vm_size: Standard_D8s_v3
+              vm_size: Standard_D8ds_v4
               step_time_out: 900
               cni_daemonset_label: "k8s-app=cilium"
               cni_blocking_taint: "node.cilium.io/agent-not-ready"
