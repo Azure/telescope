@@ -94,6 +94,24 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
                 resource_group="fake-resource-group",
             )
 
+    def test_arm_timeout_floored_at_default(self):
+        """Short step timeouts keep the historical ARM poll floor (1800s)."""
+        # setUp uses the default operation_timeout_minutes (10 -> 600s), so the
+        # floor wins.
+        self.assertEqual(self.aks_client.arm_operation_timeout_seconds, 1800)
+
+    def test_arm_timeout_tracks_large_step_timeout(self):
+        """A large per-step timeout raises the ARM poll ceiling to match it."""
+        client = AKSClient(
+            subscription_id="fake-subscription-id",
+            resource_group="fake-resource-group",
+            cluster_name="fake-cluster",
+            credential=self.mock_credential,
+            result_dir=self.test_result_dir,
+            operation_timeout_minutes=45,  # e.g. GPU step_time_out=2700s
+        )
+        self.assertEqual(client.arm_operation_timeout_seconds, 2700)
+
     def test_get_cluster_name_provided(self):
         """Test get_cluster_name when name is already provided"""
         self.assertEqual(self.aks_client.get_cluster_name(), "fake-cluster")

@@ -145,6 +145,7 @@ def prepare_create_operation(
     vm_size,
     aks_sdk_client,
     label="",
+    timeout_seconds=None,
 ):
     """Return a node-pool create callable for the requested pool type."""
     if node_pool_type != AzureNodePoolTypeConstants.VIRTUAL_MACHINES:
@@ -161,6 +162,7 @@ def prepare_create_operation(
             node_pool_name,
             sdk_parameters,
             label=label,
+            timeout_seconds=timeout_seconds,
         )
     if gpu_node_pool:
         raise ValueError("GPU node pools with type VirtualMachines are not supported")
@@ -183,6 +185,7 @@ def prepare_scale_operation(
     node_count,
     aks_sdk_client,
     label="",
+    timeout_seconds=None,
 ):
     """Return a node-pool scale callable for the requested pool type."""
     if node_pool_type != AzureNodePoolTypeConstants.VIRTUAL_MACHINES:
@@ -195,6 +198,7 @@ def prepare_scale_operation(
             node_pool_name,
             node_pool,
             label=label,
+            timeout_seconds=timeout_seconds,
         )
     return partial(
         scale_virtual_machines_node_pool,
