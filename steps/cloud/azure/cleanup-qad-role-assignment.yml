@@ -1,0 +1,70 @@
+parameters:
+- name: region
+  type: string
+
+steps:
+- script: |
+    set -euo pipefail
+
+    if [[ "${SKIP_RESOURCE_DELETION:-false}" == "true" && "$BUILD_REASON" == "Manual" ]]; then
+      echo "SKIP_RESOURCE_DELETION is set; retaining the QAD role assignment."
+      exit 0
+    fi
+
+    readonly ROLE_NAME="AKS QAD Node Attach Detach"
+    readonly SUB=$(az account show --query id --output tsv)
+
+    CLUSTER=$(az resource list \
+      --resource-group "$RUN_ID" \
+      --resource-type Microsoft.ContainerService/managedClusters \
+      --location "$QAD_REGION" \
+      --query "[?tags.role == 'client'].name | [0]" \
+      --output tsv)
+    if [[ -z "$CLUSTER" ]]; then
+      echo "QAD cluster was not found; no role assignment cleanup is needed."
+      exit 0
+    fi
+
+    NODE_RG=$(az aks show \
+      --resource-group "$RUN_ID" \
+      --name "$CLUSTER" \
+      --query nodeResourceGroup \
+      --output tsv)
+    QAD_PRINCIPAL_ID=$(az identity show \
+      --resource-group "$NODE_RG" \
+      --name "aks-qad-$CLUSTER" \
+      --query principalId \
+      --output tsv 2>/dev/null || true)
+    ROLE_DEF_GUID=$(az role definition list \
+      --name "$ROLE_NAME" \
+      --query "[0].name" \
+      --output tsv)
+    if [[ -z "$QAD_PRINCIPAL_ID" || -z "$ROLE_DEF_GUID" ]]; then
+      echo "QAD principal or shared role was not found; no role assignment cleanup is needed."
+      exit 0
+    fi
+
+    ROLE_DEF_ID="/subscriptions/$SUB/providers/Microsoft.Authorization/roleDefinitions/$ROLE_DEF_GUID"
+    NODE_RG_SCOPE="/subscriptions/$SUB/resourceGroups/$NODE_RG"
+    assignments_url="https://management.azure.com${NODE_RG_SCOPE}/providers/Microsoft.Authorization/roleAssignments?api-version=2022-04-01&\$filter=principalId%20eq%20'$QAD_PRINCIPAL_ID'"
+    mapfile -t assignment_ids < <(az rest \
+      --method get \
+      --url "$assignments_url" \
+      --query value \
+      --output json | jq -r \
+        --arg role "${ROLE_DEF_ID,,}" \
+        --arg scope "${NODE_RG_SCOPE,,}" \
+        '.[] | select(
+          (.properties.roleDefinitionId | ascii_downcase) == $role and
+          (.properties.scope | ascii_downcase) == $scope
+        ) | .id')
+
+    for assignment_id in "${assignment_ids[@]}"; do
+      az role assignment delete --ids "$assignment_id"
+    done
+    echo "Removed ${#assignment_ids[@]} per-run QAD role assignment(s); retained shared role $ROLE_NAME."
+  displayName: "Clean Up QAD Role Assignment"
+  condition: always()
+  env:
+    BUILD_REASON: $(Build.Reason)
+    QAD_REGION: ${{ parameters.region }}

@@ -558,6 +558,55 @@ variable "azapi_config_list" {
   default = []
 }
 
+variable "qad_config_list" {
+  description = "List of AKS cluster configurations to create with Quick Attach/Detach enabled"
+  type = list(object({
+    role               = string
+    aks_name           = string
+    dns_prefix         = string
+    api_version        = optional(string, "2026-07-02-preview")
+    kubernetes_version = string
+    identity_type      = optional(string, "SystemAssigned")
+    sku = optional(object({
+      name = optional(string, "Base")
+      tier = optional(string, "Standard")
+    }), {})
+    network_profile = optional(object({
+      network_plugin = optional(string, "kubenet")
+      pod_cidr       = optional(string, null)
+    }), {})
+    system_node_pool = object({
+      name        = optional(string, "systempool")
+      count       = optional(number, 3)
+      vm_size     = optional(string, "Standard_D2s_v3")
+      os_type     = optional(string, "Linux")
+      mode        = optional(string, "System")
+      vm_set_type = optional(string, "VirtualMachineScaleSets")
+      node_labels = optional(map(string), {})
+    })
+    user_node_pools = optional(list(object({
+      name        = string
+      count       = number
+      vm_size     = string
+      os_type     = optional(string, "Linux")
+      mode        = optional(string, "User")
+      vm_set_type = optional(string, "VirtualMachineScaleSets")
+      node_labels = optional(map(string), {})
+    })), [])
+    dry_run = optional(bool, false)
+  }))
+  default = []
+
+  validation {
+    condition = alltrue([
+      for config in var.qad_config_list :
+      config.api_version == "2026-07-02-preview" &&
+      config.kubernetes_version == "1.37.0"
+    ])
+    error_message = "QAD clusters must use API version 2026-07-02-preview and Kubernetes version 1.37.0."
+  }
+}
+
 variable "disk_encryption_set_config_list" {
   description = "List of Disk Encryption Set configurations for encrypting AKS OS/data disks with Customer-Managed Keys. Reference: https://learn.microsoft.com/en-us/azure/aks/azure-disk-customer-managed-keys"
   type = list(object({
@@ -585,4 +634,3 @@ variable "disk_encryption_set_config_list" {
     error_message = "Each Disk Encryption Set config must have name 1-80 characters, and key_vault_name and key_name must be specified."
   }
 }
-

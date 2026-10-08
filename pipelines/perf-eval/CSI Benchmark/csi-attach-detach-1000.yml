@@ -48,6 +48,36 @@ stages:
           timeout_in_minutes: 180
           credential_type: service_connection
           ssh_key_enabled: false
+  - stage: azure_eastus2euap_qad
+    condition: |
+      or(
+        eq(variables['Build.CronSchedule.DisplayName'], '8:00 PM Every Day'),
+        eq(variables['Build.Reason'], 'Manual')
+      )
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          terraform_input_file_mapping:
+            - eastus2euap: "scenarios/perf-eval/storage-attach-detach-1000/terraform-inputs/azure-qad.tfvars"
+          topology: csi-attach-detach
+          engine: attach
+          engine_input:
+            disk_number: 1000
+            storage_class: default
+            wait_time: 300
+          matrix:
+            Standard_D16s_v3_1000pods_40nodes_qad:
+              case_name: Standard_D16s_v3_1000pods_40nodes_qad
+              node_number: 40
+          max_parallel: 1
+          timeout_in_minutes: 180
+          credential_type: service_connection
+          ssh_key_enabled: false
+          qad_enabled: true
   - stage: aws_eastus2
     condition: |
       or(
