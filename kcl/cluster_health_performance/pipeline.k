@@ -116,6 +116,7 @@ az aks create \\
             health.ValidateCsiNode(const.DEFAULT_SERVICE_CONNECTION, "azurefile-csi", continueOnError=True)
             health.ValidateClusterIPService(const.DEFAULT_SERVICE_CONNECTION, continueOnError=True)
             kperf.InstallRunkperf("ghcr.io/azure/kperf:0.3.6")
+            # TODO: Add performance workloads in a follow-up PR.
             # Always tear down the resource group at the end.
             azure.DeleteResourceGroup(const.DEFAULT_SERVICE_CONNECTION, "$(RUN_ID)", SUBSCRIPTION_ID, condition="always()")
         ]
