@@ -1,0 +1,25 @@
+# count: number of runner pods = actual concurrent client count for the test.
+count: 10
+loadProfile:
+  version: 1
+  description: "Scenario 4 / clients=10 / objects=1000 x 100KB — quorumList configmaps, 100 req/s per runner for 600s"
+  # Setup assumption (NOT enforced by this profile):
+  #   runkperf data cm add --namespace default --size 102400 --total 1000 list
+  #   -> objects named runkperf-cm-list-0 ... runkperf-cm-list-999
+  # Cleanup after the run:
+  #   runkperf data cm delete list
+  specs:
+    - rate: 100
+      duration: 300
+      conns: 10
+      client: 10
+      contentType: json
+      disableHTTP2: false
+      maxRetries: 0
+      requests:
+        - quorumList:
+            version: v1
+            resource: configmaps
+            namespace: kperf
+            limit: 0
+          shares: 100

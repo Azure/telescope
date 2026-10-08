@@ -1,0 +1,55 @@
+# count: number of runner pods = actual concurrent client count for the test.
+count: 10
+loadProfile:
+  version: 1
+  description: "Scenario 5 / clients=10 / writes=1KB — mixed 60% read + 30% POST/PUT + 10% DELETE, 100 req/s per runner for 600s"
+  # Setup assumption (NOT enforced by this profile):
+  #   Pre-populate 1000 x 1KB ConfigMaps used by BOTH reads (GET) and writes (PUT):
+  #     runkperf data cm add --namespace default --size 1024 --total 1000 mixed
+  #     -> objects named runkperf-cm-mixed-0 ... runkperf-cm-mixed-999
+  #   POST/DELETE deviate from the doc's "ConfigMap" target because kperf only
+  #   supports create/delete on pods today (see pod.tpl); we use fake pods there.
+  # Cleanup:
+  #   kubectl -n default delete pod -l app=fake-pod
+  #   runkperf data cm delete mixed
+  specs:
+    - rate: 100
+      duration: 300
+      # Need at least 5 clients to reach 100 QPS (Little's Law); 10 for headroom.
+      conns: 10
+      client: 10
+      contentType: json
+      disableHTTP2: false
+      maxRetries: 0
+      requests:
+        # 30% GET — fetch one specific pre-populated ConfigMap
+        - staleGet:
+            version: v1
+            resource: configmaps
+            namespace: kperf
+            name: runkperf-cm-mixed-0
+          shares: 30
+        # 30% LIST — full namespace-wide LIST from watch cache
+        - staleList:
+            version: v1
+            resource: configmaps
+            namespace: kperf
+          shares: 30
+        # 15% PUT — overwrite one of runkperf-cm-mixed-0..999 with a 1KB payload
+        - put:
+            version: v1
+            resource: configmaps
+            namespace: kperf
+            name: runkperf-cm-mixed
+            keySpaceSize: 1000
+            payloadSize: 1024
+          shares: 15
+        # 25% postDel (deleteRatio=0.4) -> ~15% POST + ~10% DELETE on fake pods
+        # with a 1KB env.PAYLOAD.
+        - postDel:
+            version: v1
+            resource: pods
+            namespace: kperf
+            deleteRatio: 0.4
+            payloadSize: 1024
+          shares: 25

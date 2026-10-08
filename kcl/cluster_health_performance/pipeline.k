@@ -28,7 +28,36 @@ schema ClusterConfig:
 WorkloadsDir = "kcl/cluster_health_performance/workloads"
 
 # All scenarios run sequentially on the same cluster.
-WORKLOADS: {str:Scenario} = {}
+WORKLOADS: {str:Scenario} = {
+    "scenario1_get_configmap_c1": Scenario {manifest = "${WorkloadsDir}/scenario1_get_configmap_c1.yaml", size = 1024, count = 1000, name = "get"}
+    "scenario2_get_list_configmap_c1": Scenario {manifest = "${WorkloadsDir}/scenario2_get_list_configmap_c1.yaml", size = 1024, count = 10000, name = "get"}
+    "scenario2_get_list_configmap_c5": Scenario {manifest = "${WorkloadsDir}/scenario2_get_list_configmap_c5.yaml", size = 1024, count = 10000, name = "get"}
+    "scenario2_get_list_configmap_c10": Scenario {manifest = "${WorkloadsDir}/scenario2_get_list_configmap_c10.yaml", size = 1024, count = 10000, name = "get"}
+    "scenario2_get_list_configmap_c50": Scenario {manifest = "${WorkloadsDir}/scenario2_get_list_configmap_c50.yaml", size = 1024, count = 10000, name = "get"}
+    "scenario3_post_put_c1_p1k": Scenario {manifest = "${WorkloadsDir}/scenario3_post_put_c1_p1k.yaml", size = 1024, count = 10000, name = "write"}
+    "scenario3_post_put_c1_p10k": Scenario {manifest = "${WorkloadsDir}/scenario3_post_put_c1_p10k.yaml", size = 10240, count = 10000, name = "write"}
+    "scenario3_post_put_c1_p100k": Scenario {manifest = "${WorkloadsDir}/scenario3_post_put_c1_p100k.yaml", size = 102400, count = 10000, name = "write"}
+    "scenario3_post_put_c10_p1k": Scenario {manifest = "${WorkloadsDir}/scenario3_post_put_c10_p1k.yaml", size = 1024, count = 10000, name = "write"}
+    "scenario3_post_put_c10_p10k": Scenario {manifest = "${WorkloadsDir}/scenario3_post_put_c10_p10k.yaml", size = 10240, count = 10000, name = "write"}
+    "scenario3_post_put_c10_p100k": Scenario {manifest = "${WorkloadsDir}/scenario3_post_put_c10_p100k.yaml", size = 102400, count = 10000, name = "write"}
+    "scenario3_post_put_c50_p1k": Scenario {manifest = "${WorkloadsDir}/scenario3_post_put_c50_p1k.yaml", size = 1024, count = 10000, name = "write"}
+    "scenario3_post_put_c50_p10k": Scenario {manifest = "${WorkloadsDir}/scenario3_post_put_c50_p10k.yaml", size = 10240, count = 10000, name = "write"}
+    "scenario3_post_put_c50_p100k": Scenario {manifest = "${WorkloadsDir}/scenario3_post_put_c50_p100k.yaml", size = 102400, count = 10000, name = "write"}
+    "scenario4_list_configmap_n100_p1k": Scenario {manifest = "${WorkloadsDir}/scenario4_list_configmap_n100_p1k.yaml", size = 1024, count = 100, name = "list"}
+    "scenario4_list_configmap_n100_p10k": Scenario {manifest = "${WorkloadsDir}/scenario4_list_configmap_n100_p10k.yaml", size = 10240, count = 100, name = "list"}
+    "scenario4_list_configmap_n100_p100k": Scenario {manifest = "${WorkloadsDir}/scenario4_list_configmap_n100_p100k.yaml", size = 102400, count = 100, name = "list"}
+    "scenario4_list_configmap_n1000_p1k": Scenario {manifest = "${WorkloadsDir}/scenario4_list_configmap_n1000_p1k.yaml", size = 1024, count = 1000, name = "list"}
+    "scenario4_list_configmap_n1000_p10k": Scenario {manifest = "${WorkloadsDir}/scenario4_list_configmap_n1000_p10k.yaml", size = 10240, count = 1000, name = "list"}
+    "scenario4_list_configmap_n1000_p100k": Scenario {manifest = "${WorkloadsDir}/scenario4_list_configmap_n1000_p100k.yaml", size = 102400, count = 1000, name = "list"}
+    "scenario4_list_configmap_n10000_p1k": Scenario {manifest = "${WorkloadsDir}/scenario4_list_configmap_n10000_p1k.yaml", size = 1024, count = 10000, name = "list"}
+    "scenario4_list_configmap_n10000_p10k": Scenario {manifest = "${WorkloadsDir}/scenario4_list_configmap_n10000_p10k.yaml", size = 10240, count = 10000, name = "list"}
+    "scenario4_list_configmap_n10000_p100k": Scenario {manifest = "${WorkloadsDir}/scenario4_list_configmap_n10000_p100k.yaml", size = 102400, count = 10000, name = "list"}
+    "scenario5_mixed_c10_p1k": Scenario {manifest = "${WorkloadsDir}/scenario5_mixed_c10_p1k.yaml", size = 1024, count = 1000, name = "mixed"}
+    "scenario5_mixed_c10_p10k": Scenario {manifest = "${WorkloadsDir}/scenario5_mixed_c10_p10k.yaml", size = 1024, count = 1000, name = "mixed"}
+    # scenario6: GetPodLog against loggers pre-applied via preApply. No CM ingest.
+    "scenario6_getpodlog_c20": Scenario {manifest = "${WorkloadsDir}/scenario6_getpodlog_c20.yaml", preApply = "${WorkloadsDir}/scenario6_loggers.yaml", preApplyNamespace = "kperf"}
+    "scenario6_getpodlog_c25": Scenario {manifest = "${WorkloadsDir}/scenario6_getpodlog_c25.yaml", preApply = "${WorkloadsDir}/scenario6_loggers.yaml", preApplyNamespace = "kperf"}
+}
 
 CLUSTER_NAME = "underlay-validation"
 KUBERNETES_VERSION = "\${{ parameters.kubernetes_version }}"
@@ -114,9 +143,10 @@ az aks create \\
             health.ValidateCsiNode(const.DEFAULT_SERVICE_CONNECTION, "managed-csi")
             health.ValidateCsiNode(const.DEFAULT_SERVICE_CONNECTION, "azurefile-csi")
             health.ValidateClusterIPService(const.DEFAULT_SERVICE_CONNECTION)
+
+            # Run kperf performance workloads.
             kperf.InstallRunkperf("ghcr.io/azure/kperf:0.3.6")
-            # Per-scenario: setup -> ingest -> run -> fetch -> cleanup.
-            # Expand the generated scenario steps into this job's steps list.
+            # Expand each scenario into setup, ingest, run, fetch, and cleanup steps.
             *[step for name, s in WORKLOADS for step in [
                 # preApply (scenario6): apply loggers, wait Ready.
                 steps.Script {
@@ -132,8 +162,8 @@ fi
                 }
                 kperf.RunKperfDataIngest("cm", "kperf", s.name, total=s.count, qps=50, burst=50, size=s.size, groupSize=50, batchSize=s.count)
                 kperf.RunKperfRunnerGroup("ghcr.io/xinweiwei24/kperf:20260709-pause", "file://$(Pipeline.Workspace)/s/${s.manifest}", affinity="agentpool=runner")
-                # `kperf rg result` polled after a fixed sleep to avoid the
-                # long-lived port-forward that EOFs on the ADO agent.
+
+                # Poll `kperf rg result` after a fixed sleep to avoid the long-lived port-forward that EOFs on the ADO agent.
                 steps.Script {
                     displayName = "Fetch kperf runner group result (${name})"
                     continueOnError = True
@@ -152,9 +182,7 @@ until kperf rg result | tee "/tmp/kperf-result-${name}.json"; do
 done
 """
                 }
-                kperf.CollectKperfResult("", "", CLUSTER_NAME, "$(RUN_ID)", SUBSCRIPTION_ID, const.DEFAULT_SERVICE_CONNECTION, inputPath="/tmp/kperf-result-${name}.json", outputPath="/tmp/run-result-${name}.json")
-                # Delete the namespace to remove ingested data, fake pods,
-                # and loggers. The next setup or ingest step recreates it.
+                # Delete the namespace before the next scenario recreates it.
                 steps.Script {
                     displayName = "Cleanup scenario state (${name})"
                     continueOnError = True
@@ -166,8 +194,17 @@ kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
 """
                 }
             ]]
-            # Run one health check after all scenarios complete.
-            health.ValidateWorkloadHealth(const.DEFAULT_SERVICE_CONNECTION, kind="*", namespace="kube-system", continueOnError=True)
+            # Run health checks after all scenarios complete.
+            health.ValidateWorkloadHealth(const.DEFAULT_SERVICE_CONNECTION, kind="*", namespace="kube-system")
+            health.ValidateCoreDNS(const.DEFAULT_SERVICE_CONNECTION)
+            health.ValidateMetricsServer(const.DEFAULT_SERVICE_CONNECTION)
+            health.ValidateKonnectivityAgent(const.DEFAULT_SERVICE_CONNECTION)
+            health.ValidateAzureCNS(const.DEFAULT_SERVICE_CONNECTION)
+            health.ValidateCloudNodeManager(const.DEFAULT_SERVICE_CONNECTION)
+            health.ValidateCsiNode(const.DEFAULT_SERVICE_CONNECTION, "managed-csi")
+            health.ValidateCsiNode(const.DEFAULT_SERVICE_CONNECTION, "azurefile-csi")
+            health.ValidateClusterIPService(const.DEFAULT_SERVICE_CONNECTION)
+
             # Always tear down the resource group at the end.
             azure.DeleteResourceGroup(const.DEFAULT_SERVICE_CONNECTION, "$(RUN_ID)", SUBSCRIPTION_ID, condition="always()")
         ]

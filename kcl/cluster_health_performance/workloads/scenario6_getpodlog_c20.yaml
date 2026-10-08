@@ -1,0 +1,48 @@
+# count: number of runner pods = actual concurrent client count for the test.
+count: 20
+loadProfile:
+  version: 1
+  description: "Scenario 6 / clients=20 — GetPodLog against 6 pods (3x slow=1 log/s, 3x fast=10 logs/s), 100 req/s per runner for 600s"
+  # Setup assumption (NOT enforced by this profile):
+  #   kubectl apply -f contrib/internal/manifests/loadprofile/scenario6_loggers.yaml
+  #   kubectl -n kperf wait --for=condition=Ready pod --all --timeout=120s
+  specs:
+    - rate: 100
+      duration: 600
+      # Need at least 5 clients to reach 100 QPS (Little's Law); 10 for headroom.
+      conns: 10
+      client: 10
+      contentType: json
+      disableHTTP2: false
+      maxRetries: 0
+      requests:
+        - getPodLog:
+            namespace: kperf
+            name: logger-slow-0
+            container: logger
+          shares: 1
+        - getPodLog:
+            namespace: kperf
+            name: logger-slow-1
+            container: logger
+          shares: 1
+        - getPodLog:
+            namespace: kperf
+            name: logger-slow-2
+            container: logger
+          shares: 1
+        - getPodLog:
+            namespace: kperf
+            name: logger-fast-0
+            container: logger
+          shares: 1
+        - getPodLog:
+            namespace: kperf
+            name: logger-fast-1
+            container: logger
+          shares: 1
+        - getPodLog:
+            namespace: kperf
+            name: logger-fast-2
+            container: logger
+          shares: 1

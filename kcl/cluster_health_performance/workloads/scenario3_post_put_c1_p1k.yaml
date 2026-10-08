@@ -1,0 +1,40 @@
+# count: number of runner pods = actual concurrent client count for the test.
+count: 1
+loadProfile:
+  version: 1
+  description: "Scenario 3 / clients=1 / payload=1KB — POST(pods) + PUT(configmaps), equal shares, 100 req/s per runner for 600s"
+  # Setup assumption (NOT enforced by this profile):
+  #   Pre-populate 10000 ConfigMaps for the PUT half:
+  #     runkperf data cm add --namespace default --size 1024 --total 10000 write
+  #     -> objects named runkperf-cm-write-0 ... runkperf-cm-write-9999
+  #   POST creates fake pods on the fly (deleteRatio=0 keeps them around).
+  #   After the run, clean up with:
+  #     kubectl -n default delete pod -l app=fake-pod
+  #     runkperf data cm delete write
+  specs:
+    - rate: 100
+      total: 25000
+      # Need at least 5 clients to reach 100 QPS (Little's Law); 10 for headroom.
+      conns: 10
+      client: 10
+      contentType: json
+      disableHTTP2: false
+      maxRetries: 0
+      requests:
+        # POST (create) — fake pods, each carrying ~1KB random bytes in env.PAYLOAD.
+        - postDel:
+            version: v1
+            resource: pods
+            namespace: kperf
+            deleteRatio: 0
+            payloadSize: 1024
+          shares: 1
+        # PUT (update) — overwrite a random pre-populated ConfigMap with ~1KB payload.
+        - put:
+            version: v1
+            resource: configmaps
+            namespace: kperf
+            name: runkperf-cm-write
+            keySpaceSize: 10000
+            payloadSize: 1024
+          shares: 1
