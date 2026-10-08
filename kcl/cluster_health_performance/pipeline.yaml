@@ -727,6 +727,152 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+          # AzCli wraps this script with `set -exo pipefail`. Disable xtrace here so
+          # tracing an assignment like `log_output=$(kubectl logs ...)` doesn't dump
+          # the full captured log to stdout. Also disable errexit so we can accumulate
+          # failures and report them at the end.
+          set +ex
+
+          failures=0
+          fail() { echo "FAILED WORKLOAD CHECK: $*"; failures=$((failures + 1)); }
+
+          # check_controllers KIND DESIRED_PATH READY_PATH [NAME]
+          # If NAME is given, check just that one; otherwise check every instance of KIND.
+          check_controllers() {
+            local kind=$1 desired_path=$2 ready_path=$3 name=$4
+            local names
+            if [ -n "$name" ]; then
+              names="$name"
+            else
+              names=$(kubectl -n "kube-system" get "$kind" -o jsonpath='{.items[*].metadata.name}')
+            fi
+            local n
+            for n in $names; do
+              # Probe existence first so a missing object / API error fails loudly
+              # instead of silently defaulting desired/ready to 0.
+              if ! kubectl -n "kube-system" get "$kind" "$n" -o name >/dev/null 2>&1; then
+                fail "$kind kube-system/$n: cannot read resource (missing or kubectl error)"
+                continue
+              fi
+              local desired=$(kubectl -n "kube-system" get "$kind" "$n" -o jsonpath="$desired_path")
+              local ready=$(kubectl -n "kube-system" get "$kind" "$n" -o jsonpath="$ready_path")
+              [ -z "$ready" ] && ready=0
+              [ -z "$desired" ] && desired=0
+              echo "$kind kube-system/$n: ready=$ready desired=$desired"
+              if [ "$ready" != "$desired" ]; then
+                fail "$kind kube-system/$n not fully ready ($ready/$desired)"
+              fi
+            done
+          }
+
+          # check_pods PODS_JSON_FILE
+          # PODS_JSON_FILE is a file holding a `kubectl get pods -o json` document with
+          # exactly the pods to check. For each: status is Running (Ready condition True,
+          # all containers ready) or Succeeded, then scan its logs for errorPatterns.
+          # Every field is read from the file, so the pod view is a single consistent
+          # snapshot the caller fetched in one API call. Fails if the file has no pods.
+          check_pods() {
+            local pods_file=$1
+            local names=$(jq -r '.items[].metadata.name' "$pods_file")
+            if [ -z "$names" ]; then
+              fail "no pods found for all workloads in kube-system"
+              return
+            fi
+            local pod
+            for pod in $names; do
+              echo "::: checking pod kube-system/$pod"
+              local pod_json=$(jq -c --arg n "$pod" '.items[] | select(.metadata.name==$n)' "$pods_file")
+              local phase=$(printf '%s' "$pod_json" | jq -r '.status.phase // ""')
+              case "$phase" in
+                Succeeded)
+                  # Finished cleanly; skip readiness checks, still scan logs below.
+                  ;;
+                Running)
+                  local ready_cond=$(printf '%s' "$pod_json" \
+                    | jq -r '.status.conditions[]? | select(.type=="Ready") | .status')
+                  if [ "$ready_cond" != "True" ]; then
+                    fail "pod kube-system/$pod Ready condition=$ready_cond (expected True)"
+                    continue
+                  fi
+                  local not_ready=$(printf '%s' "$pod_json" \
+                    | jq -r '[.status.containerStatuses[]? | select(.ready==false) | .name] | join(" ")')
+                  if [ -n "$not_ready" ]; then
+                    fail "pod kube-system/$pod has not-ready containers: $not_ready"
+                    continue
+                  fi
+                  ;;
+                *)
+                  fail "pod kube-system/$pod phase=$phase (expected Running or Succeeded)"
+                  continue
+                  ;;
+              esac
+              local log_output=$(kubectl -n "kube-system" logs "$pod" --all-containers=true --prefix=true 2>&1)
+              local matches=$(printf '%s\n' "$log_output" | grep -wEi 'panic|fatal')
+              if [ -n "$matches" ]; then
+                echo "--- error lines in kube-system/$pod ---"
+                printf '%s\n' "$matches"
+                echo "--- end ---"
+                fail "pod kube-system/$pod logs contain error pattern"
+              fi
+            done
+          }
+
+          # check_controller_pods KIND NAME
+          # Resolve the controller's pods via its matchLabels and scan them.
+          check_controller_pods() {
+            local kind=$1 name=$2
+            local selector=$(kubectl -n "kube-system" get "$kind" "$name" \
+              -o go-template='{{range $k,$v := .spec.selector.matchLabels}}{{$k}}={{$v}},{{end}}' \
+              | sed 's/,$//')
+            if [ -z "$selector" ]; then
+              fail "$kind kube-system/$name has no matchLabels selector (matchExpressions not supported)"
+              return
+            fi
+            # Dump only this controller's pods (label-filtered) to a file in one call,
+            # then let check_pods read it back (avoids passing a huge JSON blob as an arg).
+            kubectl -n "kube-system" get pods -l "$selector" -o json > "$PODS_JSON_FILE"
+            check_pods "$PODS_JSON_FILE"
+          }
+
+          # Reusable temp file for the pods snapshot: each check below writes only the
+          # pods it needs into it, then reads back from the file. Using a file avoids
+          # passing a potentially huge JSON blob through shell command substitution.
+          PODS_JSON_FILE=$(mktemp)
+          trap 'rm -f "$PODS_JSON_FILE"' EXIT
+
+          case "*" in
+            "*")
+              check_controllers deployment  '{.spec.replicas}'                 '{.status.readyReplicas}'
+              check_controllers statefulset '{.spec.replicas}'                 '{.status.readyReplicas}'
+              check_controllers daemonset   '{.status.desiredNumberScheduled}' '{.status.numberReady}'
+              # Wildcard genuinely needs every pod in the namespace.
+              kubectl -n "kube-system" get pods -o json > "$PODS_JSON_FILE"
+              check_pods "$PODS_JSON_FILE"
+              ;;
+            deployment|statefulset)
+              check_controllers "*" '{.spec.replicas}' '{.status.readyReplicas}' ""
+              check_controller_pods "*" ""
+              ;;
+            daemonset)
+              check_controllers daemonset '{.status.desiredNumberScheduled}' '{.status.numberReady}' ""
+              check_controller_pods "*" ""
+              ;;
+          esac
+
+          if [ "$failures" -gt 0 ]; then
+            echo "Validation failed with $failures error(s) for all workloads in kube-system"
+            exit 1
+          fi
+          echo "Validation passed for all workloads in kube-system"
+      continueOnError: true
+      displayName: Validate all workloads in kube-system
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
           az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
       condition: always()
       displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
@@ -1434,6 +1580,152 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+          # AzCli wraps this script with `set -exo pipefail`. Disable xtrace here so
+          # tracing an assignment like `log_output=$(kubectl logs ...)` doesn't dump
+          # the full captured log to stdout. Also disable errexit so we can accumulate
+          # failures and report them at the end.
+          set +ex
+
+          failures=0
+          fail() { echo "FAILED WORKLOAD CHECK: $*"; failures=$((failures + 1)); }
+
+          # check_controllers KIND DESIRED_PATH READY_PATH [NAME]
+          # If NAME is given, check just that one; otherwise check every instance of KIND.
+          check_controllers() {
+            local kind=$1 desired_path=$2 ready_path=$3 name=$4
+            local names
+            if [ -n "$name" ]; then
+              names="$name"
+            else
+              names=$(kubectl -n "kube-system" get "$kind" -o jsonpath='{.items[*].metadata.name}')
+            fi
+            local n
+            for n in $names; do
+              # Probe existence first so a missing object / API error fails loudly
+              # instead of silently defaulting desired/ready to 0.
+              if ! kubectl -n "kube-system" get "$kind" "$n" -o name >/dev/null 2>&1; then
+                fail "$kind kube-system/$n: cannot read resource (missing or kubectl error)"
+                continue
+              fi
+              local desired=$(kubectl -n "kube-system" get "$kind" "$n" -o jsonpath="$desired_path")
+              local ready=$(kubectl -n "kube-system" get "$kind" "$n" -o jsonpath="$ready_path")
+              [ -z "$ready" ] && ready=0
+              [ -z "$desired" ] && desired=0
+              echo "$kind kube-system/$n: ready=$ready desired=$desired"
+              if [ "$ready" != "$desired" ]; then
+                fail "$kind kube-system/$n not fully ready ($ready/$desired)"
+              fi
+            done
+          }
+
+          # check_pods PODS_JSON_FILE
+          # PODS_JSON_FILE is a file holding a `kubectl get pods -o json` document with
+          # exactly the pods to check. For each: status is Running (Ready condition True,
+          # all containers ready) or Succeeded, then scan its logs for errorPatterns.
+          # Every field is read from the file, so the pod view is a single consistent
+          # snapshot the caller fetched in one API call. Fails if the file has no pods.
+          check_pods() {
+            local pods_file=$1
+            local names=$(jq -r '.items[].metadata.name' "$pods_file")
+            if [ -z "$names" ]; then
+              fail "no pods found for all workloads in kube-system"
+              return
+            fi
+            local pod
+            for pod in $names; do
+              echo "::: checking pod kube-system/$pod"
+              local pod_json=$(jq -c --arg n "$pod" '.items[] | select(.metadata.name==$n)' "$pods_file")
+              local phase=$(printf '%s' "$pod_json" | jq -r '.status.phase // ""')
+              case "$phase" in
+                Succeeded)
+                  # Finished cleanly; skip readiness checks, still scan logs below.
+                  ;;
+                Running)
+                  local ready_cond=$(printf '%s' "$pod_json" \
+                    | jq -r '.status.conditions[]? | select(.type=="Ready") | .status')
+                  if [ "$ready_cond" != "True" ]; then
+                    fail "pod kube-system/$pod Ready condition=$ready_cond (expected True)"
+                    continue
+                  fi
+                  local not_ready=$(printf '%s' "$pod_json" \
+                    | jq -r '[.status.containerStatuses[]? | select(.ready==false) | .name] | join(" ")')
+                  if [ -n "$not_ready" ]; then
+                    fail "pod kube-system/$pod has not-ready containers: $not_ready"
+                    continue
+                  fi
+                  ;;
+                *)
+                  fail "pod kube-system/$pod phase=$phase (expected Running or Succeeded)"
+                  continue
+                  ;;
+              esac
+              local log_output=$(kubectl -n "kube-system" logs "$pod" --all-containers=true --prefix=true 2>&1)
+              local matches=$(printf '%s\n' "$log_output" | grep -wEi 'panic|fatal')
+              if [ -n "$matches" ]; then
+                echo "--- error lines in kube-system/$pod ---"
+                printf '%s\n' "$matches"
+                echo "--- end ---"
+                fail "pod kube-system/$pod logs contain error pattern"
+              fi
+            done
+          }
+
+          # check_controller_pods KIND NAME
+          # Resolve the controller's pods via its matchLabels and scan them.
+          check_controller_pods() {
+            local kind=$1 name=$2
+            local selector=$(kubectl -n "kube-system" get "$kind" "$name" \
+              -o go-template='{{range $k,$v := .spec.selector.matchLabels}}{{$k}}={{$v}},{{end}}' \
+              | sed 's/,$//')
+            if [ -z "$selector" ]; then
+              fail "$kind kube-system/$name has no matchLabels selector (matchExpressions not supported)"
+              return
+            fi
+            # Dump only this controller's pods (label-filtered) to a file in one call,
+            # then let check_pods read it back (avoids passing a huge JSON blob as an arg).
+            kubectl -n "kube-system" get pods -l "$selector" -o json > "$PODS_JSON_FILE"
+            check_pods "$PODS_JSON_FILE"
+          }
+
+          # Reusable temp file for the pods snapshot: each check below writes only the
+          # pods it needs into it, then reads back from the file. Using a file avoids
+          # passing a potentially huge JSON blob through shell command substitution.
+          PODS_JSON_FILE=$(mktemp)
+          trap 'rm -f "$PODS_JSON_FILE"' EXIT
+
+          case "*" in
+            "*")
+              check_controllers deployment  '{.spec.replicas}'                 '{.status.readyReplicas}'
+              check_controllers statefulset '{.spec.replicas}'                 '{.status.readyReplicas}'
+              check_controllers daemonset   '{.status.desiredNumberScheduled}' '{.status.numberReady}'
+              # Wildcard genuinely needs every pod in the namespace.
+              kubectl -n "kube-system" get pods -o json > "$PODS_JSON_FILE"
+              check_pods "$PODS_JSON_FILE"
+              ;;
+            deployment|statefulset)
+              check_controllers "*" '{.spec.replicas}' '{.status.readyReplicas}' ""
+              check_controller_pods "*" ""
+              ;;
+            daemonset)
+              check_controllers daemonset '{.status.desiredNumberScheduled}' '{.status.numberReady}' ""
+              check_controller_pods "*" ""
+              ;;
+          esac
+
+          if [ "$failures" -gt 0 ]; then
+            echo "Validation failed with $failures error(s) for all workloads in kube-system"
+            exit 1
+          fi
+          echo "Validation passed for all workloads in kube-system"
+      continueOnError: true
+      displayName: Validate all workloads in kube-system
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
           az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
       condition: always()
       displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
@@ -2134,6 +2426,152 @@ stages:
         rm -rf $temp_dir
         docker rmi ghcr.io/azure/kperf:0.3.6 2>/dev/null || true
       displayName: Install runkperf binary
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          # AzCli wraps this script with `set -exo pipefail`. Disable xtrace here so
+          # tracing an assignment like `log_output=$(kubectl logs ...)` doesn't dump
+          # the full captured log to stdout. Also disable errexit so we can accumulate
+          # failures and report them at the end.
+          set +ex
+
+          failures=0
+          fail() { echo "FAILED WORKLOAD CHECK: $*"; failures=$((failures + 1)); }
+
+          # check_controllers KIND DESIRED_PATH READY_PATH [NAME]
+          # If NAME is given, check just that one; otherwise check every instance of KIND.
+          check_controllers() {
+            local kind=$1 desired_path=$2 ready_path=$3 name=$4
+            local names
+            if [ -n "$name" ]; then
+              names="$name"
+            else
+              names=$(kubectl -n "kube-system" get "$kind" -o jsonpath='{.items[*].metadata.name}')
+            fi
+            local n
+            for n in $names; do
+              # Probe existence first so a missing object / API error fails loudly
+              # instead of silently defaulting desired/ready to 0.
+              if ! kubectl -n "kube-system" get "$kind" "$n" -o name >/dev/null 2>&1; then
+                fail "$kind kube-system/$n: cannot read resource (missing or kubectl error)"
+                continue
+              fi
+              local desired=$(kubectl -n "kube-system" get "$kind" "$n" -o jsonpath="$desired_path")
+              local ready=$(kubectl -n "kube-system" get "$kind" "$n" -o jsonpath="$ready_path")
+              [ -z "$ready" ] && ready=0
+              [ -z "$desired" ] && desired=0
+              echo "$kind kube-system/$n: ready=$ready desired=$desired"
+              if [ "$ready" != "$desired" ]; then
+                fail "$kind kube-system/$n not fully ready ($ready/$desired)"
+              fi
+            done
+          }
+
+          # check_pods PODS_JSON_FILE
+          # PODS_JSON_FILE is a file holding a `kubectl get pods -o json` document with
+          # exactly the pods to check. For each: status is Running (Ready condition True,
+          # all containers ready) or Succeeded, then scan its logs for errorPatterns.
+          # Every field is read from the file, so the pod view is a single consistent
+          # snapshot the caller fetched in one API call. Fails if the file has no pods.
+          check_pods() {
+            local pods_file=$1
+            local names=$(jq -r '.items[].metadata.name' "$pods_file")
+            if [ -z "$names" ]; then
+              fail "no pods found for all workloads in kube-system"
+              return
+            fi
+            local pod
+            for pod in $names; do
+              echo "::: checking pod kube-system/$pod"
+              local pod_json=$(jq -c --arg n "$pod" '.items[] | select(.metadata.name==$n)' "$pods_file")
+              local phase=$(printf '%s' "$pod_json" | jq -r '.status.phase // ""')
+              case "$phase" in
+                Succeeded)
+                  # Finished cleanly; skip readiness checks, still scan logs below.
+                  ;;
+                Running)
+                  local ready_cond=$(printf '%s' "$pod_json" \
+                    | jq -r '.status.conditions[]? | select(.type=="Ready") | .status')
+                  if [ "$ready_cond" != "True" ]; then
+                    fail "pod kube-system/$pod Ready condition=$ready_cond (expected True)"
+                    continue
+                  fi
+                  local not_ready=$(printf '%s' "$pod_json" \
+                    | jq -r '[.status.containerStatuses[]? | select(.ready==false) | .name] | join(" ")')
+                  if [ -n "$not_ready" ]; then
+                    fail "pod kube-system/$pod has not-ready containers: $not_ready"
+                    continue
+                  fi
+                  ;;
+                *)
+                  fail "pod kube-system/$pod phase=$phase (expected Running or Succeeded)"
+                  continue
+                  ;;
+              esac
+              local log_output=$(kubectl -n "kube-system" logs "$pod" --all-containers=true --prefix=true 2>&1)
+              local matches=$(printf '%s\n' "$log_output" | grep -wEi 'panic|fatal')
+              if [ -n "$matches" ]; then
+                echo "--- error lines in kube-system/$pod ---"
+                printf '%s\n' "$matches"
+                echo "--- end ---"
+                fail "pod kube-system/$pod logs contain error pattern"
+              fi
+            done
+          }
+
+          # check_controller_pods KIND NAME
+          # Resolve the controller's pods via its matchLabels and scan them.
+          check_controller_pods() {
+            local kind=$1 name=$2
+            local selector=$(kubectl -n "kube-system" get "$kind" "$name" \
+              -o go-template='{{range $k,$v := .spec.selector.matchLabels}}{{$k}}={{$v}},{{end}}' \
+              | sed 's/,$//')
+            if [ -z "$selector" ]; then
+              fail "$kind kube-system/$name has no matchLabels selector (matchExpressions not supported)"
+              return
+            fi
+            # Dump only this controller's pods (label-filtered) to a file in one call,
+            # then let check_pods read it back (avoids passing a huge JSON blob as an arg).
+            kubectl -n "kube-system" get pods -l "$selector" -o json > "$PODS_JSON_FILE"
+            check_pods "$PODS_JSON_FILE"
+          }
+
+          # Reusable temp file for the pods snapshot: each check below writes only the
+          # pods it needs into it, then reads back from the file. Using a file avoids
+          # passing a potentially huge JSON blob through shell command substitution.
+          PODS_JSON_FILE=$(mktemp)
+          trap 'rm -f "$PODS_JSON_FILE"' EXIT
+
+          case "*" in
+            "*")
+              check_controllers deployment  '{.spec.replicas}'                 '{.status.readyReplicas}'
+              check_controllers statefulset '{.spec.replicas}'                 '{.status.readyReplicas}'
+              check_controllers daemonset   '{.status.desiredNumberScheduled}' '{.status.numberReady}'
+              # Wildcard genuinely needs every pod in the namespace.
+              kubectl -n "kube-system" get pods -o json > "$PODS_JSON_FILE"
+              check_pods "$PODS_JSON_FILE"
+              ;;
+            deployment|statefulset)
+              check_controllers "*" '{.spec.replicas}' '{.status.readyReplicas}' ""
+              check_controller_pods "*" ""
+              ;;
+            daemonset)
+              check_controllers daemonset '{.status.desiredNumberScheduled}' '{.status.numberReady}' ""
+              check_controller_pods "*" ""
+              ;;
+          esac
+
+          if [ "$failures" -gt 0 ]; then
+            echo "Validation failed with $failures error(s) for all workloads in kube-system"
+            exit 1
+          fi
+          echo "Validation passed for all workloads in kube-system"
+      continueOnError: true
+      displayName: Validate all workloads in kube-system
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
