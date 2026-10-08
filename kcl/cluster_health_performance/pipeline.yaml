@@ -30,8 +30,7 @@ stages:
     displayName: Validate underlay
     timeoutInMinutes: 600
     steps:
-    - bash: |2
-
+    - bash: |
         set -eo pipefail
 
         job_id="$(System.JobId)"
@@ -47,7 +46,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
           az config set defaults.location="westus2"
           az account show
@@ -59,7 +57,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |+
           set -exo pipefail
-
           az group create \
             --name "$(RUN_ID)" \
             --location "westus2" \
@@ -73,7 +70,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az extension add --name aks-preview --version 20.0.0b6 --allow-preview true --upgrade --yes
 
           EXTRA_ARGS=""
@@ -108,7 +104,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           deadline=$(($(date +%s) + 600))
           sleep_between=30
           attempt=0
@@ -152,7 +147,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           deadline=$(($(date +%s) + 600))
           sleep_between=30
           attempt=0
@@ -196,7 +190,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az aks get-credentials \
             --name "underlay-validation" \
             --resource-group "$(RUN_ID)" \
@@ -210,7 +203,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           # AzCli wraps this script with `set -exo pipefail`. Disable xtrace here so
           # tracing an assignment like `log_output=$(kubectl logs ...)` doesn't dump
           # the full captured log to stdout. Also disable errexit so we can accumulate
@@ -357,7 +349,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           set +e
 
           pod="aks-validation-dns-$RANDOM"
@@ -379,7 +370,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           set +e
           failures=0
           fail() { echo "FAILED METRICS-SERVER CHECK: $*"; failures=$((failures + 1)); }
@@ -418,7 +408,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           set +e
           pod="aks-validation-konnectivity-$RANDOM"
           trap 'kubectl delete pod "$pod" --ignore-not-found >/dev/null 2>&1' EXIT
@@ -445,7 +434,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           set +e
 
           pod="aks-validation-cns-$RANDOM"
@@ -469,7 +457,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           set +e
 
           # cloud-node-manager's job is to stamp each Node with a providerID; verify that
@@ -501,7 +488,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           set +e
 
           suffix=$RANDOM
@@ -580,7 +566,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           set +e
 
           suffix=$RANDOM
@@ -659,7 +644,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           fail() { echo "FAILED CLUSTERIP CHECK: $*"; exit 1; }
 
           # ClusterIP reachability: deploy a service + backend and reach it from within
@@ -722,8 +706,7 @@ stages:
           echo "ClusterIP service validation passed"
       continueOnError: true
       displayName: Validate ClusterIP service routing
-    - script: |2
-
+    - script: |
         set -euo pipefail
         set -x
 
@@ -744,7 +727,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
       condition: always()
       displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
@@ -755,8 +737,7 @@ stages:
     displayName: Validate underlay
     timeoutInMinutes: 600
     steps:
-    - bash: |2
-
+    - bash: |
         set -eo pipefail
 
         job_id="$(System.JobId)"
@@ -772,7 +753,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
           az config set defaults.location="westus2"
           az account show
@@ -784,7 +764,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |+
           set -exo pipefail
-
           az group create \
             --name "$(RUN_ID)" \
             --location "westus2" \
@@ -798,7 +777,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az extension add --name aks-preview --version 20.0.0b6 --allow-preview true --upgrade --yes
 
           EXTRA_ARGS=""
@@ -833,7 +811,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           deadline=$(($(date +%s) + 600))
           sleep_between=30
           attempt=0
@@ -877,7 +854,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           deadline=$(($(date +%s) + 600))
           sleep_between=30
           attempt=0
@@ -921,7 +897,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az aks get-credentials \
             --name "underlay-validation" \
             --resource-group "$(RUN_ID)" \
@@ -935,7 +910,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           # AzCli wraps this script with `set -exo pipefail`. Disable xtrace here so
           # tracing an assignment like `log_output=$(kubectl logs ...)` doesn't dump
           # the full captured log to stdout. Also disable errexit so we can accumulate
@@ -1082,7 +1056,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           set +e
 
           pod="aks-validation-dns-$RANDOM"
@@ -1104,7 +1077,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           set +e
           failures=0
           fail() { echo "FAILED METRICS-SERVER CHECK: $*"; failures=$((failures + 1)); }
@@ -1143,7 +1115,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           set +e
           pod="aks-validation-konnectivity-$RANDOM"
           trap 'kubectl delete pod "$pod" --ignore-not-found >/dev/null 2>&1' EXIT
@@ -1170,7 +1141,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           set +e
 
           pod="aks-validation-cns-$RANDOM"
@@ -1194,7 +1164,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           set +e
 
           # cloud-node-manager's job is to stamp each Node with a providerID; verify that
@@ -1226,7 +1195,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           set +e
 
           suffix=$RANDOM
@@ -1305,7 +1273,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           set +e
 
           suffix=$RANDOM
@@ -1384,7 +1351,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           fail() { echo "FAILED CLUSTERIP CHECK: $*"; exit 1; }
 
           # ClusterIP reachability: deploy a service + backend and reach it from within
@@ -1447,8 +1413,7 @@ stages:
           echo "ClusterIP service validation passed"
       continueOnError: true
       displayName: Validate ClusterIP service routing
-    - script: |2
-
+    - script: |
         set -euo pipefail
         set -x
 
@@ -1469,7 +1434,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
       condition: always()
       displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
@@ -1480,8 +1444,7 @@ stages:
     displayName: Validate underlay
     timeoutInMinutes: 600
     steps:
-    - bash: |2
-
+    - bash: |
         set -eo pipefail
 
         job_id="$(System.JobId)"
@@ -1497,7 +1460,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
           az config set defaults.location="${{ parameters.custom_region }}"
           az account show
@@ -1509,7 +1471,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |+
           set -exo pipefail
-
           az group create \
             --name "$(RUN_ID)" \
             --location "${{ parameters.custom_region }}" \
@@ -1523,7 +1484,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az extension add --name aks-preview --version 20.0.0b6 --allow-preview true --upgrade --yes
 
           EXTRA_ARGS=""
@@ -1558,7 +1518,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           deadline=$(($(date +%s) + 600))
           sleep_between=30
           attempt=0
@@ -1602,7 +1561,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           deadline=$(($(date +%s) + 600))
           sleep_between=30
           attempt=0
@@ -1646,7 +1604,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az aks get-credentials \
             --name "underlay-validation" \
             --resource-group "$(RUN_ID)" \
@@ -1660,7 +1617,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           # AzCli wraps this script with `set -exo pipefail`. Disable xtrace here so
           # tracing an assignment like `log_output=$(kubectl logs ...)` doesn't dump
           # the full captured log to stdout. Also disable errexit so we can accumulate
@@ -1807,7 +1763,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           set +e
 
           pod="aks-validation-dns-$RANDOM"
@@ -1829,7 +1784,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           set +e
           failures=0
           fail() { echo "FAILED METRICS-SERVER CHECK: $*"; failures=$((failures + 1)); }
@@ -1868,7 +1822,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           set +e
           pod="aks-validation-konnectivity-$RANDOM"
           trap 'kubectl delete pod "$pod" --ignore-not-found >/dev/null 2>&1' EXIT
@@ -1895,7 +1848,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           set +e
 
           pod="aks-validation-cns-$RANDOM"
@@ -1919,7 +1871,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           set +e
 
           # cloud-node-manager's job is to stamp each Node with a providerID; verify that
@@ -1951,7 +1902,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           set +e
 
           suffix=$RANDOM
@@ -2030,7 +1980,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           set +e
 
           suffix=$RANDOM
@@ -2109,7 +2058,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           fail() { echo "FAILED CLUSTERIP CHECK: $*"; exit 1; }
 
           # ClusterIP reachability: deploy a service + backend and reach it from within
@@ -2172,8 +2120,7 @@ stages:
           echo "ClusterIP service validation passed"
       continueOnError: true
       displayName: Validate ClusterIP service routing
-    - script: |2
-
+    - script: |
         set -euo pipefail
         set -x
 
@@ -2194,7 +2141,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
       condition: always()
       displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
