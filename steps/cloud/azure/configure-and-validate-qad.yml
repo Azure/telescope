@@ -1,0 +1,205 @@
+parameters:
+- name: region
+  type: string
+
+steps:
+- script: |
+    set -euo pipefail
+
+    readonly APIVER="2026-07-02-preview"
+    readonly ROLE_NAME="AKS QAD Node Attach Detach"
+    readonly SUB=$(az account show --query id --output tsv)
+    readonly RG="$RUN_ID"
+    readonly REGION="$QAD_REGION"
+
+    CLUSTER=$(az resource list \
+      --resource-group "$RG" \
+      --resource-type Microsoft.ContainerService/managedClusters \
+      --location "$REGION" \
+      --query "[?tags.role == 'client'].name | [0]" \
+      --output tsv)
+    if [[ -z "$CLUSTER" ]]; then
+      echo "##vso[task.logissue type=error;]No QAD AKS cluster with role=client was found in $RG."
+      exit 1
+    fi
+
+    NODE_RG=$(az aks show \
+      --resource-group "$RG" \
+      --name "$CLUSTER" \
+      --query nodeResourceGroup \
+      --output tsv)
+    if [[ -z "$NODE_RG" ]]; then
+      echo "##vso[task.logissue type=error;]AKS cluster $CLUSTER has no node resource group."
+      exit 1
+    fi
+
+    QAD_IDENTITY_NAME="aks-qad-$CLUSTER"
+    QAD_PRINCIPAL_ID=""
+    for attempt in $(seq 1 60); do
+      QAD_PRINCIPAL_ID=$(az identity show \
+        --resource-group "$NODE_RG" \
+        --name "$QAD_IDENTITY_NAME" \
+        --query principalId \
+        --output tsv 2>/dev/null || true)
+      if [[ -n "$QAD_PRINCIPAL_ID" ]]; then
+        break
+      fi
+      echo "Waiting for QAD identity $QAD_IDENTITY_NAME ($attempt/60)"
+      sleep 10
+    done
+    if [[ -z "$QAD_PRINCIPAL_ID" ]]; then
+      echo "##vso[task.logissue type=error;]QAD identity $QAD_IDENTITY_NAME was not available within 10 minutes."
+      exit 1
+    fi
+
+    ROLE_DEF_GUID=$(az role definition list \
+      --name "$ROLE_NAME" \
+      --query "[0].name" \
+      --output tsv)
+    if [[ -z "$ROLE_DEF_GUID" ]]; then
+      role_file=$(mktemp)
+      trap 'rm -f "$role_file"' EXIT
+      jq -n \
+        --arg name "$ROLE_NAME" \
+        --arg scope "/subscriptions/$SUB" \
+        '{
+          Name: $name,
+          Description: "Permissions required by the AKS Quick Attach/Detach managed identity.",
+          Actions: [
+            "Microsoft.Compute/virtualMachines/read",
+            "Microsoft.Compute/virtualMachines/write",
+            "Microsoft.Compute/disks/write",
+            "Microsoft.Compute/virtualMachines/attachDetachDataDisks/action",
+            "Microsoft.Network/networkInterfaces/join/action",
+            "Microsoft.ManagedIdentity/userAssignedIdentities/assign/action",
+            "Microsoft.Compute/virtualMachineScaleSets/write"
+          ],
+          NotActions: [],
+          AssignableScopes: [$scope]
+        }' > "$role_file"
+
+      set +e
+      ROLE_DEF_GUID=$(az role definition create \
+        --role-definition "$role_file" \
+        --query name \
+        --output tsv)
+      create_exit_code=$?
+      set -e
+      if [[ "$create_exit_code" -ne 0 ]]; then
+        ROLE_DEF_GUID=$(az role definition list \
+          --name "$ROLE_NAME" \
+          --query "[0].name" \
+          --output tsv)
+      fi
+    fi
+    if [[ -z "$ROLE_DEF_GUID" ]]; then
+      echo "##vso[task.logissue type=error;]Unable to create or find shared role $ROLE_NAME."
+      exit 1
+    fi
+
+    ROLE_DEF_ID="/subscriptions/$SUB/providers/Microsoft.Authorization/roleDefinitions/$ROLE_DEF_GUID"
+    NODE_RG_SCOPE="/subscriptions/$SUB/resourceGroups/$NODE_RG"
+
+    assignments_url="https://management.azure.com${NODE_RG_SCOPE}/providers/Microsoft.Authorization/roleAssignments?api-version=2022-04-01&\$filter=principalId%20eq%20'$QAD_PRINCIPAL_ID'"
+    assignments=$(az rest --method get --url "$assignments_url" --query value --output json)
+    matching_count=$(jq \
+      --arg role "${ROLE_DEF_ID,,}" \
+      --arg scope "${NODE_RG_SCOPE,,}" \
+      '[.[] | select(
+        (.properties.roleDefinitionId | ascii_downcase) == $role and
+        (.properties.scope | ascii_downcase) == $scope and
+        .properties.principalType == "ServicePrincipal"
+      )] | length' <<< "$assignments")
+
+    if [[ "$matching_count" -eq 0 ]]; then
+      az role assignment create \
+        --assignee-object-id "$QAD_PRINCIPAL_ID" \
+        --assignee-principal-type ServicePrincipal \
+        --role "$ROLE_DEF_ID" \
+        --scope "$NODE_RG_SCOPE" \
+        --output none
+    fi
+
+    assignments=$(az rest --method get --url "$assignments_url" --query value --output json)
+    matching_assignments=$(jq \
+      --arg role "${ROLE_DEF_ID,,}" \
+      --arg scope "${NODE_RG_SCOPE,,}" \
+      '[.[] | select(
+        (.properties.roleDefinitionId | ascii_downcase) == $role and
+        (.properties.scope | ascii_downcase) == $scope and
+        .properties.principalType == "ServicePrincipal"
+      )]' <<< "$assignments")
+    matching_count=$(jq length <<< "$matching_assignments")
+    if [[ "$matching_count" -ne 1 ]]; then
+      echo "##vso[task.logissue type=error;]Expected one QAD role assignment, found $matching_count."
+      jq . <<< "$assignments"
+      exit 1
+    fi
+
+    echo "QAD custom role assignment verified. Waiting 5 minutes for RBAC propagation."
+    sleep 300
+
+    federated_issuer=""
+    cluster_issuer=""
+    for attempt in $(seq 1 60); do
+      federated_issuer=$(az identity federated-credential show \
+        --resource-group "$NODE_RG" \
+        --identity-name "$QAD_IDENTITY_NAME" \
+        --name qadfic \
+        --query issuer \
+        --output tsv 2>/dev/null || true)
+      cluster_url="https://management.azure.com/subscriptions/$SUB/resourceGroups/$RG"
+      cluster_url+="/providers/Microsoft.ContainerService/managedClusters/$CLUSTER?api-version=$APIVER"
+      cluster_issuer=$(az rest \
+        --method get \
+        --url "$cluster_url" \
+        --query properties.oidcIssuerProfile.issuerURL \
+        --output tsv 2>/dev/null || true)
+      if [[ -n "$federated_issuer" && -n "$cluster_issuer" ]]; then
+        break
+      fi
+      echo "Waiting for QAD issuer data ($attempt/60)"
+      sleep 10
+    done
+
+    if [[ -z "$federated_issuer" || -z "$cluster_issuer" ]]; then
+      echo "##vso[task.logissue type=error;]One or both QAD issuer values are empty."
+      exit 1
+    fi
+    if [[ "$federated_issuer" != "$cluster_issuer" ]]; then
+      echo "##vso[task.logissue type=error;]QAD federated credential issuer does not match the AKS OIDC issuer."
+      echo "Federated credential issuer: $federated_issuer"
+      echo "AKS OIDC issuer: $cluster_issuer"
+      exit 1
+    fi
+    echo "QAD federated credential issuer matches the AKS OIDC issuer."
+
+    for attempt in $(seq 1 60); do
+      mapfile -t vmss_names < <(az vmss list \
+        --resource-group "$NODE_RG" \
+        --query "[].name" \
+        --output tsv)
+      invalid_vmss=()
+      for vmss in "${vmss_names[@]}"; do
+        qad_enabled=$(az vmss show \
+          --resource-group "$NODE_RG" \
+          --name "$vmss" \
+          --query 'tags."platformsettings.host_environment.QuickAttachDetach"' \
+          --output tsv)
+        if [[ "${qad_enabled,,}" != "true" ]]; then
+          invalid_vmss+=("$vmss=${qad_enabled:-<empty>}")
+        fi
+      done
+      if [[ "${#vmss_names[@]}" -gt 0 && "${#invalid_vmss[@]}" -eq 0 ]]; then
+        printf 'VMSS %s has QuickAttachDetach=true.\n' "${vmss_names[@]}"
+        exit 0
+      fi
+      echo "Waiting for QAD VMSS tags ($attempt/60): ${invalid_vmss[*]:-no VMSS resources found}"
+      sleep 30
+    done
+
+    echo "##vso[task.logissue type=error;]Not every VMSS reported QuickAttachDetach=true within 30 minutes."
+    exit 1
+  displayName: "Configure and Validate QAD"
+  env:
+    QAD_REGION: ${{ parameters.region }}
