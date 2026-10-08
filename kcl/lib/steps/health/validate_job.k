@@ -10,7 +10,7 @@ ValidateJobRunning = lambda \
     name: str, \
     namespace: str = "default", \
     displayName: str = "", \
-    continueOnError: bool = Undefined \
+    continueOnError: bool = True \
     -> steps.Step {
     assert name != "", "name must be non-empty"
     title = displayName if displayName else "Validate job/${name} running"
@@ -56,7 +56,7 @@ ValidateJobCompleted = lambda \
     name: str, \
     namespace: str = "default", \
     displayName: str = "", \
-    continueOnError: bool = Undefined \
+    continueOnError: bool = True \
     -> steps.Step {
     assert name != "", "name must be non-empty"
     title = displayName if displayName else "Validate job/${name} completed"

@@ -5,7 +5,7 @@ import lib.steps.azure
 # coredns: a DNS query resolves the in-cluster kubernetes API service to a
 # valid ClusterIP. For pod/controller health, pair with
 # ValidateWorkloadHealth(kind="deployment", name="coredns", namespace="kube-system").
-ValidateCoreDNS = lambda serviceConnection: str, displayName: str = "", continueOnError: bool = Undefined -> steps.Step {
+ValidateCoreDNS = lambda serviceConnection: str, displayName: str = "", continueOnError: bool = True -> steps.Step {
     title = displayName if displayName else "Validate coredns"
     script = """
 set +e
