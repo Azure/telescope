@@ -1,6 +1,5 @@
 import azure_pipelines.ap
 import azure_pipelines.ap.jobs.job
-import azure_pipelines.ap.steps
 import lib.const as const
 import lib.steps.azure as azure
 import lib.steps.common as common
@@ -9,27 +8,11 @@ import lib.steps.kperf as kperf
 
 SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
 
-# size/count/name configure RunKperfDataIngest; count=0 skips ingest.
-# preApply -> optional `kubectl apply -f <file>` before the run (scenario6 loggers).
-schema Scenario:
-    manifest: str
-    size: int = 0
-    count: int = 0
-    name: str = ""
-    preApply: str = ""
-    preApplyNamespace: str = ""
-
 schema ClusterConfig:
     region: str
     systemRunnerSku: str
     userPoolSku: str
     customHeaders: str
-
-WorkloadsDir = "kcl/cluster_health_performance/workloads"
-
-# All scenarios run sequentially on the same cluster.
-# TODO: Add workloads in the follow-up PR.
-WORKLOADS: {str:Scenario} = {}
 
 CLUSTER_NAME = "underlay-validation"
 KUBERNETES_VERSION = "\${{ parameters.kubernetes_version }}"
@@ -117,6 +100,7 @@ az aks create \\
             health.ValidateClusterIPService(const.DEFAULT_SERVICE_CONNECTION, continueOnError=True)
             kperf.InstallRunkperf("ghcr.io/azure/kperf:0.3.6")
             # TODO: Add performance workloads in a follow-up PR.
+
             # Always tear down the resource group at the end.
             azure.DeleteResourceGroup(const.DEFAULT_SERVICE_CONNECTION, "$(RUN_ID)", SUBSCRIPTION_ID, condition="always()")
         ]
