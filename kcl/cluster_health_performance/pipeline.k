@@ -99,8 +99,59 @@ az aks create \\
             health.ValidateCsiNode(const.DEFAULT_SERVICE_CONNECTION, "azurefile-csi", continueOnError=True)
             health.ValidateClusterIPService(const.DEFAULT_SERVICE_CONNECTION, continueOnError=True)
             kperf.InstallRunkperf("ghcr.io/azure/kperf:0.3.6")
-            # TODO: Add performance workloads in a follow-up PR.
-
+            # Per-scenario: setup -> ingest -> run -> fetch -> cleanup.
+            # Expand the generated scenario steps into this job's steps list.
+            *[step for name, s in WORKLOADS for step in [
+                # preApply (scenario6): apply loggers, wait Ready.
+                steps.Script {
+                    displayName = "Setup scenario state (${name})"
+                    script = """
+set -euo pipefail
+set -x
+if [ -n "${s.preApply}" ]; then
+  kubectl apply -f "$(Pipeline.Workspace)/s/${s.preApply}"
+  kubectl -n "${s.preApplyNamespace}" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+fi
+"""
+                }
+                kperf.RunKperfDataIngest("cm", "kperf", s.name, total=s.count, qps=50, burst=50, size=s.size, groupSize=50, batchSize=s.count)
+                kperf.RunKperfRunnerGroup("ghcr.io/xinweiwei24/kperf:20260709-pause", "file://$(Pipeline.Workspace)/s/${s.manifest}", affinity="agentpool=runner")
+                # `kperf rg result` polled after a fixed sleep to avoid the
+                # long-lived port-forward that EOFs on the ADO agent.
+                steps.Script {
+                    displayName = "Fetch kperf runner group result (${name})"
+                    continueOnError = True
+                    script = """
+set -euo pipefail
+sleep 300
+attempt=0
+max_attempts=5
+until kperf rg result | tee "/tmp/kperf-result-${name}.json"; do
+  attempt=$((attempt + 1))
+  if [ "$attempt" -ge "$max_attempts" ]; then
+    exit 1
+  fi
+  echo "attempt $attempt failed; retry in 10s" >&2
+  sleep 10
+done
+"""
+                }
+                kperf.CollectKperfResult("", "", CLUSTER_NAME, "$(RUN_ID)", SUBSCRIPTION_ID, const.DEFAULT_SERVICE_CONNECTION, inputPath="/tmp/kperf-result-${name}.json", outputPath="/tmp/run-result-${name}.json")
+                # Delete the namespace to remove ingested data, fake pods,
+                # and loggers. The next setup or ingest step recreates it.
+                steps.Script {
+                    displayName = "Cleanup scenario state (${name})"
+                    continueOnError = True
+                    condition = "always()"
+                    script = """
+set -euo pipefail
+set -x
+kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+"""
+                }
+            ]]
+            # Run one health check after all scenarios complete.
+            health.ValidateWorkloadHealth(const.DEFAULT_SERVICE_CONNECTION, kind="*", namespace="kube-system", continueOnError=True)
             # Always tear down the resource group at the end.
             azure.DeleteResourceGroup(const.DEFAULT_SERVICE_CONNECTION, "$(RUN_ID)", SUBSCRIPTION_ID, condition="always()")
         ]
