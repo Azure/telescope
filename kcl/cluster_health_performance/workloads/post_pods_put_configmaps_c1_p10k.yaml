@@ -1,13 +1,13 @@
 # count: number of runner pods = actual concurrent client count for the test.
-count: 50
+count: 1
 loadProfile:
   version: 1
-  description: "Scenario 3 / clients=50 / payload=1KB — POST(pods) + PUT(configmaps), equal shares, 100 req/s per runner for 600s"
+  description: "clients=1 / payload=10KB — POST(pods) + PUT(configmaps), equal shares, 100 req/s per runner for 600s"
   # Setup assumption (NOT enforced by this profile):
-  #   runkperf data cm add --namespace default --size 1024 --total 10000 write
+  #   runkperf data cm add --namespace default --size 10240 --total 10000 write
   specs:
     - rate: 100
-      total: 500
+      total: 25000
       # Need at least 5 clients to reach 100 QPS (Little's Law); 10 for headroom.
       conns: 10
       client: 10
@@ -20,7 +20,7 @@ loadProfile:
             resource: pods
             namespace: kperf
             deleteRatio: 0
-            payloadSize: 1024
+            payloadSize: 10240
           shares: 1
         - put:
             version: v1
@@ -28,5 +28,5 @@ loadProfile:
             namespace: kperf
             name: runkperf-cm-write
             keySpaceSize: 10000
-            payloadSize: 1024
+            payloadSize: 10240
           shares: 1

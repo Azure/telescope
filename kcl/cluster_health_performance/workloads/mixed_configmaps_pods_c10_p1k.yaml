@@ -2,7 +2,7 @@
 count: 10
 loadProfile:
   version: 1
-  description: "Scenario 5 / clients=10 / writes=1KB — mixed 60% read + 30% POST/PUT + 10% DELETE, 100 req/s per runner for 600s"
+  description: "clients=10 / writes=1KB — mixed 60% read + 30% POST/PUT + 10% DELETE, 100 req/s per runner for 600s"
   # Setup assumption (NOT enforced by this profile):
   #   Pre-populate 1000 x 1KB ConfigMaps used by BOTH reads (GET) and writes (PUT):
   #     runkperf data cm add --namespace default --size 1024 --total 1000 mixed

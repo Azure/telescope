@@ -29,34 +29,34 @@ WorkloadsDir = "kcl/cluster_health_performance/workloads"
 
 # All scenarios run sequentially on the same cluster.
 WORKLOADS: {str:Scenario} = {
-    "scenario1_get_configmap_c1": Scenario {manifest = "${WorkloadsDir}/scenario1_get_configmap_c1.yaml", size = 1024, count = 1000, name = "get"}
-    "scenario2_get_list_configmap_c1": Scenario {manifest = "${WorkloadsDir}/scenario2_get_list_configmap_c1.yaml", size = 1024, count = 10000, name = "get"}
-    "scenario2_get_list_configmap_c5": Scenario {manifest = "${WorkloadsDir}/scenario2_get_list_configmap_c5.yaml", size = 1024, count = 10000, name = "get"}
-    "scenario2_get_list_configmap_c10": Scenario {manifest = "${WorkloadsDir}/scenario2_get_list_configmap_c10.yaml", size = 1024, count = 10000, name = "get"}
-    "scenario2_get_list_configmap_c50": Scenario {manifest = "${WorkloadsDir}/scenario2_get_list_configmap_c50.yaml", size = 1024, count = 10000, name = "get"}
-    "scenario3_post_put_c1_p1k": Scenario {manifest = "${WorkloadsDir}/scenario3_post_put_c1_p1k.yaml", size = 1024, count = 10000, name = "write"}
-    "scenario3_post_put_c1_p10k": Scenario {manifest = "${WorkloadsDir}/scenario3_post_put_c1_p10k.yaml", size = 10240, count = 10000, name = "write"}
-    "scenario3_post_put_c1_p100k": Scenario {manifest = "${WorkloadsDir}/scenario3_post_put_c1_p100k.yaml", size = 102400, count = 10000, name = "write"}
-    "scenario3_post_put_c10_p1k": Scenario {manifest = "${WorkloadsDir}/scenario3_post_put_c10_p1k.yaml", size = 1024, count = 10000, name = "write"}
-    "scenario3_post_put_c10_p10k": Scenario {manifest = "${WorkloadsDir}/scenario3_post_put_c10_p10k.yaml", size = 10240, count = 10000, name = "write"}
-    "scenario3_post_put_c10_p100k": Scenario {manifest = "${WorkloadsDir}/scenario3_post_put_c10_p100k.yaml", size = 102400, count = 10000, name = "write"}
-    "scenario3_post_put_c50_p1k": Scenario {manifest = "${WorkloadsDir}/scenario3_post_put_c50_p1k.yaml", size = 1024, count = 10000, name = "write"}
-    "scenario3_post_put_c50_p10k": Scenario {manifest = "${WorkloadsDir}/scenario3_post_put_c50_p10k.yaml", size = 10240, count = 10000, name = "write"}
-    "scenario3_post_put_c50_p100k": Scenario {manifest = "${WorkloadsDir}/scenario3_post_put_c50_p100k.yaml", size = 102400, count = 10000, name = "write"}
-    "scenario4_list_configmap_n100_p1k": Scenario {manifest = "${WorkloadsDir}/scenario4_list_configmap_n100_p1k.yaml", size = 1024, count = 100, name = "list"}
-    "scenario4_list_configmap_n100_p10k": Scenario {manifest = "${WorkloadsDir}/scenario4_list_configmap_n100_p10k.yaml", size = 10240, count = 100, name = "list"}
-    "scenario4_list_configmap_n100_p100k": Scenario {manifest = "${WorkloadsDir}/scenario4_list_configmap_n100_p100k.yaml", size = 102400, count = 100, name = "list"}
-    "scenario4_list_configmap_n1000_p1k": Scenario {manifest = "${WorkloadsDir}/scenario4_list_configmap_n1000_p1k.yaml", size = 1024, count = 1000, name = "list"}
-    "scenario4_list_configmap_n1000_p10k": Scenario {manifest = "${WorkloadsDir}/scenario4_list_configmap_n1000_p10k.yaml", size = 10240, count = 1000, name = "list"}
-    "scenario4_list_configmap_n1000_p100k": Scenario {manifest = "${WorkloadsDir}/scenario4_list_configmap_n1000_p100k.yaml", size = 102400, count = 1000, name = "list"}
-    "scenario4_list_configmap_n10000_p1k": Scenario {manifest = "${WorkloadsDir}/scenario4_list_configmap_n10000_p1k.yaml", size = 1024, count = 10000, name = "list"}
-    "scenario4_list_configmap_n10000_p10k": Scenario {manifest = "${WorkloadsDir}/scenario4_list_configmap_n10000_p10k.yaml", size = 10240, count = 10000, name = "list"}
-    "scenario4_list_configmap_n10000_p100k": Scenario {manifest = "${WorkloadsDir}/scenario4_list_configmap_n10000_p100k.yaml", size = 102400, count = 10000, name = "list"}
-    "scenario5_mixed_c10_p1k": Scenario {manifest = "${WorkloadsDir}/scenario5_mixed_c10_p1k.yaml", size = 1024, count = 1000, name = "mixed"}
-    "scenario5_mixed_c10_p10k": Scenario {manifest = "${WorkloadsDir}/scenario5_mixed_c10_p10k.yaml", size = 1024, count = 1000, name = "mixed"}
+    "scenario1_get_configmap_c1": Scenario {manifest = "${WorkloadsDir}/stale_get_configmaps_c1.yaml", size = 1024, count = 1000, name = "get"}
+    "scenario2_get_list_configmap_c1": Scenario {manifest = "${WorkloadsDir}/stale_get_list_configmaps_c1.yaml", size = 1024, count = 10000, name = "get"}
+    "scenario2_get_list_configmap_c5": Scenario {manifest = "${WorkloadsDir}/stale_get_list_configmaps_c5.yaml", size = 1024, count = 10000, name = "get"}
+    "scenario2_get_list_configmap_c10": Scenario {manifest = "${WorkloadsDir}/stale_get_list_configmaps_c10.yaml", size = 1024, count = 10000, name = "get"}
+    "scenario2_get_list_configmap_c50": Scenario {manifest = "${WorkloadsDir}/stale_get_list_configmaps_c50.yaml", size = 1024, count = 10000, name = "get"}
+    "scenario3_post_put_c1_p1k": Scenario {manifest = "${WorkloadsDir}/post_pods_put_configmaps_c1_p1k.yaml", size = 1024, count = 10000, name = "write"}
+    "scenario3_post_put_c1_p10k": Scenario {manifest = "${WorkloadsDir}/post_pods_put_configmaps_c1_p10k.yaml", size = 10240, count = 10000, name = "write"}
+    "scenario3_post_put_c1_p100k": Scenario {manifest = "${WorkloadsDir}/post_pods_put_configmaps_c1_p100k.yaml", size = 102400, count = 10000, name = "write"}
+    "scenario3_post_put_c10_p1k": Scenario {manifest = "${WorkloadsDir}/post_pods_put_configmaps_c10_p1k.yaml", size = 1024, count = 10000, name = "write"}
+    "scenario3_post_put_c10_p10k": Scenario {manifest = "${WorkloadsDir}/post_pods_put_configmaps_c10_p10k.yaml", size = 10240, count = 10000, name = "write"}
+    "scenario3_post_put_c10_p100k": Scenario {manifest = "${WorkloadsDir}/post_pods_put_configmaps_c10_p100k.yaml", size = 102400, count = 10000, name = "write"}
+    "scenario3_post_put_c50_p1k": Scenario {manifest = "${WorkloadsDir}/post_pods_put_configmaps_c50_p1k.yaml", size = 1024, count = 10000, name = "write"}
+    "scenario3_post_put_c50_p10k": Scenario {manifest = "${WorkloadsDir}/post_pods_put_configmaps_c50_p10k.yaml", size = 10240, count = 10000, name = "write"}
+    "scenario3_post_put_c50_p100k": Scenario {manifest = "${WorkloadsDir}/post_pods_put_configmaps_c50_p100k.yaml", size = 102400, count = 10000, name = "write"}
+    "scenario4_list_configmap_n100_p1k": Scenario {manifest = "${WorkloadsDir}/quorum_list_configmaps_c10.yaml", size = 1024, count = 100, name = "list"}
+    "scenario4_list_configmap_n100_p10k": Scenario {manifest = "${WorkloadsDir}/quorum_list_configmaps_c10.yaml", size = 10240, count = 100, name = "list"}
+    "scenario4_list_configmap_n100_p100k": Scenario {manifest = "${WorkloadsDir}/quorum_list_configmaps_c10.yaml", size = 102400, count = 100, name = "list"}
+    "scenario4_list_configmap_n1000_p1k": Scenario {manifest = "${WorkloadsDir}/quorum_list_configmaps_c10.yaml", size = 1024, count = 1000, name = "list"}
+    "scenario4_list_configmap_n1000_p10k": Scenario {manifest = "${WorkloadsDir}/quorum_list_configmaps_c10.yaml", size = 10240, count = 1000, name = "list"}
+    "scenario4_list_configmap_n1000_p100k": Scenario {manifest = "${WorkloadsDir}/quorum_list_configmaps_c10.yaml", size = 102400, count = 1000, name = "list"}
+    "scenario4_list_configmap_n10000_p1k": Scenario {manifest = "${WorkloadsDir}/quorum_list_configmaps_c10.yaml", size = 1024, count = 10000, name = "list"}
+    "scenario4_list_configmap_n10000_p10k": Scenario {manifest = "${WorkloadsDir}/quorum_list_configmaps_c10.yaml", size = 10240, count = 10000, name = "list"}
+    "scenario4_list_configmap_n10000_p100k": Scenario {manifest = "${WorkloadsDir}/quorum_list_configmaps_c10.yaml", size = 102400, count = 10000, name = "list"}
+    "scenario5_mixed_c10_p1k": Scenario {manifest = "${WorkloadsDir}/mixed_configmaps_pods_c10_p1k.yaml", size = 1024, count = 1000, name = "mixed"}
+    "scenario5_mixed_c10_p10k": Scenario {manifest = "${WorkloadsDir}/mixed_configmaps_pods_c10_p10k.yaml", size = 1024, count = 1000, name = "mixed"}
     # scenario6: GetPodLog against loggers pre-applied via preApply. No CM ingest.
-    "scenario6_getpodlog_c20": Scenario {manifest = "${WorkloadsDir}/scenario6_getpodlog_c20.yaml", preApply = "${WorkloadsDir}/scenario6_loggers.yaml", preApplyNamespace = "kperf"}
-    "scenario6_getpodlog_c25": Scenario {manifest = "${WorkloadsDir}/scenario6_getpodlog_c25.yaml", preApply = "${WorkloadsDir}/scenario6_loggers.yaml", preApplyNamespace = "kperf"}
+    "scenario6_getpodlog_c20": Scenario {manifest = "${WorkloadsDir}/get_pod_logs_c20.yaml", preApply = "${WorkloadsDir}/pod_loggers.yaml", preApplyNamespace = "kperf"}
+    "scenario6_getpodlog_c25": Scenario {manifest = "${WorkloadsDir}/get_pod_logs_c25.yaml", preApply = "${WorkloadsDir}/pod_loggers.yaml", preApplyNamespace = "kperf"}
 }
 
 CLUSTER_NAME = "underlay-validation"

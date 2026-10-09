@@ -1,13 +1,13 @@
 # count: number of runner pods = actual concurrent client count for the test.
-count: 10
+count: 50
 loadProfile:
   version: 1
-  description: "Scenario 3 / clients=10 / payload=100KB — POST(pods) + PUT(configmaps), equal shares, 100 req/s per runner for 600s"
+  description: "clients=50 / payload=100KB — POST(pods) + PUT(configmaps), equal shares, 100 req/s per runner for 600s"
   # Setup assumption (NOT enforced by this profile):
   #   runkperf data cm add --namespace default --size 102400 --total 10000 write
   specs:
     - rate: 100
-      total: 2500
+      total: 500
       # Need at least 5 clients to reach 100 QPS (Little's Law); 10 for headroom.
       conns: 10
       client: 10

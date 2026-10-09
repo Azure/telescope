@@ -2,7 +2,7 @@
 count: 1
 loadProfile:
   version: 1
-  description: "Scenario 3 / clients=1 / payload=1KB — POST(pods) + PUT(configmaps), equal shares, 100 req/s per runner for 600s"
+  description: "clients=1 / payload=1KB — POST(pods) + PUT(configmaps), equal shares, 100 req/s per runner for 600s"
   # Setup assumption (NOT enforced by this profile):
   #   Pre-populate 10000 ConfigMaps for the PUT half:
   #     runkperf data cm add --namespace default --size 1024 --total 10000 write

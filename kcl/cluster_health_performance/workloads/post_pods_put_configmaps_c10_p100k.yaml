@@ -2,9 +2,9 @@
 count: 10
 loadProfile:
   version: 1
-  description: "Scenario 3 / clients=10 / payload=1KB — POST(pods) + PUT(configmaps), equal shares, 100 req/s per runner for 600s"
+  description: "clients=10 / payload=100KB — POST(pods) + PUT(configmaps), equal shares, 100 req/s per runner for 600s"
   # Setup assumption (NOT enforced by this profile):
-  #   runkperf data cm add --namespace default --size 1024 --total 10000 write
+  #   runkperf data cm add --namespace default --size 102400 --total 10000 write
   specs:
     - rate: 100
       total: 2500
@@ -20,7 +20,7 @@ loadProfile:
             resource: pods
             namespace: kperf
             deleteRatio: 0
-            payloadSize: 1024
+            payloadSize: 102400
           shares: 1
         - put:
             version: v1
@@ -28,5 +28,5 @@ loadProfile:
             namespace: kperf
             name: runkperf-cm-write
             keySpaceSize: 10000
-            payloadSize: 1024
+            payloadSize: 102400
           shares: 1

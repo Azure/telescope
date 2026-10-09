@@ -2,9 +2,9 @@
 count: 10
 loadProfile:
   version: 1
-  description: "Scenario 5 / clients=10 / writes=10KB — mixed 60% read + 30% POST/PUT + 10% DELETE, 100 req/s per runner for 600s"
+  description: "clients=10 / writes=10KB — mixed 60% read + 30% POST/PUT + 10% DELETE, 100 req/s per runner for 600s"
   # Setup assumption (NOT enforced by this profile):
-  #   Reads target the same 1KB ConfigMaps as scenario5_p1k; writes use 10KB payloads:
+  #   Reads target 1KB ConfigMaps; writes use 10KB payloads:
   #     runkperf data cm add --namespace default --size 1024 --total 1000 mixed
   #     -> objects named runkperf-cm-mixed-0 ... runkperf-cm-mixed-999
   #   POST/DELETE use fake pods (kperf only supports create/delete on pods today).

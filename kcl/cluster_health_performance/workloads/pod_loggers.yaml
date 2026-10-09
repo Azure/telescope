@@ -1,10 +1,10 @@
-# Pre-population for Scenario 6 (GetPodLog).
+# Pre-population for GetPodLog profiles.
 # Deploys 6 log-producing pods in namespace `kperf`:
 #   - logger-slow-{0..2}: emit ~1  log line/sec
 #   - logger-fast-{0..2}: emit ~10 log lines/sec
 #
-# Apply once before running scenario6_getpodlog_c20.yaml / _c25.yaml:
-#   kubectl apply -f contrib/internal/manifests/loadprofile/scenario6_loggers.yaml
+# Apply once before running get_pod_logs_c20.yaml or get_pod_logs_c25.yaml:
+#   kubectl apply -f kcl/cluster_health_performance/workloads/pod_loggers.yaml
 # Wait until all 6 pods are Running:
 #   kubectl -n kperf wait --for=condition=Ready pod --all --timeout=120s
 # Cleanup after the test:

@@ -1,10 +1,10 @@
 # count: number of runner pods = actual concurrent client count for the test.
-count: 25
+count: 20
 loadProfile:
   version: 1
-  description: "Scenario 6 / clients=25 — GetPodLog against 6 pods (3x slow=1 log/s, 3x fast=10 logs/s), 100 req/s per runner for 600s"
+  description: "clients=20 — GetPodLog against 6 pods (3x slow=1 log/s, 3x fast=10 logs/s), 100 req/s per runner for 600s"
   # Setup assumption (NOT enforced by this profile):
-  #   kubectl apply -f contrib/internal/manifests/loadprofile/scenario6_loggers.yaml
+  #   kubectl apply -f kcl/cluster_health_performance/workloads/pod_loggers.yaml
   #   kubectl -n kperf wait --for=condition=Ready pod --all --timeout=120s
   specs:
     - rate: 100

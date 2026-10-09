@@ -2,7 +2,7 @@
 count: 1
 loadProfile:
   version: 1
-  description: "Scenario 1: 1 concurrent client GET ConfigMap (~1KB), 100 req/sec for 600s, against 1000 pre-populated objects"
+  description: "clients=1 — GET configmaps, 100 req/s for 300s"
   # Setup assumption (NOT enforced by this profile):
   #   - Pre-populate 1000 ConfigMaps of ~1KB each in namespace `default`, e.g.:
   #       runkperf data cm add --namespace default --size 1024 --total 1000 get
