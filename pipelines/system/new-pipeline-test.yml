@@ -18,13 +18,13 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - eastus2euap
+            - australiaeast
           topology: node-startup-latency
           engine: crud
           matrix:
             cilium_node_startup:
               pool_name: userpool
-              vm_size: Standard_D8ds_v4
+              vm_size: Standard_D4s_v5
               step_time_out: 900
               cni_daemonset_label: "k8s-app=cilium"
               cni_blocking_taint: "node.cilium.io/agent-not-ready"
