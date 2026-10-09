@@ -1,0 +1,152 @@
+# Pre-population for GetPodLog profiles.
+# Deploys 6 log-producing pods in namespace `kperf`:
+#   - logger-slow-{0..2}: emit ~1  log line/sec
+#   - logger-fast-{0..2}: emit ~10 log lines/sec
+#
+# Apply once before running get_pod_logs_c20.yaml or get_pod_logs_c25.yaml:
+#   kubectl apply -f kcl/cluster_health_performance/workloads/pod_loggers.yaml
+# Wait until all 6 pods are Running:
+#   kubectl -n kperf wait --for=condition=Ready pod --all --timeout=120s
+# Cleanup after the test:
+#   kubectl delete ns kperf
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kperf
+  labels:
+    app.kubernetes.io/part-of: kperf
+    scenario: getpodlog
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: logger-slow-0
+  namespace: kperf
+  labels: { app: kperf-logger, rate: slow }
+spec:
+  restartPolicy: Always
+  containers:
+    - name: logger
+      image: busybox:1.36
+      command: ["sh", "-c"]
+      args:
+        - |
+          i=0
+          while true; do
+            i=$((i+1))
+            echo "$(date -u +%Y-%m-%dT%H:%M:%S.%NZ) slow seq=$i"
+            sleep 1
+          done
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: logger-slow-1
+  namespace: kperf
+  labels: { app: kperf-logger, rate: slow }
+spec:
+  restartPolicy: Always
+  containers:
+    - name: logger
+      image: busybox:1.36
+      command: ["sh", "-c"]
+      args:
+        - |
+          i=0
+          while true; do
+            i=$((i+1))
+            echo "$(date -u +%Y-%m-%dT%H:%M:%S.%NZ) slow seq=$i"
+            sleep 1
+          done
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: logger-slow-2
+  namespace: kperf
+  labels: { app: kperf-logger, rate: slow }
+spec:
+  restartPolicy: Always
+  containers:
+    - name: logger
+      image: busybox:1.36
+      command: ["sh", "-c"]
+      args:
+        - |
+          i=0
+          while true; do
+            i=$((i+1))
+            echo "$(date -u +%Y-%m-%dT%H:%M:%S.%NZ) slow seq=$i"
+            sleep 1
+          done
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: logger-fast-0
+  namespace: kperf
+  labels: { app: kperf-logger, rate: fast }
+spec:
+  restartPolicy: Always
+  containers:
+    - name: logger
+      image: busybox:1.36
+      command: ["sh", "-c"]
+      args:
+        - |
+          # Emit ~10 lines/sec: 10 lines then 1s sleep.
+          i=0
+          while true; do
+            for _ in 1 2 3 4 5 6 7 8 9 10; do
+              i=$((i+1))
+              echo "$(date -u +%Y-%m-%dT%H:%M:%S.%NZ) fast seq=$i"
+            done
+            sleep 1
+          done
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: logger-fast-1
+  namespace: kperf
+  labels: { app: kperf-logger, rate: fast }
+spec:
+  restartPolicy: Always
+  containers:
+    - name: logger
+      image: busybox:1.36
+      command: ["sh", "-c"]
+      args:
+        - |
+          i=0
+          while true; do
+            for _ in 1 2 3 4 5 6 7 8 9 10; do
+              i=$((i+1))
+              echo "$(date -u +%Y-%m-%dT%H:%M:%S.%NZ) fast seq=$i"
+            done
+            sleep 1
+          done
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: logger-fast-2
+  namespace: kperf
+  labels: { app: kperf-logger, rate: fast }
+spec:
+  restartPolicy: Always
+  containers:
+    - name: logger
+      image: busybox:1.36
+      command: ["sh", "-c"]
+      args:
+        - |
+          i=0
+          while true; do
+            for _ in 1 2 3 4 5 6 7 8 9 10; do
+              i=$((i+1))
+              echo "$(date -u +%Y-%m-%dT%H:%M:%S.%NZ) fast seq=$i"
+            done
+            sleep 1
+          done
