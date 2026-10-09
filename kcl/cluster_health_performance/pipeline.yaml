@@ -10,10 +10,14 @@ parameters:
   displayName: Kubernetes version
   type: string
   default: '1.35.5'
-- name: custom_system_runner_vm_sku
-  displayName: 'Custom: system and runner pool VM SKU'
+- name: custom_system_pool_vm_sku
+  displayName: 'Custom: system pool VM SKU'
   type: string
-  default: Standard_D8s_v4
+  default: Standard_D2s_v4
+- name: custom_runner_pool_vm_sku
+  displayName: 'Custom: runner pool VM SKU'
+  type: string
+  default: Standard_D4s_v4
 - name: custom_user_pool_vm_sku
   displayName: 'Custom: user pool VM SKU'
   type: string
@@ -79,23 +83,23 @@ stages:
 
           az aks create \
               --name "underlay-validation" \
-            --resource-group "$(RUN_ID)" \
-            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --resource-group "$(RUN_ID)" \
+              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
               --location "westus2" \
               --kubernetes-version "${{ parameters.kubernetes_version }}" \
               --dns-name-prefix "underlay-validation-dns" \
               --tier standard \
-            --nodepool-name systempool \
-            --node-count 5 \
-              --node-vm-size "Standard_D8s_v4" \
-            --network-plugin azure \
-            --network-plugin-mode overlay \
-            --pod-cidr 10.244.0.0/14 \
-            --max-pods 250 \
-            --control-plane-scaling-size H8 \
-            --enable-managed-identity \
-            --generate-ssh-keys \
-            $EXTRA_ARGS
+              --nodepool-name systempool \
+              --node-count 2 \
+              --node-vm-size "Standard_D2s_v4" \
+              --network-plugin azure \
+              --network-plugin-mode overlay \
+              --pod-cidr 10.244.0.0/14 \
+              --max-pods 250 \
+              --control-plane-scaling-size H8 \
+              --enable-managed-identity \
+              --generate-ssh-keys \
+              $EXTRA_ARGS
       displayName: Create AKS cluster
     - task: AzureCLI@2
       inputs:
@@ -116,7 +120,7 @@ stages:
               --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
               --name "runner" \
               --node-count 5 \
-              --node-vm-size "Standard_D8s_v4" \
+              --node-vm-size "Standard_D4s_v4" \
               --mode User \
                2>&1)
             rc=$?
@@ -4752,23 +4756,23 @@ stages:
 
           az aks create \
               --name "underlay-validation" \
-            --resource-group "$(RUN_ID)" \
-            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --resource-group "$(RUN_ID)" \
+              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
               --location "westus2" \
               --kubernetes-version "${{ parameters.kubernetes_version }}" \
               --dns-name-prefix "underlay-validation-dns" \
               --tier standard \
-            --nodepool-name systempool \
-            --node-count 5 \
-              --node-vm-size "Standard_D8s_v4" \
-            --network-plugin azure \
-            --network-plugin-mode overlay \
-            --pod-cidr 10.244.0.0/14 \
-            --max-pods 250 \
-            --control-plane-scaling-size H8 \
-            --enable-managed-identity \
-            --generate-ssh-keys \
-            $EXTRA_ARGS
+              --nodepool-name systempool \
+              --node-count 2 \
+              --node-vm-size "Standard_D2s_v4" \
+              --network-plugin azure \
+              --network-plugin-mode overlay \
+              --pod-cidr 10.244.0.0/14 \
+              --max-pods 250 \
+              --control-plane-scaling-size H8 \
+              --enable-managed-identity \
+              --generate-ssh-keys \
+              $EXTRA_ARGS
       displayName: Create AKS cluster
     - task: AzureCLI@2
       inputs:
@@ -4789,7 +4793,7 @@ stages:
               --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
               --name "runner" \
               --node-count 5 \
-              --node-vm-size "Standard_D8s_v4" \
+              --node-vm-size "Standard_D4s_v4" \
               --mode User \
                2>&1)
             rc=$?
@@ -9425,23 +9429,23 @@ stages:
 
           az aks create \
               --name "underlay-validation" \
-            --resource-group "$(RUN_ID)" \
-            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --resource-group "$(RUN_ID)" \
+              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
               --location "${{ parameters.custom_region }}" \
               --kubernetes-version "${{ parameters.kubernetes_version }}" \
               --dns-name-prefix "underlay-validation-dns" \
               --tier standard \
-            --nodepool-name systempool \
-            --node-count 5 \
-              --node-vm-size "${{ parameters.custom_system_runner_vm_sku }}" \
-            --network-plugin azure \
-            --network-plugin-mode overlay \
-            --pod-cidr 10.244.0.0/14 \
-            --max-pods 250 \
-            --control-plane-scaling-size H8 \
-            --enable-managed-identity \
-            --generate-ssh-keys \
-            $EXTRA_ARGS
+              --nodepool-name systempool \
+              --node-count 2 \
+              --node-vm-size "${{ parameters.custom_system_pool_vm_sku }}" \
+              --network-plugin azure \
+              --network-plugin-mode overlay \
+              --pod-cidr 10.244.0.0/14 \
+              --max-pods 250 \
+              --control-plane-scaling-size H8 \
+              --enable-managed-identity \
+              --generate-ssh-keys \
+              $EXTRA_ARGS
       displayName: Create AKS cluster
     - task: AzureCLI@2
       inputs:
@@ -9462,7 +9466,7 @@ stages:
               --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
               --name "runner" \
               --node-count 5 \
-              --node-vm-size "${{ parameters.custom_system_runner_vm_sku }}" \
+              --node-vm-size "${{ parameters.custom_runner_pool_vm_sku }}" \
               --mode User \
                2>&1)
             rc=$?

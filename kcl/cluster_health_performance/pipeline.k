@@ -21,7 +21,8 @@ schema Scenario:
 
 schema ClusterConfig:
     region: str
-    systemRunnerSku: str
+    systemPoolSku: str
+    runnerPoolSku: str
     userPoolSku: str
     customHeaders: str
 
@@ -64,21 +65,24 @@ KUBERNETES_VERSION = "\${{ parameters.kubernetes_version }}"
 
 AMD_CONFIG = ClusterConfig {
     region = "westus2"
-    systemRunnerSku = "Standard_D8s_v4"
+    systemPoolSku = "Standard_D2s_v4"
+    runnerPoolSku = "Standard_D4s_v4"
     userPoolSku = "Standard_D2s_v4"
     customHeaders = "ControlPlaneUnderlay=hcp-underlay-stg-westus2-cx-23"
 }
 
 INTEL_CONFIG = ClusterConfig {
     region = "westus2"
-    systemRunnerSku = "Standard_D8s_v4"
+    systemPoolSku = "Standard_D2s_v4"
+    runnerPoolSku = "Standard_D4s_v4"
     userPoolSku = "Standard_D2s_v4"
     customHeaders = "ControlPlaneUnderlay=hcp-underlay-stg-westus2-cx-22"
 }
 
 CUSTOM_CONFIG = ClusterConfig {
     region = "\${{ parameters.custom_region }}"
-    systemRunnerSku = "\${{ parameters.custom_system_runner_vm_sku }}"
+    systemPoolSku = "\${{ parameters.custom_system_pool_vm_sku }}"
+    runnerPoolSku = "\${{ parameters.custom_runner_pool_vm_sku }}"
     userPoolSku = "\${{ parameters.custom_user_pool_vm_sku }}"
     customHeaders = "\${{ parameters.custom_headers }}"
 }
@@ -103,28 +107,28 @@ fi
 
 az aks create \\
     --name "${CLUSTER_NAME}" \\
-  --resource-group "$(RUN_ID)" \\
-  --subscription "${SUBSCRIPTION_ID}" \\
+    --resource-group "$(RUN_ID)" \\
+    --subscription "${SUBSCRIPTION_ID}" \\
     --location "${config.region}" \\
     --kubernetes-version "${KUBERNETES_VERSION}" \\
     --dns-name-prefix "${CLUSTER_NAME}-dns" \\
     --tier standard \\
-  --nodepool-name systempool \\
-  --node-count 5 \\
-    --node-vm-size "${config.systemRunnerSku}" \\
-  --network-plugin azure \\
-  --network-plugin-mode overlay \\
-  --pod-cidr 10.244.0.0/14 \\
-  --max-pods 250 \\
-  --control-plane-scaling-size H8 \\
-  --enable-managed-identity \\
-  --generate-ssh-keys \\
-  $EXTRA_ARGS
+    --nodepool-name systempool \\
+    --node-count 2 \\
+    --node-vm-size "${config.systemPoolSku}" \\
+    --network-plugin azure \\
+    --network-plugin-mode overlay \\
+    --pod-cidr 10.244.0.0/14 \\
+    --max-pods 250 \\
+    --control-plane-scaling-size H8 \\
+    --enable-managed-identity \\
+    --generate-ssh-keys \\
+    $EXTRA_ARGS
 """)
             # runner nodepool (kperf runners).
             azure.CreateNodePool(const.DEFAULT_SERVICE_CONNECTION, CLUSTER_NAME, "$(RUN_ID)", SUBSCRIPTION_ID, azure.NodePool {
                 name = "runner"
-                sku = config.systemRunnerSku
+                sku = config.runnerPoolSku
                 count = 5
             })
             # userpool (workload pods).
@@ -143,7 +147,6 @@ az aks create \\
             health.ValidateCsiNode(const.DEFAULT_SERVICE_CONNECTION, "managed-csi")
             health.ValidateCsiNode(const.DEFAULT_SERVICE_CONNECTION, "azurefile-csi")
             health.ValidateClusterIPService(const.DEFAULT_SERVICE_CONNECTION)
-
             # Run kperf performance workloads.
             kperf.InstallRunkperf("ghcr.io/azure/kperf:0.3.6")
             # Expand each scenario into setup, ingest, run, fetch, and cleanup steps.
@@ -162,7 +165,6 @@ fi
                 }
                 kperf.RunKperfDataIngest("cm", "kperf", s.name, total=s.count, qps=50, burst=50, size=s.size, groupSize=50, batchSize=s.count)
                 kperf.RunKperfRunnerGroup("ghcr.io/xinweiwei24/kperf:20260709-pause", "file://$(Pipeline.Workspace)/s/${s.manifest}", affinity="agentpool=runner")
-
                 # Poll `kperf rg result` after a fixed sleep to avoid the long-lived port-forward that EOFs on the ADO agent.
                 steps.Script {
                     displayName = "Fetch kperf runner group result (${name})"
@@ -204,7 +206,6 @@ kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
             health.ValidateCsiNode(const.DEFAULT_SERVICE_CONNECTION, "managed-csi")
             health.ValidateCsiNode(const.DEFAULT_SERVICE_CONNECTION, "azurefile-csi")
             health.ValidateClusterIPService(const.DEFAULT_SERVICE_CONNECTION)
-
             # Always tear down the resource group at the end.
             azure.DeleteResourceGroup(const.DEFAULT_SERVICE_CONNECTION, "$(RUN_ID)", SUBSCRIPTION_ID, condition="always()")
         ]
@@ -237,10 +238,16 @@ output = ap.Pipeline {
             default = "1.35.5"
         }
         ap.Parameter {
-            name = "custom_system_runner_vm_sku"
-            displayName = "Custom: system and runner pool VM SKU"
+            name = "custom_system_pool_vm_sku"
+            displayName = "Custom: system pool VM SKU"
             type = "string"
-            default = "Standard_D8s_v4"
+            default = "Standard_D2s_v4"
+        }
+        ap.Parameter {
+            name = "custom_runner_pool_vm_sku"
+            displayName = "Custom: runner pool VM SKU"
+            type = "string"
+            default = "Standard_D4s_v4"
         }
         ap.Parameter {
             name = "custom_user_pool_vm_sku"
