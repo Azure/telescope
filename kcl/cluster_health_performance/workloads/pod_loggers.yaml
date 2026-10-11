@@ -25,6 +25,8 @@ metadata:
   namespace: kperf
   labels: { app: kperf-logger, rate: slow }
 spec:
+  nodeSelector:
+    agentpool: userpool
   restartPolicy: Always
   containers:
     - name: logger
@@ -46,6 +48,8 @@ metadata:
   namespace: kperf
   labels: { app: kperf-logger, rate: slow }
 spec:
+  nodeSelector:
+    agentpool: userpool
   restartPolicy: Always
   containers:
     - name: logger
@@ -67,6 +71,8 @@ metadata:
   namespace: kperf
   labels: { app: kperf-logger, rate: slow }
 spec:
+  nodeSelector:
+    agentpool: userpool
   restartPolicy: Always
   containers:
     - name: logger
@@ -88,6 +94,8 @@ metadata:
   namespace: kperf
   labels: { app: kperf-logger, rate: fast }
 spec:
+  nodeSelector:
+    agentpool: userpool
   restartPolicy: Always
   containers:
     - name: logger
@@ -112,6 +120,8 @@ metadata:
   namespace: kperf
   labels: { app: kperf-logger, rate: fast }
 spec:
+  nodeSelector:
+    agentpool: userpool
   restartPolicy: Always
   containers:
     - name: logger
@@ -135,6 +145,8 @@ metadata:
   namespace: kperf
   labels: { app: kperf-logger, rate: fast }
 spec:
+  nodeSelector:
+    agentpool: userpool
   restartPolicy: Always
   containers:
     - name: logger
