@@ -10,6 +10,7 @@ import math
 import subprocess
 import tempfile
 import time
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +32,18 @@ def kubectl_json(kubeconfig: str, arguments: list[str]) -> dict[str, Any]:
         text=True,
     )
     return json.loads(completed.stdout)
+
+
+def kubectl_lines(kubeconfig: str, arguments: list[str]) -> Iterator[str]:
+    command = ["kubectl", "--kubeconfig", kubeconfig, *arguments]
+    with subprocess.Popen(command, stdout=subprocess.PIPE, text=True) as process:
+        if process.stdout is None:
+            raise RuntimeError("kubectl stdout pipe was not created")
+        for line in process.stdout:
+            yield line.rstrip("\n")
+        return_code = process.wait()
+        if return_code:
+            raise subprocess.CalledProcessError(return_code, command)
 
 
 def kubectl(kubeconfig: str, arguments: list[str]) -> None:
@@ -72,17 +85,32 @@ def attached_volume_handles(kubeconfig: str, handles: set[str]) -> set[str]:
     handle_by_pv_name = {f"tesan-pv-{resource_suffix(handle)}": handle for handle in handles}
     if not handle_by_pv_name:
         return set()
-    volume_attachments = kubectl_json(
-        kubeconfig, ["get", "volumeattachments", "--chunk-size", "500"]
+    attached = set()
+    rows = kubectl_lines(
+        kubeconfig,
+        [
+            "get",
+            "volumeattachments",
+            "--chunk-size",
+            "500",
+            "-o",
+            "custom-columns=PV:.spec.source.persistentVolumeName,"
+            "ATTACHER:.spec.attacher,ATTACHED:.status.attached",
+            "--no-headers",
+        ],
     )
-    return {
-        handle_by_pv_name[persistent_volume]
-        for item in volume_attachments.get("items", [])
-        if item.get("spec", {}).get("attacher") == CSI_DRIVER
-        and item.get("status", {}).get("attached") is True
-        and (persistent_volume := item.get("spec", {}).get("source", {}).get("persistentVolumeName"))
-        in handle_by_pv_name
-    }
+    for row in rows:
+        columns = row.split()
+        if len(columns) != 3:
+            raise RuntimeError(f"unexpected VolumeAttachment row: {row!r}")
+        persistent_volume, attacher, is_attached = columns
+        if (
+            attacher == CSI_DRIVER
+            and is_attached == "true"
+            and persistent_volume in handle_by_pv_name
+        ):
+            attached.add(handle_by_pv_name[persistent_volume])
+    return attached
 
 
 def volume_record(
@@ -122,11 +150,23 @@ def select_ready_nodes(
     if selector:
         arguments.extend(["--selector", selector])
     payload = kubectl_json(kubeconfig, arguments)
-    pods = kubectl_json(kubeconfig, ["get", "pods", "--all-namespaces"])
     scheduled_counts: dict[str, int] = {}
-    for pod in pods.get("items", []):
-        node_name = pod.get("spec", {}).get("nodeName")
-        if node_name:
+    pod_nodes = kubectl_lines(
+        kubeconfig,
+        [
+            "get",
+            "pods",
+            "--all-namespaces",
+            "--chunk-size",
+            "500",
+            "-o",
+            "custom-columns=NODE:.spec.nodeName",
+            "--no-headers",
+        ],
+    )
+    for node_name in pod_nodes:
+        node_name = node_name.strip()
+        if node_name and node_name != "<none>":
             scheduled_counts[node_name] = scheduled_counts.get(node_name, 0) + 1
 
     candidates: list[tuple[int, str]] = []
@@ -332,28 +372,46 @@ def wait_ready(
         f"telescope-cluster={cluster_label}"
     )
     while time.monotonic() < deadline:
-        payload = kubectl_json(kubeconfig, ["get", "pods", "--all-namespaces", "-l", selector])
-        total = len(payload.get("items", []))
-        selected = [
-            pod for pod in payload.get("items", []) if pod["metadata"]["name"] in expected_pods
-        ]
-        ready = sum(
-            any(
-                condition.get("type") == "Ready" and condition.get("status") == "True"
-                for condition in pod.get("status", {}).get("conditions", [])
-            )
-            for pod in selected
+        total = 0
+        selected = 0
+        ready = 0
+        pending = 0
+        rows = kubectl_lines(
+            kubeconfig,
+            [
+                "get",
+                "pods",
+                "--all-namespaces",
+                "-l",
+                selector,
+                "--chunk-size",
+                "500",
+                "-o",
+                'custom-columns=NAME:.metadata.name,PHASE:.status.phase,'
+                'READY:.status.conditions[?(@.type=="Ready")].status',
+                "--no-headers",
+            ],
         )
-        pending = sum(pod.get("status", {}).get("phase") == "Pending" for pod in selected)
+        for row in rows:
+            columns = row.split()
+            if len(columns) != 3:
+                raise RuntimeError(f"unexpected Pod readiness row: {row!r}")
+            name, phase, ready_status = columns
+            total += 1
+            if name not in expected_pods:
+                continue
+            selected += 1
+            ready += ready_status == "True"
+            pending += phase == "Pending"
         expected = len(expected_pods)
         print(
-            f"[attach] managed-total={total} selected={len(selected)} ready={ready} "
+            f"[attach] managed-total={total} selected={selected} ready={ready} "
             f"pending={pending} expected={expected}"
         )
-        if len(selected) == expected and ready == expected:
+        if selected == expected and ready == expected:
             return {
                 "managed_total": total,
-                "selected": len(selected),
+                "selected": selected,
                 "ready": ready,
                 "pending": pending,
             }

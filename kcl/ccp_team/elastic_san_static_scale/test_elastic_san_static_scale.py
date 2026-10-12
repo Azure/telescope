@@ -591,15 +591,31 @@ class AttachmentRendererTests(unittest.TestCase):
             ]
         }
         with patch(
-            "attach.kubectl_json", return_value=volume_attachments
-        ) as kubectl_json_mock:
+            "attach.kubectl_lines",
+            return_value=[
+                f"{item['spec']['source']['persistentVolumeName']} "
+                f"{item['spec']['attacher']} "
+                f"{str(item['status']['attached']).lower()}"
+                for item in volume_attachments["items"]
+            ],
+        ) as kubectl_lines_mock:
             handles = attached_volume_handles(
                 "/tmp/kubeconfig", {attached_handle, pending_handle}
             )
         self.assertEqual({attached_handle}, handles)
-        # PVs are derived locally, so only VolumeAttachments are listed (no get pv).
-        kubectl_json_mock.assert_called_once()
-        self.assertNotIn("pv", kubectl_json_mock.call_args.args[1])
+        kubectl_lines_mock.assert_called_once_with(
+            "/tmp/kubeconfig",
+            [
+                "get",
+                "volumeattachments",
+                "--chunk-size",
+                "500",
+                "-o",
+                "custom-columns=PV:.spec.source.persistentVolumeName,"
+                "ATTACHER:.spec.attacher,ATTACHED:.status.attached",
+                "--no-headers",
+            ],
+        )
 
     def test_resources_are_static_retain_and_cluster_scoped(self):
         record = volume_record("rg", "san", "vg-000", self.volume)
@@ -655,25 +671,37 @@ class AttachmentRendererTests(unittest.TestCase):
         self.assertEqual("apply", kubectl_apply.call_args.args[1][0])
 
     def test_readiness_ignores_extra_pods_from_larger_prior_stage(self):
-        payload = {
-            "items": [
-                {
-                    "metadata": {"name": name},
-                    "status": {
-                        "phase": "Running",
-                        "conditions": [{"type": "Ready", "status": "True"}],
-                    },
-                }
-                for name in ("selected-a", "selected-b", "extra-old")
-            ]
-        }
-        with patch("attach.kubectl_json", return_value=payload):
+        with patch(
+            "attach.kubectl_lines",
+            return_value=[
+                "selected-a Running True",
+                "selected-b Running True",
+                "extra-old Running True",
+            ],
+        ) as kubectl_lines_mock:
             status = wait_ready(
                 "/tmp/kubeconfig", "cluster123", {"selected-a", "selected-b"}, 1
             )
         self.assertEqual(3, status["managed_total"])
         self.assertEqual(2, status["selected"])
         self.assertEqual(2, status["ready"])
+        kubectl_lines_mock.assert_called_once_with(
+            "/tmp/kubeconfig",
+            [
+                "get",
+                "pods",
+                "--all-namespaces",
+                "-l",
+                "telescope-workload=elastic-san-static-scale,"
+                "telescope-cluster=cluster123",
+                "--chunk-size",
+                "500",
+                "-o",
+                'custom-columns=NAME:.metadata.name,PHASE:.status.phase,'
+                'READY:.status.conditions[?(@.type=="Ready")].status',
+                "--no-headers",
+            ],
+        )
 
     def test_node_selection_requires_capacity_and_prefers_least_loaded(self):
         def node(name):
@@ -687,10 +715,13 @@ class AttachmentRendererTests(unittest.TestCase):
             }
 
         nodes = {"items": [node("loaded"), node("eligible-b"), node("eligible-a")]}
-        pods = {"items": []}
+        pod_nodes = []
         for name, count in (("loaded", 100), ("eligible-b", 20), ("eligible-a", 5)):
-            pods["items"].extend({"spec": {"nodeName": name}} for _ in range(count))
-        with patch("attach.kubectl_json", side_effect=[nodes, pods]):
+            pod_nodes.extend([name] * count)
+        pod_nodes.extend(["", "<none>"])
+        with patch("attach.kubectl_json", return_value=nodes), patch(
+            "attach.kubectl_lines", return_value=pod_nodes
+        ) as kubectl_lines_mock:
             selected = select_ready_nodes(
                 kubeconfig="/tmp/kubeconfig",
                 selector="pool=user",
@@ -699,6 +730,19 @@ class AttachmentRendererTests(unittest.TestCase):
                 pod_slot_headroom=10,
             )
         self.assertEqual(["eligible-a", "eligible-b"], selected)
+        kubectl_lines_mock.assert_called_once_with(
+            "/tmp/kubeconfig",
+            [
+                "get",
+                "pods",
+                "--all-namespaces",
+                "--chunk-size",
+                "500",
+                "-o",
+                "custom-columns=NODE:.spec.nodeName",
+                "--no-headers",
+            ],
+        )
 
     def test_node_selection_excludes_windows_nodes(self):
         windows = {
@@ -709,7 +753,9 @@ class AttachmentRendererTests(unittest.TestCase):
                 "conditions": [{"type": "Ready", "status": "True"}],
             },
         }
-        with patch("attach.kubectl_json", side_effect=[{"items": [windows]}, {"items": []}]):
+        with patch("attach.kubectl_json", return_value={"items": [windows]}), patch(
+            "attach.kubectl_lines", return_value=[]
+        ):
             with self.assertRaises(RuntimeError):
                 select_ready_nodes(
                     kubeconfig="/tmp/kubeconfig",
