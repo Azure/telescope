@@ -12,8 +12,8 @@ schema ControlPlaneResourceOverride:
 
 EncodeControlPlaneResourceOverrides = lambda overrides: [ControlPlaneResourceOverride] -> str {
     payload = json.encode(overrides)
-    encoded = base64.encode(payload)
     # AKS CLI rejects '=' padding in custom-header values.
-    padding = "  " if encoded.endswith("==") else " " if encoded.endswith("=") else ""
+    remainder = len(payload) % 3
+    padding = "  " if remainder == 1 else " " if remainder == 2 else ""
     base64.encode(payload + padding)
 }
