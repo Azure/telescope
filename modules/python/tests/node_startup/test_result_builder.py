@@ -1,7 +1,7 @@
-"""Result record assembly (plan section 6)."""
+"""Result assembly (plan section 6)."""
 import unittest
 
-from node_startup import record
+from node_startup import result_builder
 
 AKS_CLUSTER = {
     "location": "eastus2euap",
@@ -20,7 +20,7 @@ AKS_CLUSTER = {
 
 class ClusterInfoTest(unittest.TestCase):
     def test_selected_fields(self):
-        self.assertEqual(record.cluster_info(AKS_CLUSTER, "userpool"), {
+        self.assertEqual(result_builder.cluster_info(AKS_CLUSTER, "userpool"), {
             "cloud": "azure",
             "region": "eastus2euap",
             "cluster_id": "6ab984df1647dc0001775fd2",
@@ -42,16 +42,16 @@ class ClusterInfoTest(unittest.TestCase):
         })
 
     def test_pool_not_in_cluster(self):
-        self.assertIsNone(record.cluster_info(AKS_CLUSTER, "node-startup-latency")["node_pool"])
+        self.assertIsNone(result_builder.cluster_info(AKS_CLUSTER, "node-startup-latency")["node_pool"])
 
 
-class BuildRecordTest(unittest.TestCase):
+class BuildResultTest(unittest.TestCase):
     def test_shape(self):
-        built = record.build_record(
+        built = result_builder.build_result(
             scenario="managed-cilium", provisioner="cluster-autoscaler", iteration=2, total_iterations=5,
-            valid_iterations=4, operation={"name": "autoscale_latency"}, cluster={"cloud": "azure"},
-            config={"probe_namespace": "node-startup-latency"}, environment={"defender_sensor_present": False},
-            measurement={"node_name": "n"})
+            valid_iterations=4, start_timestamp="2026-10-02T10:00:00Z", end_timestamp="2026-10-02T10:01:16Z",
+            cluster={"cloud": "azure"}, config={"probe_namespace": "node-startup-latency"},
+            environment={"defender_sensor_present": False}, measurement={"node_name": "n"})
         self.assertEqual(built, {
             "schema_version": "1",
             "test": "node-startup-latency",
@@ -60,7 +60,16 @@ class BuildRecordTest(unittest.TestCase):
             "iteration": 2,
             "total_iterations": 5,
             "valid_iterations": 4,
-            "operation": {"name": "autoscale_latency"},
+            "operation": {
+                "name": "autoscale_latency",
+                "cloud": "azure",
+                "start_timestamp": "2026-10-02T10:00:00Z",
+                "end_timestamp": "2026-10-02T10:01:16Z",
+                "duration": 76.0,
+                "unit": "seconds",
+                "success": True,
+                "error_message": None,
+            },
             "cluster": {"cloud": "azure"},
             "config": {"probe_namespace": "node-startup-latency"},
             "environment": {"defender_sensor_present": False},

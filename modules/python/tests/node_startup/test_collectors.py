@@ -8,16 +8,23 @@ from tests.node_startup import scenarios
 from tests.node_startup.fake_kubernetes import FakeCoreV1Api, kubernetes_client, to_model
 from tests.node_startup.golden import V1_GOLDEN
 
-NEW_CNI_POD_KEYS = {"cni_pod_scheduled_event_precise"}
-
-
-def empty_events_v1(*_args, **_kwargs):
-    return mock.Mock(list_namespaced_event=mock.Mock(return_value=mock.Mock(items=[])))
+NEW_CNI_POD_KEYS = {"cni_pod_scheduled_event_time"}
 
 
 def cni_client(case):
     return kubernetes_client(KubernetesClient,
                              FakeCoreV1Api(pods=case["pods"], events=case["events"], logs=case["logs"]))
+
+
+def without_operations(v1_entry):
+    """v1 also labelled init container operations by matching log text; v2 doesn't."""
+    logs = [{key: value for key, value in log.items() if key != "operations"}
+            for log in v1_entry.get("init_container_logs", [])]
+    return {**v1_entry, "init_container_logs": logs} if "init_container_logs" in v1_entry else v1_entry
+
+
+def events_of(event_dicts):
+    return [to_model(event, "CoreV1Event") for event in event_dicts]
 
 
 class CniPodTimestampsTest(unittest.TestCase):
@@ -26,18 +33,30 @@ class CniPodTimestampsTest(unittest.TestCase):
             with self.subTest(scenario=name):
                 entry = collectors.collect_cni_pod_timestamps(cni_client(case), scenarios.NODE, scenarios.CILIUM_LABEL)
                 v1_keys_only = {key: value for key, value in entry.items() if key not in NEW_CNI_POD_KEYS}
-                self.assertEqual(v1_keys_only, V1_GOLDEN["cni_pod"][name])
+                self.assertEqual(v1_keys_only, without_operations(V1_GOLDEN["cni_pod"][name]))
 
-    def test_scheduled_event_precise(self):
+    def test_scheduled_event_time(self):
         entry = collectors.collect_cni_pod_timestamps(
             cni_client(scenarios.CNI_POD_SCENARIOS["cilium_agent"]), scenarios.NODE, scenarios.CILIUM_LABEL)
-        self.assertEqual(entry["cni_pod_scheduled_event_precise"], "2026-10-02T10:01:41.250000Z")
+        self.assertEqual(entry["cni_pod_scheduled_event_time"], "2026-10-02T10:01:41.250000Z")
         self.assertEqual(entry["cni_pod_scheduled"], "2026-10-02T10:01:41Z")
 
-    def test_scheduled_event_precise_is_none_without_event_time(self):
-        api = FakeCoreV1Api(events=[scenarios.event(scenarios.CILIUM_POD, "kube-system", "Scheduled",
-                                                    first_timestamp=scenarios.at(101))])
-        self.assertIsNone(collectors.scheduled_event_precise(api, scenarios.CILIUM_POD, "kube-system"))
+    def test_scheduled_event_time_is_none_without_event_time(self):
+        events = events_of([scenarios.event(scenarios.CILIUM_POD, "kube-system", "Scheduled",
+                                            first_timestamp=scenarios.at(101))])
+        self.assertIsNone(collectors.scheduled_event_time(events))
+
+    def test_pod_events_are_listed_once(self):
+        case = scenarios.CNI_POD_SCENARIOS["cilium_agent"]
+        k8s = cni_client(case)
+        with mock.patch.object(k8s.api, "list_namespaced_event", wraps=k8s.api.list_namespaced_event) as list_events:
+            collectors.collect_cni_pod_timestamps(k8s, scenarios.NODE, scenarios.CILIUM_LABEL)
+        self.assertEqual(list_events.call_count, 1)
+
+    def test_log_lines_without_a_timestamp_prefix_are_skipped(self):
+        self.assertEqual(collectors.split_timestamped_log_line("2026-10-02T10:01:43.100000123Z Installing cilium"),
+                         ("2026-10-02T10:01:43.100000123Z", "Installing cilium"))
+        self.assertIsNone(collectors.split_timestamped_log_line("not a timestamped line"))
 
 
 class SupplementaryCniPodsTest(unittest.TestCase):
@@ -51,38 +70,19 @@ class SupplementaryCniPodsTest(unittest.TestCase):
 
 
 class TriggerLookupTest(unittest.TestCase):
-    def lookup(self, events):
-        api = FakeCoreV1Api(events=events)
-        with mock.patch("kubernetes.client.EventsV1Api", side_effect=empty_events_v1):
-            triggered = collectors.get_triggered_scale_up_timestamp(
-                api, scenarios.PROBE_POD, scenarios.PROBE_NAMESPACE, max_retries=1)
-        first_scheduling = collectors.get_first_scheduling_event_timestamp(
-            api, scenarios.PROBE_POD, scenarios.PROBE_NAMESPACE)
-        return triggered, first_scheduling
-
-    def test_whole_seconds_match_v1(self):
-        for name, events in scenarios.TRIGGER_SCENARIOS.items():
+    def test_matches_v1(self):
+        for name, event_dicts in scenarios.TRIGGER_SCENARIOS.items():
             with self.subTest(scenario=name):
-                triggered, first_scheduling = self.lookup(events)
-                self.assertEqual(triggered[0], V1_GOLDEN["trigger"][name]["triggered_scale_up"])
-                self.assertEqual(first_scheduling[0], V1_GOLDEN["trigger"][name]["first_scheduling_event"])
+                events = events_of(event_dicts)
+                self.assertEqual(collectors.scale_up_trigger_time(events),
+                                 V1_GOLDEN["trigger"][name]["triggered_scale_up"])
+                self.assertEqual(collectors.first_failed_scheduling_time(events),
+                                 V1_GOLDEN["trigger"][name]["first_scheduling_event"])
 
-    def test_precise_only_from_event_time(self):
-        self.assertEqual(self.lookup(scenarios.TRIGGER_SCENARIOS["triggered_scale_up_whole_second"])[0],
-                         ("2026-10-02T10:00:05Z", None))
-        self.assertEqual(self.lookup(scenarios.TRIGGER_SCENARIOS["triggered_scale_up_with_event_time"])[0],
-                         ("2026-10-02T10:00:05Z", "2026-10-02T10:00:05.432100Z"))
-        self.assertEqual(self.lookup(scenarios.TRIGGER_SCENARIOS["failed_scheduling_fallback"])[1],
-                         ("2026-10-02T10:00:01Z", "2026-10-02T10:00:01.700000Z"))
-
-    def test_events_v1_fallback(self):
-        events_v1_event = mock.Mock(reason="TriggeredScaleUp", event_time=scenarios.clock(6, 5),
-                                    metadata=mock.Mock(creation_timestamp=scenarios.clock(6)))
-        events_v1 = mock.Mock(list_namespaced_event=mock.Mock(return_value=mock.Mock(items=[events_v1_event])))
-        with mock.patch("kubernetes.client.EventsV1Api", return_value=events_v1):
-            result = collectors.get_triggered_scale_up_timestamp(
-                FakeCoreV1Api(), scenarios.PROBE_POD, scenarios.PROBE_NAMESPACE, max_retries=1)
-        self.assertEqual(result, ("2026-10-02T10:00:06Z", "2026-10-02T10:00:06.000005Z"))
+    def test_listing_errors_return_no_events(self):
+        api = FakeCoreV1Api()
+        with mock.patch.object(api, "list_namespaced_event", side_effect=RuntimeError("API server unavailable")):
+            self.assertEqual(collectors.list_pod_events(api, scenarios.PROBE_POD, scenarios.PROBE_NAMESPACE), [])
 
 
 class NodeEnvironmentTest(unittest.TestCase):

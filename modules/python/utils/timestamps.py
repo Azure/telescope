@@ -1,28 +1,30 @@
-"""Timestamp formatting and parsing shared by the node startup measurement.
+"""UTC timestamp formatting and parsing for benchmark results.
 
-Whole-second values match the v1 benchmark's format exactly. The `*_precise`
-values carry microseconds and are only produced where the source has them.
+Kubernetes object times (creation, condition transitions, container start)
+only have whole seconds, so they use TIMESTAMP_SECONDS_FORMAT. Times the
+benchmark observes itself, and event `eventTime`s, use
+TIMESTAMP_MICROSECONDS_FORMAT.
 """
 from datetime import datetime
 
-WHOLE_SECOND_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
-PRECISE_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
+TIMESTAMP_SECONDS_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
+TIMESTAMP_MICROSECONDS_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 
 def format_timestamp(ts):
     if ts is None:
         return None
-    return ts.strftime(WHOLE_SECOND_FORMAT)
+    return ts.strftime(TIMESTAMP_SECONDS_FORMAT)
 
 
-def format_precise_timestamp(ts):
+def format_timestamp_microseconds(ts):
     if ts is None:
         return None
-    return ts.strftime(PRECISE_FORMAT)
+    return ts.strftime(TIMESTAMP_MICROSECONDS_FORMAT)
 
 
 def parse_timestamp(value):
-    """Parse a whole-second "...Z" timestamp. Python 3.10 fromisoformat rejects "Z"."""
+    """Parse a "...Z" timestamp in either format. Python 3.10 fromisoformat rejects "Z"."""
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 

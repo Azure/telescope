@@ -1,43 +1,56 @@
 """Probe pod lifecycle and node pool waits (ported from v1; `wait_for_pool_settled` is new in v2)."""
 import time
+from enum import Enum
 
 from kubernetes import client
 
+from node_startup import collectors
 from utils.logger_config import get_logger
 
 logger = get_logger(__name__)
 
 PROBE_IMAGE = "mcr.microsoft.com/oss/kubernetes/pause:3.9"
 PROBE_APP_LABEL = "latency-probe"
-SCALE_UP_EVENT_CHECK_INTERVAL_SECONDS = 30
-BACKOFF_EXTENSION_MINUTES = 10
-MIN_POST_TRIGGER_MINUTES = 5
+
+# The probe wait has three phases, each with a fixed timeout. The first covers one
+# Cluster Autoscaler backoff period (about 10 minutes) after a failed scale-up.
+SCALE_UP_TRIGGER_TIMEOUT_SECONDS = 15 * 60
+POD_SCHEDULED_TIMEOUT_SECONDS = 10 * 60
+POD_RUNNING_TIMEOUT_SECONDS = 5 * 60
+PROBE_WAIT_TIMEOUT_SECONDS = SCALE_UP_TRIGGER_TIMEOUT_SECONDS + POD_SCHEDULED_TIMEOUT_SECONDS + POD_RUNNING_TIMEOUT_SECONDS
+POD_POLL_INTERVAL_SECONDS = 2
+# Phase 1 lists the pod's events; its timestamp comes from the event itself, so a slower poll loses nothing.
+EVENT_POLL_INTERVAL_SECONDS = 10
 
 
-def is_karpenter(node_label_key):
-    return node_label_key.startswith("karpenter")
+class Provisioner(str, Enum):
+    """How the pool gets new nodes. Recorded in every result; decides how a probe targets a new node."""
+    CLUSTER_AUTOSCALER = "cluster-autoscaler"
+    NODE_AUTO_PROVISIONING = "node-auto-provisioning"
+
+    def __str__(self):
+        return self.value
 
 
-def max_probe_wait_minutes(operation_timeout_in_minutes):
-    """Upper bound of wait_for_probe_pod_running once both deadline extensions have applied."""
-    return operation_timeout_in_minutes + BACKOFF_EXTENSION_MINUTES + MIN_POST_TRIGGER_MINUTES
+class ProbeTimeout(Exception):
+    pass
 
 
-def deploy_probe_pod(k8s, node_pool_name, namespace, pod_name, node_label_key, image=PROBE_IMAGE):
+def deploy_probe_pod(k8s, node_pool_name, namespace, pod_name, node_label_key, provisioner, image=PROBE_IMAGE):
     """Create a probe pod that can only run on a node of the pool that doesn't exist yet.
 
     Cluster Autoscaler pools: node affinity excludes every existing node of the pool.
-    Karpenter pools: no hostname affinity (Karpenter rejects it); the caller waits
-    for the pool to be empty instead.
+    Node auto-provisioning (Karpenter) pools: no hostname affinity (Karpenter rejects
+    it); the caller waits for the pool to be empty instead.
     """
     existing_node_names = [node.metadata.name for node in
                            k8s.get_nodes(label_selector=f"{node_label_key}={node_pool_name}")]
-    karpenter = is_karpenter(node_label_key)
+    exclude_existing = provisioner == Provisioner.CLUSTER_AUTOSCALER
     logger.info("Deploying probe pod '%s' with anti-affinity against nodes: %s",
-                pod_name, [] if karpenter else existing_node_names)
+                pod_name, existing_node_names if exclude_existing else [])
 
     affinity = None
-    if existing_node_names and not karpenter:
+    if existing_node_names and exclude_existing:
         affinity = client.V1Affinity(
             node_affinity=client.V1NodeAffinity(
                 required_during_scheduling_ignored_during_execution=client.V1NodeSelector(
@@ -91,89 +104,87 @@ def deploy_probe_pod(k8s, node_pool_name, namespace, pod_name, node_label_key, i
     return pod_name
 
 
-def extend_deadline_from_events(api, pod_name, namespace, timeout, backoff_detected,
-                                min_post_trigger_minutes, backoff_extension_minutes):
-    """Read the pod's autoscaler events once. Returns (timeout, scale_up_triggered, backoff_detected)."""
-    events = api.list_namespaced_event(
-        namespace=namespace,
-        field_selector=f"involvedObject.name={pod_name},involvedObject.kind=Pod",
-    )
-    for event in events.items:
-        if event.reason == "NotTriggerScaleUp" and not backoff_detected:
-            backoff_detected = True
-            min_deadline = time.time() + (backoff_extension_minutes * 60)
-            if min_deadline > timeout:
-                logger.warning("Probe pod '%s': autoscaler in backoff (%s), "
-                               "extending timeout by %d minutes to allow backoff to clear",
-                               pod_name, event.message, int((min_deadline - timeout) / 60) + 1)
-                timeout = min_deadline
-            else:
-                logger.warning("Probe pod '%s': autoscaler in backoff (%s), "
-                               "sufficient time remains for backoff to clear", pod_name, event.message)
-        if event.reason in ("TriggeredScaleUp", "ScaleUp", "ScaledUpGroup"):
-            min_deadline = time.time() + (min_post_trigger_minutes * 60)
-            if min_deadline > timeout:
-                logger.info("Probe pod '%s': scale-up triggered, extending timeout "
-                            "by %d minutes to allow node provisioning",
-                            pod_name, int((min_deadline - timeout) / 60) + 1)
-                timeout = min_deadline
-            return timeout, True, backoff_detected
-    return timeout, False, backoff_detected
+def wait_until(failure, timeout_seconds, check, interval_seconds=POD_POLL_INTERVAL_SECONDS):
+    """Poll `check` until it returns a truthy value and return that value.
 
-
-def wait_for_probe_pod_running(api, pod_name, namespace, operation_timeout_in_minutes,
-                               min_post_trigger_minutes=MIN_POST_TRIGGER_MINUTES,
-                               backoff_extension_minutes=BACKOFF_EXTENSION_MINUTES):
-    """Return the probe pod once it's Running and Ready.
-
-    Extends the deadline so at least `min_post_trigger_minutes` remain after the
-    autoscaler's scale-up event, and by `backoff_extension_minutes` the first time
-    autoscaler backoff (NotTriggerScaleUp) is seen.
+    Raises ProbeTimeout("<failure> within N minutes") after `timeout_seconds`.
     """
-    timeout = time.time() + (operation_timeout_in_minutes * 60)
-    logger.info("Waiting for probe pod '%s' to become Running...", pod_name)
-    scale_up_triggered = False
-    backoff_detected = False
-    last_event_check = 0
+    deadline = time.time() + timeout_seconds
+    while True:
+        result = check()
+        if result:
+            return result
+        if time.time() >= deadline:
+            raise ProbeTimeout(f"{failure} within {timeout_seconds // 60} minutes")
+        time.sleep(interval_seconds)
 
-    while time.time() < timeout:
-        pod = api.read_namespaced_pod(name=pod_name, namespace=namespace)
-        phase = pod.status.phase if pod.status else None
 
-        if phase == "Running" and any(condition.type == "Ready" and condition.status == "True"
-                                      for condition in (pod.status.conditions or [])):
-            logger.info("Probe pod '%s' is Running and Ready", pod_name)
-            return pod
+def wait_for_scale_up_trigger(api, pod_name, namespace):
+    """Phase 1: the autoscaler posts a scale-up event for the pod, or the pod is scheduled without one.
 
-        now = time.time()
-        if phase == "Pending" and not scale_up_triggered and (now - last_event_check) >= SCALE_UP_EVENT_CHECK_INTERVAL_SECONDS:
-            last_event_check = now
-            try:
-                timeout, scale_up_triggered, backoff_detected = extend_deadline_from_events(
-                    api, pod_name, namespace, timeout, backoff_detected,
-                    min_post_trigger_minutes, backoff_extension_minutes)
-            except Exception:
-                pass  # Event lookup only extends the deadline; never fail the wait on it.
+    Node auto-provisioning posts no scale-up event, so for it this phase ends when the pod is scheduled.
+    """
+    backoff_logged = False
 
-        logger.info("Probe pod '%s' phase: %s, waiting...", pod_name, phase)
-        time.sleep(2)
+    def triggered():
+        nonlocal backoff_logged
+        if api.read_namespaced_pod(name=pod_name, namespace=namespace).spec.node_name:
+            return True
+        for event in collectors.list_pod_events(api, pod_name, namespace):
+            if event.reason in collectors.SCALE_UP_REASONS:
+                return True
+            if event.reason == "NotTriggerScaleUp" and not backoff_logged:
+                backoff_logged = True
+                logger.warning("Probe pod '%s': autoscaler in backoff (%s)", pod_name, event.message)
+        return False
 
+    wait_until(f"Probe pod '{pod_name}': no scale-up was triggered", SCALE_UP_TRIGGER_TIMEOUT_SECONDS, triggered,
+               interval_seconds=EVENT_POLL_INTERVAL_SECONDS)
+    logger.info("Probe pod '%s': scale-up triggered", pod_name)
+
+
+def wait_for_probe_pod_running(api, pod_name, namespace):
+    """Return the probe pod once it's Running and Ready, waiting through three fixed-timeout phases.
+
+    1. Scale-up triggered (SCALE_UP_TRIGGER_TIMEOUT_SECONDS).
+    2. Pod scheduled: the new node registered, became Ready and lost its startup taints
+       (POD_SCHEDULED_TIMEOUT_SECONDS).
+    3. Pod Running and Ready: sandbox created and container started (POD_RUNNING_TIMEOUT_SECONDS).
+    """
+    def read_pod():
+        return api.read_namespaced_pod(name=pod_name, namespace=namespace)
+
+    def running_and_ready():
+        pod = read_pod()
+        ready = any(condition.type == "Ready" and condition.status == "True"
+                    for condition in (pod.status.conditions or []))
+        return pod if pod.status.phase == "Running" and ready else None
+
+    try:
+        wait_for_scale_up_trigger(api, pod_name, namespace)
+        node_name = wait_until(f"Probe pod '{pod_name}' was not scheduled", POD_SCHEDULED_TIMEOUT_SECONDS,
+                               lambda: read_pod().spec.node_name)
+        logger.info("Probe pod '%s': scheduled on node '%s'", pod_name, node_name)
+        pod = wait_until(f"Probe pod '{pod_name}' did not become Running and Ready", POD_RUNNING_TIMEOUT_SECONDS,
+                         running_and_ready)
+        logger.info("Probe pod '%s': Running and Ready", pod_name)
+        return pod
+    except ProbeTimeout:
+        log_probe_diagnostics(api, pod_name, namespace)
+        raise
+
+
+def log_probe_diagnostics(api, pod_name, namespace):
     try:
         pod = api.read_namespaced_pod(name=pod_name, namespace=namespace)
         logger.warning("Probe pod '%s' final state - phase: %s, node: %s, conditions: %s",
                        pod_name, pod.status.phase, pod.spec.node_name,
                        [(c.type, c.status, c.reason, c.message) for c in (pod.status.conditions or [])])
-        events = api.list_namespaced_event(
-            namespace=namespace,
-            field_selector=f"involvedObject.name={pod_name},involvedObject.kind=Pod",
-        )
-        for event in events.items:
+        for event in collectors.list_pod_events(api, pod_name, namespace):
             logger.warning("Probe pod event: %s - %s: %s",
                            event.reason, event.source.component if event.source else "unknown", event.message)
     except Exception as diag_err:
         logger.warning("Failed to collect probe pod diagnostics: %s", diag_err)
-
-    raise Exception(f"Probe pod '{pod_name}' did not become Running within {operation_timeout_in_minutes} minutes")
 
 
 def delete_probe_pod(api, pod_name, namespace):

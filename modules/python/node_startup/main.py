@@ -12,18 +12,18 @@ import time
 from datetime import datetime, timezone
 
 from clients.kubernetes_client import KubernetesClient
-from node_startup import probe, record
+from node_startup import probe, result_builder
 from node_startup.iteration import measure_iteration
-from node_startup.timestamps import format_timestamp, parse_timestamp
+from node_startup.probe import Provisioner
 from node_startup.validation import cni_readiness_signal, validate_iteration
 from utils.logger_config import get_logger, setup_logging
+from utils.timestamps import format_timestamp
 
 logger = get_logger(__name__)
 
 # Rough per-iteration cost when nothing goes wrong, used only to warn up front
 # that the requested iterations probably won't fit before the deadline.
 ESTIMATED_ITERATION_SECONDS = 180
-DEFAULT_OPERATION_TIMEOUT_MINUTES = 15
 SETTLE_TIMEOUT_SECONDS = 600
 
 
@@ -57,7 +57,8 @@ def name_equals_selector(value):
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--scenario", required=True, help="Scenario name recorded in results, e.g. managed-cilium")
-    parser.add_argument("--provisioner", required=True, help="Node provisioner recorded in results, e.g. cluster-autoscaler")
+    parser.add_argument("--provisioner", required=True, type=Provisioner, choices=list(Provisioner),
+                        help="How the pool gets new nodes; recorded in results")
     parser.add_argument("--cluster-info-file", required=True, help="Output of `az aks show -o json`")
     parser.add_argument("--node-pool-name", required=True, help="Pool that must scale up for each probe")
     parser.add_argument("--node-label-key", required=True,
@@ -72,8 +73,6 @@ def parse_args(argv=None):
     parser.add_argument("--probe-namespace", required=True, help="Namespace for probe pods; created if missing")
     parser.add_argument("--iterations", required=True, type=positive_int)
     parser.add_argument("--iteration-cooldown-seconds", required=True, type=non_negative_int)
-    parser.add_argument("--step-timeout-seconds", required=True, type=positive_int,
-                        help="How long to wait for each probe pod to run")
     parser.add_argument("--deadline-epoch-seconds", required=True, type=int,
                         help="Don't start new iterations after this time, so upload and cleanup still fit")
     parser.add_argument("--uses-default-settings", required=True, type=boolean,
@@ -96,10 +95,8 @@ def write_records_atomically(path, records):
 
 def run(args, k8s, clock=time.time, sleep=time.sleep):
     with open(args.cluster_info_file, encoding="utf-8") as file:
-        cluster = record.cluster_info(json.load(file), args.node_pool_name)
+        cluster = result_builder.cluster_info(json.load(file), args.node_pool_name)
     supplementary_cni_pods = dict(args.supplementary_cni_pod)
-    # v1 semantics: whole minutes, 15 when the timeout is under a minute.
-    operation_timeout_in_minutes = args.step_timeout_seconds // 60 or DEFAULT_OPERATION_TIMEOUT_MINUTES
     config = {
         "node_label_key": args.node_label_key,
         "node_pool_name": args.node_pool_name,
@@ -109,7 +106,11 @@ def run(args, k8s, clock=time.time, sleep=time.sleep):
         "supplementary_cni_pods": supplementary_cni_pods,
         "probe_image": probe.PROBE_IMAGE,
         "probe_namespace": args.probe_namespace,
-        "step_timeout_seconds": args.step_timeout_seconds,
+        "probe_phase_timeouts_seconds": {
+            "scale_up_triggered": probe.SCALE_UP_TRIGGER_TIMEOUT_SECONDS,
+            "pod_scheduled": probe.POD_SCHEDULED_TIMEOUT_SECONDS,
+            "pod_running": probe.POD_RUNNING_TIMEOUT_SECONDS,
+        },
         "iteration_cooldown_seconds": args.iteration_cooldown_seconds,
         "uses_default_settings": args.uses_default_settings,
     }
@@ -139,9 +140,9 @@ def run(args, k8s, clock=time.time, sleep=time.sleep):
                 k8s,
                 node_pool_name=args.node_pool_name,
                 node_label_key=args.node_label_key,
+                provisioner=args.provisioner,
                 namespace=args.probe_namespace,
                 pod_name=f"latency-probe-{iteration}",
-                operation_timeout_in_minutes=operation_timeout_in_minutes,
                 cni_daemonset_label=args.cni_daemonset_label,
                 cni_blocking_taint=args.cni_blocking_taint,
                 supplementary_cni_pods=supplementary_cni_pods,
@@ -150,7 +151,8 @@ def run(args, k8s, clock=time.time, sleep=time.sleep):
             logger.error("FAILED NODE STARTUP ITERATION %d: %s", iteration, e)
             dropped.append((iteration, f"failed: {e}"))
             remaining_seconds = args.deadline_epoch_seconds - clock()
-            if not probe.is_karpenter(args.node_label_key) and iteration < args.iterations and remaining_seconds > 0:
+            if (args.provisioner == Provisioner.CLUSTER_AUTOSCALER and iteration < args.iterations
+                    and remaining_seconds > 0):
                 try:
                     probe.wait_for_pool_settled(k8s, args.node_label_key, args.node_pool_name,
                                                 timeout_seconds=min(SETTLE_TIMEOUT_SECONDS, remaining_seconds))
@@ -188,14 +190,14 @@ def run(args, k8s, clock=time.time, sleep=time.sleep):
         # v1 stored these inside the measurement too; kept for key parity.
         measurement["iteration"] = iteration
         measurement["total_iterations"] = args.iterations
-        duration = (parse_timestamp(end_timestamp) - parse_timestamp(start_timestamp)).total_seconds()
-        records.append(record.build_record(
+        records.append(result_builder.build_result(
             scenario=args.scenario,
-            provisioner=args.provisioner,
+            provisioner=args.provisioner.value,
             iteration=iteration,
             total_iterations=args.iterations,
             valid_iterations=len(valid),
-            operation=record.operation_info(start_timestamp, end_timestamp, duration),
+            start_timestamp=start_timestamp,
+            end_timestamp=end_timestamp,
             cluster=cluster,
             config=config,
             environment=result["environment"],

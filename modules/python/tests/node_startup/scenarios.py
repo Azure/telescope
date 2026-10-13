@@ -261,6 +261,24 @@ WATCH_SCENARIOS = {
     },
 }
 
+# The autoscaler adds a second node next to the probe pod's node. The probe node's
+# events and clock are those of "managed_cilium"; the other node's are interleaved.
+# Not in WATCH_SCENARIOS: v1 mixed the two nodes' transitions, so it has no golden output.
+OTHER_NEW_NODE = "aks-userpool-12345678-vmss000004"
+_CILIUM_NODE_EVENTS = WATCH_SCENARIOS["managed_cilium"]["nodes"][1:]
+TWO_NEW_NODES_WATCH = {
+    "cni_blocking_taint": CILIUM_TAINT,
+    "nodes": [
+        node(EXISTING_NODE, ready_status="True"),
+        node(OTHER_NEW_NODE, [NOT_READY, CILIUM_TAINT_ENTRY], ready_message=CNI_NOT_READY),
+        *_CILIUM_NODE_EVENTS[:3],
+        node(OTHER_NEW_NODE, [], ready_status="True", ready_transition=at(110)),
+        *_CILIUM_NODE_EVENTS[3:],
+    ],
+    "clock": [(99, 0), (100, 400000), (101, 1), (104, 999999), (110, 0), (112, 500000), (115, 250000),
+              (119, 0), (130, 5)],
+}
+
 # --- Scale-up trigger lookup ------------------------------------------------------
 
 TRIGGER_SCENARIOS = {

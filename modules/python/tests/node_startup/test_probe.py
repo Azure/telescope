@@ -23,25 +23,33 @@ class FakeTime:
         self.now += seconds
 
 
-def pod(phase):
-    ready = "True" if phase == "Running" else "False"
-    return to_model({
-        "metadata": {"name": scenarios.PROBE_POD, "namespace": scenarios.PROBE_NAMESPACE},
-        "spec": {"containers": [{"name": "probe"}]},
-        "status": {"phase": phase, "conditions": [{"type": "Ready", "status": ready}]},
-    }, "V1Pod")
+NEVER = float("inf")
 
 
 class ProbeApi(FakeCoreV1Api):
-    """The probe pod is Pending until `running_at` seconds of fake time."""
+    """A probe pod that, in fake time, gets a scale-up event, is scheduled and then runs."""
 
-    def __init__(self, fake_time, running_at, events=()):
-        super().__init__(events=events)
+    def __init__(self, fake_time, triggered_at=NEVER, scheduled_at=NEVER, running_at=NEVER, backoff=False):
+        super().__init__()
         self.fake_time = fake_time
-        self.running_at = running_at
+        self.triggered_at, self.scheduled_at, self.running_at = triggered_at, scheduled_at, running_at
+        self.backoff = backoff
 
     def read_namespaced_pod(self, name, namespace):
-        return pod("Running" if self.fake_time.now >= self.running_at else "Pending")
+        now = self.fake_time.now
+        running = now >= self.running_at
+        return to_model({
+            "metadata": {"name": name, "namespace": namespace},
+            "spec": {"nodeName": scenarios.NODE if now >= self.scheduled_at else None,
+                     "containers": [{"name": "probe"}]},
+            "status": {"phase": "Running" if running else "Pending",
+                       "conditions": [{"type": "Ready", "status": "True" if running else "False"}]},
+        }, "V1Pod")
+
+    def list_namespaced_event(self, namespace, field_selector=None):
+        reasons = (["NotTriggerScaleUp"] if self.backoff else []) + (
+            ["TriggeredScaleUp"] if self.fake_time.now >= self.triggered_at else [])
+        return mock.Mock(items=[to_model(event(reason), "CoreV1Event") for reason in reasons])
 
 
 def event(reason):
@@ -50,26 +58,41 @@ def event(reason):
 
 
 class WaitForProbePodRunningTest(unittest.TestCase):
-    def wait(self, running_at, events=()):
+    def wait(self, **timeline):
         fake_time = FakeTime()
         with mock.patch("node_startup.probe.time", fake_time):
-            return probe.wait_for_probe_pod_running(ProbeApi(fake_time, running_at, events),
-                                                    scenarios.PROBE_POD, scenarios.PROBE_NAMESPACE, 1)
+            pod = probe.wait_for_probe_pod_running(ProbeApi(fake_time, **timeline),
+                                                   scenarios.PROBE_POD, scenarios.PROBE_NAMESPACE)
+        return pod, fake_time.now
 
-    def test_returns_running_pod(self):
-        self.assertEqual(self.wait(running_at=30).status.phase, "Running")
+    def assert_times_out(self, message, **timeline):
+        with self.assertRaisesRegex(probe.ProbeTimeout, message):
+            self.wait(**timeline)
 
-    def test_times_out(self):
-        with self.assertRaisesRegex(Exception, "did not become Running within 1 minutes"):
-            self.wait(running_at=120)
+    def test_returns_running_pod_after_the_three_phases(self):
+        pod, elapsed = self.wait(triggered_at=60, scheduled_at=120, running_at=150)
+        self.assertEqual(pod.status.phase, "Running")
+        self.assertEqual(elapsed, 150)
 
-    def test_backoff_extends_deadline(self):
-        self.assertEqual(self.wait(running_at=600, events=[event("NotTriggerScaleUp")]).status.phase, "Running")
+    def test_each_phase_has_a_fixed_timeout(self):
+        self.assert_times_out("no scale-up was triggered within 15 minutes")
+        self.assert_times_out("was not scheduled within 10 minutes", triggered_at=60)
+        self.assert_times_out("did not become Running and Ready within 5 minutes", triggered_at=60, scheduled_at=120)
 
-    def test_scale_up_keeps_five_minutes_after_trigger(self):
-        self.assertEqual(self.wait(running_at=299, events=[event("TriggeredScaleUp")]).status.phase, "Running")
-        with self.assertRaises(Exception):
-            self.wait(running_at=400, events=[event("TriggeredScaleUp")])
+    def test_phase_timeouts_add_up_to_the_watch_timeout(self):
+        # Every phase uses its full budget and succeeds on its last poll.
+        _, elapsed = self.wait(triggered_at=900, scheduled_at=1500, running_at=1800)
+        self.assertEqual(elapsed, probe.PROBE_WAIT_TIMEOUT_SECONDS)
+
+    def test_backoff_does_not_extend_the_deadline(self):
+        self.assertEqual(self.wait(backoff=True, triggered_at=890, scheduled_at=900, running_at=910)[0].status.phase,
+                         "Running")
+        self.assert_times_out("no scale-up was triggered", backoff=True, triggered_at=910)
+
+    def test_scheduled_without_a_scale_up_event(self):
+        # e.g. node auto-provisioning, which posts no TriggeredScaleUp event.
+        pod, elapsed = self.wait(scheduled_at=100, running_at=110)
+        self.assertEqual((pod.status.phase, elapsed), ("Running", 110))
 
 
 def pool_node(name, ready="True"):
@@ -116,15 +139,23 @@ class PoolWaitTest(unittest.TestCase):
 
 
 class DeployProbePodTest(unittest.TestCase):
-    def deploy(self, node_label_key, api):
+    def deploy(self, node_label_key, provisioner, api):
         k8s = kubernetes_client(KubernetesClient, api)
         with mock.patch("node_startup.probe.time", FakeTime()):
-            probe.deploy_probe_pod(k8s, "userpool", scenarios.PROBE_NAMESPACE, scenarios.PROBE_POD, node_label_key)
+            probe.deploy_probe_pod(k8s, "userpool", scenarios.PROBE_NAMESPACE, scenarios.PROBE_POD, node_label_key,
+                                   provisioner)
         return api.created_pods[-1][1]
 
-    def test_karpenter_has_no_hostname_affinity(self):
+    def test_cluster_autoscaler_excludes_existing_nodes(self):
+        api = FakeCoreV1Api(nodes=[scenarios.node(scenarios.EXISTING_NODE)])
+        body = self.deploy("agentpool", probe.Provisioner.CLUSTER_AUTOSCALER, api)
+        expressions = body.spec.affinity.node_affinity.required_during_scheduling_ignored_during_execution \
+            .node_selector_terms[0].match_expressions
+        self.assertEqual(expressions[0].values, [scenarios.EXISTING_NODE])
+
+    def test_node_auto_provisioning_has_no_hostname_affinity(self):
         api = FakeCoreV1Api(nodes=[scenarios.node("a", labels={"karpenter.sh/nodepool": "userpool"})])
-        body = self.deploy("karpenter.sh/nodepool", api)
+        body = self.deploy("karpenter.sh/nodepool", probe.Provisioner.NODE_AUTO_PROVISIONING, api)
         self.assertIsNone(body.spec.affinity)
         self.assertEqual(body.spec.node_selector, {"karpenter.sh/nodepool": "userpool"})
         self.assertEqual(body.spec.containers[0].image, probe.PROBE_IMAGE)
@@ -135,7 +166,8 @@ class DeployProbePodTest(unittest.TestCase):
         with mock.patch.object(api, "create_namespaced_pod", side_effect=[conflict, None]) as create:
             k8s = kubernetes_client(KubernetesClient, api)
             with mock.patch("node_startup.probe.time", FakeTime()):
-                probe.deploy_probe_pod(k8s, "userpool", scenarios.PROBE_NAMESPACE, scenarios.PROBE_POD, "agentpool")
+                probe.deploy_probe_pod(k8s, "userpool", scenarios.PROBE_NAMESPACE, scenarios.PROBE_POD, "agentpool",
+                                       probe.Provisioner.CLUSTER_AUTOSCALER)
         self.assertEqual(create.call_count, 2)
         self.assertEqual(api.deleted_pods, [(scenarios.PROBE_NAMESPACE, scenarios.PROBE_POD)])
 

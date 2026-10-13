@@ -7,33 +7,37 @@ cilium_init_duration_seconds (= cni_init_seconds),
 cni_induced_delay_seconds (= cilium_scheduling_block_seconds),
 pod_init_seconds (= sandbox_setup_seconds),
 node_to_pod_seconds (= time_to_runnable_seconds).
-`compute_precise_latencies` is new in v2 and has no v1 counterpart.
+`compute_sub_second_latencies` is new in v2 and has no v1 counterpart.
+
+Watch-observed timestamps have microseconds; the v1 latencies truncate every
+timestamp to whole seconds first, exactly as v1 stored them, so their values
+are unchanged.
 """
 import re
 
-from node_startup.timestamps import parse_timestamp
+from utils.timestamps import parse_timestamp
 
-# Sub-second durations between two node-watch observations. Both ends use the pipeline
-# agent's clock, so there's no clock skew. The node's start is the watch's first sighting
-# of it (node_registered_observed_precise), not its whole-second creationTimestamp.
-PRECISE_LATENCIES = {
-    "node_init_precise_seconds": ("node_ready_observed_precise", "node_registered_observed_precise"),
-    "cni_conflist_install_precise_seconds": ("cni_conflist_placed_precise", "node_registered_observed_precise"),
-    "csinode_ready_precise_seconds": ("csinode_ready_precise", "node_registered_observed_precise"),
-    "not_ready_taint_precise_seconds": ("not_ready_taint_cleared_precise", "node_registered_observed_precise"),
-    "cni_taint_precise_seconds": ("cni_taint_cleared_precise", "node_registered_observed_precise"),
-    "network_unavailable_taint_precise_seconds": (
-        "network_unavailable_taint_cleared_precise", "node_registered_observed_precise"),
-    "not_ready_taint_active_precise_seconds": ("not_ready_taint_cleared_precise", "not_ready_taint_observed_precise"),
-    "cni_taint_active_precise_seconds": ("cni_taint_cleared_precise", "cni_taint_observed_precise"),
-    "network_unavailable_taint_active_precise_seconds": (
-        "network_unavailable_taint_cleared_precise", "network_unavailable_taint_observed_precise"),
-    "node_ready_to_cni_clear_precise_seconds": ("cni_taint_cleared_precise", "node_ready_observed_precise"),
+# Sub-second versions of the latencies whose two ends are both node-watch observations.
+# Same metric names as in `latencies`. Both ends use the pipeline agent's clock, so
+# there's no clock skew. The node's start is the watch's first sighting of it
+# (node_registered_observed), not its whole-second creationTimestamp.
+SUB_SECOND_LATENCIES = {
+    "node_init_seconds": ("node_ready_observed", "node_registered_observed"),
+    "cni_conflist_install_seconds": ("cni_conflist_placed", "node_registered_observed"),
+    "csinode_ready_seconds": ("csinode_ready", "node_registered_observed"),
+    "not_ready_taint_seconds": ("not_ready_taint_cleared", "node_registered_observed"),
+    "cni_taint_seconds": ("cni_taint_cleared", "node_registered_observed"),
+    "network_unavailable_taint_seconds": ("network_unavailable_taint_cleared", "node_registered_observed"),
+    "not_ready_taint_active_seconds": ("not_ready_taint_cleared", "not_ready_taint_observed"),
+    "cni_taint_active_seconds": ("cni_taint_cleared", "cni_taint_observed"),
+    "network_unavailable_taint_active_seconds": (
+        "network_unavailable_taint_cleared", "network_unavailable_taint_observed"),
+    "node_ready_to_cni_clear_seconds": ("cni_taint_cleared", "node_ready_observed"),
 }
 
 
-def compute_precise_latencies(measurement):
-    """Millisecond-resolution counterparts of the whole-second latencies measured by the node watch.
+def compute_sub_second_latencies(measurement):
+    """Millisecond-resolution values of the latencies measured by the node watch.
 
     All values are None if the watch first saw the node already Ready: its first sighting
     was late, so every duration measured from it would be too short.
@@ -41,7 +45,7 @@ def compute_precise_latencies(measurement):
     history = measurement.get("ready_condition_history") or []
     seen_before_ready = bool(history) and history[0]["status"] != "True"
     latencies = {}
-    for name, (end_key, start_key) in PRECISE_LATENCIES.items():
+    for name, (end_key, start_key) in SUB_SECOND_LATENCIES.items():
         end, start = measurement.get(end_key), measurement.get(start_key)
         latencies[name] = None
         if seen_before_ready and end and start:
@@ -58,7 +62,8 @@ def compute_autoscale_latencies(timestamps):
         if not end_val or not start_val:
             return None
         try:
-            return (parse_timestamp(end_val) - parse_timestamp(start_val)).total_seconds()
+            end, start = parse_timestamp(end_val), parse_timestamp(start_val)
+            return (end.replace(microsecond=0) - start.replace(microsecond=0)).total_seconds()
         except Exception:
             return None
 

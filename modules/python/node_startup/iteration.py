@@ -1,89 +1,91 @@
 """One measured iteration: trigger a fresh node, watch it come up, collect all timestamps.
 
 Ported from v1 `collect_autoscale_latency`. The `measurement` dict has every v1
-key (minus the dropped alias latencies) plus the new `*_precise`,
-`supplementary_cni_pods`, `ready_condition_history` and `precise_latencies` keys.
+key (minus the dropped alias latencies). Watch-observed times have microseconds;
+the v2-only keys are `node_registered_observed`, `node_ready_observed`,
+`pod_scheduled_event_time`, `cni_pod_scheduled_event_time`,
+`supplementary_cni_pods`, `ready_condition_history` and `sub_second_latencies`.
 """
 import threading
 
 from node_startup import collectors, probe
 from node_startup.cilium import scrape_cilium_metrics
-from node_startup.latency import compute_autoscale_latencies, compute_precise_latencies
-from node_startup.node_watch import new_watch_result, watch_node_transitions
-from node_startup.timestamps import condition_transition_time, format_timestamp
+from node_startup.latency import compute_autoscale_latencies, compute_sub_second_latencies
+from node_startup.node_watch import new_node_transitions, watch_node_transitions
 from utils.logger_config import get_logger
+from utils.timestamps import condition_transition_time, format_timestamp
 
 logger = get_logger(__name__)
 
 WATCH_JOIN_TIMEOUT_SECONDS = 15
-WATCH_PRECISE_KEYS = {
-    "not_ready_taint_observed_precise": "not_ready_taint_observed_precise",
-    "not_ready_taint_cleared_precise": "not_ready_taint_cleared_precise",
-    "network_unavailable_taint_observed_precise": "network_unavailable_taint_observed_precise",
-    "network_unavailable_taint_cleared_precise": "network_unavailable_taint_cleared_precise",
-    "cni_taint_observed_precise": "cni_taint_observed_precise",
-    "cni_taint_cleared_precise": "cni_taint_cleared_precise",
-    "cni_conflist_placed_precise": "cni_conflist_placed_at_precise",
-    "csinode_ready_precise": "csinode_ready_at_precise",
-    # No whole-second twin: node_registered/node_ready are API-server times, these are when the watch saw them.
-    "node_registered_observed_precise": "node_registered_at_precise",
-    "node_ready_observed_precise": "node_ready_at_precise",
-}
+# Each probe-wait phase can overrun its timeout by one poll interval; the watch must still be running then.
+WATCH_TIMEOUT_MARGIN_SECONDS = 60
 
 
-def measure_iteration(k8s, node_pool_name, node_label_key, namespace, pod_name, operation_timeout_in_minutes,
-                      cni_daemonset_label=None, cni_blocking_taint=None, supplementary_cni_pods=None,
-                      scale_up_retry_interval=6):
+def probe_node_transitions(recorders, probe_node_name):
+    """Transitions of the probe pod's node; other new nodes the autoscaler added are ignored."""
+    other_nodes = sorted(set(recorders) - {probe_node_name})
+    if other_nodes:
+        logger.info("Watch also saw new node(s) %s; only '%s' is measured", other_nodes, probe_node_name)
+    recorder = recorders.get(probe_node_name)
+    if recorder is None:
+        logger.warning("The node watch never saw the probe pod's node '%s'", probe_node_name)
+        return new_node_transitions()
+    return recorder.transitions
+
+
+def measure_iteration(k8s, node_pool_name, node_label_key, provisioner, namespace, pod_name,
+                      cni_daemonset_label=None, cni_blocking_taint=None, supplementary_cni_pods=None):
     """Run one iteration; raises if the probe pod never runs. Always deletes the probe pod.
 
     Returns {"measurement", "environment", "existing_nodes"}.
     """
     try:
-        if probe.is_karpenter(node_label_key):
+        if provisioner == probe.Provisioner.NODE_AUTO_PROVISIONING:
             probe.wait_for_pool_scaled_to_zero(k8s, node_label_key, node_pool_name)
 
         existing_nodes = {node.metadata.name for node in
                           k8s.get_nodes(label_selector=f"{node_label_key}={node_pool_name}")}
 
-        probe.deploy_probe_pod(k8s, node_pool_name, namespace, pod_name, node_label_key)
+        probe.deploy_probe_pod(k8s, node_pool_name, namespace, pod_name, node_label_key, provisioner)
         pod = k8s.api.read_namespaced_pod(name=pod_name, namespace=namespace)
         pod_created = format_timestamp(pod.metadata.creation_timestamp)
         logger.info("Probe pod '%s' created at %s, waiting for autoscaler to scale up...", pod_name, pod_created)
 
-        # The watch runs in the background so a blocked watch can't stall the iteration;
-        # it writes into `intermediate_states` as it goes. It must outlive the probe wait
-        # (which can extend its deadline), or late transitions would be missed.
+        # The watch runs in the background so a blocked watch can't stall the iteration.
+        # It records every new node in `recorders` as it goes; the probe pod's node is
+        # only known once it's scheduled.
         stop_event = threading.Event()
-        intermediate_states = new_watch_result()
+        recorders = {}
         watch_thread = threading.Thread(
             target=watch_node_transitions,
             kwargs={
                 "api": k8s.api,
                 "existing_nodes": existing_nodes,
                 "node_pool_name": node_pool_name,
-                "cni_blocking_taint": cni_blocking_taint,
-                "timeout_minutes": probe.max_probe_wait_minutes(operation_timeout_in_minutes),
-                "stop_event": stop_event,
-                "result": intermediate_states,
                 "node_label_key": node_label_key,
+                "cni_blocking_taint": cni_blocking_taint,
+                "timeout_seconds": probe.PROBE_WAIT_TIMEOUT_SECONDS + WATCH_TIMEOUT_MARGIN_SECONDS,
+                "stop_event": stop_event,
+                "recorders": recorders,
             },
             daemon=True,
         )
         watch_thread.start()
-
-        pod = probe.wait_for_probe_pod_running(k8s.api, pod_name, namespace, operation_timeout_in_minutes)
-        stop_event.set()
-        watch_thread.join(timeout=WATCH_JOIN_TIMEOUT_SECONDS)
-
-        triggered_scale_up, triggered_scale_up_precise = collectors.get_triggered_scale_up_timestamp(
-            k8s.api, pod_name, namespace, retry_interval=scale_up_retry_interval)
-        if triggered_scale_up is None:
-            triggered_scale_up, triggered_scale_up_precise = collectors.get_first_scheduling_event_timestamp(
-                k8s.api, pod_name, namespace)
+        try:
+            pod = probe.wait_for_probe_pod_running(k8s.api, pod_name, namespace)
+        finally:
+            stop_event.set()
+            watch_thread.join(timeout=WATCH_JOIN_TIMEOUT_SECONDS)
 
         new_node_name = pod.spec.node_name
         logger.info("Probe pod scheduled on node '%s'", new_node_name)
+        transitions = probe_node_transitions(recorders, new_node_name)
         new_node = k8s.api.read_node(name=new_node_name)
+
+        probe_events = collectors.list_pod_events(k8s.api, pod_name, namespace)
+        triggered_scale_up = (collectors.scale_up_trigger_time(probe_events)
+                              or collectors.first_failed_scheduling_time(probe_events))
 
         cni_info = {}
         deep_cilium_metrics = None
@@ -107,14 +109,14 @@ def measure_iteration(k8s, node_pool_name, node_label_key, namespace, pod_name, 
             "node_ready": condition_transition_time(new_node.status.conditions, "Ready"),
             "node_network_unavailable_cleared": condition_transition_time(
                 new_node.status.conditions, "NetworkUnavailable"),
-            "cni_conflist_placed": intermediate_states.get("cni_conflist_placed_at"),
-            "csinode_ready": intermediate_states.get("csinode_ready_at"),
-            "not_ready_taint_observed": intermediate_states.get("not_ready_taint_observed"),
-            "not_ready_taint_cleared": intermediate_states.get("not_ready_taint_cleared"),
-            "network_unavailable_taint_observed": intermediate_states.get("network_unavailable_taint_observed"),
-            "network_unavailable_taint_cleared": intermediate_states.get("network_unavailable_taint_cleared"),
-            "cni_taint_observed": intermediate_states.get("cni_taint_observed"),
-            "cni_taint_cleared": intermediate_states.get("cni_taint_cleared"),
+            "cni_conflist_placed": transitions["cni_conflist_placed_at"],
+            "csinode_ready": transitions["csinode_ready_at"],
+            "not_ready_taint_observed": transitions["not_ready_taint_observed"],
+            "not_ready_taint_cleared": transitions["not_ready_taint_cleared"],
+            "network_unavailable_taint_observed": transitions["network_unavailable_taint_observed"],
+            "network_unavailable_taint_cleared": transitions["network_unavailable_taint_cleared"],
+            "cni_taint_observed": transitions["cni_taint_observed"],
+            "cni_taint_cleared": transitions["cni_taint_cleared"],
             "cni_container_started": cni_info.get("cni_container_started"),
             "cni_pod_ready": cni_info.get("cni_pod_ready"),
             "cni_pod_scheduled": cni_info.get("cni_pod_scheduled"),
@@ -128,19 +130,18 @@ def measure_iteration(k8s, node_pool_name, node_label_key, namespace, pod_name, 
             "container_started": container_started,
             "containers_ready": condition_transition_time(pod.status.conditions, "ContainersReady"),
             "pod_ready": condition_transition_time(pod.status.conditions, "Ready"),
-            "intermediate_states": intermediate_states.get("events", []),
-            "ready_condition_history": intermediate_states.get("ready_condition_history", []),
-            # New in v2: sub-second companions, only where the source has sub-second data.
-            "triggered_scale_up_precise": triggered_scale_up_precise,
-            "pod_scheduled_event_precise": collectors.scheduled_event_precise(k8s.api, pod_name, namespace),
-            "cni_pod_scheduled_event_precise": cni_info.get("cni_pod_scheduled_event_precise"),
+            "intermediate_states": transitions["events"],
+            # New in v2. node_registered/node_ready are API-server times; these are when the watch saw them.
+            "node_registered_observed": transitions["node_registered_at"],
+            "node_ready_observed": transitions["node_ready_at"],
+            "ready_condition_history": transitions["ready_condition_history"],
+            "pod_scheduled_event_time": collectors.scheduled_event_time(probe_events),
+            "cni_pod_scheduled_event_time": cni_info.get("cni_pod_scheduled_event_time"),
             "supplementary_cni_pods": collectors.collect_supplementary_cni_pods(
                 k8s, new_node_name, supplementary_cni_pods or {}),
         }
-        for key, watch_key in WATCH_PRECISE_KEYS.items():
-            measurement[key] = intermediate_states.get(watch_key)
         measurement["latencies"] = compute_autoscale_latencies(measurement)
-        measurement["precise_latencies"] = compute_precise_latencies(measurement)
+        measurement["sub_second_latencies"] = compute_sub_second_latencies(measurement)
         logger.info("Autoscale latency results: %s", measurement)
 
         return {

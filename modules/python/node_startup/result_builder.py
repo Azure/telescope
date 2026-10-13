@@ -1,8 +1,10 @@
-"""Result record for one uploaded iteration (plan section 6).
+"""Builds the result for one uploaded iteration (plan section 6).
 
 The envelope (timestamp, run_id, run_url, pipeline) is added by the pipeline;
 this module builds the `result` payload.
 """
+from utils.timestamps import parse_timestamp
+
 SCHEMA_VERSION = "1"
 TEST_NAME = "node-startup-latency"
 
@@ -34,22 +36,10 @@ def cluster_info(aks_cluster, node_pool_name):
     }
 
 
-def operation_info(start_timestamp, end_timestamp, duration_seconds):
-    """Same shape as v1 `Operation.to_dict()` minus metadata; only successful iterations are uploaded."""
-    return {
-        "name": "autoscale_latency",
-        "cloud": "azure",
-        "start_timestamp": start_timestamp,
-        "end_timestamp": end_timestamp,
-        "duration": duration_seconds,
-        "unit": "seconds",
-        "success": True,
-        "error_message": None,
-    }
-
-
-def build_record(scenario, provisioner, iteration, total_iterations, valid_iterations,
-                 operation, cluster, config, environment, measurement):
+def build_result(scenario, provisioner, iteration, total_iterations, valid_iterations,
+                 start_timestamp, end_timestamp, cluster, config, environment, measurement):
+    """`operation` has the same shape as v1 `Operation.to_dict()` minus metadata; only successful
+    iterations are uploaded."""
     return {
         "schema_version": SCHEMA_VERSION,
         "test": TEST_NAME,
@@ -58,7 +48,16 @@ def build_record(scenario, provisioner, iteration, total_iterations, valid_itera
         "iteration": iteration,
         "total_iterations": total_iterations,
         "valid_iterations": valid_iterations,
-        "operation": operation,
+        "operation": {
+            "name": "autoscale_latency",
+            "cloud": "azure",
+            "start_timestamp": start_timestamp,
+            "end_timestamp": end_timestamp,
+            "duration": (parse_timestamp(end_timestamp) - parse_timestamp(start_timestamp)).total_seconds(),
+            "unit": "seconds",
+            "success": True,
+            "error_message": None,
+        },
         "cluster": cluster,
         "config": config,
         "environment": environment,

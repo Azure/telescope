@@ -11,7 +11,7 @@ from clients.kubernetes_client import KubernetesClient
 from node_startup import main
 from tests.node_startup import scenarios
 from tests.node_startup.fake_kubernetes import FakeCoreV1Api, kubernetes_client
-from tests.node_startup.test_record import AKS_CLUSTER
+from tests.node_startup.test_result_builder import AKS_CLUSTER
 from tests.node_startup.test_validation import VALID_MEASUREMENT
 
 NOW = 1_800_000_000
@@ -63,7 +63,6 @@ class RunTest(unittest.TestCase):
             "--probe-namespace", scenarios.PROBE_NAMESPACE,
             "--iterations", "5",
             "--iteration-cooldown-seconds", "240",
-            "--step-timeout-seconds", "600",
             "--deadline-epoch-seconds", str(NOW + 3600),
             "--uses-default-settings", "true",
             "--records-file", self.records_file,
@@ -92,7 +91,7 @@ class RunTest(unittest.TestCase):
         self.assertEqual(stdout, "")
         self.assertEqual(sleep.call_args_list, [mock.call(240)] * 4)
         self.assertEqual(measure.call_args_list[0].kwargs["pod_name"], "latency-probe-1")
-        self.assertEqual(measure.call_args_list[0].kwargs["operation_timeout_in_minutes"], 10)
+        self.assertEqual(measure.call_args_list[0].kwargs["provisioner"], main.Provisioner.CLUSTER_AUTOSCALER)
         self.assertEqual(measure.call_args_list[0].kwargs["supplementary_cni_pods"], {"azure_cns": "k8s-app=azure-cns"})
         self.assertEqual(self.api.created_namespaces, [scenarios.PROBE_NAMESPACE])
 
@@ -177,9 +176,13 @@ class RunTest(unittest.TestCase):
         self.assertEqual(first["measurement"]["iteration"], 1)
         self.assertEqual(first["measurement"]["total_iterations"], 5)
         self.assertTrue(first["operation"]["success"])
+        self.assertEqual(first["provisioner"], "cluster-autoscaler")
+        self.assertEqual(first["config"]["probe_phase_timeouts_seconds"],
+                         {"scale_up_triggered": 900, "pod_scheduled": 600, "pod_running": 300})
+        json.dumps(first)
 
-    def test_karpenter_pools_skip_the_settle_wait(self):
-        args = self.args("--node-label-key", "karpenter.sh/nodepool")
+    def test_node_auto_provisioning_skips_the_settle_wait(self):
+        args = self.args("--provisioner", "node-auto-provisioning", "--node-label-key", "karpenter.sh/nodepool")
         self.run_with([RuntimeError("boom"), valid_result(2), valid_result(3), valid_result(4), valid_result(5)],
                       args=args)
         self.settle.assert_not_called()
@@ -187,9 +190,9 @@ class RunTest(unittest.TestCase):
 
 class ParseArgsTest(unittest.TestCase):
     REQUIRED = [
-        "--scenario", "s", "--provisioner", "p", "--cluster-info-file", "f", "--node-pool-name", "n",
-        "--node-label-key", "agentpool", "--probe-namespace", "ns", "--step-timeout-seconds", "600",
-        "--deadline-epoch-seconds", "1", "--records-file", "r",
+        "--scenario", "s", "--provisioner", "cluster-autoscaler", "--cluster-info-file", "f", "--node-pool-name", "n",
+        "--node-label-key", "agentpool", "--probe-namespace", "ns", "--deadline-epoch-seconds", "1",
+        "--records-file", "r",
     ]
 
     def parse(self, *extra):
@@ -203,6 +206,8 @@ class ParseArgsTest(unittest.TestCase):
             ["--iterations", "5", "--iteration-cooldown-seconds", "0", "--uses-default-settings", "maybe"],
             ["--iterations", "5", "--iteration-cooldown-seconds", "0", "--uses-default-settings", "true",
              "--supplementary-cni-pod", "no-selector"],
+            ["--iterations", "5", "--iteration-cooldown-seconds", "0", "--uses-default-settings", "true",
+             "--provisioner", "karpenter"],
         ):
             with self.subTest(extra=extra), self.assertRaises(SystemExit):
                 self.parse(*extra)

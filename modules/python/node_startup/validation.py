@@ -1,5 +1,5 @@
 """Per-iteration validation: only complete, consistent, fresh, customer-like iterations are uploaded."""
-from node_startup.timestamps import parse_timestamp
+from utils.timestamps import parse_timestamp
 
 BASE_REQUIRED_MILESTONES = [
     "pod_created",

@@ -1,42 +1,27 @@
 """Kubernetes data collectors for one measured iteration (ported from v1, plus v2 additions).
 
-v2 additions, all new keys that don't change any v1 value:
-- `cni_pod_scheduled_event_precise`: the scheduler's `Scheduled` event time for a CNI pod.
-- The `*_precise` companion returned by the scale-up trigger lookups.
+Each pod's events are listed once (`list_pod_events`); every event-based value
+is derived from that list.
+
+v2 additions:
+- `cni_pod_scheduled_event_time`: the scheduler's `Scheduled` event time for a CNI pod.
 - `collect_node_environment`: Defender sensor presence and the node's shape labels.
+- Init container logs keep their timestamped lines but no longer label known
+  operations by matching log text (that wording isn't a stable contract).
 """
-import re
-import time
-
-from kubernetes import client
-
-from node_startup.timestamps import (
+from utils.logger_config import get_logger
+from utils.timestamps import (
     condition_transition_time,
-    format_precise_timestamp,
     format_timestamp,
+    format_timestamp_microseconds,
     parse_log_timestamp,
     parse_timestamp,
 )
-from utils.logger_config import get_logger
 
 logger = get_logger(__name__)
 
 SCALE_UP_REASONS = {"TriggeredScaleUp", "ScaleUp", "ScaledUpGroup"}
 RAW_LOG_LINES_LIMIT = 50
-
-# Known operations inside Cilium init containers (the merged cilium-init-all and the
-# pre-merge individual ones), matched against log lines: (regex, operation name).
-INIT_CONTAINER_OPERATIONS = [
-    (r"install.?plugin|install.?cni|cni.?bin", "install-cni-binaries"),
-    (r"cilium.?mount|mount.*cgroup|Mounted cgroupv2", "mount-cgroup"),
-    (r"cilium.?sysctlfix|sysctl", "apply-sysctl-overwrites"),
-    (r"mount.*bpf|bpf.*fs|bpf on /sys/fs/bpf", "mount-bpf-fs"),
-    (r"init.?container\.sh|clean.*state|cilium.*state|rm -rf", "clean-cilium-state"),
-    (r"block.?wireserver|iptables.*FORWARD.*168\.63|installRuleIdempotent", "block-wireserver"),
-    (r"systemd.?networkd|foreign.?routes", "systemd-networkd-overrides"),
-    (r"detach mode|BPF program detached|unpinned from|pinned resources", "iptables-blocker-detach"),
-]
-KUBELET_LOG_LINE = re.compile(r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z)\s(.*)$")
 
 DEFENDER_POD_PREFIX = "microsoft-defender"
 NODE_SHAPE_LABELS = {
@@ -47,11 +32,20 @@ NODE_SHAPE_LABELS = {
 }
 
 
-def pod_events(api, pod_name, namespace):
-    return api.list_namespaced_event(
-        namespace=namespace,
-        field_selector=f"involvedObject.name={pod_name},involvedObject.kind=Pod",
-    ).items
+def list_pod_events(api, pod_name, namespace):
+    """Every event about one pod, or [] if they can't be listed.
+
+    The core/v1 API also returns events written through events.k8s.io/v1: both
+    serve the same Event objects, so one list is enough.
+    """
+    try:
+        return api.list_namespaced_event(
+            namespace=namespace,
+            field_selector=f"involvedObject.name={pod_name},involvedObject.kind=Pod",
+        ).items
+    except Exception as e:
+        logger.warning("Failed to list events for pod '%s': %s", pod_name, e)
+        return []
 
 
 def find_daemonset_pod(k8s, node_name, label_selector, namespace):
@@ -75,7 +69,7 @@ def collect_cni_pod_timestamps(k8s, node_name, cni_daemonset_label, namespace="k
             "init_containers": [],
             "containers": [],
             "image_pull_events": [],
-            "cni_pod_scheduled_event_precise": None,
+            "cni_pod_scheduled_event_time": None,
         }
     entry = daemonset_pod_timing(k8s, pod, namespace)
     logger.info("CNI pod timestamps for node '%s': %s", node_name, entry)
@@ -90,15 +84,16 @@ def daemonset_pod_timing(k8s, pod, namespace):
                 container_started = format_timestamp(status.state.running.started_at)
                 break
 
+    events = list_pod_events(k8s.api, pod.metadata.name, namespace)
     return {
         "cni_container_started": container_started,
         "cni_pod_ready": condition_transition_time(pod.status.conditions, "Ready"),
         "cni_pod_scheduled": condition_transition_time(pod.status.conditions, "PodScheduled"),
         "init_containers": collect_init_container_timestamps(pod),
         "containers": collect_container_timestamps(pod),
-        "image_pull_events": collect_image_pull_events(k8s.api, pod.metadata.name, namespace),
+        "image_pull_events": image_pull_events(events, pod.metadata.name),
         "init_container_logs": collect_init_container_logs(k8s.api, pod.metadata.name, namespace),
-        "cni_pod_scheduled_event_precise": scheduled_event_precise(k8s.api, pod.metadata.name, namespace),
+        "cni_pod_scheduled_event_time": scheduled_event_time(events),
     }
 
 
@@ -159,12 +154,12 @@ def collect_container_timestamps(pod):
     return containers
 
 
-def collect_image_pull_events(api, pod_name, namespace):
+def image_pull_events(events, pod_name):
     """Pulling/Pulled event pairs per image, with the pull duration."""
     image_pulls = []
     try:
         pull_map = {}
-        for event in pod_events(api, pod_name, namespace):
+        for event in events:
             if event.reason not in ("Pulling", "Pulled"):
                 continue
             image = extract_image_from_event_message(event.message)
@@ -243,30 +238,22 @@ def collect_init_container_logs(api, pod_name, namespace):
                     "first_log_ts": None,
                     "last_log_ts": None,
                     "log_duration_seconds": None,
-                    "operations": [],
                 })
                 continue
 
             first_ts = None
             last_ts = None
-            operations = []
-            seen_operations = set()
             raw_lines = []
             for line in log_text.strip().splitlines():
-                match = KUBELET_LOG_LINE.match(line)
-                if not match:
+                timestamped = split_timestamped_log_line(line)
+                if timestamped is None:
                     continue
-                ts_str, content = match.group(1), match.group(2)
+                ts_str, content = timestamped
                 if first_ts is None:
                     first_ts = ts_str
                 last_ts = ts_str
                 if len(raw_lines) < RAW_LOG_LINES_LIMIT:
                     raw_lines.append({"ts": ts_str, "line": content[:300]})
-                for pattern, operation in INIT_CONTAINER_OPERATIONS:
-                    if operation not in seen_operations and re.search(pattern, content, re.IGNORECASE):
-                        operations.append({"name": operation, "started_at": ts_str, "line": content[:200]})
-                        seen_operations.add(operation)
-                        break
 
             log_duration = None
             if first_ts and last_ts:
@@ -281,7 +268,6 @@ def collect_init_container_logs(api, pod_name, namespace):
                 "first_log_ts": first_ts,
                 "last_log_ts": last_ts,
                 "log_duration_seconds": log_duration,
-                "operations": operations,
                 "raw_lines": raw_lines,
             })
     except Exception as e:
@@ -289,6 +275,19 @@ def collect_init_container_logs(api, pod_name, namespace):
 
     infer_gap_durations(results)
     return results
+
+
+def split_timestamped_log_line(line):
+    """(timestamp, content) of a `timestamps=True` log line, or None if it has no timestamp prefix.
+
+    The API server prefixes each line with its RFC3339Nano time and a space.
+    """
+    timestamp, _, content = line.partition(" ")
+    try:
+        parse_log_timestamp(timestamp)
+    except ValueError:
+        return None
+    return timestamp, content
 
 
 def infer_gap_durations(init_container_logs):
@@ -328,89 +327,35 @@ def infer_gap_durations(init_container_logs):
             entry["inferred_duration_seconds"] = None
 
 
-def scheduled_event_precise(api, pod_name, namespace):
+def scheduled_event_time(events):
     """Microsecond time of the scheduler's `Scheduled` event, or None if it only has whole seconds."""
-    try:
-        times = [event.event_time for event in pod_events(api, pod_name, namespace)
-                 if event.reason == "Scheduled" and event.event_time]
-    except Exception as e:
-        logger.warning("Failed to read Scheduled event for pod '%s': %s", pod_name, e)
-        return None
-    return format_precise_timestamp(min(times)) if times else None
+    times = [event.event_time for event in events if event.reason == "Scheduled" and event.event_time]
+    return format_timestamp_microseconds(min(times)) if times else None
 
 
-def find_scale_up_event_time(api, pod_name, namespace):
-    """One lookup of the autoscaler's scale-up event: (whole-second, precise), or None if absent."""
-    for event in pod_events(api, pod_name, namespace):
+def scale_up_trigger_time(events):
+    """Whole-second time of the autoscaler's scale-up event (v1 `triggered_scale_up`), or None."""
+    for event in events:
         if event.reason in SCALE_UP_REASONS:
             ts = event.event_time or event.first_timestamp or event.metadata.creation_timestamp
             if ts:
-                return format_timestamp(ts), format_precise_timestamp(event.event_time)
-
-    # Newer clusters may only publish the event through the events.k8s.io/v1 API.
-    try:
-        events_v1 = client.EventsV1Api(api.api_client)
-        for event in events_v1.list_namespaced_event(
-                namespace=namespace,
-                field_selector=f"regarding.name={pod_name},regarding.kind=Pod").items:
-            if event.reason in SCALE_UP_REASONS:
-                ts = event.event_time or event.metadata.creation_timestamp
-                if ts:
-                    return format_timestamp(ts), format_precise_timestamp(event.event_time)
-    except Exception as e:
-        logger.debug("EventsV1Api lookup failed (expected on older clusters): %s", e)
+                return format_timestamp(ts)
     return None
 
 
-def get_triggered_scale_up_timestamp(api, pod_name, namespace, max_retries=10, retry_interval=6):
-    """(whole-second, precise) time of the autoscaler's scale-up event for the pod, or (None, None).
-
-    Retries because the event can appear late (e.g. on BYOCNI clusters).
-    """
-    for attempt in range(max_retries):
-        try:
-            found = find_scale_up_event_time(api, pod_name, namespace)
-            if found:
-                return found
-            if attempt < max_retries - 1:
-                logger.debug("TriggeredScaleUp event not found (attempt %d/%d), retrying...",
-                             attempt + 1, max_retries)
-                time.sleep(retry_interval)
-        except Exception as e:
-            logger.warning("Failed to get TriggeredScaleUp event (attempt %d): %s", attempt + 1, e)
-            if attempt < max_retries - 1:
-                time.sleep(retry_interval)
-
-    logger.warning("No TriggeredScaleUp event found for pod '%s' after %d attempts", pod_name, max_retries)
-    return None, None
-
-
-def get_first_scheduling_event_timestamp(api, pod_name, namespace):
-    """(whole-second, precise) time of the pod's first FailedScheduling event, or (None, None).
+def first_failed_scheduling_time(events):
+    """Whole-second time of the pod's first FailedScheduling event, or None.
 
     Fallback for the scale-up trigger when the autoscaler posts no event (e.g. BYOCNI):
     it marks when the scheduler first found the pod unschedulable.
     """
-    try:
-        earliest_ts = None
-        earliest_event = None
-        for event in pod_events(api, pod_name, namespace):
-            if event.reason != "FailedScheduling":
-                continue
-            ts = event.event_time or event.first_timestamp or event.metadata.creation_timestamp
-            if ts:
-                formatted = format_timestamp(ts)
-                if earliest_ts is None or formatted < earliest_ts:
-                    earliest_ts = formatted
-                    earliest_event = event
-        if earliest_ts:
-            logger.info("Using first FailedScheduling event as T0 fallback: %s", earliest_ts)
-            return earliest_ts, format_precise_timestamp(earliest_event.event_time)
-        logger.warning("No FailedScheduling event found for pod '%s'", pod_name)
-        return None, None
-    except Exception as e:
-        logger.warning("Failed to get FailedScheduling event: %s", e)
-        return None, None
+    times = [format_timestamp(event.event_time or event.first_timestamp or event.metadata.creation_timestamp)
+             for event in events if event.reason == "FailedScheduling"]
+    times = [ts for ts in times if ts]
+    if not times:
+        return None
+    logger.info("Using first FailedScheduling event as the scale-up trigger: %s", min(times))
+    return min(times)
 
 
 def collect_node_environment(k8s, node):
