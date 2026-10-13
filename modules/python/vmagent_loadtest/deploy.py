@@ -1,8 +1,10 @@
 """Deployment helpers for all load test components."""
 
 import json
+import re
 import time
 from pathlib import Path
+from urllib.parse import urlparse
 
 import yaml
 
@@ -17,7 +19,32 @@ from .config import (
 )
 from .utils import kubectl, kubectl_apply, render_template, retry, run
 
-from urllib.parse import urlparse
+# Optional konnectivity-server flags and the first apiserver-network-proxy
+# release that accepts each (cmd/server/app/options/options.go); older
+# servers exit immediately with "unknown flag".
+KONN_SERVER_OPTIONAL_FLAGS = (
+    ((0, 36, 0), "--backend-dial-timeout=30s"),
+    ((0, 37, 0), "--frontend-write-channel-size=10"),
+)
+_IMAGE_TAG_VERSION = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)")
+_OPTIONAL_ARGS_LINE = re.compile(r"^([ \t]*)__SERVER_OPTIONAL_ARGS__\n", re.MULTILINE)
+
+
+def konn_server_optional_args(image: str) -> list[str]:
+    """Optional server flags supported by the image's version tag.
+
+    An image whose tag is not a vX.Y.Z version gets none, since an
+    unsupported flag crash-loops the server.
+    """
+    tag = image.rsplit(":", 1)[-1] if ":" in image.rsplit("/", 1)[-1] else ""
+    match = _IMAGE_TAG_VERSION.match(tag)
+    if not match:
+        log.warning("Cannot parse a version from konnectivity-server image %s; "
+                    "omitting optional flags", image)
+        return []
+    version = tuple(int(part) for part in match.groups())
+    return [flag for min_version, flag in KONN_SERVER_OPTIONAL_FLAGS
+            if version >= min_version]
 
 
 def ensure_namespace(kubeconfig: str, namespace: str) -> None:
@@ -56,6 +83,12 @@ def deploy_konnectivity_server(kubeconfig: str, namespace: str, server_count: in
         "__SERVER_CPU_LIM__": r["cpu_lim"],
         "__SERVER_MEM_LIM__": r["mem_lim"],
     })
+    optional_args = konn_server_optional_args(server_image)
+    log.info("konnectivity-server optional flags for %s: %s", server_image,
+             optional_args or "none")
+    manifest = _OPTIONAL_ARGS_LINE.sub(
+        lambda m: "".join(f"{m.group(1)}- {arg}\n" for arg in optional_args),
+        manifest)
     kubectl_apply(kubeconfig, manifest)
     if wait:
         kubectl(kubeconfig, "-n", namespace, "rollout", "status",
