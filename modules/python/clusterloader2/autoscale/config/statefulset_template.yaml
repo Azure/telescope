@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{.Name}}
+  labels:
+    app: inflate
+spec:
+  serviceName: {{.Name}}
+  podManagementPolicy: Parallel
+  replicas: {{.Replicas}}
+  selector:
+    matchLabels:
+      app: inflate
+  template:
+    metadata:
+      labels:
+        app: inflate
+    spec:
+      nodeSelector:
+      {{- range $key, $value := .NodeSelector }}
+        {{ (StructuralData $key) }}: {{ $value }}
+      {{- end }}
+      containers:
+      - name: disk-writer
+        image: mcr.microsoft.com/oss/nginx/nginx:1.19.5
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -euo pipefail
+          echo "$(hostname) $(date -u)" > /data/telescope
+          sync
+          while true; do
+            test -s /data/telescope
+            sleep 30
+          done
+        resources:
+          requests:
+            cpu: {{.CPUperJob}}
+            memory: 64Mi
+          limits:
+            cpu: {{.CPUperJob}}
+            memory: 64Mi
+        volumeMounts:
+        - name: data
+          mountPath: /data
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+      labels:
+        telescope.azure.com/test: csi-autoscale
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      storageClassName: {{.StorageClass}}
+      resources:
+        requests:
+          storage: 4Gi

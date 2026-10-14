@@ -1,0 +1,34 @@
+parameters:
+- name: cloud
+  type: string
+  default: ''
+- name: engine_input
+  type: object
+  default: {}
+- name: regions
+  type: object
+  default: {}
+
+steps:
+- template: /steps/engine/clusterloader2/autoscale/execute.yml
+  parameters:
+    cloud: ${{ parameters.cloud }}
+    engine_input: ${{ parameters.engine_input }}
+    region: ${{ parameters.regions[0] }}
+
+- script: |
+    set -uo pipefail
+
+    mkdir -p "$TEST_RESULTS_DIR"
+    kubectl get events --all-namespaces --field-selector type=Warning \
+      --sort-by=.lastTimestamp > "$TEST_RESULTS_DIR/kubernetes-warning-events.txt" || \
+      echo "##vso[task.logissue type=warning;] Failed to collect Kubernetes warning events."
+
+    while read -r pod; do
+      [ -z "$pod" ] && continue
+      kubectl logs -n kube-system "$pod" --all-containers --prefix \
+        >> "$TEST_RESULTS_DIR/azuredisk-csi.log" || \
+        echo "##vso[task.logissue type=warning;] Failed to collect logs from $pod."
+    done < <(kubectl get pods -n kube-system -o name | grep azuredisk || true)
+  displayName: Collect Azure Disk CSI diagnostics
+  condition: always()

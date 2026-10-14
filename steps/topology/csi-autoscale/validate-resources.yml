@@ -1,0 +1,31 @@
+parameters:
+- name: cloud
+  type: string
+- name: engine
+  type: string
+- name: regions
+  type: object
+
+steps:
+- template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
+  parameters:
+    role: cas
+    region: ${{ parameters.regions[0] }}
+
+- script: |
+    set -euo pipefail
+
+    provisioner=$(kubectl get storageclass "$STORAGE_CLASS" -o jsonpath='{.provisioner}')
+    if [ "$provisioner" != "disk.csi.azure.com" ]; then
+      echo "##vso[task.logissue type=error;] StorageClass $STORAGE_CLASS uses $provisioner, expected disk.csi.azure.com."
+      exit 1
+    fi
+
+    if [ "$(kubectl get nodes -l "$NODE_LABEL_SELECTOR" --no-headers | wc -l)" -eq 0 ]; then
+      echo "##vso[task.logissue type=error;] No seed node matches $NODE_LABEL_SELECTOR."
+      exit 1
+    fi
+  displayName: Validate Azure Disk CSI resources
+  env:
+    STORAGE_CLASS: $(STORAGE_CLASS)
+    NODE_LABEL_SELECTOR: $(NODE_LABEL_SELECTOR)

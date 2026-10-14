@@ -3,6 +3,7 @@ import os
 import argparse
 import re
 import subprocess
+import time
 
 from datetime import datetime, timezone
 from clusterloader2.utils import parse_xml_to_json, run_cl2_command, process_cl2_reports
@@ -11,6 +12,7 @@ from utils.common import str2bool
 from utils.logger_config import get_logger, setup_logging
 
 CPU_SCALE_FACTOR = 0.85
+STORAGE_CLEANUP_RESULT_FILE = "storage-cleanup.json"
 
 setup_logging()
 logger = get_logger(__name__)
@@ -225,6 +227,75 @@ def calculate_cpu_request_for_clusterloader2(
     return cpu_request
 
 
+def _get_storage_resources(kube_client, namespace_prefix):
+    claims = [
+        claim
+        for claim in kube_client.api.list_persistent_volume_claim_for_all_namespaces().items
+        if claim.metadata.namespace.startswith(namespace_prefix)
+    ]
+    volumes = [
+        volume
+        for volume in kube_client.api.list_persistent_volume().items
+        if volume.spec.claim_ref
+        and volume.spec.claim_ref.namespace.startswith(namespace_prefix)
+    ]
+    volume_names = {volume.metadata.name for volume in volumes}
+    attachments = [
+        attachment
+        for attachment in kube_client.storage.list_volume_attachment().items
+        if attachment.spec.source.persistent_volume_name in volume_names
+    ]
+    return claims, volumes, attachments
+
+
+def validate_storage_cleanup(
+    namespace_prefix, timeout_minutes, result_file, interval_seconds=15
+):
+    """Wait until storage resources created by the test are removed."""
+    kube_client = KubernetesClient(os.path.expanduser("~/.kube/config"))
+    deadline = time.monotonic() + timeout_minutes * 60
+
+    while True:
+        claims, volumes, attachments = _get_storage_resources(
+            kube_client, namespace_prefix
+        )
+        result = {
+            "pvc_remaining": len(claims),
+            "pv_remaining": len(volumes),
+            "volume_attachments_remaining": len(attachments),
+            "result": "success",
+        }
+        if not claims and not volumes and not attachments:
+            break
+        if time.monotonic() >= deadline:
+            result["result"] = "failure"
+            result["remaining_resources"] = {
+                "pvcs": [
+                    f"{claim.metadata.namespace}/{claim.metadata.name}"
+                    for claim in claims
+                ],
+                "pvs": [volume.metadata.name for volume in volumes],
+                "volume_attachments": [
+                    attachment.metadata.name for attachment in attachments
+                ],
+            }
+            break
+        time.sleep(interval_seconds)
+
+    os.makedirs(os.path.dirname(result_file), exist_ok=True)
+    with open(result_file, "w", encoding="utf-8") as file:
+        json.dump(result, file)
+
+    if result["result"] == "failure":
+        raise TimeoutError(
+            "CSI cleanup did not complete: "
+            f"{result['pvc_remaining']} PVCs, {result['pv_remaining']} PVs, "
+            f"{result['volume_attachments_remaining']} VolumeAttachments remain"
+        )
+
+    return result
+
+
 def override_config_clusterloader2(
     cpu_per_node,
     node_count,
@@ -245,6 +316,7 @@ def override_config_clusterloader2(
     pod_memory_request="",
     cl2_config_file="config.yaml",
     enable_prometheus=False,
+    storage_class="",
 ):
     desired_node_count = 1
     if warmup_deployment in ["true", "True"]:
@@ -293,6 +365,8 @@ def override_config_clusterloader2(
 
         if deployment_template != "":
             file.write(f"CL2_DEPLOYMENT_TEMPLATE_PATH: {deployment_template}\n")
+        if storage_class != "":
+            file.write(f"CL2_STORAGE_CLASS: {storage_class}\n")
     file.close()
 
 
@@ -306,6 +380,8 @@ def execute_clusterloader2(
     enable_prometheus=False,
     scrape_kubelets=False,
     scrape_ksm=False,
+    storage_cleanup_timeout=0,
+    storage_namespace_prefix="autoscale",
 ):
     run_cl2_command(
         kubeconfig,
@@ -320,6 +396,12 @@ def execute_clusterloader2(
         scrape_kubelets=scrape_kubelets,
         scrape_ksm=scrape_ksm,
     )
+    if storage_cleanup_timeout > 0:
+        validate_storage_cleanup(
+            storage_namespace_prefix,
+            storage_cleanup_timeout,
+            os.path.join(cl2_report_dir, STORAGE_CLEANUP_RESULT_FILE),
+        )
 
 
 def collect_clusterloader2(
@@ -379,6 +461,25 @@ def collect_clusterloader2(
         cl2_result = process_cl2_reports(cl2_report_dir, cl2_measurement)
         logger.info(f"Result, category up: {cl2_result}")
         content += cl2_result
+
+    storage_cleanup_file = os.path.join(
+        cl2_report_dir, STORAGE_CLEANUP_RESULT_FILE
+    )
+    if os.path.exists(storage_cleanup_file):
+        with open(storage_cleanup_file, "r", encoding="utf-8") as file:
+            storage_cleanup = json.load(file)
+        cleanup_result = _build_report_template(
+            capacity_type,
+            pod_count,
+            cloud_info,
+            run_id,
+            run_url,
+            autoscale_type="storage_cleanup",
+            cpu_per_node=cpu_per_node,
+            node_count=node_count,
+            data=storage_cleanup,
+        )
+        content += json.dumps(cleanup_result) + "\n"
     os.makedirs(os.path.dirname(result_file), exist_ok=True)
     with open(result_file, "w", encoding="utf-8") as file:
         file.write(content)
@@ -464,6 +565,12 @@ def main():
         default="5s",
         help="Refresh interval for WaitForNodes and WaitForRunningPods measurements",
     )
+    parser_override.add_argument(
+        "--storage_class",
+        type=str,
+        default="",
+        help="StorageClass for a stateful workload template",
+    )
     # Sub-command for execute_clusterloader2
     parser_execute = subparsers.add_parser("execute", help="Execute scale up operation")
     parser_execute.add_argument("cl2_image", type=str, help="Name of the CL2 image")
@@ -500,6 +607,18 @@ def main():
         default=False,
         type=str2bool,
         help="Enable scraping kube-state-metrics in CL2",
+    )
+    parser_execute.add_argument(
+        "--storage_cleanup_timeout",
+        type=int,
+        default=0,
+        help="Minutes to wait for test storage resources to be removed",
+    )
+    parser_execute.add_argument(
+        "--storage_namespace_prefix",
+        type=str,
+        default="autoscale",
+        help="Namespace prefix used to identify test storage resources",
     )
     # Sub-command for collect_clusterloader2
     parser_collect = subparsers.add_parser("collect", help="Collect scale up data")
@@ -558,6 +677,7 @@ def main():
             pod_memory_request=args.pod_memory_request,
             cl2_config_file=args.cl2_config_file,
             enable_prometheus=args.enable_prometheus,
+            storage_class=args.storage_class,
         )
     elif args.command == "execute":
         execute_clusterloader2(
@@ -570,6 +690,8 @@ def main():
             args.enable_prometheus,
             args.scrape_kubelets,
             args.scrape_ksm,
+            args.storage_cleanup_timeout,
+            args.storage_namespace_prefix,
         )
     elif args.command == "collect":
         collect_clusterloader2(

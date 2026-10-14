@@ -1,4 +1,5 @@
 import os
+import shutil
 import json
 import tempfile
 import sys
@@ -11,6 +12,7 @@ from clusterloader2.autoscale.autoscale import (
     override_config_clusterloader2,
     execute_clusterloader2,
     collect_clusterloader2,
+    validate_storage_cleanup,
     main,
     CPU_SCALE_FACTOR,
 )
@@ -102,7 +104,7 @@ class TestClusterLoaderFunctions(unittest.TestCase):
         # Mock the CPU request calculation
         mock_calculate_cpu_request.return_value = 1900
 
-        override_config_clusterloader2(2, 100, 1000, '5m', '5m', 1, 'autoscaler = true', '{autoscaler : true}', 'override_file', 'false', '/mock/path', '5s', 'linux', 'warmup_deployment.yaml', 'deployment_template.yaml')
+        override_config_clusterloader2(2, 100, 1000, '5m', '5m', 1, 'autoscaler = true', '{autoscaler : true}', 'override_file', 'false', '/mock/path', '5s', 'linux', 'warmup_deployment.yaml', 'deployment_template.yaml', storage_class='managed-csi')
         mock_open.assert_any_call('override_file', 'w', encoding='utf-8')
         handle = mock_open()
         handle.write.assert_any_call('CL2_DEPLOYMENT_CPU: 1900m\n')
@@ -116,6 +118,7 @@ class TestClusterLoaderFunctions(unittest.TestCase):
         handle.write.assert_any_call('CL2_NODE_LABEL_SELECTOR: autoscaler = true\n')
         handle.write.assert_any_call('CL2_NODE_SELECTOR: "{autoscaler : true}"\n')
         handle.write.assert_any_call('CL2_OS_TYPE: linux\n')
+        handle.write.assert_any_call('CL2_STORAGE_CLASS: managed-csi\n')
 
         mock_logger.info.assert_any_call(
             "Total number of nodes: 100, total number of pods: 1000, cpu per node: 2"
@@ -175,34 +178,83 @@ class TestClusterLoaderFunctions(unittest.TestCase):
             scrape_kubelets=False,
             scrape_ksm=False,
         )
+
+    @patch('clusterloader2.autoscale.autoscale.KubernetesClient')
+    def test_validate_storage_cleanup_success(self, mock_kubernetes_client):
+        kube_client = MagicMock()
+        kube_client.api.list_persistent_volume_claim_for_all_namespaces.return_value.items = []
+        kube_client.api.list_persistent_volume.return_value.items = []
+        kube_client.storage.list_volume_attachment.return_value.items = []
+        mock_kubernetes_client.return_value = kube_client
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result = validate_storage_cleanup(
+                "autoscale", 1, os.path.join(temp_dir, "cleanup.json"), 0
+            )
+
+        self.assertEqual(result["result"], "success")
+        self.assertEqual(result["pvc_remaining"], 0)
+
+    @patch('clusterloader2.autoscale.autoscale.time.monotonic', side_effect=[0, 60])
+    @patch('clusterloader2.autoscale.autoscale.KubernetesClient')
+    def test_validate_storage_cleanup_timeout(
+        self, mock_kubernetes_client, _mock_monotonic
+    ):
+        claim = MagicMock()
+        claim.metadata.namespace = "autoscale-1"
+        claim.metadata.name = "data-0"
+        kube_client = MagicMock()
+        kube_client.api.list_persistent_volume_claim_for_all_namespaces.return_value.items = [claim]
+        kube_client.api.list_persistent_volume.return_value.items = []
+        kube_client.storage.list_volume_attachment.return_value.items = []
+        mock_kubernetes_client.return_value = kube_client
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result_file = os.path.join(temp_dir, "cleanup.json")
+            with self.assertRaises(TimeoutError):
+                validate_storage_cleanup("autoscale", 1, result_file, 0)
+            with open(result_file, "r", encoding="utf-8") as file:
+                result = json.load(file)
+
+        self.assertEqual(result["result"], "failure")
+        self.assertEqual(result["remaining_resources"]["pvcs"], ["autoscale-1/data-0"])
+
     def test_collect_clusterloader2_success(self):
-        cl2_report_dir = os.path.join(
+        source_report_dir = os.path.join(
               os.path.dirname(__file__), "mock_data", "autoscale", "report"
           )
-        # Create a temporary file for result output
-        result_file = tempfile.mktemp()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cl2_report_dir = os.path.join(temp_dir, "report")
+            shutil.copytree(source_report_dir, cl2_report_dir)
+            with open(
+                os.path.join(cl2_report_dir, "storage-cleanup.json"),
+                "w",
+                encoding="utf-8",
+            ) as file:
+                json.dump({"result": "success", "pvc_remaining": 0}, file)
+            result_file = os.path.join(temp_dir, "results.json")
 
-        collect_clusterloader2(
-          cpu_per_node=2,
-          capacity_type="on-demand",
-          node_count=500,
-          pod_count=500,
-          cl2_report_dir=cl2_report_dir,
-          cloud_info="mock-cloud",
-          run_id="mock-run-id",
-          run_url="http://mock-run-url",
-          result_file=result_file,
-          cl2_config_file="config.yaml",
-          pod_cpu_request=1900,
-          pod_memory_request="2Gi"
-        )
+            collect_clusterloader2(
+              cpu_per_node=2,
+              capacity_type="on-demand",
+              node_count=500,
+              pod_count=500,
+              cl2_report_dir=cl2_report_dir,
+              cloud_info="mock-cloud",
+              run_id="mock-run-id",
+              run_url="http://mock-run-url",
+              result_file=result_file,
+              cl2_config_file="config.yaml",
+              pod_cpu_request=1900,
+              pod_memory_request="2Gi"
+            )
 
-        self.assertTrue(os.path.exists(result_file))
-        with open(result_file, "r", encoding="utf-8") as f:
-            content = f.read()
+            with open(result_file, "r", encoding="utf-8") as f:
+                content = f.read()
         self.assertTrue(len(content) > 0)
         self.assertIn('"autoscale_type": "up"', content)
         self.assertIn('"autoscale_type": "down"', content)
+        self.assertIn('"autoscale_type": "storage_cleanup"', content)
         self.assertIn('"autoscale_result": "success"', content)
 
     @patch('clusterloader2.autoscale.autoscale.parse_xml_to_json')
@@ -272,6 +324,7 @@ class TestClusterLoaderFunctions(unittest.TestCase):
                 pod_memory_request=None,
                 cl2_config_file='config.yaml',
                 enable_prometheus=False,
+                storage_class='',
             )
 
     @patch('clusterloader2.autoscale.autoscale.execute_clusterloader2')
@@ -297,6 +350,8 @@ class TestClusterLoaderFunctions(unittest.TestCase):
                 False,
                 False,
                 False,
+                0,
+                'autoscale',
             )
 
     @patch('clusterloader2.autoscale.autoscale.collect_clusterloader2')
