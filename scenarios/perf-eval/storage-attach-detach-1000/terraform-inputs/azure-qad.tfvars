@@ -8,7 +8,6 @@ qad_config_list = [
     role               = "client"
     aks_name           = "perfevalqad1000"
     dns_prefix         = "attachqad"
-    api_version        = "2026-07-02-preview"
     kubernetes_version = "1.37.0"
     network_profile = {
       network_plugin = "kubenet"

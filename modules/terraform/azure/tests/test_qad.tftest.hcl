@@ -31,7 +31,6 @@ run "qad_cluster_request" {
         role               = "client"
         aks_name           = "test-qad"
         dns_prefix         = "test-qad"
-        api_version        = "2026-07-02-preview"
         kubernetes_version = "1.37.0"
         system_node_pool = {
           name    = "systempool"
@@ -56,35 +55,36 @@ run "qad_cluster_request" {
   }
 
   assert {
-    condition     = endswith(module.qad["client"].request_url, "api-version=2026-07-02-preview")
-    error_message = "QAD cluster request must use API version 2026-07-02-preview."
+    condition     = module.qad["client"].minimum_aks_preview_version == "22.0.0b13"
+    error_message = "QAD provisioning must require aks-preview version 22.0.0b13 or newer."
   }
 
   assert {
-    condition     = contains(module.qad["client"].request_headers, "EnableQuickAttachDetach=true")
-    error_message = "QAD cluster request must include the EnableQuickAttachDetach=true header."
+    condition     = contains(module.qad["client"].create_arguments, "--aks-custom-headers EnableQuickAttachDetach=true")
+    error_message = "QAD cluster creation must include the EnableQuickAttachDetach=true custom header."
   }
 
   assert {
-    condition     = module.qad["client"].request_body.properties.kubernetesVersion == "1.37.0"
+    condition     = contains(module.qad["client"].create_arguments, "--kubernetes-version 1.37.0")
     error_message = "QAD cluster must use Kubernetes version 1.37.0."
   }
 
   assert {
-    condition     = module.qad["client"].request_body.properties.storageProfile.diskCSIDriver.enabled
+    condition     = contains(module.qad["client"].create_arguments, "--enable-disk-driver")
     error_message = "QAD cluster must enable the disk CSI driver."
   }
 
   assert {
-    condition     = module.qad["client"].request_body.properties.oidcIssuerProfile.enabled
+    condition     = contains(module.qad["client"].create_arguments, "--enable-oidc-issuer")
     error_message = "QAD cluster must enable the OIDC issuer."
   }
 
   assert {
     condition = (
-      module.qad["client"].request_body.properties.agentPoolProfiles[1].count == 40 &&
-      module.qad["client"].request_body.properties.agentPoolProfiles[1].vmSize == "Standard_D16s_v3" &&
-      module.qad["client"].request_body.properties.agentPoolProfiles[1].nodeLabels.csi == "true"
+      strcontains(module.qad["client"].node_pool_commands.user, "--node-count 40") &&
+      strcontains(module.qad["client"].node_pool_commands.user, "--node-vm-size Standard_D16s_v3") &&
+      strcontains(module.qad["client"].node_pool_commands.user, "--labels csi=true") &&
+      strcontains(module.qad["client"].node_pool_commands.user, "--aks-custom-headers EnableQuickAttachDetach=true")
     )
     error_message = "QAD user pool must contain 40 Standard_D16s_v3 nodes labeled csi=true."
   }
