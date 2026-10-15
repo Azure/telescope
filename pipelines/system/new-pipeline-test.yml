@@ -1,28 +1,68 @@
 trigger: none
 
+parameters:
+- name: scaleProfile
+  displayName: Scale profile
+  type: string
+  default: smoke
+  values:
+  - smoke
+  - qualification5k
+
 pool:
   name: 'AKS-Telescope-Airlock'
 
 variables:
-  SCENARIO_TYPE: <scenario-type>
-  SCENARIO_NAME: <scenario-name>
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: csi-autoscale-5k
 
 stages:
-  - stage: <stage-name> # format: <cloud>[_<region>]+ (e.g. azure_eastus2, aws_eastus_westus)
-    dependsOn: []
-    jobs:
-      - template: /jobs/competitive-test.yml # must keep as is
-        parameters:
-          cloud: <cloud> # e.g. azure, aws
-          regions: # list of regions
-            - region1 # e.g. eastus2
-          topology: <topology> # e.g. cluster-autoscaler
-          engine: <engine> # e.g. clusterloader2
-          matrix: # list of test parameters to customize the provisioned resources
-            <case-name>:
-              <key1>: <value1>
-              <key2>: <value2>
-          max_parallel: <number of concurrent jobs> # required
-          credential_type: service_connection # required
-          ssh_key_enabled: false
-          timeout_in_minutes: 60 # if not specified, default is 60
+- stage: azure_eastus2_csi_scale
+  dependsOn: []
+  jobs:
+  - template: /jobs/competitive-test.yml
+    parameters:
+      cloud: azure
+      regions:
+      - eastus2
+      terraform_input_file_mapping:
+      - eastus2: scenarios/perf-eval/csi-autoscale-5k/terraform-inputs/azure.tfvars
+      engine: clusterloader2
+      engine_input:
+        image: ghcr.io/azure/clusterloader2:v20250423
+      topology: csi-autoscale
+      matrix:
+        ${{ if eq(parameters.scaleProfile, 'smoke') }}:
+          smoke:
+            cpu_per_node: 2
+            node_count: 10
+            pod_count: 10
+            scale_up_timeout: 30m
+            scale_down_timeout: 30m
+            storage_cleanup_timeout: 30
+            storage_class: managed-csi
+            deployment_template: statefulset_template.yaml
+            node_label_selector: "cas = dedicated"
+            node_selector: "{cas: dedicated}"
+            loop_count: 1
+            warmup_deployment: false
+            capacity_type: on-demand
+        ${{ if eq(parameters.scaleProfile, 'qualification5k') }}:
+          qualification-5k:
+            cpu_per_node: 2
+            node_count: 5000
+            pod_count: 5000
+            scale_up_timeout: 180m
+            scale_down_timeout: 180m
+            storage_cleanup_timeout: 120
+            storage_class: managed-csi
+            deployment_template: statefulset_template.yaml
+            node_label_selector: "cas = dedicated"
+            node_selector: "{cas: dedicated}"
+            loop_count: 1
+            warmup_deployment: false
+            capacity_type: on-demand
+      max_parallel: 1
+      timeout_in_minutes: 600
+      credential_type: service_connection
+      ssh_key_enabled: false

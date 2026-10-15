@@ -154,7 +154,8 @@ class TestClusterLoaderFunctions(unittest.TestCase):
         handle.write.assert_any_call('CL2_NODE_SELECTOR: "{autoscaler : true}"\n')
 
     @patch('clusterloader2.autoscale.autoscale.run_cl2_command')
-    def test_execute_clusterloader2(self, mock_run_cl2_command):
+    @patch('clusterloader2.autoscale.autoscale.os.makedirs')
+    def test_execute_clusterloader2(self, mock_makedirs, mock_run_cl2_command):
         # Call the function under test
         execute_clusterloader2(
             cl2_image="mock-image",
@@ -164,7 +165,7 @@ class TestClusterLoaderFunctions(unittest.TestCase):
             provider="aks",
         )
 
-        # Verify the command execution
+        mock_makedirs.assert_called_once_with("/mock/report", exist_ok=True)
         mock_run_cl2_command.assert_called_once_with(
             "/mock/kubeconfig",
             "mock-image",

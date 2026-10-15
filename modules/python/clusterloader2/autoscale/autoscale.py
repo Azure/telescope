@@ -383,6 +383,7 @@ def execute_clusterloader2(
     storage_cleanup_timeout=0,
     storage_namespace_prefix="autoscale",
 ):
+    os.makedirs(cl2_report_dir, exist_ok=True)
     run_cl2_command(
         kubeconfig,
         cl2_image,
