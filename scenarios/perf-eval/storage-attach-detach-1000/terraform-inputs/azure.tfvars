@@ -16,7 +16,7 @@ aks_config_list = [
       name                         = "default"
       node_count                   = 3
       subnet_name                  = "aks-network"
-      vm_size                      = "Standard_D2s_v3"
+      vm_size                      = "Standard_D2s_v6"
       os_disk_type                 = "Managed"
       only_critical_addons_enabled = true
       temporary_name_for_rotation  = "defaulttmp"
@@ -26,7 +26,7 @@ aks_config_list = [
         name        = "user"
         node_count  = 40
         subnet_name = "aks-network"
-        vm_size     = "Standard_D16s_v3"
+        vm_size     = "Standard_D16s_v6"
         node_labels = { "csi" = "true" }
       }
     ]
