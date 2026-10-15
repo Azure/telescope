@@ -30,6 +30,6 @@ aks_config_list = [
         node_labels = { "csi" = "true" }
       }
     ]
-    kubernetes_version = "1.33"
+    kubernetes_version = "1.34"
   }
 ]
