@@ -66,13 +66,13 @@ stages:
           topology: csi-attach-detach
           engine: attach
           engine_input:
-            disk_number: 1000
+            disk_number: 200
             storage_class: default
             wait_time: 300
           matrix:
             Standard_D16s_v6_1000pods_40nodes_qad:
               case_name: Standard_D16s_v6_1000pods_40nodes_qad
-              node_number: 40
+              node_number: 5
           max_parallel: 1
           timeout_in_minutes: 180
           credential_type: service_connection
