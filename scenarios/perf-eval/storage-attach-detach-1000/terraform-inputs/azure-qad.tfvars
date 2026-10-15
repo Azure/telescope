@@ -16,7 +16,7 @@ qad_config_list = [
     system_node_pool = {
       name     = "systempool"
       count    = 3
-      vm_size  = "Standard_D2s_v3"
+      vm_size  = "Standard_D2s_v6"
       os_type  = "Linux"
       mode     = "System"
     }
@@ -24,7 +24,7 @@ qad_config_list = [
       {
         name        = "user"
         count       = 40
-        vm_size     = "Standard_D16s_v3"
+        vm_size     = "Standard_D16s_v6"
         os_type     = "Linux"
         mode        = "User"
         node_labels = { "csi" = "true" }
