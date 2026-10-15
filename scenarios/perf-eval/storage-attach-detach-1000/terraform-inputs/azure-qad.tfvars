@@ -23,7 +23,7 @@ qad_config_list = [
     user_node_pools = [
       {
         name        = "user"
-        count       = 40
+        count       = 5
         vm_size     = "Standard_D16s_v6"
         os_type     = "Linux"
         mode        = "User"
