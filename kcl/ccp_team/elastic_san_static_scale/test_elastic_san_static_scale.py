@@ -33,6 +33,7 @@ from provision import (
     ArmError,
     ArmClient,
     HourlyWriteLimiter,
+    ReadRateLimiter,
     SanInventory,
     desired_volume_specs,
     ensure_san,
@@ -43,11 +44,14 @@ from provision import (
     validate_managed_inventory,
 )
 from repair import (
+    async_main as repair_async_main,
     classify_absence_once,
     delete_failed_volumes,
     desired_repair_records,
     failed_volume_records,
+    load_provision_scope,
     recreate_volumes,
+    scoped_repair_records,
     wait_until_absent,
 )
 from configure_network_acls import (
@@ -295,6 +299,48 @@ class RepairTests(unittest.TestCase):
         )
         self.assertEqual([("vol-0001", "Missing")], [(item["volume"], item["state"]) for item in records])
 
+    def test_scoped_repair_only_includes_manifest_volumes(self):
+        inventory = type(
+            "Inventory",
+            (),
+            {
+                "san": ManagedSan("san", "rg", "southeastasia", 0, "1x2", 2),
+                "resource_id": "/subscriptions/sub/resourceGroups/rg/providers/"
+                "Microsoft.ElasticSan/elasticSans/san",
+                "groups": {
+                    "vg-000": [
+                        {
+                            "id": "/failed-in-scope",
+                            "name": "vol-0000",
+                            "properties": {"provisioningState": "Failed", "sizeGiB": 1},
+                        },
+                        {
+                            "id": "/failed-out-of-scope",
+                            "name": "vol-0001",
+                            "properties": {"provisioningState": "Failed", "sizeGiB": 1},
+                        },
+                    ]
+                },
+            },
+        )()
+        records = scoped_repair_records(
+            [inventory],
+            [{"san": "san", "group": "vg-000", "volume": "vol-0000"}],
+            volume_size_gib=1,
+        )
+        self.assertEqual(["vol-0000"], [record["volume"] for record in records])
+
+    def test_load_provision_scope_rejects_duplicate_volumes(self):
+        manifest = Path(self.id().replace(".", "-") + ".csv")
+        self.addCleanup(manifest.unlink, missing_ok=True)
+        manifest.write_text(
+            "san,group,volume,state,resource_id\n"
+            "san,vg-000,vol-0000,Failed,/one\n"
+            "san,vg-000,vol-0000,Failed,/two\n"
+        )
+        with self.assertRaisesRegex(ValueError, "duplicate"):
+            load_provision_scope(manifest)
+
 
 class AsyncRepairTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
@@ -361,8 +407,55 @@ class AsyncRepairTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual({("san", "vg-000", "vol-0001")}, present)
         client.list_all.assert_awaited_once()
 
+    async def test_repair_enables_read_rate_limiter(self):
+        class Client:
+            read_limiter = None
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_):
+                return None
+
+        client = Client()
+        args = SimpleNamespace(
+            target_total_volumes=0,
+            volume_size_gib=1,
+            cluster_info=Path("/tmp/cluster.json"),
+            volume_groups_per_san=1,
+            volumes_per_group=1,
+            max_volume_writes_per_hour=3_000,
+            max_volume_writes_per_burst=20,
+            burst_window_seconds=1.1,
+            kubeconfig="/tmp/kubeconfig",
+            provision_volumes=None,
+            results_dir=Path("/tmp/results"),
+        )
+        cluster = SimpleNamespace(subscription_id="sub", resource_uid="cluster")
+        with patch("repair.load_cluster_info", return_value=cluster), patch(
+            "repair.ArmClient", return_value=client
+        ), patch("repair.inventory_managed_sans", new=AsyncMock(return_value=[])), patch(
+            "repair.cluster_pv_handles", return_value=set()
+        ), patch("repair.write_json"):
+            status = await repair_async_main(args)
+        self.assertEqual(0, status)
+        self.assertIsInstance(client.read_limiter, ReadRateLimiter)
+
 
 class AsyncArmClientTests(unittest.IsolatedAsyncioTestCase):
+    async def test_access_token_refreshes_based_on_actual_expiry(self):
+        client = ArmClient("sub")
+        client._token = "nearly-expired"
+        client._token_expires_on = 1_200
+        with patch("provision.time.time", return_value=1_000), patch(
+            "provision.asyncio.to_thread",
+            new=AsyncMock(return_value=("fresh", 4_600)),
+        ) as to_thread:
+            token = await client._access_token()
+        self.assertEqual("fresh", token)
+        self.assertEqual(4_600, client._token_expires_on)
+        to_thread.assert_awaited_once()
+
     async def test_plain_text_throttle_retries_with_millisecond_header(self):
         class Response:
             def __init__(self, status, text, headers):

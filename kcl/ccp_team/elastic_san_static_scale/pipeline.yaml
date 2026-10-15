@@ -14,6 +14,13 @@ parameters:
   displayName: Repair failed managed volumes
   type: boolean
   default: false
+- name: repair_scope
+  displayName: Volumes eligible for repair
+  type: string
+  default: all_managed
+  values:
+  - this_run
+  - all_managed
 - name: run_attach
   displayName: Attach currently unattached managed volumes
   type: boolean
@@ -312,6 +319,13 @@ stages:
     steps:
     - bash: mkdir -p '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/resolve' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/provision' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/repair' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/attach' '$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/delete'
       displayName: Prepare result directories
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        buildType: current
+        artifactName: elastic-san-provision
+        targetPath: $(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/provision
+      condition: and(succeeded(), eq('${{ parameters.repair_scope }}', 'this_run'))
+      displayName: Download this run's provision manifest
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -393,6 +407,18 @@ stages:
           set -exo pipefail
 
           mkdir -p "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/repair"
+          scope_args=()
+          if [ "$PARAM_REPAIR_SCOPE" = "this_run" ]; then
+              provision_manifest="$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/provision/provision-volumes.csv"
+              if [ ! -f "$provision_manifest" ]; then
+                  echo "repair_scope=this_run requires this pipeline run's provision-volumes.csv" >&2
+                  exit 1
+              fi
+              scope_args+=(--provision-volumes "$provision_manifest")
+          elif [ "$PARAM_REPAIR_SCOPE" != "all_managed" ]; then
+              echo "unsupported repair_scope: $PARAM_REPAIR_SCOPE" >&2
+              exit 1
+          fi
           PYTHONPATH="$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/python-deps" python3 "$(Build.SourcesDirectory)/kcl/ccp_team/elastic_san_static_scale/repair.py" \
               --cluster-info "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/cluster.json" \
               --kubeconfig "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/kubeconfig" \
@@ -403,6 +429,7 @@ stages:
               --volume-groups-per-san "$PARAM_VOLUME_GROUPS_PER_SAN" \
               --volumes-per-group "$PARAM_VOLUMES_PER_GROUP" \
               --volume-size-gib "$PARAM_VOLUME_SIZE_GIB" \
+              "${scope_args[@]}" \
               --results-dir "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/repair" \
               2>&1 | tee "$(Agent.TempDirectory)/elastic-san-static/$(Build.BuildId)/$(System.StageName)/results/repair/run.log"
       displayName: Repair failed static volumes
@@ -410,6 +437,7 @@ stages:
         PARAM_MAX_VOLUME_WRITES_PER_HOUR: ${{ parameters.max_volume_writes_per_hour }}
         PARAM_MAX_VOLUME_WRITES_PER_BURST: ${{ parameters.max_volume_writes_per_burst }}
         PARAM_BURST_WINDOW_SECONDS: ${{ parameters.burst_window_seconds }}
+        PARAM_REPAIR_SCOPE: ${{ parameters.repair_scope }}
         PARAM_TARGET_TOTAL_VOLUMES: ${{ parameters.target_total_volumes }}
         PARAM_VOLUME_GROUPS_PER_SAN: ${{ parameters.volume_groups_per_san }}
         PARAM_VOLUMES_PER_GROUP: ${{ parameters.volumes_per_group }}

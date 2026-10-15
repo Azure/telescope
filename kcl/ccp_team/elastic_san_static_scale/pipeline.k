@@ -107,6 +107,20 @@ downloadProvisionArtifact = lambda -> steps.Step {
 }
 
 
+downloadRepairProvisionArtifact = lambda -> steps.Step {
+    steps.Task {
+        task = "DownloadPipelineArtifact@2"
+        displayName = "Download this run's provision manifest"
+        condition = "and(succeeded(), eq('\${{ parameters.repair_scope }}', 'this_run'))"
+        inputs = {
+            buildType = "current"
+            artifactName = "elastic-san-provision"
+            targetPath = "${RESULT_ROOT}/provision"
+        }
+    }
+}
+
+
 cleanupAgent = lambda -> steps.Step {
     steps.Bash {
         bash = "rm -f '${KUBECONFIG}'"
@@ -172,6 +186,18 @@ PYTHONPATH="${PYTHON_DEPS}" python3 "${WORKLOAD_DIR}/provision.py" \\
 
 repairScript = """
 mkdir -p "${RESULT_ROOT}/repair"
+scope_args=()
+if [ "$PARAM_REPAIR_SCOPE" = "this_run" ]; then
+    provision_manifest="${RESULT_ROOT}/provision/provision-volumes.csv"
+    if [ ! -f "$provision_manifest" ]; then
+        echo "repair_scope=this_run requires this pipeline run's provision-volumes.csv" >&2
+        exit 1
+    fi
+    scope_args+=(--provision-volumes "$provision_manifest")
+elif [ "$PARAM_REPAIR_SCOPE" != "all_managed" ]; then
+    echo "unsupported repair_scope: $PARAM_REPAIR_SCOPE" >&2
+    exit 1
+fi
 PYTHONPATH="${PYTHON_DEPS}" python3 "${WORKLOAD_DIR}/repair.py" \\
     --cluster-info "${RESULT_ROOT}/cluster.json" \\
     --kubeconfig "${KUBECONFIG}" \\
@@ -182,6 +208,7 @@ PYTHONPATH="${PYTHON_DEPS}" python3 "${WORKLOAD_DIR}/repair.py" \\
     --volume-groups-per-san "$PARAM_VOLUME_GROUPS_PER_SAN" \\
     --volumes-per-group "$PARAM_VOLUMES_PER_GROUP" \\
     --volume-size-gib "$PARAM_VOLUME_SIZE_GIB" \\
+    "\${scope_args[@]}" \\
     --results-dir "${RESULT_ROOT}/repair" \\
     2>&1 | tee "${RESULT_ROOT}/repair/run.log"
 """
@@ -250,6 +277,13 @@ output = ap.Pipeline {
             displayName = "Repair failed managed volumes"
             type = "boolean"
             default = False
+        }
+        ap.Parameter {
+            name = "repair_scope"
+            displayName = "Volumes eligible for repair"
+            type = "string"
+            default = "all_managed"
+            values = ["this_run", "all_managed"]
         }
         ap.Parameter {
             name = "run_attach"
@@ -431,6 +465,7 @@ output = ap.Pipeline {
                 timeoutInMinutes = 2880
                 steps = [
                     ensureResultDirectories(),
+                    downloadRepairProvisionArtifact(),
                     azCli(
                         "Prepare cluster access and Python",
                         prepareAgentScript,
@@ -442,6 +477,7 @@ output = ap.Pipeline {
                             PARAM_MAX_VOLUME_WRITES_PER_HOUR = "\${{ parameters.max_volume_writes_per_hour }}"
                             PARAM_MAX_VOLUME_WRITES_PER_BURST = "\${{ parameters.max_volume_writes_per_burst }}"
                             PARAM_BURST_WINDOW_SECONDS = "\${{ parameters.burst_window_seconds }}"
+                            PARAM_REPAIR_SCOPE = "\${{ parameters.repair_scope }}"
                             PARAM_TARGET_TOTAL_VOLUMES = "\${{ parameters.target_total_volumes }}"
                             PARAM_VOLUME_GROUPS_PER_SAN = "\${{ parameters.volume_groups_per_san }}"
                             PARAM_VOLUMES_PER_GROUP = "\${{ parameters.volumes_per_group }}"

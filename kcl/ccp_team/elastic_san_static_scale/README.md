@@ -50,6 +50,7 @@ Azure DevOps displays these boolean parameters as checkboxes:
 |---|---|
 | `run_provision` | Create missing SANs, VGs, and static volumes |
 | `run_repair` | Delete Failed managed volumes and recreate the same names, up to four rounds |
+| `repair_scope` | `this_run` repairs only volumes in this run's Provision artifact; `all_managed` preserves the cluster-wide behavior |
 | `run_attach` | Create PV/PVC/Pod resources only for successful volumes not currently attached |
 | `run_delete` | Delete the SANs created by this run and the volumes it added to pre-existing SANs |
 
@@ -57,7 +58,9 @@ The selected stages run in `provision -> repair -> attach -> delete` order. A st
 skipped dependencies do not block it. Recommended sequences are:
 
 - First run: select only `run_provision` to preserve the raw provisioning result.
-- Repair run: select only `run_repair`, or select Provision + Repair in one run.
+- Standalone Repair run: select only `run_repair` and use `repair_scope: all_managed`.
+- Scoped Repair run: select Provision + Repair and use `repair_scope: this_run`; Repair downloads
+  the same run's `provision-volumes.csv` and does not select historical failed volumes.
 - Attach run: select only `run_attach`; only successful managed volumes without an attached
   `VolumeAttachment` in this AKS cluster are selected.
 - End-to-end run: select all three. Attach starts only if Repair succeeds.
@@ -94,6 +97,8 @@ records selected unattached volumes, Ready Pods, and successful VolumeAttachment
   share counters, so do not overlap runs for the same subscription. Prefer a separate Repair run
   after Provision when the preceding hour used the full write budget.
 - Raw `Succeeded`, `Failed`, and missing/nonterminal counts are preserved in the provision artifact.
+  With `repair_scope: this_run`, Repair rechecks only the volumes listed in that artifact against
+  their current ARM state. This scope requires Provision to run in the same pipeline.
   Attach consumes only `Succeeded` volumes with a usable iSCSI target and excludes handles with
   `VolumeAttachment.status.attached=true` in the target AKS cluster. Existing incomplete
   PV/PVC/Pod resources remain eligible for reconciliation.

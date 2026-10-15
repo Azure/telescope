@@ -84,7 +84,7 @@ class ArmClient:
         self.subscription_id = subscription_id
         self.api_version = api_version
         self._token = ""
-        self._token_time = 0.0
+        self._token_expires_on = 0.0
         self._token_lock = asyncio.Lock()
         self.session: aiohttp.ClientSession | None = None
         self.read_limiter: "ReadRateLimiter | None" = None
@@ -102,10 +102,10 @@ class ArmClient:
 
     async def _access_token(self) -> str:
         async with self._token_lock:
-            if self._token and time.monotonic() - self._token_time < 2_700:
+            if self._token and self._token_expires_on - time.time() > 300:
                 return self._token
 
-            def get_token() -> str:
+            def get_token() -> tuple[str, float]:
                 completed = subprocess.run(
                     [
                         "az",
@@ -113,19 +113,17 @@ class ArmClient:
                         "get-access-token",
                         "--resource",
                         ARM_ENDPOINT,
-                        "--query",
-                        "accessToken",
                         "-o",
-                        "tsv",
+                        "json",
                     ],
                     check=True,
                     capture_output=True,
                     text=True,
                 )
-                return completed.stdout.strip()
+                payload = json.loads(completed.stdout)
+                return str(payload["accessToken"]), float(payload["expires_on"])
 
-            self._token = await asyncio.to_thread(get_token)
-            self._token_time = time.monotonic()
+            self._token, self._token_expires_on = await asyncio.to_thread(get_token)
             return self._token
 
     def url(self, resource_id: str) -> str:

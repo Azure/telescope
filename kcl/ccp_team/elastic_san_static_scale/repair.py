@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import csv
 import json
 import time
 from collections import defaultdict
@@ -26,11 +27,32 @@ from provision import (
     MAX_WRITES_PER_BURST,
     ArmClient,
     HourlyWriteLimiter,
+    ReadRateLimiter,
     aggregate_records,
     inventory_managed_sans,
     utc_now,
     validate_volumes,
 )
+
+
+def load_provision_scope(path: Path) -> list[dict[str, str]]:
+    with path.open(newline="") as handle:
+        reader = csv.DictReader(handle)
+        required = {"san", "group", "volume"}
+        missing = required - set(reader.fieldnames or [])
+        if missing:
+            raise ValueError(
+                f"provision volume manifest is missing columns: {', '.join(sorted(missing))}"
+            )
+        records = [
+            {key: str(row[key]) for key in required}
+            for row in reader
+            if all(row.get(key) for key in required)
+        ]
+    identities = [(record["san"], record["group"], record["volume"]) for record in records]
+    if len(identities) != len(set(identities)):
+        raise ValueError("provision volume manifest contains duplicate volume identities")
+    return records
 
 
 def failed_volume_records(inventories: list[Any]) -> list[dict[str, Any]]:
@@ -55,6 +77,67 @@ def failed_volume_records(inventories: list[Any]) -> list[dict[str, Any]]:
                         "state": "Failed",
                     }
                 )
+    return sorted(records, key=lambda record: (record["san"], record["group"], record["volume"]))
+
+
+def scoped_repair_records(
+    inventories: list[Any],
+    provision_records: list[dict[str, str]],
+    *,
+    volume_size_gib: int,
+) -> list[dict[str, Any]]:
+    inventories_by_name = {
+        inventory.san.name.casefold(): inventory for inventory in inventories
+    }
+    records: list[dict[str, Any]] = []
+    for candidate in provision_records:
+        inventory = inventories_by_name.get(candidate["san"].casefold())
+        if inventory is None:
+            raise ValueError(
+                f"provision volume manifest references unmanaged SAN {candidate['san']!r}"
+            )
+        group = candidate["group"]
+        volume_name = candidate["volume"]
+        volume = next(
+            (
+                item
+                for item in inventory.groups.get(group, [])
+                if item["name"] == volume_name
+            ),
+            None,
+        )
+        if volume is None:
+            state = "Missing"
+            size_gib = volume_size_gib
+            resource_id = (
+                f"{inventory.resource_id}/volumeGroups/{quote(group)}"
+                f"/volumes/{quote(volume_name)}"
+            )
+        else:
+            properties = volume.get("properties", {})
+            state = properties.get("provisioningState", "Unknown")
+            if state == "Succeeded":
+                continue
+            if state not in ("Failed", "Missing"):
+                raise RuntimeError(
+                    f"volume {volume['id']} is still in nonterminal state {state}"
+                )
+            if properties.get("sizeGiB") is None:
+                raise ValueError(f"sizeGiB is missing for failed volume {volume['id']}")
+            size_gib = int(properties["sizeGiB"])
+            resource_id = volume["id"]
+        records.append(
+            {
+                "san": inventory.san.name,
+                "san_id": inventory.resource_id,
+                "resource_group": inventory.san.resource_group,
+                "group": group,
+                "volume": volume_name,
+                "resource_id": resource_id,
+                "size_gib": size_gib,
+                "state": state,
+            }
+        )
     return sorted(records, key=lambda record: (record["san"], record["group"], record["volume"]))
 
 
@@ -314,6 +397,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--volume-groups-per-san", type=int, required=True)
     parser.add_argument("--volumes-per-group", type=int, required=True)
     parser.add_argument("--volume-size-gib", type=int, required=True)
+    parser.add_argument(
+        "--provision-volumes",
+        type=Path,
+        help="Only repair volumes listed in this provision-volumes.csv manifest",
+    )
     parser.add_argument("--results-dir", type=Path, required=True)
     return parser.parse_args()
 
@@ -336,9 +424,33 @@ async def async_main(args: argparse.Namespace) -> int:
     started_utc = utc_now()
     started = time.monotonic()
     rounds: list[dict[str, Any]] = []
+    provision_records = (
+        load_provision_scope(args.provision_volumes) if args.provision_volumes else None
+    )
 
     async with ArmClient(cluster.subscription_id) as client:
-        inventories = await inventory_managed_sans(client, cluster.resource_uid)
+        client.read_limiter = ReadRateLimiter()
+        if provision_records is None:
+            inventories = await inventory_managed_sans(client, cluster.resource_uid)
+        else:
+            san_names = {record["san"].casefold() for record in provision_records}
+            subscription_sans = await client.list_all(
+                f"/subscriptions/{client.subscription_id}"
+                "/providers/Microsoft.ElasticSan/elasticSans"
+            )
+            scoped_sans = [
+                san for san in subscription_sans if san["name"].casefold() in san_names
+            ]
+            found_names = {san["name"].casefold() for san in scoped_sans}
+            missing_names = sorted(san_names - found_names)
+            if missing_names:
+                raise ValueError(
+                    "provision volume manifest references missing SANs: "
+                    + ", ".join(missing_names)
+                )
+            inventories = await inventory_managed_sans(
+                client, cluster.resource_uid, scoped_sans
+            )
         indexes = [inventory.san.index for inventory in inventories]
         if any(index < 0 for index in indexes) or len(indexes) != len(set(indexes)):
             raise RuntimeError(f"managed SAN indexes must be unique and non-negative: {indexes}")
@@ -350,14 +462,21 @@ async def async_main(args: argparse.Namespace) -> int:
                 f"cluster managed SAN geometry is {mismatched_geometries}; requested {geometry}"
             )
         referenced_handles = cluster_pv_handles(args.kubeconfig)
-        current = desired_repair_records(
-            inventories,
-            referenced_handles,
-            target_total_volumes=args.target_total_volumes,
-            volumes_per_group=args.volumes_per_group,
-            shard_capacity=shard_capacity,
-            volume_size_gib=args.volume_size_gib,
-        )
+        if provision_records is None:
+            current = desired_repair_records(
+                inventories,
+                referenced_handles,
+                target_total_volumes=args.target_total_volumes,
+                volumes_per_group=args.volumes_per_group,
+                shard_capacity=shard_capacity,
+                volume_size_gib=args.volume_size_gib,
+            )
+        else:
+            current = scoped_repair_records(
+                inventories,
+                provision_records,
+                volume_size_gib=args.volume_size_gib,
+            )
         initial_failed = sum(record["state"] == "Failed" for record in current)
         initial_missing = sum(record["state"] == "Missing" for record in current)
         unsafe = [
@@ -382,6 +501,9 @@ async def async_main(args: argparse.Namespace) -> int:
                 "initial_failed": initial_failed,
                 "initial_missing": initial_missing,
                 "candidates": current,
+                "repair_scope": (
+                    "provision_run" if provision_records is not None else "all_managed"
+                ),
                 "repair_round_limit": 4,
             },
         )
