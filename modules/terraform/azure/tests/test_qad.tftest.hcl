@@ -80,6 +80,14 @@ run "qad_cluster_request" {
   }
 
   assert {
+    condition = alltrue([
+      for argument in module.qad["client"].create_arguments :
+      !startswith(argument, "--nodepool-mode") && argument != "--nodepool-labels "
+    ])
+    error_message = "QAD cluster creation must not pass unsupported nodepool mode or empty nodepool labels."
+  }
+
+  assert {
     condition = (
       strcontains(module.qad["client"].node_pool_commands.user, "--node-count 40") &&
       strcontains(module.qad["client"].node_pool_commands.user, "--node-vm-size Standard_D16s_v3") &&
