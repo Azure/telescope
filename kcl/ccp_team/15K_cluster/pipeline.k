@@ -56,7 +56,7 @@ CREATE_ARGS=(
   --generate-ssh-keys
   --yes
 )
-[[ -n "$(network_dataplane)" ]] && CREATE_ARGS+=(--network-dataplane "$(network_dataplane)")
+[[ "$(network_dataplane)" != "none" ]] && CREATE_ARGS+=(--network-dataplane "$(network_dataplane)")
 [[ "$(apiserver_vnet_integration)" == "true" ]] && CREATE_ARGS+=(--enable-apiserver-vnet-integration --apiserver-subnet-id "$(APISERVER_SUBNET_ID)")
 [[ "$(kms_key_id)" != "none" ]] && CREATE_ARGS+=(--enable-azure-keyvault-kms --azure-keyvault-kms-key-id "$(kms_key_id)" --azure-keyvault-kms-key-vault-network-access Public)
 
@@ -114,9 +114,9 @@ output = ap.Pipeline {
         }
         ap.Parameter {
             name = "network_dataplane"
-            displayName = "Network dataplane (leave empty for AKS default)"
+            displayName = "Network dataplane (use 'none' to omit --network-dataplane)"
             type = "string"
-            default = "cilium"
+            default = "none"
         }
         ap.Parameter {
             name = "apiserver_vnet_integration"
