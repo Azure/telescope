@@ -22,7 +22,7 @@ fetch_logs() {
     if [ -n "$log_cursor" ]; then
         since_args=("--since-time=$log_cursor")
     fi
-    if kubectl --request-timeout=15s -n "${namespace}" logs \
+    if timeout --kill-after=5s 15s kubectl --request-timeout=15s -n "${namespace}" logs \
         -l job-name="${jobName}" --all-containers --timestamps --prefix --tail=-1 \
         --ignore-errors=true \
         "\${since_args[@]}"; then
