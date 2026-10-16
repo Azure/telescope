@@ -2,6 +2,7 @@ import azure_pipelines.ap.steps
 
 # Wait for a named Kubernetes Job to reach a terminal condition, stream its
 # container logs, and emit diagnostics before returning.
+# Check terminal conditions once more when the waiting budget expires.
 WaitForK8sJobFinished = lambda namespace: str, jobName: str, timeoutSeconds: int = 7200, continueOnError: bool = False -> steps.Bash {
     steps.Bash {
         displayName = "Wait for k8s job to finish: ${jobName}"
@@ -23,6 +24,7 @@ fetch_logs() {
     fi
     if kubectl --request-timeout=15s -n "${namespace}" logs \
         -l job-name="${jobName}" --all-containers --timestamps --prefix --tail=-1 \
+        --ignore-errors=true \
         "\${since_args[@]}"; then
         log_cursor="$poll_start"
     else
@@ -32,14 +34,24 @@ fetch_logs() {
 
 deadline=$(( $(date +%s) + ${timeoutSeconds} ))
 final=""
-while [ $(date +%s) -lt $deadline ]; do
+while true; do
     conditions=$(kubectl -n "${namespace}" get job "${jobName}" -o jsonpath='C={.status.conditions[?(@.type=="Complete")].status} F={.status.conditions[?(@.type=="Failed")].status}' 2>/dev/null || true)
     case "$conditions" in
     *"C=True"*) final="complete"; break ;;
     *"F=True"*) final="failed"; break ;;
     esac
+
+    remaining=$(( deadline - $(date +%s) ))
+    if [ "$remaining" -le 0 ]; then
+        break
+    fi
+
     fetch_logs
-    sleep 60
+
+    remaining=$(( deadline - $(date +%s) ))
+    if [ "$remaining" -gt 0 ]; then
+        sleep "$(( remaining < 60 ? remaining : 60 ))"
+    fi
 done
 
 fetch_logs
