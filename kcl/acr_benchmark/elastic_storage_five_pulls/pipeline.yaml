@@ -1,0 +1,181 @@
+name: ACR Kubernetes Five Cold Pulls
+pool: AKS-Telescope-Airlock
+trigger: none
+pr: none
+jobs:
+- job: five_cold_pulls
+  displayName: Pull test1gb on five fresh AKS workers
+  timeoutInMinutes: 120
+  cancelTimeoutInMinutes: 15
+  steps:
+  - bash: |
+      set -eo pipefail
+
+      job_id="$(System.JobId)"
+      RUN_ID=$(Build.BuildId)-${job_id:0:8}
+      echo "Run ID: $RUN_ID"
+
+      echo "##vso[task.setvariable variable=RUN_ID]$RUN_ID"
+    displayName: Set Run ID
+  - bash: |
+      set -euo pipefail
+      mkdir -p "$RESULT_DIRECTORY"
+      python3 "$(Build.SourcesDirectory)/kcl/acr_benchmark/elastic_storage_five_pulls/pull.py" check-credentials
+      ssh-keygen -q -t rsa -b 3072 -N "" -f "$SSH_KEY"
+    displayName: Validate credentials and prepare local files
+    env:
+      ACR_PULL_USERNAME: williamjcusaue1
+      ACR_PULL_PASSWORD: $(ACR_PULL_PASSWORD)
+      RESULT_DIRECTORY: $(Pipeline.Workspace)/acr-five-pulls-results
+      SSH_KEY: $(Agent.TempDirectory)/acr-five-pulls-$(RUN_ID)
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+        az config set defaults.location="australiaeast"
+        az account show
+    displayName: Login to Azure
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        if [ "$(az group exists --name "acr-five-pulls-$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219")" != "false" ]; then
+          echo "##[error]Refusing to use an existing resource group: acr-five-pulls-$(RUN_ID)"
+          exit 1
+        fi
+        az group create \
+          --name "acr-five-pulls-$(RUN_ID)" \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --location "australiaeast" \
+          --tags "SkipAKSCluster=1" "run_id=$(RUN_ID)" \
+          --output none
+        set +x
+        echo "##vso[task.setvariable variable=created;isOutput=true]true"
+    displayName: Create an isolated test resource group
+    name: create_test_group
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        az aks create \
+          --name "acr-five-pulls" \
+          --resource-group "acr-five-pulls-$(RUN_ID)" \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --location "australiaeast" \
+          --tier standard \
+          --nodepool-name systempool \
+          --nodepool-taints CriticalAddonsOnly=true:NoSchedule \
+          --node-count 1 \
+          --node-vm-size Standard_D4ds_v5 \
+          --network-plugin azure \
+          --network-plugin-mode overlay \
+          --enable-managed-identity \
+          --ssh-key-value "$(Agent.TempDirectory)/acr-five-pulls-$(RUN_ID).pub" \
+          --output none
+    displayName: Create AKS with one system node
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        deadline=$(($(date +%s) + 600))
+        sleep_between=30
+        attempt=0
+        while :; do
+          attempt=$((attempt + 1))
+          set +e
+          output=$(az aks nodepool add \
+            --cluster-name "acr-five-pulls" \
+            --resource-group "acr-five-pulls-$(RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --name "pullpool" \
+            --node-count 5 \
+            --node-vm-size "Standard_D4ds_v5" \
+            --mode User \
+            --node-taints acrpull=true:NoSchedule \
+          --labels "benchmark=acr-five-pulls" 2>&1)
+          rc=$?
+          set -e
+          echo "$output"
+          if [ $rc -eq 0 ]; then
+            exit 0
+          fi
+          if echo "$output" | grep -qiE "OperationNotAllowed"; then
+            now=$(date +%s)
+            if [ $now -ge $deadline ]; then
+              echo "Retriable error persisted past 600s retry window ($attempt attempts); giving up."
+              exit $rc
+            fi
+            remaining=$((deadline - now))
+            echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining seconds remain in retry window)."
+            sleep $sleep_between
+          else
+            echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+            exit $rc
+          fi
+        done
+    displayName: Create node pool pullpool
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        az aks get-credentials \
+          --name "acr-five-pulls" \
+          --resource-group "acr-five-pulls-$(RUN_ID)" \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --overwrite-existing \
+          -f $(Agent.TempDirectory)/acr-five-pulls-$(RUN_ID).kubeconfig
+    displayName: Get credentials for acr-five-pulls
+  - bash: |
+      set -euo pipefail
+      python3 "$(Build.SourcesDirectory)/kcl/acr_benchmark/elastic_storage_five_pulls/pull.py" run \
+        --image "williamjcusaue1.azurecr-test.io/test1gb@sha256:bec0623e6590d7fe14c2ccb62a0049bfc0386a0e0fe35969f733077f31e7eea4" \
+        --node-pool "pullpool" \
+        --output "$(Pipeline.Workspace)/acr-five-pulls-results/results.json" \
+        --run-id "$(RUN_ID)" \
+        --run-url "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)" \
+        --pipeline "$(Build.DefinitionName)"
+    displayName: Pull the pinned image once on each worker
+    env:
+      ACR_PULL_USERNAME: williamjcusaue1
+      ACR_PULL_PASSWORD: $(ACR_PULL_PASSWORD)
+      KUBECONFIG: $(Agent.TempDirectory)/acr-five-pulls-$(RUN_ID).kubeconfig
+  - task: PublishPipelineArtifact@1
+    inputs:
+      targetPath: $(Pipeline.Workspace)/acr-five-pulls-results
+      artifact: acr-five-pulls
+    condition: always()
+    displayName: Publish image-pull results
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        az group delete --name "acr-five-pulls-$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
+    condition: and(always(), eq(variables['create_test_group.created'], 'true'))
+    displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+  - bash: |
+      set -euo pipefail
+      rm -f -- "$KUBECONFIG" "$SSH_KEY" "$SSH_KEY.pub"
+    condition: always()
+    displayName: Remove local kubeconfig and SSH key
+    env:
+      KUBECONFIG: $(Agent.TempDirectory)/acr-five-pulls-$(RUN_ID).kubeconfig
+      SSH_KEY: $(Agent.TempDirectory)/acr-five-pulls-$(RUN_ID)
