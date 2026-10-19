@@ -179,7 +179,8 @@ output = ap.Pipeline {
                     VNET_NAME,
                     "nodes",
                     "10.1.0.0/18",
-                    SUBSCRIPTION_ID
+                    SUBSCRIPTION_ID,
+                    stepName = "createNodesSubnet"
                 ),
                 azure.CreateSubnet(
                     SERVICE_CONNECTION,
@@ -187,7 +188,8 @@ output = ap.Pipeline {
                     VNET_NAME,
                     "apiserver",
                     "10.240.0.0/28",
-                    SUBSCRIPTION_ID
+                    SUBSCRIPTION_ID,
+                    stepName = "createApiserverSubnet"
                 ),
                 azure.CreateSubnet(
                     SERVICE_CONNECTION,
@@ -195,7 +197,8 @@ output = ap.Pipeline {
                     VNET_NAME,
                     "AzureFirewallSubnet",
                     "10.2.0.0/16",
-                    SUBSCRIPTION_ID
+                    SUBSCRIPTION_ID,
+                    stepName = "createFirewallSubnet"
                 ),
                 azure.CreateSubnet(
                     SERVICE_CONNECTION,
@@ -203,7 +206,8 @@ output = ap.Pipeline {
                     VNET_NAME,
                     "jumpbox",
                     "10.3.0.0/16",
-                    SUBSCRIPTION_ID
+                    SUBSCRIPTION_ID,
+                    stepName = "createJumpboxSubnet"
                 ),
                 azure.SetupFirewallForSubnet(
                     SERVICE_CONNECTION,
