@@ -1,28 +1,41 @@
 trigger: none
+pr: none
 
 pool:
   name: 'AKS-Telescope-Airlock'
 
 variables:
-  SCENARIO_TYPE: <scenario-type>
-  SCENARIO_NAME: <scenario-name>
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: image-pull-n5
+  ACR_PULL_USERNAME: williamjcusaue1
+  ACR_PULL_PASSWORD: 58jBdanzX98R6zYW4WgoL3T5PZWxMo85RdqUzj43BPriXYrImF81JQQJ99CIADL93NaEqg7NAAACAZCRFR7H
+  # Configure ACR_PULL_PASSWORD as a secret Azure DevOps pipeline variable.
 
 stages:
-  - stage: <stage-name> # format: <cloud>[_<region>]+ (e.g. azure_eastus2, aws_eastus_westus)
+  - stage: azure_australiaeast_image_pull
     dependsOn: []
     jobs:
-      - template: /jobs/competitive-test.yml # must keep as is
+      - template: /jobs/competitive-test.yml
         parameters:
-          cloud: <cloud> # e.g. azure, aws
-          regions: # list of regions
-            - region1 # e.g. eastus2
-          topology: <topology> # e.g. cluster-autoscaler
-          engine: <engine> # e.g. clusterloader2
-          matrix: # list of test parameters to customize the provisioned resources
-            <case-name>:
-              <key1>: <value1>
-              <key2>: <value2>
-          max_parallel: <number of concurrent jobs> # required
-          credential_type: service_connection # required
+          cloud: azure
+          regions:
+            - australiaeast
+          engine: skopeo
+          engine_input:
+            image: "quay.io/skopeo/stable:v1.20.0"
+          topology: image-pull-download
+          matrix:
+            image_pull_5nodes_private:
+              # Three system nodes and five download workers.
+              desired_nodes: 8
+              node_count: 5
+              repeats: 1
+              # Existing Dogfood registry in rg_wj_cus1; never modify it.
+              registry_endpoint: williamjcusaue1.azurecr-test.io
+              # test1gb:latest resolved on 2026-10-19. Synthetic layer: download without unpacking.
+              test_image: test1gb@sha256:bec0623e6590d7fe14c2ccb62a0049bfc0386a0e0fe35969f733077f31e7eea4
+              kubernetes_version: "1.34"
+          max_parallel: 1
+          credential_type: service_connection
           ssh_key_enabled: false
-          timeout_in_minutes: 60 # if not specified, default is 60
+          timeout_in_minutes: 100
