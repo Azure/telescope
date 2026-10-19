@@ -14,17 +14,17 @@ qad_config_list = [
       pod_cidr       = "125.4.0.0/14"
     }
     system_node_pool = {
-      name     = "systempool"
-      count    = 3
-      vm_size  = "Standard_D2s_v6"
-      os_type  = "Linux"
-      mode     = "System"
+      name    = "systempool"
+      count   = 3
+      vm_size = "Standard_D2ds_v5"
+      os_type = "Linux"
+      mode    = "System"
     }
     user_node_pools = [
       {
         name        = "user"
-        count       = 5
-        vm_size     = "Standard_D16s_v6"
+        count       = 10
+        vm_size     = "Standard_D16ds_v5"
         os_type     = "Linux"
         mode        = "User"
         node_labels = { "csi" = "true" }
