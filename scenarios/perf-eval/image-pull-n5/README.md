@@ -35,6 +35,10 @@ use a valid runnable image with the original image-pull topology.
 - [Terraform inputs](terraform-inputs/azure.tfvars) create `img-pull-5` in a new run-ID
   resource group: three system nodes and five workers, all `Standard_D4ds_v5`.
   **Eight VMs / 32 vCPUs** require sufficient regional and VM-family quota.
+- AKS uses subnet `imgpull-subnet-1` (`10.0.0.0/16`) in `imgpull-vnet`
+  (`10.0.0.0/9`). Its overlay pod CIDR is `10.128.0.0/9` and service CIDR is
+  `192.168.0.0/16`; these ranges do not overlap. The AKS `subnet_name` must refer
+  to the subnet, not the VNet, or the module falls back to a null subnet ID.
 - Workers need access to Quay, the Dogfood registry, and its blob endpoints.
 
 The pipeline does not create/delete `rg_wj_cus1`, enable anonymous registry access,

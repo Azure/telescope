@@ -4,9 +4,11 @@ import argparse
 import base64
 import contextlib
 import io
+import ipaddress
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 import unittest
@@ -226,6 +228,33 @@ class TestFiveDownloads(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertEqual(report["successful_pulls"], 5)
         self.assertIn("Namespace cleanup failed", report["errors"][0])
+
+
+class TestNetworkConfiguration(unittest.TestCase):
+    def test_aks_references_the_declared_nonoverlapping_subnet(self):
+        text = (Path(__file__).parent / "terraform-inputs" / "azure.tfvars").read_text()
+        declared_subnet = re.search(
+            r'subnet\s*=\s*\[\s*\{\s*name\s*=\s*"([^"]+)"', text
+        ).group(1)
+        referenced_subnet = re.search(r'subnet_name\s*=\s*"([^"]+)"', text).group(1)
+        self.assertEqual(declared_subnet, "imgpull-subnet-1")
+        self.assertEqual(referenced_subnet, declared_subnet)
+
+        def network(field):
+            return ipaddress.ip_network(
+                re.search(rf'{field}\s*=\s*"([^"]+)"', text).group(1)
+            )
+
+        vnet = network("vnet_address_space")
+        subnet = network("address_prefix")
+        pods = network("pod_cidr")
+        services = network("service_cidr")
+        self.assertTrue(subnet.subnet_of(vnet))
+        self.assertFalse(pods.overlaps(vnet))
+        self.assertFalse(services.overlaps(vnet))
+        self.assertFalse(pods.overlaps(services))
+        dns_ip = re.search(r'dns_service_ip\s*=\s*"([^"]+)"', text).group(1)
+        self.assertIn(ipaddress.ip_address(dns_ip), services)
 
 
 if __name__ == "__main__":
