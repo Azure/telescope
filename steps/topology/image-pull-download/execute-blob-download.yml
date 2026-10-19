@@ -15,7 +15,7 @@ steps:
       --result-file "$TEST_RESULTS_FILE" \
       --run-id "$RUN_ID" \
       --run-url "$RUN_URL"
-  displayName: "Download test1gb once on each of five workers"
+  displayName: "Download test1gb five times from one replica account"
   env:
     RUNNER_IMAGE: ${{ parameters.engine_input.image }}
     ACR_PULL_USERNAME: $(ACR_PULL_USERNAME)

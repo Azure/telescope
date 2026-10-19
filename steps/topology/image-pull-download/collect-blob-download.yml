@@ -1,0 +1,31 @@
+parameters:
+- name: cloud
+  type: string
+- name: engine_input
+  type: object
+- name: regions
+  type: object
+
+steps:
+- template: /steps/cloud/${{ parameters.cloud }}/collect-cloud-info.yml
+  parameters:
+    region: ${{ parameters.regions[0] }}
+- script: |
+    set -euo pipefail
+    jq -e '
+      . as $result
+      | .status == "success"
+        and .successful_pulls == 5
+        and (.errors | length) == 0
+        and (.pulls | length) == 5
+        and (.pulls | map(.node) | unique | length) == 5
+        and (.pulls | map(.storage_request_id) | unique | length) == 5
+        and all(.pulls[];
+          .status == "success"
+          and .storage_account == $result.storage_account
+          and .blob_digest == $result.blob_digest
+          and .downloaded_bytes == 1073741824
+          and .window_start == $result.window_start
+          and .window_end == $result.window_end)
+    ' "$TEST_RESULTS_FILE"
+  displayName: "Validate five same-account layer downloads"

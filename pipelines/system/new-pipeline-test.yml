@@ -20,9 +20,9 @@ stages:
           cloud: azure
           regions:
             - australiaeast
-          engine: skopeo
+          engine: blob-download
           engine_input:
-            image: "quay.io/skopeo/stable:v1.20.0"
+            image: "python:3.12.12-slim"
           topology: image-pull-download
           matrix:
             image_pull_5nodes_private:
@@ -32,7 +32,7 @@ stages:
               repeats: 1
               # Existing Dogfood registry in rg_wj_cus1; never modify it.
               registry_endpoint: williamjcusaue1.azurecr-test.io
-              # test1gb:latest resolved on 2026-10-19. Synthetic layer: download without unpacking.
+              # Resolve one replica URL, then download this layer five times in one aligned window.
               test_image: test1gb@sha256:bec0623e6590d7fe14c2ccb62a0049bfc0386a0e0fe35969f733077f31e7eea4
               kubernetes_version: "1.34"
           max_parallel: 1

@@ -1,8 +1,10 @@
-"""Download the pinned test image once on each of five Kubernetes workers."""
+"""Coordinate five verified layer downloads from one registry-selected replica."""
 
 import argparse
 import base64
-from datetime import datetime, timezone
+from datetime import datetime
+import hashlib
+import http.client
 import json
 import os
 from pathlib import Path
@@ -10,64 +12,121 @@ import re
 import subprocess
 import sys
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
+
+from download import (
+    DownloadError, LAYER_BYTES, WINDOW_SECONDS, WORKER_TIMEOUT_SECONDS,
+    error_message, open_request, sanitize_diagnostic, storage_account, utc, validate_target,
+)
 
 
 NAMESPACE = "acr-five-pulls"
 PULL_COUNT = 5
-TIMEOUT_SECONDS = 1200
+TIMEOUT_SECONDS = WORKER_TIMEOUT_SECONDS
 POLL_SECONDS = 5
-LAYER_BYTES = 1073741824
-
-# The target is a synthetic OCI artifact: preserve its bytes without unpacking.
-DOWNLOAD_SCRIPT = """
-set -eu
-start=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-start_seconds=$(date +%s)
-mkdir /download/image
-if skopeo copy --retry-times 0 --preserve-digests \\
-    --authfile /auth/.dockerconfigjson \\
-    "docker://$TARGET_IMAGE" dir:/download/image >/download/copy.log 2>&1; then
-  bytes=0
-  for file in /download/image/*; do
-    size=$(wc -c < "$file")
-    bytes=$(( bytes + size ))
-  done
-  end=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-  duration=$(( $(date +%s) - start_seconds ))
-  printf '{"started_at":"%s","finished_at":"%s","duration_seconds":%s,"downloaded_bytes":%s}\\n' \\
-    "$start" "$end" "$duration" "$bytes"
-else
-  # Keep credentials and signed redirect URLs out of published diagnostics.
-  echo "skopeo image download failed; check registry permissions and connectivity" >&2
-  exit 1
-fi
-"""
+KUBECTL_TIMEOUT_SECONDS = 45
+# Reserve one status query and one log read per worker, plus the polling interval.
+RESULT_COLLECTION_SECONDS = (PULL_COUNT + 1) * KUBECTL_TIMEOUT_SECONDS + POLL_SECONDS
+# Allow kubelet's Secret-volume refresh before the common start time.
+SECRET_PROPAGATION_SECONDS = 180
 
 
 def kubectl(*arguments, payload=None):
-    return subprocess.run(
-        ["kubectl", "--request-timeout=30s", *arguments],
-        input=json.dumps(payload) if payload is not None else None,
-        text=True, capture_output=True, check=True, timeout=45,
-    ).stdout
+    operation = "kubectl " + " ".join(arguments)
+    secrets = [os.environ.get("ACR_PULL_PASSWORD", "")]
+    if payload is not None:
+        operation += f" [{payload.get('kind', 'object')}/{payload.get('metadata', {}).get('name', '')}]"
+        if payload.get("kind") == "Secret":
+            for field in ("data", "stringData"):
+                for value in payload.get(field, {}).values():
+                    secrets.append(value)
+                    secrets.extend(re.findall(r'https?://[^"\s]+', value))
+    operation = sanitize_diagnostic(operation, secrets)
+    try:
+        return subprocess.run(
+            ["kubectl", "--request-timeout=30s", *arguments],
+            input=json.dumps(payload) if payload is not None else None,
+            text=True, capture_output=True, check=True, timeout=KUBECTL_TIMEOUT_SECONDS,
+        ).stdout
+    except subprocess.CalledProcessError as error:
+        details = sanitize_diagnostic(error.stderr or error.stdout, secrets) or "no diagnostic output"
+        raise DownloadError(f"{operation} failed (exit {error.returncode}): {details}") from None
+    except subprocess.TimeoutExpired as error:
+        details = sanitize_diagnostic(error.stderr or error.output, secrets) or "no diagnostic output"
+        raise DownloadError(f"{operation} timed out after {error.timeout}s: {details}") from None
+    except OSError as error:
+        details = sanitize_diagnostic(error, secrets)
+        raise DownloadError(f"{operation} could not execute ({type(error).__name__}): {details}") from None
 
 
 def get_json(*arguments):
     return json.loads(kubectl("get", *arguments, "-o", "json"))
 
 
-def manifests(image, runner_image, nodes):
+def parse_image(image):
+    match = re.fullmatch(r"([a-z0-9.-]+)/([a-z0-9._/-]+)@(sha256:[0-9a-f]{64})", image)
+    if not match:
+        raise DownloadError("Use a fully qualified immutable image digest")
+    return match.groups()
+
+
+def resolve_target(image, username, password):
+    registry, repository, manifest_digest = parse_image(image)
+    token_url = f"https://{registry}/oauth2/token?" + urllib.parse.urlencode({
+        "service": registry, "scope": f"repository:{repository}:pull",
+    })
+    basic = base64.b64encode(f"{username}:{password}".encode()).decode()
+    with open_request(urllib.request.Request(token_url, headers={"Authorization": "Basic " + basic})) as response:
+        token_response = json.load(response)
+    token = token_response.get("token") or token_response.get("access_token")
+    if not isinstance(token, str) or not token:
+        raise DownloadError("Registry token response contains no pull token")
+    manifest_url = f"https://{registry}/v2/{repository}/manifests/{manifest_digest}"
+    headers = {
+        "Authorization": "Bearer " + token,
+        "Accept": "application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json",
+    }
+    with open_request(urllib.request.Request(manifest_url, headers=headers)) as response:
+        body = response.read(1024 * 1024 + 1)
+    if "sha256:" + hashlib.sha256(body).hexdigest() != manifest_digest:
+        raise DownloadError("Registry manifest bytes do not match the pinned digest")
+    manifest = json.loads(body)
+    layers = manifest.get("layers", [])
+    if len(layers) != 1 or layers[0].get("size") != LAYER_BYTES:
+        raise DownloadError("The pinned image must contain exactly one one-GiB layer")
+    digest = layers[0]["digest"]
+    if not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
+        raise DownloadError("Invalid layer digest in registry manifest")
+    blob_url = f"https://{registry}/v2/{repository}/blobs/{digest}"
+    try:
+        with open_request(urllib.request.Request(blob_url, headers={"Authorization": "Bearer " + token})):
+            raise DownloadError("Registry returned a proxy response instead of a direct storage redirect")
+    except urllib.error.HTTPError as error:
+        if error.code not in (301, 302, 307, 308):
+            raise
+        url = error.headers.get("Location", "")
+        error.close()
+    account = storage_account(url, digest)
+    now = time.time()
+    start = (int(now) // WINDOW_SECONDS + 1) * WINDOW_SECONDS
+    if start - now < SECRET_PROPAGATION_SECONDS:
+        start += WINDOW_SECONDS
+    target = {
+        "url": url, "account": account, "digest": digest, "size": LAYER_BYTES,
+        "start": start, "end": start + WINDOW_SECONDS,
+    }
+    validate_target(target)
+    return target
+
+
+def manifests(runner_image, nodes):
     return {
-        "apiVersion": "v1",
-        "kind": "List",
+        "apiVersion": "v1", "kind": "List",
         "items": [{
-            "apiVersion": "v1",
-            "kind": "Pod",
-            "metadata": {
-                "name": f"pull-{index}",
-                "namespace": NAMESPACE,
-                "labels": {"app": "acr-five-pulls"},
-            },
+            "apiVersion": "v1", "kind": "Pod",
+            "metadata": {"name": f"pull-{index}", "namespace": NAMESPACE, "labels": {"app": "acr-five-pulls"}},
             "spec": {
                 "nodeName": node,
                 "restartPolicy": "Never",
@@ -76,49 +135,138 @@ def manifests(image, runner_image, nodes):
                 "containers": [{
                     "name": "pull",
                     "image": runner_image,
-                    "command": ["/bin/sh", "-c", DOWNLOAD_SCRIPT],
-                    "env": [{"name": "TARGET_IMAGE", "value": image}],
+                    "command": ["python3", "-B", "/scripts/download.py"],
+                    "readinessProbe": {
+                        "exec": {"command": ["/bin/sh", "-c", "test -f /tmp/ready"]},
+                        "periodSeconds": 2,
+                    },
                     "resources": {
-                        "requests": {"cpu": "100m", "memory": "128Mi", "ephemeral-storage": "2Gi"},
-                        "limits": {"cpu": "1", "memory": "512Mi", "ephemeral-storage": "3Gi"},
+                        "requests": {"cpu": "100m", "memory": "128Mi"},
+                        "limits": {"cpu": "1", "memory": "512Mi"},
                     },
                     "volumeMounts": [
-                        {"name": "auth", "mountPath": "/auth", "readOnly": True},
-                        {"name": "download", "mountPath": "/download"},
+                        {"name": "target", "mountPath": "/target", "readOnly": True},
+                        {"name": "script", "mountPath": "/scripts", "readOnly": True},
                     ],
                 }],
                 "volumes": [
-                    {"name": "auth", "secret": {"secretName": "acr-pull"}},
-                    {"name": "download", "emptyDir": {"sizeLimit": "2Gi"}},
+                    {"name": "target", "secret": {"secretName": "acr-download-target"}},
+                    {"name": "script", "configMap": {"name": "acr-download-script"}},
                 ],
             },
         } for index, node in enumerate(nodes, 1)],
     }
 
 
+def pod_snapshot():
+    pods = get_json("pods", "-n", NAMESPACE, "-l", "app=acr-five-pulls")["items"]
+    return {pod["metadata"]["name"]: pod for pod in pods}
+
+
+def collect_snapshot(result, pods, target=None):
+    errors = []
+    unexpected = set(pods) - {pull["pod"] for pull in result["pulls"]}
+    if unexpected:
+        errors.append("Unexpected workload Pods in the test namespace: " + ", ".join(sorted(unexpected)))
+    secrets = [os.environ.get("ACR_PULL_PASSWORD", "")]
+    if target:
+        secrets.append(target["url"])
+    for pull in result["pulls"]:
+        pod = pods.get(pull["pod"])
+        if pod is None or pull["status"] != "pending":
+            continue
+        try:
+            if pod["spec"]["nodeName"] != pull["node"]:
+                raise DownloadError("Workload Pod is running on the wrong worker")
+            status = pod.get("status", {})
+            container = next((
+                item for item in status.get("containerStatuses", []) if item["name"] == "pull"
+            ), {})
+            if container.get("restartCount", 0) > 0:
+                raise DownloadError("Worker restarted; refusing extra downloads")
+            waiting = container.get("state", {}).get("waiting", {})
+            if waiting.get("reason") in ("ErrImagePull", "ImagePullBackOff", "InvalidImageName"):
+                raise DownloadError("Could not pull the Python worker image: " + sanitize_diagnostic(
+                    f"{waiting['reason']}: {waiting.get('message', '')}", secrets))
+            if status.get("phase") not in ("Failed", "Succeeded"):
+                continue
+            raw_log = kubectl("logs", "-n", NAMESPACE, pull["pod"], "-c", "pull")
+            try:
+                log = json.loads(raw_log)
+            except ValueError:
+                raise DownloadError("Worker logs are not valid JSON: " + sanitize_diagnostic(raw_log, secrets)) from None
+            if status["phase"] == "Failed":
+                details = status.get("reason") or "worker exited unsuccessfully"
+                if isinstance(log, dict) and isinstance(log.get("error"), str):
+                    details = log["error"]
+                pull["exit_code"] = container.get("state", {}).get("terminated", {}).get("exitCode")
+                raise DownloadError(sanitize_diagnostic(details, secrets))
+            if container.get("state", {}).get("terminated", {}).get("exitCode") != 0:
+                raise DownloadError("Worker did not exit successfully")
+            if target is None:
+                raise DownloadError("Worker completed before a download target was published")
+            verify_result(log, target)
+            for field in (
+                "storage_account", "blob_digest", "downloaded_bytes", "started_at", "finished_at",
+                "duration_seconds", "window_start", "window_end", "client_request_id", "storage_request_id",
+            ):
+                pull[field] = log[field]
+            pull["status"] = "success"
+        except (OSError, ValueError, KeyError, TypeError, DownloadError, subprocess.SubprocessError) as error:
+            details = error_message(error, secrets)
+            pull.update(status="failure", error=details)
+            errors.append(f"{pull['pod']} on {pull['node']}: {details}")
+    result["successful_pulls"] = sum(pull["status"] == "success" for pull in result["pulls"])
+    if errors:
+        raise DownloadError("; ".join(errors))
+
+
+def ensure_schedule_fits(target, deadline):
+    required = target["end"] - time.time() + RESULT_COLLECTION_SECONDS
+    remaining = deadline - time.monotonic()
+    if required > remaining:
+        raise DownloadError(
+            f"Selected download window requires {required:.1f}s including result collection, "
+            f"but only {max(0, remaining):.1f}s of remaining lifetime is available; target was not published"
+        )
+
+
+def verify_result(log, target):
+    if not isinstance(log, dict):
+        raise DownloadError("Worker logs are not a JSON object")
+    if (
+        log["status"] != "success"
+        or log["storage_account"] != target["account"]
+        or log["blob_digest"] != target["digest"]
+        or log["downloaded_bytes"] != target["size"]
+        or log["window_start"] != utc(target["start"])
+        or log["window_end"] != utc(target["end"])
+        or log["duration_seconds"] < 0
+        or not log["client_request_id"]
+        or not log["storage_request_id"]
+    ):
+        raise DownloadError("Worker result does not match the selected account, layer, or window")
+    start = datetime.fromisoformat(log["started_at"].replace("Z", "+00:00"))
+    end = datetime.fromisoformat(log["finished_at"].replace("Z", "+00:00"))
+    if start.tzinfo is None or end.tzinfo is None or not target["start"] <= start.timestamp() <= end.timestamp() < target["end"]:
+        raise DownloadError("Worker downloaded outside the common five-minute window")
+
+
 def run(args):
     result = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "run_id": args.run_id,
-        "run_url": args.run_url,
-        "image": args.image,
-        "runner_image": args.runner_image,
-        "registry_resource_group": "rg_wj_cus1",
-        "region": "australiaeast",
-        "node_count": PULL_COUNT,
-        "status": "failure",
-        "successful_pulls": 0,
-        "pulls": [],
-        "errors": [],
+        "timestamp": utc(time.time()), "run_id": args.run_id, "run_url": args.run_url,
+        "image": args.image, "runner_image": args.runner_image,
+        "registry_resource_group": "rg_wj_cus1", "region": "australiaeast",
+        "node_count": PULL_COUNT, "status": "failure", "successful_pulls": 0,
+        "pulls": [], "errors": [],
     }
     owned_namespace = False
     try:
         username = os.environ.get("ACR_PULL_USERNAME", "")
         password = os.environ.get("ACR_PULL_PASSWORD", "")
         if any(not value or value.startswith("$(") for value in (username, password)):
-            raise ValueError("Set ACR_PULL_USERNAME and secret ACR_PULL_PASSWORD")
-        if not re.fullmatch(r"[^/\s]+/[^@\s]+@sha256:[0-9a-f]{64}", args.image):
-            raise ValueError("Use a fully qualified immutable image digest")
+            raise DownloadError("Set ACR_PULL_USERNAME and secret ACR_PULL_PASSWORD")
+        parse_image(args.image)
         nodes = get_json("nodes", "-l", "cri-resource-consume=true")["items"]
         if len(nodes) != PULL_COUNT or any(
             node.get("spec", {}).get("unschedulable", False) or not any(
@@ -126,81 +274,72 @@ def run(args):
                 for condition in node["status"].get("conditions", [])
             ) for node in nodes
         ):
-            raise RuntimeError("Expected exactly five Ready, schedulable worker nodes")
+            raise DownloadError("Expected exactly five Ready, schedulable worker nodes")
         node_names = sorted(node["metadata"]["name"] for node in nodes)
         if len(set(node_names)) != PULL_COUNT:
-            raise RuntimeError("Expected five distinct worker nodes")
+            raise DownloadError("Expected five distinct worker nodes")
         result["pulls"] = [
             {"pod": f"pull-{index}", "node": node, "status": "pending"}
             for index, node in enumerate(node_names, 1)
         ]
         kubectl("create", "namespace", NAMESPACE)
         owned_namespace = True
-        docker_config = {"auths": {args.image.split("/", 1)[0]: {
-            "auth": base64.b64encode(f"{username}:{password}".encode()).decode()
-        }}}
+        secret = {
+            "apiVersion": "v1", "kind": "Secret",
+            "metadata": {"name": "acr-download-target", "namespace": NAMESPACE},
+            "type": "Opaque", "stringData": {"target.json": "{}"},
+        }
+        kubectl("create", "-f", "-", payload=secret)
         kubectl("create", "-f", "-", payload={
-            "apiVersion": "v1",
-            "kind": "Secret",
-            "metadata": {"name": "acr-pull", "namespace": NAMESPACE},
-            "type": "kubernetes.io/dockerconfigjson",
-            "data": {".dockerconfigjson": base64.b64encode(
-                json.dumps(docker_config).encode()).decode()},
+            "apiVersion": "v1", "kind": "ConfigMap",
+            "metadata": {"name": "acr-download-script", "namespace": NAMESPACE},
+            "data": {"download.py": Path(__file__).with_name("download.py").read_text(encoding="utf-8")},
         })
-        result["started_at"] = datetime.now(timezone.utc).isoformat()
+        # Starting the shared budget before Pod creation is conservative for both
+        # Pod activeDeadlineSeconds and the worker process's identical timeout.
         deadline = time.monotonic() + TIMEOUT_SECONDS
-        kubectl("create", "-f", "-", payload=manifests(args.image, args.runner_image, node_names))
+        kubectl("create", "-f", "-", payload=manifests(args.runner_image, node_names))
         while time.monotonic() < deadline:
-            pods = get_json("pods", "-n", NAMESPACE, "-l", "app=acr-five-pulls")["items"]
-            by_name = {pod["metadata"]["name"]: pod for pod in pods}
-            if set(by_name) - {pull["pod"] for pull in result["pulls"]}:
-                raise RuntimeError("Unexpected workload Pods in the test namespace")
-            for pull in result["pulls"]:
-                pod = by_name.get(pull["pod"])
-                if pod is None or pull["status"] == "success":
-                    continue
-                if pod["spec"]["nodeName"] != pull["node"]:
-                    raise RuntimeError("Workload Pod is running on the wrong worker")
-                status = pod.get("status", {})
-                if status.get("phase") == "Failed":
-                    pull["status"] = "failure"
-                    raise RuntimeError(f"{pull['pod']} failed on {pull['node']}")
-                container = next((
-                    item for item in status.get("containerStatuses", [])
-                    if item["name"] == "pull"
-                ), {})
-                if container.get("restartCount", 0) > 0:
-                    raise RuntimeError(f"{pull['pod']} restarted; refusing extra downloads")
-                if container.get("state", {}).get("waiting", {}).get("reason") in (
-                    "ErrImagePull", "ImagePullBackOff", "InvalidImageName"
-                ):
-                    raise RuntimeError(f"{pull['pod']} could not pull the skopeo runner image")
-                if status.get("phase") == "Succeeded":
-                    if container.get("state", {}).get("terminated", {}).get("exitCode") != 0:
-                        raise RuntimeError(f"{pull['pod']} did not exit successfully")
-                    log = json.loads(kubectl("logs", "-n", NAMESPACE, pull["pod"], "-c", "pull"))
-                    start = datetime.fromisoformat(log["started_at"].replace("Z", "+00:00"))
-                    end = datetime.fromisoformat(log["finished_at"].replace("Z", "+00:00"))
-                    if log["downloaded_bytes"] < LAYER_BYTES or log["duration_seconds"] < 0 or end < start:
-                        raise ValueError(f"{pull['pod']} returned invalid download metrics")
-                    pull.update(log, status="success")
-                    result["successful_pulls"] += 1
-            if time.monotonic() >= deadline:
-                raise RuntimeError("Image-download deadline exceeded")
-            if result["successful_pulls"] == PULL_COUNT:
+            pods = pod_snapshot()
+            collect_snapshot(result, pods)
+            if len(pods) == PULL_COUNT and all(any(
+                condition["type"] == "Ready" and condition["status"] == "True"
+                for condition in pod.get("status", {}).get("conditions", [])
+            ) for pod in pods.values()):
                 break
             time.sleep(POLL_SECONDS)
         else:
-            raise RuntimeError("Timed out waiting for all five image downloads")
-    except (OSError, ValueError, KeyError, TypeError, RuntimeError, subprocess.SubprocessError) as error:
-        result["errors"].append(str(error))
+            raise DownloadError("Timed out waiting for all five download workers to be ready")
+        target = resolve_target(args.image, username, password)
+        ensure_schedule_fits(target, deadline)
+        result.update(
+            storage_account=target["account"], blob_digest=target["digest"],
+            window_start=utc(target["start"]), window_end=utc(target["end"]),
+        )
+        # Replace over stdin; never put the SAS in arguments, local files, or logs.
+        secret["stringData"]["target.json"] = json.dumps(target)
+        kubectl("replace", "-f", "-", payload=secret)
+        while time.monotonic() < deadline:
+            pods = pod_snapshot()
+            collect_snapshot(result, pods, target)
+            if result["successful_pulls"] == PULL_COUNT:
+                if time.monotonic() >= deadline:
+                    raise DownloadError("Coordinator deadline exceeded")
+                if len({pull["storage_request_id"] for pull in result["pulls"]}) != PULL_COUNT:
+                    raise DownloadError("Expected five distinct Azure Storage request IDs")
+                break
+            time.sleep(POLL_SECONDS)
+        else:
+            raise DownloadError("Timed out waiting for all five single-account downloads")
+    except (OSError, ValueError, KeyError, TypeError, DownloadError, subprocess.SubprocessError, http.client.HTTPException) as error:
+        result["errors"].append(error_message(error))
     finally:
         if owned_namespace:
             try:
                 kubectl("delete", "namespace", NAMESPACE, "--wait=false")
-            except (OSError, subprocess.SubprocessError) as error:
-                result["errors"].append(f"Namespace cleanup failed: {error}")
-        result["finished_at"] = datetime.now(timezone.utc).isoformat()
+            except (OSError, DownloadError, subprocess.SubprocessError) as error:
+                result["errors"].append(f"Namespace cleanup failed: {error_message(error)}")
+        result["finished_at"] = utc(time.time())
         if result["successful_pulls"] == PULL_COUNT and not result["errors"]:
             result["status"] = "success"
         output = Path(args.result_file)
