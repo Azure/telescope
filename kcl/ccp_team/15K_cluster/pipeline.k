@@ -27,7 +27,7 @@ CREATE_ARGS=(
   --kubernetes-version "1.35.0"
   --dns-name-prefix "${CLUSTER_NAME}-dns"
   --tier standard
-  --assign-identity "$(IDENTITY_ID)"
+  --assign-identity "$(createManagedIdentity.IDENTITY_ID)"
   --tags SkipAKSCluster=true
   --control-plane-scaling-size H8
   --nodepool-name system
@@ -35,7 +35,7 @@ CREATE_ARGS=(
   --node-vm-size Standard_D48ds_v5
   --max-pods 60
   --os-sku Ubuntu
-  --vnet-subnet-id "$(NODES_SUBNET_ID)"
+  --vnet-subnet-id "$(createNodesSubnet.NODES_SUBNET_ID)"
   --network-plugin azure
   --network-plugin-mode overlay
   --pod-cidr 10.64.0.0/10
@@ -47,7 +47,7 @@ CREATE_ARGS=(
   --yes
 )
 [[ "$(network_dataplane)" != "none" ]] && CREATE_ARGS+=(--network-dataplane "$(network_dataplane)")
-[[ "$(apiserver_vnet_integration)" == "true" ]] && CREATE_ARGS+=(--enable-apiserver-vnet-integration --apiserver-subnet-id "$(APISERVER_SUBNET_ID)")
+[[ "$(apiserver_vnet_integration)" == "true" ]] && CREATE_ARGS+=(--enable-apiserver-vnet-integration --apiserver-subnet-id "$(createApiserverSubnet.APISERVER_SUBNET_ID)")
 [[ "$(kms_key_id)" != "none" ]] && CREATE_ARGS+=(--enable-azure-keyvault-kms --azure-keyvault-kms-key-id "$(kms_key_id)" --azure-keyvault-kms-key-vault-network-access Public)
 
 
@@ -66,7 +66,7 @@ KEY_VAULT_RESOURCE_ID=$(az keyvault show \\
 
 az role assignment create \\
   --role "Key Vault Crypto User" \\
-  --assignee-object-id "$(IDENTITY_PRINCIPAL_ID)" \\
+  --assignee-object-id "$(createManagedIdentity.IDENTITY_PRINCIPAL_ID)" \\
   --assignee-principal-type ServicePrincipal \\
   --scope "\${KEY_VAULT_RESOURCE_ID}"
 """
@@ -171,7 +171,7 @@ output = ap.Pipeline {
                     VNET_NAME,
                     "10.0.0.0/8",
                     SUBSCRIPTION_ID,
-                    "$(IDENTITY_PRINCIPAL_ID)"
+                    "$(createManagedIdentity.IDENTITY_PRINCIPAL_ID)"
                 ),
                 azure.CreateSubnet(
                     SERVICE_CONNECTION,
@@ -254,7 +254,7 @@ output = ap.Pipeline {
                     "$(user_pool_vm_size)",
                     "$(user_total_nodes)",
                     MAX_NODES_PER_POOL,
-                    vnetSubnetId = "$(NODES_SUBNET_ID)",
+                    vnetSubnetId = "$(createNodesSubnet.NODES_SUBNET_ID)",
                     osSKU = "Ubuntu"
                 ),
             ]
