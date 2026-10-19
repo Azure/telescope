@@ -34,20 +34,26 @@ finish() {
     rm -f "$output_directory/nodes.pending.json"
     end_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)
     echo "##vso[task.setvariable variable=NODE_VALIDATION_END]$end_time"
-    jq -n \
+    if ! jq -n \
         --arg result "$result" \
         --arg reason "$reason" \
-        --arg start "$start_time" \
-        --arg end "$end_time" \
+        --arg startTime "$start_time" \
+        --arg endTime "$end_time" \
         --arg snapshotTime "$snapshot_time" \
         --argjson elapsed "$((SECONDS - start_seconds))" \
         --argjson nodesPerPool "$nodes_per_pool" \
         --argjson summary "$summary" \
-        '{result: $result, reason: $reason, startTime: $start, endTime: $end,
+        '{result: $result, reason: $reason, startTime: $startTime, endTime: $endTime,
           elapsedSeconds: $elapsed, timeoutSeconds: 900,
           nodesPerPool: $nodesPerPool, snapshotTime: $snapshotTime, summary: $summary}' \
-        > "$output_directory/result.json"
-    echo "Node validation: $result ($reason)"
+        > "$output_directory/result.json"; then
+        echo "##[error]Could not write node validation result: $result ($reason)" >&2
+        if (( exit_code == 0 )); then
+            exit_code=1
+        fi
+    else
+        echo "Node validation: $result ($reason)"
+    fi
     exit "$exit_code"
 }
 trap finish EXIT
@@ -76,9 +82,7 @@ while (( SECONDS < deadline )); do
             echo "##[error]$reason" >&2
             exit 1
         fi
-        mv "$output_directory/nodes.pending.json" "$output_directory/nodes.json"
-        snapshot_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-        summary=$(jq -c --argjson count "$nodes_per_pool" '
+        if ! next_summary=$(jq -c --argjson count "$nodes_per_pool" '
             [.items[] | {
               pool: (.metadata.labels.agentpool //
                      .metadata.labels["kubernetes.azure.com/agentpool"] // "unknown"),
@@ -99,7 +103,14 @@ while (( SECONDS < deadline )); do
             | {pools: ., passed: all(.[];
                 .expected > 0 and .total == .expected and
                 .ready == .expected and .noSchedule == 0)}
-        ' "$output_directory/nodes.json")
+        ' "$output_directory/nodes.pending.json"); then
+            reason="Could not summarize node-list response"
+            echo "##[error]$reason" >&2
+            exit 1
+        fi
+        mv "$output_directory/nodes.pending.json" "$output_directory/nodes.json"
+        snapshot_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+        summary=$next_summary
         jq -nc --arg time "$snapshot_time" --argjson summary "$summary" \
             '{time: $time, summary: $summary}' \
             | tee -a "$output_directory/progress.jsonl"
