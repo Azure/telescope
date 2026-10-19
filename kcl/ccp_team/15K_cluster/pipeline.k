@@ -14,17 +14,7 @@ K8S_VERSION = "1.35.0"
 VNET_NAME = "${CLUSTER_NAME}-net"
 JUMPBOX_NAME = "${CLUSTER_NAME}-jumpbox"
 
-USER_TOTAL_NODES = 14997
 MAX_NODES_PER_POOL = 800
-
-userPools = [azure.NodePool {
-    name = pool.name
-    sku = pool.sku
-    count = pool.count
-    vnetSubnetId = "$(NODES_SUBNET_ID)"
-    osSKU = "Ubuntu"
-} for pool in azure.PlanNodePools({"$(user_pool_vm_size)": USER_TOTAL_NODES}, MAX_NODES_PER_POOL)]
-
 
 createClusterScript = """
 az extension add --name aks-preview --allow-preview true --upgrade --yes
@@ -113,6 +103,12 @@ output = ap.Pipeline {
             default = "Standard_D4s_v3"
         }
         ap.Parameter {
+            name = "user_total_nodes"
+            displayName = "Total user nodes"
+            type = "number"
+            default = 14997
+        }
+        ap.Parameter {
             name = "network_dataplane"
             displayName = "Network dataplane (use 'none' to omit --network-dataplane)"
             type = "string"
@@ -137,6 +133,7 @@ output = ap.Pipeline {
         location = "\${{ parameters.location }}"
         cluster_name = "\${{ parameters.cluster_name }}"
         user_pool_vm_size = "\${{ parameters.user_pool_vm_size }}"
+        user_total_nodes = "\${{ parameters.user_total_nodes }}"
         network_dataplane = "\${{ parameters.network_dataplane }}"
         apiserver_vnet_integration = "\${{ parameters.apiserver_vnet_integration }}"
         kms_key_id = "\${{ parameters.kms_key_id }}"
@@ -220,10 +217,13 @@ output = ap.Pipeline {
                     minCapacity="45",
                     maxCapacity="45"
                 ),
-                azure.AzCli(
+                azure.CreateJumpbox(
                     SERVICE_CONNECTION,
-                    "Create jumpbox",
-                    createJumpboxScript
+                    SUBSCRIPTION_ID,
+                    RESOURCE_GROUP,
+                    JUMPBOX_NAME,
+                    VNET_NAME,
+                    vmSize = "Standard_D32ds_v5"
                 ),
                 azure.AzCli(
                     SERVICE_CONNECTION,
@@ -242,13 +242,17 @@ output = ap.Pipeline {
                     RESOURCE_GROUP,
                     SUBSCRIPTION_ID
                 ),
-                *[azure.CreateNodePool(
+                azure.CreateNodePools(
                     SERVICE_CONNECTION,
                     CLUSTER_NAME,
                     RESOURCE_GROUP,
                     SUBSCRIPTION_ID,
-                    pool
-                ) for pool in userPools],
+                    "$(user_pool_vm_size)",
+                    "$(user_total_nodes)",
+                    MAX_NODES_PER_POOL,
+                    vnetSubnetId = "$(NODES_SUBNET_ID)",
+                    osSKU = "Ubuntu"
+                ),
             ]
         }
     ]

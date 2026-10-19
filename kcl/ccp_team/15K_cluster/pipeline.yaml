@@ -18,6 +18,10 @@ parameters:
   displayName: User node pool VM size
   type: string
   default: Standard_D4s_v3
+- name: user_total_nodes
+  displayName: Total user nodes
+  type: number
+  default: 14997
 - name: network_dataplane
   displayName: Network dataplane (use 'none' to omit --network-dataplane)
   type: string
@@ -35,6 +39,7 @@ variables:
   location: ${{ parameters.location }}
   cluster_name: ${{ parameters.cluster_name }}
   user_pool_vm_size: ${{ parameters.user_pool_vm_size }}
+  user_total_nodes: ${{ parameters.user_total_nodes }}
   network_dataplane: ${{ parameters.network_dataplane }}
   apiserver_vnet_integration: ${{ parameters.apiserver_vnet_integration }}
   kms_key_id: ${{ parameters.kms_key_id }}
@@ -96,9 +101,10 @@ jobs:
           --resource-group "$(RUN_ID)" \
           --name "$(cluster_name)-identity" \
           --subscription "$(subscription_id)")
-        echo "##vso[task.setvariable variable=IDENTITY_PRINCIPAL_ID]$(echo "$IDENTITY" | jq -r '.principalId')"
-        echo "##vso[task.setvariable variable=IDENTITY_ID]$(echo "$IDENTITY" | jq -r '.id')"
+        echo "##vso[task.setvariable variable=IDENTITY_PRINCIPAL_ID;isOutput=true]$(echo "$IDENTITY" | jq -r '.principalId')"
+        echo "##vso[task.setvariable variable=IDENTITY_ID;isOutput=true]$(echo "$IDENTITY" | jq -r '.id')"
     displayName: Create managed identity $(cluster_name)-identity
+    name: createManagedIdentity
   - task: AzureCLI@2
     inputs:
       azureSubscription: $(AZURE_SERVICE_CONNECTION)
@@ -148,8 +154,9 @@ jobs:
           --subscription "$(subscription_id)" \
           --query id -o tsv)
 
-        echo "##vso[task.setvariable variable=NODES_SUBNET_ID]$SUBNET_ID"
+        echo "##vso[task.setvariable variable=NODES_SUBNET_ID;isOutput=true]$SUBNET_ID"
     displayName: Create subnet nodes
+    name: createSubnet
   - task: AzureCLI@2
     inputs:
       azureSubscription: $(AZURE_SERVICE_CONNECTION)
@@ -172,8 +179,9 @@ jobs:
           --subscription "$(subscription_id)" \
           --query id -o tsv)
 
-        echo "##vso[task.setvariable variable=APISERVER_SUBNET_ID]$SUBNET_ID"
+        echo "##vso[task.setvariable variable=APISERVER_SUBNET_ID;isOutput=true]$SUBNET_ID"
     displayName: Create subnet apiserver
+    name: createSubnet
   - task: AzureCLI@2
     inputs:
       azureSubscription: $(AZURE_SERVICE_CONNECTION)
@@ -196,8 +204,9 @@ jobs:
           --subscription "$(subscription_id)" \
           --query id -o tsv)
 
-        echo "##vso[task.setvariable variable=AZUREFIREWALLSUBNET_SUBNET_ID]$SUBNET_ID"
+        echo "##vso[task.setvariable variable=AZUREFIREWALLSUBNET_SUBNET_ID;isOutput=true]$SUBNET_ID"
     displayName: Create subnet AzureFirewallSubnet
+    name: createSubnet
   - task: AzureCLI@2
     inputs:
       azureSubscription: $(AZURE_SERVICE_CONNECTION)
@@ -220,8 +229,9 @@ jobs:
           --subscription "$(subscription_id)" \
           --query id -o tsv)
 
-        echo "##vso[task.setvariable variable=JUMPBOX_SUBNET_ID]$SUBNET_ID"
+        echo "##vso[task.setvariable variable=JUMPBOX_SUBNET_ID;isOutput=true]$SUBNET_ID"
     displayName: Create subnet jumpbox
+    name: createSubnet
   - task: AzureCLI@2
     inputs:
       azureSubscription: $(AZURE_SERVICE_CONNECTION)
@@ -261,7 +271,6 @@ jobs:
           --name "$(cluster_name)-firewall" \
           --subscription "$(subscription_id)" \
           --query "ipConfigurations[0].privateIPAddress" -o tsv)
-        echo "##vso[task.setvariable variable=FIREWALL_PRIVATE_IP]$FIREWALL_PRIVATE_IP"
 
         az network route-table create \
           --resource-group "$(RUN_ID)" \
@@ -346,19 +355,11 @@ jobs:
           --image Ubuntu2204 \
           --size Standard_D32ds_v5 \
           --vnet-name "$(cluster_name)-net" \
-          --subnet jumpbox \
+          --subnet "jumpbox" \
           --public-ip-address "$(cluster_name)-jumpbox-pip" \
-          --admin-username azureuser \
-          --admin-password "$(JUMPBOX_ADMIN_PASSWORD)" \
-          --authentication-type password \
+          --admin-username "azureuser" \
+          --generate-ssh-keys \
           --custom-data /tmp/cloud-init.yaml \
-          --subscription "$(subscription_id)"
-
-        az vm open-port \
-          --resource-group "$(RUN_ID)" \
-          --name "$(cluster_name)-jumpbox" \
-          --port 22 \
-          --priority 1001 \
           --subscription "$(subscription_id)"
 
         JUMPBOX_PRINCIPAL_ID=$(az vm identity assign \
@@ -366,24 +367,18 @@ jobs:
           --name "$(cluster_name)-jumpbox" \
           --subscription "$(subscription_id)" \
           --query systemAssignedIdentity -o tsv)
+        az role assignment create \
+          --assignee "$JUMPBOX_PRINCIPAL_ID" \
+          --role "Azure Kubernetes Service Cluster Admin Role" \
+          --scope "$(az group show --name "$(RUN_ID)" --subscription "$(subscription_id)" --query id -o tsv)" \
+          --subscription "$(subscription_id)"
 
-        RG_ID=$(az group show \
-          --name "$(RUN_ID)" \
-          --subscription "$(subscription_id)" \
-          --query id -o tsv)
-
-        for role in \
-          "Azure Kubernetes Service Cluster Admin Role" \
-          "Azure Kubernetes Service Cluster User Role" \
-          "Azure Kubernetes Service Contributor Role" \
-          "Azure Kubernetes Service RBAC Cluster Admin"; do
-          az role assignment create \
-            --assignee $JUMPBOX_PRINCIPAL_ID \
-            --role "$role" \
-            --scope $RG_ID \
-            --subscription "$(subscription_id)"
-        done
-    displayName: Create jumpbox
+        az role assignment create \
+          --assignee "$JUMPBOX_PRINCIPAL_ID" \
+          --role "Azure Kubernetes Service Contributor Role" \
+          --scope "$(az group show --name "$(RUN_ID)" --subscription "$(subscription_id)" --query id -o tsv)" \
+          --subscription "$(subscription_id)"
+    displayName: Create jumpbox $(cluster_name)-jumpbox
   - task: AzureCLI@2
     inputs:
       azureSubscription: $(AZURE_SERVICE_CONNECTION)
@@ -488,356 +483,67 @@ jobs:
       inlineScript: |
         set -exo pipefail
 
-        az aks nodepool add \
-          --cluster-name "$(cluster_name)" \
-          --resource-group "$(RUN_ID)" \
-          --subscription "$(subscription_id)" \
-          --name "workerpool0" \
-          --node-count 800 \
-          --node-vm-size "$(user_pool_vm_size)" \
-          --mode User \
-          --vnet-subnet-id "$(NODES_SUBNET_ID)" \
-          --os-sku Ubuntu
-    displayName: Create node pool workerpool0
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: $(AZURE_SERVICE_CONNECTION)
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
+        TOTAL_NODES="$(user_total_nodes)"
+        MAX_NODES_PER_POOL=800
+        MAX_NODE_POOLS=100
 
-        az aks nodepool add \
-          --cluster-name "$(cluster_name)" \
-          --resource-group "$(RUN_ID)" \
-          --subscription "$(subscription_id)" \
-          --name "workerpool1" \
-          --node-count 800 \
-          --node-vm-size "$(user_pool_vm_size)" \
-          --mode User \
-          --vnet-subnet-id "$(NODES_SUBNET_ID)" \
-          --os-sku Ubuntu
-    displayName: Create node pool workerpool1
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: $(AZURE_SERVICE_CONNECTION)
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
+        if ! [[ "$TOTAL_NODES" =~ ^[1-9][0-9]*$ ]]; then
+          echo "Total user nodes must be a positive integer; got '$TOTAL_NODES'."
+          exit 1
+        fi
+        if [ "$TOTAL_NODES" -gt $((MAX_NODES_PER_POOL * MAX_NODE_POOLS)) ]; then
+          echo "Total user nodes cannot exceed $((MAX_NODES_PER_POOL * MAX_NODE_POOLS)); got '$TOTAL_NODES'."
+          exit 1
+        fi
 
-        az aks nodepool add \
-          --cluster-name "$(cluster_name)" \
-          --resource-group "$(RUN_ID)" \
-          --subscription "$(subscription_id)" \
-          --name "workerpool2" \
-          --node-count 800 \
-          --node-vm-size "$(user_pool_vm_size)" \
-          --mode User \
-          --vnet-subnet-id "$(NODES_SUBNET_ID)" \
-          --os-sku Ubuntu
-    displayName: Create node pool workerpool2
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: $(AZURE_SERVICE_CONNECTION)
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
+        remaining=$TOTAL_NODES
+        pool_index=0
+        while [ "$remaining" -gt 0 ]; do
+          node_count=$MAX_NODES_PER_POOL
+          if [ "$remaining" -lt "$MAX_NODES_PER_POOL" ]; then
+            node_count=$remaining
+          fi
+          pool_name="workerpool$pool_index"
+          echo "Creating node pool $pool_name with $node_count nodes."
 
-        az aks nodepool add \
-          --cluster-name "$(cluster_name)" \
-          --resource-group "$(RUN_ID)" \
-          --subscription "$(subscription_id)" \
-          --name "workerpool3" \
-          --node-count 800 \
-          --node-vm-size "$(user_pool_vm_size)" \
-          --mode User \
-          --vnet-subnet-id "$(NODES_SUBNET_ID)" \
-          --os-sku Ubuntu
-    displayName: Create node pool workerpool3
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: $(AZURE_SERVICE_CONNECTION)
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
+          deadline=$(($(date +%s) + 600))
+          sleep_between=30
+          attempt=0
+          while :; do
+            attempt=$((attempt + 1))
+            set +e
+            output=$(az aks nodepool add \
+              --cluster-name "$(cluster_name)" \
+              --resource-group "$(RUN_ID)" \
+              --subscription "$(subscription_id)" \
+              --name "$pool_name" \
+              --node-count "$node_count" \
+              --node-vm-size "$(user_pool_vm_size)" \
+              --mode User \
+              --vnet-subnet-id "$(NODES_SUBNET_ID)" \
+              --os-sku Ubuntu 2>&1)
+            rc=$?
+            set -e
+            echo "$output"
+            if [ $rc -eq 0 ]; then
+              break
+            fi
+            if echo "$output" | grep -qiE "OperationNotAllowed"; then
+              now=$(date +%s)
+              if [ $now -ge $deadline ]; then
+                echo "Retriable error persisted past 600s retry window ($attempt attempts); giving up."
+                exit $rc
+              fi
+              remaining_retry_seconds=$((deadline - now))
+              echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining_retry_seconds seconds remain in retry window)."
+              sleep $sleep_between
+            else
+              echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+              exit $rc
+            fi
+          done
 
-        az aks nodepool add \
-          --cluster-name "$(cluster_name)" \
-          --resource-group "$(RUN_ID)" \
-          --subscription "$(subscription_id)" \
-          --name "workerpool4" \
-          --node-count 800 \
-          --node-vm-size "$(user_pool_vm_size)" \
-          --mode User \
-          --vnet-subnet-id "$(NODES_SUBNET_ID)" \
-          --os-sku Ubuntu
-    displayName: Create node pool workerpool4
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: $(AZURE_SERVICE_CONNECTION)
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
-
-        az aks nodepool add \
-          --cluster-name "$(cluster_name)" \
-          --resource-group "$(RUN_ID)" \
-          --subscription "$(subscription_id)" \
-          --name "workerpool5" \
-          --node-count 800 \
-          --node-vm-size "$(user_pool_vm_size)" \
-          --mode User \
-          --vnet-subnet-id "$(NODES_SUBNET_ID)" \
-          --os-sku Ubuntu
-    displayName: Create node pool workerpool5
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: $(AZURE_SERVICE_CONNECTION)
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
-
-        az aks nodepool add \
-          --cluster-name "$(cluster_name)" \
-          --resource-group "$(RUN_ID)" \
-          --subscription "$(subscription_id)" \
-          --name "workerpool6" \
-          --node-count 800 \
-          --node-vm-size "$(user_pool_vm_size)" \
-          --mode User \
-          --vnet-subnet-id "$(NODES_SUBNET_ID)" \
-          --os-sku Ubuntu
-    displayName: Create node pool workerpool6
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: $(AZURE_SERVICE_CONNECTION)
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
-
-        az aks nodepool add \
-          --cluster-name "$(cluster_name)" \
-          --resource-group "$(RUN_ID)" \
-          --subscription "$(subscription_id)" \
-          --name "workerpool7" \
-          --node-count 800 \
-          --node-vm-size "$(user_pool_vm_size)" \
-          --mode User \
-          --vnet-subnet-id "$(NODES_SUBNET_ID)" \
-          --os-sku Ubuntu
-    displayName: Create node pool workerpool7
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: $(AZURE_SERVICE_CONNECTION)
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
-
-        az aks nodepool add \
-          --cluster-name "$(cluster_name)" \
-          --resource-group "$(RUN_ID)" \
-          --subscription "$(subscription_id)" \
-          --name "workerpool8" \
-          --node-count 800 \
-          --node-vm-size "$(user_pool_vm_size)" \
-          --mode User \
-          --vnet-subnet-id "$(NODES_SUBNET_ID)" \
-          --os-sku Ubuntu
-    displayName: Create node pool workerpool8
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: $(AZURE_SERVICE_CONNECTION)
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
-
-        az aks nodepool add \
-          --cluster-name "$(cluster_name)" \
-          --resource-group "$(RUN_ID)" \
-          --subscription "$(subscription_id)" \
-          --name "workerpool9" \
-          --node-count 800 \
-          --node-vm-size "$(user_pool_vm_size)" \
-          --mode User \
-          --vnet-subnet-id "$(NODES_SUBNET_ID)" \
-          --os-sku Ubuntu
-    displayName: Create node pool workerpool9
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: $(AZURE_SERVICE_CONNECTION)
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
-
-        az aks nodepool add \
-          --cluster-name "$(cluster_name)" \
-          --resource-group "$(RUN_ID)" \
-          --subscription "$(subscription_id)" \
-          --name "workerpool10" \
-          --node-count 800 \
-          --node-vm-size "$(user_pool_vm_size)" \
-          --mode User \
-          --vnet-subnet-id "$(NODES_SUBNET_ID)" \
-          --os-sku Ubuntu
-    displayName: Create node pool workerpool10
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: $(AZURE_SERVICE_CONNECTION)
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
-
-        az aks nodepool add \
-          --cluster-name "$(cluster_name)" \
-          --resource-group "$(RUN_ID)" \
-          --subscription "$(subscription_id)" \
-          --name "workerpool11" \
-          --node-count 800 \
-          --node-vm-size "$(user_pool_vm_size)" \
-          --mode User \
-          --vnet-subnet-id "$(NODES_SUBNET_ID)" \
-          --os-sku Ubuntu
-    displayName: Create node pool workerpool11
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: $(AZURE_SERVICE_CONNECTION)
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
-
-        az aks nodepool add \
-          --cluster-name "$(cluster_name)" \
-          --resource-group "$(RUN_ID)" \
-          --subscription "$(subscription_id)" \
-          --name "workerpool12" \
-          --node-count 800 \
-          --node-vm-size "$(user_pool_vm_size)" \
-          --mode User \
-          --vnet-subnet-id "$(NODES_SUBNET_ID)" \
-          --os-sku Ubuntu
-    displayName: Create node pool workerpool12
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: $(AZURE_SERVICE_CONNECTION)
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
-
-        az aks nodepool add \
-          --cluster-name "$(cluster_name)" \
-          --resource-group "$(RUN_ID)" \
-          --subscription "$(subscription_id)" \
-          --name "workerpool13" \
-          --node-count 800 \
-          --node-vm-size "$(user_pool_vm_size)" \
-          --mode User \
-          --vnet-subnet-id "$(NODES_SUBNET_ID)" \
-          --os-sku Ubuntu
-    displayName: Create node pool workerpool13
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: $(AZURE_SERVICE_CONNECTION)
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
-
-        az aks nodepool add \
-          --cluster-name "$(cluster_name)" \
-          --resource-group "$(RUN_ID)" \
-          --subscription "$(subscription_id)" \
-          --name "workerpool14" \
-          --node-count 800 \
-          --node-vm-size "$(user_pool_vm_size)" \
-          --mode User \
-          --vnet-subnet-id "$(NODES_SUBNET_ID)" \
-          --os-sku Ubuntu
-    displayName: Create node pool workerpool14
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: $(AZURE_SERVICE_CONNECTION)
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
-
-        az aks nodepool add \
-          --cluster-name "$(cluster_name)" \
-          --resource-group "$(RUN_ID)" \
-          --subscription "$(subscription_id)" \
-          --name "workerpool15" \
-          --node-count 800 \
-          --node-vm-size "$(user_pool_vm_size)" \
-          --mode User \
-          --vnet-subnet-id "$(NODES_SUBNET_ID)" \
-          --os-sku Ubuntu
-    displayName: Create node pool workerpool15
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: $(AZURE_SERVICE_CONNECTION)
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
-
-        az aks nodepool add \
-          --cluster-name "$(cluster_name)" \
-          --resource-group "$(RUN_ID)" \
-          --subscription "$(subscription_id)" \
-          --name "workerpool16" \
-          --node-count 800 \
-          --node-vm-size "$(user_pool_vm_size)" \
-          --mode User \
-          --vnet-subnet-id "$(NODES_SUBNET_ID)" \
-          --os-sku Ubuntu
-    displayName: Create node pool workerpool16
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: $(AZURE_SERVICE_CONNECTION)
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
-
-        az aks nodepool add \
-          --cluster-name "$(cluster_name)" \
-          --resource-group "$(RUN_ID)" \
-          --subscription "$(subscription_id)" \
-          --name "workerpool17" \
-          --node-count 800 \
-          --node-vm-size "$(user_pool_vm_size)" \
-          --mode User \
-          --vnet-subnet-id "$(NODES_SUBNET_ID)" \
-          --os-sku Ubuntu
-    displayName: Create node pool workerpool17
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: $(AZURE_SERVICE_CONNECTION)
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
-
-        az aks nodepool add \
-          --cluster-name "$(cluster_name)" \
-          --resource-group "$(RUN_ID)" \
-          --subscription "$(subscription_id)" \
-          --name "workerpool18" \
-          --node-count 597 \
-          --node-vm-size "$(user_pool_vm_size)" \
-          --mode User \
-          --vnet-subnet-id "$(NODES_SUBNET_ID)" \
-          --os-sku Ubuntu
-    displayName: Create node pool workerpool18
+          remaining=$((remaining - node_count))
+          pool_index=$((pool_index + 1))
+        done
+    displayName: Create user node pools
