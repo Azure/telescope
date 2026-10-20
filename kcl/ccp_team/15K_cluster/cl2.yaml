@@ -37,7 +37,7 @@ spec:
         - -c
         - |
           print_results() {
-            find /results -type f -print | while IFS= read -r file; do
+            find /results -type f -name '*.json' -print | while IFS= read -r file; do
               echo "----- $file -----"
               cat "$file"
             done
@@ -59,7 +59,7 @@ spec:
         - '--testconfig=testing/load/config.yaml'
         - '--k8s-clients-number=500'
         - '--report-dir=/results'
-        - '--log_dir=/results'
+        - '--log_dir=/logs'
         - '--logtostderr=false'
         - '--alsologtostderr=true'
         image: ghcr.io/azure/clusterloader2:v20260220
@@ -73,6 +73,8 @@ spec:
           name: cl2-override
         - mountPath: /results
           name: cl2-results
+        - mountPath: /logs
+          name: cl2-logs
       nodeSelector:
         kubernetes.azure.com/mode: system
       restartPolicy: Never
@@ -83,6 +85,8 @@ spec:
         name: cl2-override
       - emptyDir: {}
         name: cl2-results
+      - emptyDir: {}
+        name: cl2-logs
 ---
 apiVersion: v1
 kind: ServiceAccount
