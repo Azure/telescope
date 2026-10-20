@@ -1,4 +1,6 @@
 import json
+import csv
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace as Obj
 from unittest.mock import MagicMock, patch
 
@@ -203,6 +205,11 @@ def test_full_ten_node_execution(cleanup, tmp_path):
     assert report["result"] == "success"
     assert report["disks_per_node"] == 8
     assert report["pod_count"] == 80
+    assert report["pod_readiness_e2e_seconds"]["sample_count"] == 80
+    assert report["pod_readiness_e2e_seconds"]["complete"]
+    assert sum(
+        stage["pod_readiness_e2e_seconds"]["sample_count"] for stage in report["stages"]
+    ) == 80
     assert len(report["stages"]) == 20
     assert report["stages"][0]["phase"] == "bootstrap"
     assert report["stages"][0]["replicas"] == 1
@@ -385,7 +392,10 @@ def test_collect_preserves_structured_report(tmp_path, monkeypatch):
     for key, value in {"CLOUD_INFO": '{"cloud":"azure"}', "RUN_ID": "run",
                        "RUN_URL": "https://example.test/run"}.items():
         monkeypatch.setenv(key, value)
-    report = {"node_count": 10, "pod_count": 80, "result": "success", "stages": []}
+    metrics = {"sample_count": 80, "expected_pod_count": 80, "complete": True,
+               "p50": 10.0, "p90": 20.0, "p99": 30.0}
+    report = {"node_count": 10, "pod_count": 80, "result": "success", "stages": [],
+              "pod_readiness_e2e_seconds": metrics}
     report_file, result_file = tmp_path / "report.json", tmp_path / "results.json"
     report_file.write_text(json.dumps(report))
     disk.collect(report_file, result_file)
@@ -394,3 +404,318 @@ def test_collect_preserves_structured_report(tmp_path, monkeypatch):
     assert result["autoscale_type"] == "disk_boundary"
     assert result["node_count"] == 10
     assert result["pod_count"] == 80
+    assert result["data"]["pod_readiness_e2e_seconds"] == metrics
+
+
+def test_readiness_percentiles_use_individual_samples_and_linear_interpolation():
+    samples = {
+        f"pod-{index}": {"pod_uid": str(index), "e2e_ready_seconds": seconds}
+        for index, seconds in enumerate(range(10, 101, 10))
+    }
+    metrics = disk.summarize_pod_readiness(samples, 10)
+    assert metrics["sample_count"] == 10
+    assert metrics["complete"]
+    assert metrics["p50"] == pytest.approx(55)
+    assert metrics["p90"] == pytest.approx(91)
+    assert metrics["p99"] == pytest.approx(99.1)
+
+
+@pytest.mark.parametrize("samples,expected", [
+    ({}, 3),
+    ({"pod": {"pod_uid": "uid", "e2e_ready_seconds": 10}}, 3),
+    ({"pod": {"pod_uid": "uid", "e2e_ready_seconds": 10}}, None),
+])
+def test_incomplete_readiness_does_not_publish_success_biased_percentiles(samples, expected):
+    metrics = disk.summarize_pod_readiness(samples, expected)
+    assert not metrics["complete"]
+    assert metrics["sample_count"] == len(samples)
+    assert metrics["expected_pod_count"] == expected
+    assert metrics["p50"] is metrics["p90"] is metrics["p99"] is None
+
+
+def test_single_pod_percentiles_all_equal_its_latency():
+    metrics = disk.summarize_pod_readiness(
+        {"pod": {"pod_uid": "uid", "e2e_ready_seconds": 137.2}}, 1
+    )
+    assert metrics["p50"] == metrics["p90"] == metrics["p99"] == 137.2
+
+
+@patch.object(disk.time, "sleep")
+@patch.object(disk.time, "monotonic", side_effect=[0, 10, 11, 20, 21, 30])
+def test_readiness_tracks_new_pods_once_at_their_first_observed_ready_time(_clock, _sleep):
+    kube = cluster()
+    kube.app.patch_namespaced_stateful_set_scale(
+        disk.WORKLOAD, "test", {"spec": {"replicas": 8}}
+    )
+
+    def snapshot(ready_through):
+        pods = [pod(index) for index in range(8)]
+        for index in range(ready_through + 1, 8):
+            pods[index].status.conditions[0].status = "False"
+        return Obj(items=pods)
+
+    kube.api.list_namespaced_pod.side_effect = [snapshot(5), snapshot(6), snapshot(7)]
+    stage, _ = disk.wait_for_stage(
+        kube, "test", "cas=dedicated", 8, 1, 8, {"node-0"}, False, 100,
+        previous_replicas=5,
+    )
+    assert stage["pod_readiness_samples"] == {
+        "disk-workload-5": {"pod_uid": "disk-workload-5", "e2e_ready_seconds": 10},
+        "disk-workload-6": {"pod_uid": "disk-workload-6", "e2e_ready_seconds": 20},
+        "disk-workload-7": {"pod_uid": "disk-workload-7", "e2e_ready_seconds": 30},
+    }
+    metrics = stage["pod_readiness_e2e_seconds"]
+    assert metrics["sample_count"] == 3
+    assert metrics["p50"] == 20
+    assert metrics["p90"] == pytest.approx(28)
+    assert metrics["p99"] == pytest.approx(29.8)
+
+
+@patch.object(disk.time, "sleep")
+@patch.object(disk.time, "monotonic", side_effect=[0, 10, 11, 20])
+def test_readiness_replaces_sample_when_pod_uid_changes(_clock, _sleep):
+    kube = cluster()
+    kube.app.patch_namespaced_stateful_set_scale(
+        disk.WORKLOAD, "test", {"spec": {"replicas": 8}}
+    )
+    first = [pod(index) for index in range(8)]
+    first[7].status.conditions[0].status = "False"
+    second = [pod(index) for index in range(8)]
+    second[6].metadata.uid = "replacement-uid"
+    kube.api.list_namespaced_pod.side_effect = [Obj(items=first), Obj(items=second)]
+    stage, _ = disk.wait_for_stage(
+        kube, "test", "cas=dedicated", 8, 1, 8, {"node-0"}, False, 100,
+        previous_replicas=5,
+    )
+    assert stage["pod_readiness_samples"]["disk-workload-5"]["e2e_ready_seconds"] == 10
+    assert stage["pod_readiness_samples"]["disk-workload-6"] == {
+        "pod_uid": "replacement-uid", "e2e_ready_seconds": 20,
+    }
+    assert stage["timings"]["pods"]["disk-workload-6"]["pod_uid"] == "replacement-uid"
+    assert stage["timings"]["pods"]["disk-workload-6"]["e2e_ready_seconds"] == 20
+
+
+@patch.object(disk, "cleanup", return_value={})
+def test_timeout_preserves_partial_samples_and_incomplete_run_summary(_cleanup, tmp_path):
+    original_wait = disk.wait_for_stage
+
+    def wait(*args, **kwargs):
+        if args[3] == 1:
+            return original_wait(*args, **kwargs)
+        kwargs["readiness_samples"]["disk-workload-1"] = {
+            "pod_uid": "uid-1", "e2e_ready_seconds": 15,
+        }
+        raise TimeoutError("Pods did not become Ready")
+
+    path = tmp_path / "report.json"
+    with patch.object(disk, "wait_for_stage", side_effect=wait):
+        with pytest.raises(TimeoutError, match="did not become Ready"):
+            disk.execute(cluster(), 10, "cas=dedicated", "managed-csi", 30, 30, 1, path)
+    report = json.loads(path.read_text())
+    assert report["result"] == "failure"
+    assert report["pod_readiness_e2e_seconds"]["sample_count"] == 2
+    assert report["pod_readiness_e2e_seconds"]["expected_pod_count"] == 80
+    assert not report["pod_readiness_e2e_seconds"]["complete"]
+    assert report["pod_readiness_e2e_seconds"]["p99"] is None
+    failed_stage = report["stages"][-1]
+    assert failed_stage["result"] == "failure"
+    assert failed_stage["pod_readiness_e2e_seconds"]["sample_count"] == 1
+    assert failed_stage["pod_readiness_e2e_seconds"]["expected_pod_count"] == 7
+    assert failed_stage["pod_readiness_e2e_seconds"]["p50"] is None
+
+
+@patch.object(disk, "cleanup", return_value={})
+def test_run_percentiles_combine_pods_instead_of_averaging_batch_percentiles(_cleanup, tmp_path):
+    latencies = {1: [100], 4: [10, 10, 10], 5: [200], 8: [20, 20, 20]}
+
+    def wait(*args, **kwargs):
+        replicas, expected_nodes = args[3:5]
+        previous_replicas = kwargs["previous_replicas"]
+        for index, seconds in enumerate(latencies[replicas], previous_replicas):
+            kwargs["readiness_samples"][f"disk-workload-{index}"] = {
+                "pod_uid": f"uid-{index}", "e2e_ready_seconds": seconds,
+            }
+        return {"disks_per_node": 4}, {
+            f"node-{index}" for index in range(expected_nodes)
+        }
+
+    with patch.object(disk, "wait_for_stage", side_effect=wait):
+        report = disk.execute(
+            cluster(4), 2, "cas=dedicated", "managed-csi", 30, 30, 1, tmp_path / "report.json"
+        )
+    metrics = report["pod_readiness_e2e_seconds"]
+    assert metrics["sample_count"] == 8
+    assert metrics["complete"]
+    assert metrics["p50"] == 20
+    assert metrics["p90"] == pytest.approx(130)
+    assert metrics["p99"] == pytest.approx(193)
+
+
+@patch.object(disk, "cleanup", return_value={})
+def test_readiness_latency_includes_replica_change_api_time(_cleanup, tmp_path):
+    kube = cluster(4)
+    clock = [0]
+    original_scale = kube.app.patch_namespaced_stateful_set_scale.side_effect
+
+    def scale(*args):
+        clock[0] += 10
+        original_scale(*args)
+
+    kube.app.patch_namespaced_stateful_set_scale.side_effect = scale
+    with patch.object(disk.time, "monotonic", side_effect=lambda: clock[0]):
+        report = disk.execute(
+            kube, 2, "cas=dedicated", "managed-csi", 30, 30, 1, tmp_path / "report.json"
+        )
+    assert report["pod_readiness_e2e_seconds"]["p50"] == 10
+    assert report["pod_readiness_e2e_seconds"]["p90"] == 10
+    assert report["pod_readiness_e2e_seconds"]["p99"] == 10
+
+
+def test_wait_timeout_retains_observed_samples_for_caller():
+    kube = cluster()
+    kube.app.patch_namespaced_stateful_set_scale(
+        disk.WORKLOAD, "test", {"spec": {"replicas": 8}}
+    )
+    pods = [pod(index) for index in range(8)]
+    pods[-1].status.conditions[0].status = "False"
+    kube.api.list_namespaced_pod.side_effect = None
+    kube.api.list_namespaced_pod.return_value = Obj(items=pods)
+    samples = {}
+    with pytest.raises(TimeoutError):
+        disk.wait_for_stage(
+            kube, "test", "cas=dedicated", 8, 1, 8, {"node-0"}, False, 0,
+            previous_replicas=5, readiness_samples=samples,
+        )
+    assert set(samples) == {"disk-workload-5", "disk-workload-6"}
+
+
+@patch.object(disk.time, "sleep")
+@patch.object(disk.time, "monotonic", side_effect=[5, 6, 15, 16, 30])
+def test_pod_e2e_includes_waiting_for_new_node_and_records_timestamps(_clock, _sleep):
+    requested_at = datetime(2026, 10, 20, 12, 0, tzinfo=timezone.utc)
+    kube = cluster()
+    kube.app.patch_namespaced_stateful_set_scale(
+        disk.WORKLOAD, "test", {"spec": {"replicas": 1}}
+    )
+    new_node = node()
+    new_node.metadata.uid = "node-uid"
+    new_node.metadata.creation_timestamp = requested_at + timedelta(seconds=12)
+    new_node.status.conditions[0].last_transition_time = requested_at + timedelta(seconds=14)
+    kube.get_nodes.side_effect = [[], [new_node], [new_node]]
+
+    def snapshot(phase, ready):
+        resource = pod(0)
+        resource.metadata.creation_timestamp = requested_at + timedelta(seconds=1)
+        resource.status.start_time = (
+            requested_at + timedelta(seconds=13) if phase == "Running" else None
+        )
+        resource.status.phase = phase
+        resource.status.conditions[0].status = "True" if ready else "False"
+        resource.status.conditions[0].last_transition_time = (
+            requested_at + timedelta(seconds=28) if ready else None
+        )
+        return Obj(items=[resource])
+
+    kube.api.list_namespaced_pod.side_effect = [
+        snapshot("Pending", False), snapshot("Running", False), snapshot("Running", True),
+    ]
+    timings = disk.create_stage_timings(requested_at.isoformat(), 0, 1)
+    with patch.object(disk, "datetime") as clock:
+        clock.now.side_effect = [
+            requested_at + timedelta(seconds=value) for value in (5, 15, 30)
+        ]
+        stage, _ = disk.wait_for_stage(
+            kube, "test", "cas=dedicated", 1, 1, None, set(), True, 100,
+            started=0, timings=timings,
+        )
+    pod_row = stage["timings"]["pods"]["disk-workload-0"]
+    node_row = stage["timings"]["nodes"]["node-0"]
+    assert pod_row["requested_at"] == node_row["requested_at"] == requested_at.isoformat()
+    assert pod_row["pod_created_at"] == (requested_at + timedelta(seconds=1)).isoformat()
+    assert pod_row["pod_started_at"] == (requested_at + timedelta(seconds=13)).isoformat()
+    assert pod_row["ready_transition_at"] == (requested_at + timedelta(seconds=28)).isoformat()
+    assert pod_row["ready_observed_at"] == (requested_at + timedelta(seconds=30)).isoformat()
+    assert node_row["node_registered_at"] == (requested_at + timedelta(seconds=12)).isoformat()
+    assert node_row["ready_observed_at"] == (requested_at + timedelta(seconds=15)).isoformat()
+    assert node_row["ready_transition_at"] == (requested_at + timedelta(seconds=14)).isoformat()
+    assert node_row["node_uid"] == "node-uid"
+    assert node_row["e2e_ready_seconds"] == 15
+    assert pod_row["e2e_ready_seconds"] == 30
+    assert stage["pod_readiness_e2e_seconds"]["p50"] == 30
+    assert pod_row["node_name"] == node_row["node_name"]
+
+
+@patch.object(disk, "cleanup", return_value={})
+def test_exports_one_timing_row_per_pod_and_new_workload_node(_cleanup, tmp_path):
+    report = disk.execute(
+        cluster(4), 2, "cas=dedicated", "managed-csi", 30, 30, 1, tmp_path / "report.json"
+    )
+    assert len(report["pod_timings"]) == 8
+    assert len(report["node_timings"]) == 2
+    assert len({row["pod_name"] for row in report["pod_timings"]}) == 8
+    assert {row["node_name"] for row in report["node_timings"]} == {"node-0", "node-1"}
+    assert all(row["ready_observed_at"] for row in report["pod_timings"])
+    assert all(row["ready_observed_at"] for row in report["node_timings"])
+    for kind, expected_count, columns in [
+        ("pod", 8, disk.POD_TIMING_COLUMNS), ("node", 2, disk.NODE_TIMING_COLUMNS),
+    ]:
+        with (tmp_path / f"{kind}-readiness.csv").open(encoding="utf-8", newline="") as file:
+            reader = csv.DictReader(file)
+            assert reader.fieldnames == list(columns)
+            rows = list(reader)
+        assert len(rows) == expected_count
+        assert all(float(row["e2e_ready_seconds"]) >= 0 for row in rows)
+    assert json.loads((tmp_path / "report.json").read_text()) == report
+
+
+def test_timing_export_retains_requested_pods_that_never_appeared(tmp_path):
+    timings = disk.create_stage_timings("2026-10-20T12:00:00+00:00", 1, 4)
+    report = {"stages": [{"timings": timings}]}
+    disk.write_timing_tables(report, tmp_path / "report.json")
+    assert len(report["pod_timings"]) == 3
+    assert report["node_timings"] == []
+    assert all(row["phase"] == "NotObserved" for row in report["pod_timings"])
+    assert all(row["ready_observed_at"] is None for row in report["pod_timings"])
+    assert all(row["e2e_ready_seconds"] is None for row in report["pod_timings"])
+    with (tmp_path / "pod-readiness.csv").open(encoding="utf-8", newline="") as file:
+        rows = list(csv.DictReader(file))
+    assert len(rows) == 3
+    assert all(row["e2e_ready_seconds"] == "" for row in rows)
+
+
+def test_pending_pod_and_unready_node_keep_null_completion_times():
+    kube = cluster()
+    kube.app.patch_namespaced_stateful_set_scale(
+        disk.WORKLOAD, "test", {"spec": {"replicas": 1}}
+    )
+    unready_node = node()
+    unready_node.status.conditions[0].status = "False"
+    kube.get_nodes.side_effect = None
+    kube.get_nodes.return_value = [unready_node]
+    pending = pod(0)
+    pending.status.phase = "Pending"
+    pending.status.conditions[0].status = "False"
+    kube.api.list_namespaced_pod.side_effect = None
+    kube.api.list_namespaced_pod.return_value = Obj(items=[pending])
+    timings = disk.create_stage_timings("2026-10-20T12:00:00+00:00", 0, 1)
+    with pytest.raises(TimeoutError):
+        disk.wait_for_stage(
+            kube, "test", "cas=dedicated", 1, 1, None, set(), True, 0, timings=timings,
+        )
+    assert timings["pods"]["disk-workload-0"]["phase"] == "Pending"
+    for row in [timings["pods"]["disk-workload-0"], timings["nodes"]["node-0"]]:
+        assert row["ready_observed_at"] is None
+        assert row["e2e_ready_seconds"] is None
+
+
+@patch.object(disk, "cleanup", return_value={})
+@patch.object(disk.csv, "DictWriter", side_effect=OSError("CSV write failed"))
+def test_csv_failure_still_saves_json_and_fails_the_run(_writer, _cleanup, tmp_path):
+    path = tmp_path / "report.json"
+    with pytest.raises(OSError, match="CSV write failed"):
+        disk.execute(cluster(4), 2, "cas=dedicated", "managed-csi", 30, 30, 1, path)
+    report = json.loads(path.read_text())
+    assert report["result"] == "failure"
+    assert report["timing_export_error"] == "CSV write failed"
+    assert len(report["pod_timings"]) == 8
+    assert len(report["node_timings"]) == 2

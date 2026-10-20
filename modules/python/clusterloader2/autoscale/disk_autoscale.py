@@ -1,6 +1,7 @@
 """Verify node autoscaling at Azure Disk CSI attachment boundaries."""
 
 import argparse
+import csv
 import json
 import os
 import time
@@ -10,6 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import yaml
+import numpy as np
 
 from clients.kubernetes_client import KubernetesClient
 from clusterloader2.autoscale.autoscale import _build_report_template
@@ -19,6 +21,15 @@ logger = get_logger(__name__)
 DRIVER = "disk.csi.azure.com"
 WORKLOAD = "disk-workload"
 LABEL = f"app={WORKLOAD}"
+POD_TIMING_COLUMNS = (
+    "pod_name", "pod_uid", "node_name", "requested_at", "pod_created_at",
+    "pod_started_at", "ready_transition_at", "ready_observed_at",
+    "e2e_ready_seconds", "phase",
+)
+NODE_TIMING_COLUMNS = (
+    "node_name", "node_uid", "requested_at", "node_registered_at",
+    "ready_transition_at", "ready_observed_at", "e2e_ready_seconds",
+)
 
 
 def stage_targets(node_count, disks_per_node):
@@ -46,6 +57,113 @@ def is_ready(resource):
         condition.type == "Ready" and condition.status == "True"
         for condition in resource.status.conditions or []
     )
+
+
+def summarize_pod_readiness(samples, expected_pod_count):
+    """Only publish latency percentiles when all requested pods were observed Ready."""
+    complete = expected_pod_count is not None and len(samples) == expected_pod_count
+    percentiles = (
+        np.percentile(
+            [sample["e2e_ready_seconds"] for sample in samples.values()],
+            [50, 90, 99],
+            method="linear",
+        ).tolist()
+        if complete and samples else [None, None, None]
+    )
+    return {
+        "sample_count": len(samples),
+        "expected_pod_count": expected_pod_count,
+        "complete": complete,
+        "p50": percentiles[0],
+        "p90": percentiles[1],
+        "p99": percentiles[2],
+    }
+
+
+def create_stage_timings(requested_at, previous_replicas, replicas):
+    return {
+        "requested_at": requested_at,
+        "pods": {
+            f"{WORKLOAD}-{index}": {
+                **dict.fromkeys(POD_TIMING_COLUMNS),
+                "pod_name": f"{WORKLOAD}-{index}",
+                "requested_at": requested_at,
+                "phase": "NotObserved",
+            }
+            for index in range(previous_replicas, replicas)
+        },
+        "nodes": {},
+    }
+
+
+def resource_timestamp(resource, attribute):
+    value = getattr(resource, attribute, None)
+    return value.isoformat() if value is not None else None
+
+
+def ready_transition_timestamp(resource):
+    for condition in resource.status.conditions or []:
+        if condition.type == "Ready" and condition.status == "True":
+            return resource_timestamp(condition, "last_transition_time")
+    return None
+
+
+def record_timing_rows(timings, nodes, pods, old_nodes, elapsed, readiness_samples):
+    observed_at = datetime.now(timezone.utc).isoformat()
+    for node in nodes:
+        name = node.metadata.name
+        if name in old_nodes:
+            continue
+        row = timings["nodes"].setdefault(name, {
+            **dict.fromkeys(NODE_TIMING_COLUMNS),
+            "node_name": name,
+            "node_uid": getattr(node.metadata, "uid", None),
+            "requested_at": timings["requested_at"],
+            "node_registered_at": resource_timestamp(node.metadata, "creation_timestamp"),
+        })
+        if row["ready_observed_at"] is None and is_ready(node) and not node.spec.unschedulable:
+            row.update(
+                ready_transition_at=ready_transition_timestamp(node),
+                ready_observed_at=observed_at,
+                e2e_ready_seconds=elapsed,
+            )
+    for pod in pods:
+        name = pod.metadata.name
+        if name not in timings["pods"]:
+            continue
+        row = timings["pods"][name]
+        if row["pod_uid"] is not None and row["pod_uid"] != pod.metadata.uid:
+            row.update(dict.fromkeys(POD_TIMING_COLUMNS))
+            row.update(pod_name=name, requested_at=timings["requested_at"])
+        row.update(
+            pod_uid=pod.metadata.uid,
+            node_name=pod.spec.node_name,
+            pod_created_at=resource_timestamp(pod.metadata, "creation_timestamp"),
+            pod_started_at=resource_timestamp(pod.status, "start_time"),
+            phase=pod.status.phase,
+        )
+        sample = readiness_samples.get(name)
+        if sample and row["ready_observed_at"] is None:
+            row.update(
+                ready_transition_at=ready_transition_timestamp(pod),
+                ready_observed_at=observed_at,
+                e2e_ready_seconds=sample["e2e_ready_seconds"],
+            )
+
+
+def write_timing_tables(report, report_file):
+    for kind in ("pod", "node"):
+        rows = [
+            row for stage in report["stages"]
+            for row in stage.get("timings", {}).get(f"{kind}s", {}).values()
+        ]
+        report[f"{kind}_timings"] = rows
+    for kind, columns in (("pod", POD_TIMING_COLUMNS), ("node", NODE_TIMING_COLUMNS)):
+        path = Path(report_file).with_name(f"{kind}-readiness.csv")
+        with path.open("w", encoding="utf-8", newline="") as file:
+            writer = csv.DictWriter(file, fieldnames=columns)
+            writer.writeheader()
+            writer.writerows(report[f"{kind}_timings"])
 
 
 def scale_up_evidence(events, pod_uid, full_node_count):
@@ -107,13 +225,22 @@ def verify_disks(kube, namespace, pods, node_names, limit, full):
 
 
 def wait_for_stage(kube, namespace, selector, replicas, expected_nodes, limit,
-                   old_nodes, overflow, timeout, interval=5, started=None):
+                   old_nodes, overflow, timeout, interval=5, started=None,
+                   previous_replicas=0, readiness_samples=None, timings=None):
     started = time.monotonic() if started is None else started
     deadline = started + timeout
     evidence = None
     node_ready_seconds = None
     running_seconds = None
     overflow_name = f"{WORKLOAD}-{replicas - 1}"
+    readiness_samples = {} if readiness_samples is None else readiness_samples
+    new_pod_names = {
+        f"{WORKLOAD}-{index}" for index in range(previous_replicas, replicas)
+    }
+    if timings is None:
+        timings = create_stage_timings(
+            datetime.now(timezone.utc).isoformat(), previous_replicas, replicas
+        )
     while True:
         nodes = kube.get_nodes(label_selector=selector)
         pods = kube.api.list_namespaced_pod(namespace, label_selector=LABEL).items
@@ -132,6 +259,19 @@ def wait_for_stage(kube, namespace, selector, replicas, expected_nodes, limit,
                     events, overflow_pod.metadata.uid, len(old_nodes)
                 ) or evidence
         elapsed = time.monotonic() - started
+        for pod in pods:
+            name = pod.metadata.name
+            if name not in new_pod_names:
+                continue
+            sample = readiness_samples.get(name)
+            if sample and sample["pod_uid"] != pod.metadata.uid:
+                del readiness_samples[name]
+            if pod.status.phase == "Running" and is_ready(pod):
+                readiness_samples.setdefault(name, {
+                    "pod_uid": pod.metadata.uid,
+                    "e2e_ready_seconds": elapsed,
+                })
+        record_timing_rows(timings, nodes, pods, old_nodes, elapsed, readiness_samples)
         nodes_ready = len(nodes) == expected_nodes and all(
             is_ready(node) and not node.spec.unschedulable for node in nodes
         )
@@ -171,6 +311,11 @@ def wait_for_stage(kube, namespace, selector, replicas, expected_nodes, limit,
                     "all_pods_storage_ready_seconds": elapsed,
                     "pods_per_node": distribution,
                     "evidence": evidence,
+                    "pod_readiness_samples": readiness_samples,
+                    "timings": timings,
+                    "pod_readiness_e2e_seconds": summarize_pod_readiness(
+                        readiness_samples, replicas - previous_replicas
+                    ),
                 }, node_names
         if time.monotonic() >= deadline:
             raise TimeoutError(
@@ -252,32 +397,62 @@ def execute(kube, node_count, selector, storage_class, timeout, down_timeout,
         kube.api.create_namespace({"metadata": {"name": namespace}})
         created = True
         kube.app.create_namespaced_stateful_set(namespace, manifest)
-        def run_stage(expected_nodes, replicas, overflow, limit, old_nodes):
+        def run_stage(expected_nodes, replicas, overflow, limit, old_nodes, previous_replicas):
             logger.info("Requesting %s pods; expecting %s workload nodes", replicas, expected_nodes)
             requested_at = datetime.now(timezone.utc).isoformat()
             started = time.monotonic()
-            kube.app.patch_namespaced_stateful_set_scale(
-                WORKLOAD, namespace, {"spec": {"replicas": replicas}}
-            )
-            stage, old_nodes = wait_for_stage(
-                kube, namespace, selector, replicas, expected_nodes, limit,
-                old_nodes, overflow, timeout, started=started,
-            )
-            stage["requested_at"] = requested_at
+            stage = {
+                "requested_at": requested_at,
+                "replicas": replicas,
+                "node_count": expected_nodes,
+                "new_pod_count": replicas - previous_replicas,
+                "pod_readiness_samples": {},
+                "timings": create_stage_timings(requested_at, previous_replicas, replicas),
+                "result": "failure",
+            }
             report["stages"].append(stage)
+            try:
+                kube.app.patch_namespaced_stateful_set_scale(
+                    WORKLOAD, namespace, {"spec": {"replicas": replicas}}
+                )
+                measurements, old_nodes = wait_for_stage(
+                    kube, namespace, selector, replicas, expected_nodes, limit,
+                    old_nodes, overflow, timeout, started=started,
+                    previous_replicas=previous_replicas,
+                    readiness_samples=stage["pod_readiness_samples"],
+                    timings=stage["timings"],
+                )
+                stage.update(measurements)
+                stage["result"] = "success"
+            finally:
+                stage["pod_readiness_e2e_seconds"] = summarize_pod_readiness(
+                    stage["pod_readiness_samples"], stage["new_pod_count"]
+                )
             return stage, old_nodes
 
-        bootstrap, old_nodes = run_stage(1, 1, True, None, set())
+        bootstrap, old_nodes = run_stage(1, 1, True, None, set(), 0)
         limit = bootstrap["disks_per_node"]
         report.update(disks_per_node=limit, pod_count=node_count * limit)
+        previous_replicas = 1
         for expected_nodes, replicas, overflow in stage_targets(node_count, limit):
-            _, old_nodes = run_stage(expected_nodes, replicas, overflow, limit, old_nodes)
+            _, old_nodes = run_stage(
+                expected_nodes, replicas, overflow, limit, old_nodes, previous_replicas
+            )
+            previous_replicas = replicas
         report["result"] = "success"
     except Exception as error:
         report["error"] = str(error)
         logger.exception("Disk-bound autoscale test failed")
         raise
     finally:
+        if report["stages"]:
+            samples = {
+                name: sample for stage in report["stages"]
+                for name, sample in stage["pod_readiness_samples"].items()
+            }
+            report["pod_readiness_e2e_seconds"] = summarize_pod_readiness(
+                samples, report.get("pod_count")
+            )
         try:
             if created:
                 report["storage_cleanup"] = cleanup(
@@ -291,8 +466,16 @@ def execute(kube, node_count, selector, storage_class, timeout, down_timeout,
             raise
         finally:
             Path(report_file).parent.mkdir(parents=True, exist_ok=True)
-            with open(report_file, "w", encoding="utf-8") as file:
-                json.dump(report, file, indent=2)
+            try:
+                write_timing_tables(report, report_file)
+            except OSError as error:
+                report["result"] = "failure"
+                report["timing_export_error"] = str(error)
+                logger.exception("Failed to export readiness timing tables")
+                raise
+            finally:
+                with open(report_file, "w", encoding="utf-8") as file:
+                    json.dump(report, file, indent=2)
     return report
 
 
