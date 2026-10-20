@@ -1,5 +1,7 @@
 import azure_pipelines.ap.steps
 
+MAX_CONSECUTIVE_APISERVER_ERRORS = 20
+
 # Default cloud-init for an AKS-friendly jumpbox: installs Azure CLI, kubectl, and the Go toolchain.
 DEFAULT_JUMPBOX_CLOUD_INIT = """#cloud-config
 package_update: true
@@ -150,8 +152,8 @@ RunClusterLoader2OnJumpbox = lambda \
     subscription: str, \
     resourceGroup: str, \
     vmName: str, \
-    manifest: str, \
-    pollIntervalSeconds: int = 300 \
+    cl2ConfigFile: str, \
+    pollIntervalSeconds: int = 30 \
     -> steps.Step {
     assert pollIntervalSeconds > 0, "pollIntervalSeconds must be positive"
     script = """
@@ -160,26 +162,24 @@ trap 'rm -rf "$work_dir"' EXIT
 
 invoke_jumpbox() {
   script_file=$1
-  shift
   az vm run-command invoke \\
     --resource-group "${resourceGroup}" \\
     --name "${vmName}" \\
     --subscription "${subscription}" \\
     --command-id RunShellScript \\
     --scripts @"$script_file" \\
-    "$@" \\
     --query 'value[0].message' \\
     --output tsv
 }
 
-manifest_path="$(Pipeline.Workspace)/s/${manifest}"
-if [ ! -f "$manifest_path" ]; then
-  echo "ClusterLoader2 manifest not found: $manifest_path"
+cl2_config_file_path="$(Pipeline.Workspace)/s/${cl2ConfigFile}"
+if [ ! -f "$cl2_config_file_path" ]; then
+  echo "ClusterLoader2 config file not found: $cl2_config_file_path"
   exit 1
 fi
-manifest_size=$(wc -c < "$manifest_path" | tr -d ' ')
-if [ "$manifest_size" -gt 45000 ]; then
-  echo "ClusterLoader2 manifest is too large for az vm run-command invoke: $manifest_size bytes."
+cl2_config_file_size=$(wc -c < "$cl2_config_file_path" | tr -d ' ')
+if [ "$cl2_config_file_size" -gt 45000 ]; then
+  echo "ClusterLoader2 config file is too large for az vm run-command invoke: $cl2_config_file_size bytes."
   exit 1
 fi
 
@@ -191,7 +191,7 @@ test -s "$KUBECONFIG"
 kubectl create namespace "clusterloader2" --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f - <<'MANIFEST'
 REMOTE_SCRIPT
-cat "$manifest_path" >> "$launch_script"
+cat "$cl2_config_file_path" >> "$launch_script"
 cat >> "$launch_script" <<'REMOTE_SCRIPT'
 MANIFEST
 echo "__CL2_STARTED__"
@@ -209,63 +209,51 @@ status_script="$work_dir/cl2-status.sh"
 cat > "$status_script" <<'REMOTE_SCRIPT'
 set -eu
 export KUBECONFIG=/var/tmp/telescope-kubeconfig
-conditions=$(kubectl get job cl2 \\
-  --namespace "clusterloader2" \\
-  --output jsonpath='{range .status.conditions[*]}{.type}={.status}{"\\n"}{end}')
-if printf '%s\\n' "$conditions" | grep -q '^Complete=True$'; then
-  echo "__CL2_STATUS_COMPLETE__"
-elif printf '%s\\n' "$conditions" | grep -q '^Failed=True$'; then
-  echo "__CL2_STATUS_FAILED__"
-else
-  echo "__CL2_STATUS_RUNNING__"
-fi
+kubectl get pods \\
+  --namespace="clusterloader2" \\
+  --output jsonpath='{range .items[*]}{.status.phase}{"\\n"}{end}'
 REMOTE_SCRIPT
 
-deadline=$(($(date +%s) + 72000))
-cl2_status=running
+# Mirror the polling behavior of RunClusterLoader2.
 consecutive_status_errors=0
-while [ "$cl2_status" = running ]; do
+while true; do
   set +e
-  status_message=$(invoke_jumpbox "$status_script")
+  phases=$(invoke_jumpbox "$status_script")
   status_rc=$?
   set -e
-  echo "$status_message"
-  if [ "$status_rc" -eq 0 ] && grep -q '__CL2_STATUS_COMPLETE__' <<< "$status_message"; then
-    cl2_status=complete
-  elif [ "$status_rc" -eq 0 ] && grep -q '__CL2_STATUS_FAILED__' <<< "$status_message"; then
-    cl2_status=failed
-  elif [ "$status_rc" -eq 0 ] && grep -q '__CL2_STATUS_RUNNING__' <<< "$status_message"; then
-    consecutive_status_errors=0
-  else
+  echo "$phases"
+  if [ "$status_rc" -ne 0 ]; then
     consecutive_status_errors=$((consecutive_status_errors + 1))
-    if [ "$consecutive_status_errors" -ge 20 ]; then
-      echo "Unable to read ClusterLoader2 status after $consecutive_status_errors consecutive attempts."
-      cl2_status=status_error
+    if [ "$consecutive_status_errors" -ge "${MAX_CONSECUTIVE_APISERVER_ERRORS}" ]; then
+      echo "Unable to read ClusterLoader2 status after $consecutive_status_errors/${MAX_CONSECUTIVE_APISERVER_ERRORS} consecutive attempts."
+      exit 1
+    fi
+  else
+    consecutive_status_errors=0
+    total=0
+    terminal=0
+
+    if [ -n "$phases" ]; then
+      while IFS= read -r phase; do
+        if [ -z "$phase" ]; then
+          continue
+        fi
+
+        total=$((total + 1))
+        if [ "$phase" = "Succeeded" ] || [ "$phase" = "Failed" ]; then
+          terminal=$((terminal + 1))
+        fi
+      done <<< "$phases"
+    fi
+
+    if [ "$total" -gt 0 ] && [ "$terminal" -eq "$total" ]; then
+      echo "All cl2 pods reached terminal state (Succeeded or Failed)"
+      break
     fi
   fi
 
-  if [ "$cl2_status" = running ]; then
-    if [ "$(date +%s)" -ge "$deadline" ]; then
-      cl2_status=timed_out
-    else
-      sleep ${pollIntervalSeconds}
-    fi
-  fi
+  sleep ${pollIntervalSeconds}
 done
-
-if [ "$cl2_status" = failed ]; then
-  echo "ClusterLoader2 job failed."
-  exit 1
-fi
-if [ "$cl2_status" = timed_out ]; then
-  echo "ClusterLoader2 job did not finish within 72000 seconds."
-  exit 1
-fi
-if [ "$cl2_status" = status_error ]; then
-  echo "ClusterLoader2 status could not be determined."
-  exit 1
-fi
-echo "ClusterLoader2 job completed successfully."
 """
     AzCli(serviceConnection, "Run ClusterLoader2 from jumpbox", script)
 }
