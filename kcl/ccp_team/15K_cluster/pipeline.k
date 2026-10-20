@@ -301,7 +301,7 @@ fi
                     SERVICE_CONNECTION,
                     RESOURCE_GROUP,
                     SUBSCRIPTION_ID,
-                    condition = "failed()"
+                    condition = "succeeded()"
                 ),
             ]
         }
