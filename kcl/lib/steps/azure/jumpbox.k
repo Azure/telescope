@@ -92,3 +92,185 @@ JUMPBOX_PRINCIPAL_ID=$(az vm identity assign \\
 ${roleAssignments}"""
     AzCli(serviceConnection, "Create jumpbox ${name}", script)
 }
+
+ApplyManifestOnJumpbox = lambda \
+    serviceConnection: str, \
+    subscription: str, \
+    resourceGroup: str, \
+    vmName: str, \
+    manifest: str \
+    -> steps.Step {
+    script = """
+work_dir=$(mktemp -d)
+trap 'rm -rf "$work_dir"' EXIT
+
+manifest_path="$(Pipeline.Workspace)/s/${manifest}"
+if [ ! -f "$manifest_path" ]; then
+  echo "Kubernetes manifest not found: $manifest_path"
+  exit 1
+fi
+manifest_size=$(wc -c < "$manifest_path" | tr -d ' ')
+if [ "$manifest_size" -gt 45000 ]; then
+  echo "Kubernetes manifest is too large for az vm run-command invoke: $manifest_size bytes."
+  exit 1
+fi
+
+remote_script="$work_dir/apply-manifest.sh"
+cat > "$remote_script" <<'REMOTE_SCRIPT'
+set -eu
+export KUBECONFIG=/var/tmp/telescope-kubeconfig
+test -s "$KUBECONFIG"
+kubectl apply -f - <<'MANIFEST'
+REMOTE_SCRIPT
+cat "$manifest_path" >> "$remote_script"
+cat >> "$remote_script" <<'REMOTE_SCRIPT'
+MANIFEST
+echo "__MANIFEST_APPLIED__"
+REMOTE_SCRIPT
+
+run_command_output=$(az vm run-command invoke \\
+  --resource-group "${resourceGroup}" \\
+  --name "${vmName}" \\
+  --subscription "${subscription}" \\
+  --command-id RunShellScript \\
+  --scripts @"$remote_script" \\
+  --query 'value[0].message' \\
+  --output tsv)
+echo "$run_command_output"
+if ! grep -q '__MANIFEST_APPLIED__' <<< "$run_command_output"; then
+  echo "Failed to apply ${manifest} from jumpbox."
+  exit 1
+fi
+"""
+    AzCli(serviceConnection, "Apply ${manifest} from jumpbox", script)
+}
+
+RunClusterLoader2OnJumpbox = lambda \
+    serviceConnection: str, \
+    subscription: str, \
+    resourceGroup: str, \
+    vmName: str, \
+    totalNodes: str, \
+    manifest: str, \
+    namespace: str = "clusterloader2", \
+    timeoutSeconds: int = 72000, \
+    pollIntervalSeconds: int = 300 \
+    -> steps.Step {
+    assert timeoutSeconds > 0, "timeoutSeconds must be positive"
+    assert pollIntervalSeconds > 0, "pollIntervalSeconds must be positive"
+    script = """
+work_dir=$(mktemp -d)
+trap 'rm -rf "$work_dir"' EXIT
+
+invoke_jumpbox() {
+  script_file=$1
+  shift
+  az vm run-command invoke \\
+    --resource-group "${resourceGroup}" \\
+    --name "${vmName}" \\
+    --subscription "${subscription}" \\
+    --command-id RunShellScript \\
+    --scripts @"$script_file" \\
+    "$@" \\
+    --query 'value[0].message' \\
+    --output tsv
+}
+
+manifest_path="$(Pipeline.Workspace)/s/${manifest}"
+if [ ! -f "$manifest_path" ]; then
+  echo "ClusterLoader2 manifest not found: $manifest_path"
+  exit 1
+fi
+manifest_size=$(wc -c < "$manifest_path" | tr -d ' ')
+if [ "$manifest_size" -gt 45000 ]; then
+  echo "ClusterLoader2 manifest is too large for az vm run-command invoke: $manifest_size bytes."
+  exit 1
+fi
+
+launch_script="$work_dir/launch-cl2.sh"
+cat > "$launch_script" <<'REMOTE_SCRIPT'
+set -eu
+export KUBECONFIG=/var/tmp/telescope-kubeconfig
+test -s "$KUBECONFIG"
+kubectl delete namespace "${namespace}" --ignore-not-found --wait=true
+kubectl create namespace "${namespace}"
+sed 's/^    NODES: .*/    NODES: ${totalNodes}/' <<'MANIFEST' | kubectl apply -f -
+REMOTE_SCRIPT
+cat "$manifest_path" >> "$launch_script"
+cat >> "$launch_script" <<'REMOTE_SCRIPT'
+MANIFEST
+echo "__CL2_STARTED__"
+REMOTE_SCRIPT
+
+echo "Starting ClusterLoader2 from jumpbox ${vmName}..."
+launch_message=$(invoke_jumpbox "$launch_script")
+echo "$launch_message"
+if ! grep -q '__CL2_STARTED__' <<< "$launch_message"; then
+  echo "Failed to start ClusterLoader2 from jumpbox."
+  exit 1
+fi
+
+status_script="$work_dir/cl2-status.sh"
+cat > "$status_script" <<'REMOTE_SCRIPT'
+set -eu
+export KUBECONFIG=/var/tmp/telescope-kubeconfig
+conditions=$(kubectl get job cl2 \\
+  --namespace "${namespace}" \\
+  --output jsonpath='{range .status.conditions[*]}{.type}={.status}{"\\n"}{end}')
+if printf '%s\\n' "$conditions" | grep -q '^Complete=True$'; then
+  echo "__CL2_STATUS_COMPLETE__"
+elif printf '%s\\n' "$conditions" | grep -q '^Failed=True$'; then
+  echo "__CL2_STATUS_FAILED__"
+else
+  echo "__CL2_STATUS_RUNNING__"
+fi
+REMOTE_SCRIPT
+
+deadline=$(($(date +%s) + ${timeoutSeconds}))
+cl2_status=running
+consecutive_status_errors=0
+while [ "$cl2_status" = running ]; do
+  set +e
+  status_message=$(invoke_jumpbox "$status_script")
+  status_rc=$?
+  set -e
+  echo "$status_message"
+  if [ "$status_rc" -eq 0 ] && grep -q '__CL2_STATUS_COMPLETE__' <<< "$status_message"; then
+    cl2_status=complete
+  elif [ "$status_rc" -eq 0 ] && grep -q '__CL2_STATUS_FAILED__' <<< "$status_message"; then
+    cl2_status=failed
+  elif [ "$status_rc" -eq 0 ] && grep -q '__CL2_STATUS_RUNNING__' <<< "$status_message"; then
+    consecutive_status_errors=0
+  else
+    consecutive_status_errors=$((consecutive_status_errors + 1))
+    if [ "$consecutive_status_errors" -ge 20 ]; then
+      echo "Unable to read ClusterLoader2 status after $consecutive_status_errors consecutive attempts."
+      cl2_status=status_error
+    fi
+  fi
+
+  if [ "$cl2_status" = running ]; then
+    if [ "$(date +%s)" -ge "$deadline" ]; then
+      cl2_status=timed_out
+    else
+      sleep ${pollIntervalSeconds}
+    fi
+  fi
+done
+
+if [ "$cl2_status" = failed ]; then
+  echo "ClusterLoader2 job failed."
+  exit 1
+fi
+if [ "$cl2_status" = timed_out ]; then
+  echo "ClusterLoader2 job did not finish within ${timeoutSeconds} seconds."
+  exit 1
+fi
+if [ "$cl2_status" = status_error ]; then
+  echo "ClusterLoader2 status could not be determined."
+  exit 1
+fi
+echo "ClusterLoader2 job completed successfully."
+"""
+    AzCli(serviceConnection, "Run ClusterLoader2 from jumpbox", script)
+}
