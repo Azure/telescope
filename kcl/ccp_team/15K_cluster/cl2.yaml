@@ -1,0 +1,93 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cl2-override
+  namespace: clusterloader2
+data:
+  override.yaml: |
+    NODES: 13
+    CL2_LOAD_TEST_THROUGHPUT: 20
+    CL2_DELETE_TEST_THROUGHPUT: 25
+    CL2_RATE_LIMIT_POD_CREATION: false
+    CL2_EXIT_AFTER_EXEC: true
+    CL2_ENABLE_PVS: false
+    CL2_STATEFULSET_POD_PAYLOAD_SIZE: 5000
+    CL2_DEPLOYMENT_POD_PAYLOAD_SIZE: 5000
+    CL2_DAEMONSET_POD_PAYLOAD_SIZE: 5000
+    CL2_JOB_POD_PAYLOAD_SIZE: 5000
+    CL2_ENABLE_CLUSTER_OOMS_TRACKER: false
+    CL2_DEFAULT_QPS: 100
+    CL2_RUN_ON_ARM_NODES: false
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cl2
+  namespace: clusterloader2
+spec:
+  completions: 1
+  parallelism: 1
+  backoffLimit: 0
+  template:
+    spec:
+      containers:
+      - args:
+        - '--provider=aks'
+        - '--run-from-cluster=true'
+        - '--v=2'
+        - '--testoverrides=/override/override.yaml'
+        - '--testconfig=testing/load/config.yaml'
+        - '--k8s-clients-number=500'
+        - '--report-dir=/results'
+        - '--log_dir=/results'
+        - '--logtostderr=false'
+        - '--alsologtostderr=true'
+        image: ghcr.io/azure/clusterloader2:v20260220
+        name: cl2
+        resources:
+          requests:
+            cpu: '6'
+            memory: '24Gi'
+        volumeMounts:
+        - mountPath: /override
+          name: cl2-override
+        - mountPath: /results
+          name: cl2-results
+      nodeSelector:
+        kubernetes.azure.com/mode: system
+      restartPolicy: Never
+      serviceAccountName: cl2
+      volumes:
+      - configMap:
+          name: cl2-override
+        name: cl2-override
+      - emptyDir: {}
+        name: cl2-results
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cl2
+  namespace: clusterloader2
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cl2
+rules:
+- apiGroups: ["*"]
+  resources: ["*"]
+  verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cl2
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cl2
+subjects:
+- kind: ServiceAccount
+  name: cl2
+  namespace: clusterloader2
