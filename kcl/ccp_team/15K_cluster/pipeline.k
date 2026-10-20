@@ -29,7 +29,7 @@ CREATE_ARGS=(
   --tier standard
   --assign-identity "$(createManagedIdentity.IDENTITY_ID)"
   --tags SkipAKSCluster=true
-  --control-plane-scaling-size H8
+  --control-plane-scaling-size H2
   --nodepool-name system
   --node-count 3
   --node-vm-size Standard_D48ds_v5
@@ -143,7 +143,7 @@ output = ap.Pipeline {
         job.Job {
             job = "create_cluster"
             displayName = "Create 15K Nodes Cluster"
-            timeoutInMinutes = 600
+            timeoutInMinutes = 2160
 
             steps = [
                 azure.Login(
@@ -256,6 +256,52 @@ output = ap.Pipeline {
                     MAX_NODES_PER_POOL,
                     vnetSubnetId = "$(createNodesSubnet.NODES_SUBNET_ID)",
                     osSKU = "Ubuntu"
+                ),
+                azure.AzCli(
+                    SERVICE_CONNECTION,
+                    "Configure kubeconfig on jumpbox ${JUMPBOX_NAME}",
+                    """
+RUN_COMMAND_OUTPUT=$(az vm run-command invoke \\
+  --resource-group "${RESOURCE_GROUP}" \\
+  --name "${JUMPBOX_NAME}" \\
+  --subscription "${SUBSCRIPTION_ID}" \\
+  --command-id RunShellScript \\
+  --scripts \\
+    "set -eu" \\
+    "az login --identity --output none" \\
+    "az account set --subscription '${SUBSCRIPTION_ID}'" \\
+    "az aks get-credentials --admin --overwrite-existing --file /var/tmp/telescope-kubeconfig --resource-group '${RESOURCE_GROUP}' --name '${CLUSTER_NAME}' --subscription '${SUBSCRIPTION_ID}'" \\
+    "chmod 600 /var/tmp/telescope-kubeconfig" \\
+    "test -s /var/tmp/telescope-kubeconfig" \\
+    "echo __KUBECONFIG_READY__" \\
+  --query 'value[0].message' \\
+  --output tsv)
+echo "$RUN_COMMAND_OUTPUT"
+if ! grep -q '__KUBECONFIG_READY__' <<< "$RUN_COMMAND_OUTPUT"; then
+  echo "Failed to configure kubeconfig on jumpbox."
+  exit 1
+fi
+"""
+                ),
+                azure.ApplyManifestOnJumpbox(
+                    SERVICE_CONNECTION,
+                    SUBSCRIPTION_ID,
+                    RESOURCE_GROUP,
+                    JUMPBOX_NAME,
+                    "kcl/ccp_team/15K_cluster/disable-thp.yaml"
+                ),
+                azure.RunClusterLoader2OnJumpbox(
+                    SERVICE_CONNECTION,
+                    SUBSCRIPTION_ID,
+                    RESOURCE_GROUP,
+                    JUMPBOX_NAME,
+                    "kcl/ccp_team/15K_cluster/cl2.yaml"
+                ),
+                azure.DeleteResourceGroup(
+                    SERVICE_CONNECTION,
+                    RESOURCE_GROUP,
+                    SUBSCRIPTION_ID,
+                    condition = "failed()"
                 ),
             ]
         }
