@@ -30,6 +30,26 @@ spec:
   backoffLimit: 0
   template:
     spec:
+      terminationGracePeriodSeconds: 60
+      initContainers:
+      - command:
+        - /bin/sh
+        - -c
+        - |
+          print_results() {
+            find /results -type f -print | while IFS= read -r file; do
+              echo "----- $file -----"
+              cat "$file"
+            done
+          }
+          trap 'print_results; exit 0' TERM INT
+          while true; do sleep 5; done
+        image: mcr.microsoft.com/cbl-mariner/busybox:1.35
+        name: cl2-results
+        restartPolicy: Always
+        volumeMounts:
+        - mountPath: /results
+          name: cl2-results
       containers:
       - args:
         - '--provider=aks'
