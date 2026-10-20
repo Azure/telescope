@@ -218,10 +218,10 @@ REMOTE_SCRIPT
 consecutive_status_errors=0
 while true; do
   set +e
-  phases=$(invoke_jumpbox "$status_script")
+  status_message=$(invoke_jumpbox "$status_script")
   status_rc=$?
   set -e
-  echo "$phases"
+  echo "$status_message"
   if [ "$status_rc" -ne 0 ]; then
     consecutive_status_errors=$((consecutive_status_errors + 1))
     if [ "$consecutive_status_errors" -ge "${MAX_CONSECUTIVE_APISERVER_ERRORS}" ]; then
@@ -230,6 +230,7 @@ while true; do
     fi
   else
     consecutive_status_errors=0
+    phases=$(printf '%s\\n' "$status_message" | tr -d '\\r' | grep -E '^(Pending|Running|Succeeded|Failed|Unknown)$' || true)
     total=0
     terminal=0
 
