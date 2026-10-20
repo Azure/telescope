@@ -189,8 +189,7 @@ cat > "$launch_script" <<'REMOTE_SCRIPT'
 set -eu
 export KUBECONFIG=/var/tmp/telescope-kubeconfig
 test -s "$KUBECONFIG"
-kubectl delete namespace "clusterloader2" --ignore-not-found --wait=true
-kubectl create namespace "clusterloader2"
+kubectl create namespace "clusterloader2" --dry-run=client -o yaml | kubectl apply -f -
 sed 's/^    NODES: .*/    NODES: ${totalNodes}/' <<'MANIFEST' | kubectl apply -f -
 REMOTE_SCRIPT
 cat "$manifest_path" >> "$launch_script"
