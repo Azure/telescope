@@ -27,51 +27,11 @@ aks_config_list = [
     extra_node_pool = [
       {
         name                 = "csipool1"
-        node_count           = 1
-        min_count            = 1
-        max_count            = 1000
-        auto_scaling_enabled = true
-        vm_size              = "Standard_D2s_v6"
-        max_pods             = 30
-        node_labels          = { "cas" = "dedicated" }
-      },
-      {
-        name                 = "csipool2"
         node_count           = 0
         min_count            = 0
-        max_count            = 1000
+        max_count            = 10
         auto_scaling_enabled = true
-        vm_size              = "Standard_D2s_v6"
-        max_pods             = 30
-        node_labels          = { "cas" = "dedicated" }
-      },
-      {
-        name                 = "csipool3"
-        node_count           = 0
-        min_count            = 0
-        max_count            = 1000
-        auto_scaling_enabled = true
-        vm_size              = "Standard_D2s_v6"
-        max_pods             = 30
-        node_labels          = { "cas" = "dedicated" }
-      },
-      {
-        name                 = "csipool4"
-        node_count           = 0
-        min_count            = 0
-        max_count            = 1000
-        auto_scaling_enabled = true
-        vm_size              = "Standard_D2s_v6"
-        max_pods             = 30
-        node_labels          = { "cas" = "dedicated" }
-      },
-      {
-        name                 = "csipool5"
-        node_count           = 0
-        min_count            = 0
-        max_count            = 1000
-        auto_scaling_enabled = true
-        vm_size              = "Standard_D2s_v6"
+        vm_size              = "Standard_D2ds_v4"
         max_pods             = 30
         node_labels          = { "cas" = "dedicated" }
       }

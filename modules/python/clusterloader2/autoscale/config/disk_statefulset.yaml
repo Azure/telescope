@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: disk-workload
+spec:
+  serviceName: disk-workload
+  podManagementPolicy: Parallel
+  replicas: 0
+  selector:
+    matchLabels:
+      app: disk-workload
+  template:
+    metadata:
+      labels:
+        app: disk-workload
+    spec:
+      containers:
+      - name: disk-writer
+        image: mcr.microsoft.com/oss/nginx/nginx:1.19.5
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -euo pipefail
+          echo "$(hostname)" > /data/telescope
+          sync
+          exec sleep infinity
+        readinessProbe:
+          exec:
+            command:
+            - /bin/bash
+            - -c
+            - 'test "$(cat /data/telescope)" = "$(hostname)"'
+          periodSeconds: 5
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 100m
+            memory: 64Mi
+        volumeMounts:
+        - name: data
+          mountPath: /data
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 4Gi

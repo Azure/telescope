@@ -21,8 +21,9 @@ steps:
       exit 1
     fi
 
-    if [ "$(kubectl get nodes -l "$NODE_LABEL_SELECTOR" --no-headers | wc -l)" -eq 0 ]; then
-      echo "##vso[task.logissue type=error;] No seed node matches $NODE_LABEL_SELECTOR."
+    workload_nodes=$(kubectl get nodes -l "$NODE_LABEL_SELECTOR" -o name)
+    if [ -n "$workload_nodes" ]; then
+      echo "##vso[task.logissue type=error;] Expected zero workload nodes before the first pod, found: $workload_nodes"
       exit 1
     fi
   displayName: Validate Azure Disk CSI resources

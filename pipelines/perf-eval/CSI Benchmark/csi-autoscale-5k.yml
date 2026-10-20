@@ -1,14 +1,5 @@
 trigger: none
 
-parameters:
-- name: scaleProfile
-  displayName: Scale profile
-  type: string
-  default: smoke
-  values:
-  - smoke
-  - qualification5k
-
 pool:
   name: 'AKS-Telescope-Airlock'
 
@@ -32,36 +23,14 @@ stages:
         image: ghcr.io/azure/clusterloader2:v20250423
       topology: csi-autoscale
       matrix:
-        ${{ if eq(parameters.scaleProfile, 'smoke') }}:
-          smoke:
-            cpu_per_node: 2
-            node_count: 10
-            pod_count: 10
-            scale_up_timeout: 30m
-            scale_down_timeout: 30m
-            storage_cleanup_timeout: 30
-            storage_class: managed-csi
-            deployment_template: statefulset_template.yaml
-            node_label_selector: "cas = dedicated"
-            node_selector: "{cas: dedicated}"
-            loop_count: 1
-            warmup_deployment: false
-            capacity_type: on-demand
-        ${{ if eq(parameters.scaleProfile, 'qualification5k') }}:
-          qualification-5k:
-            cpu_per_node: 2
-            node_count: 5000
-            pod_count: 5000
-            scale_up_timeout: 180m
-            scale_down_timeout: 180m
-            storage_cleanup_timeout: 120
-            storage_class: managed-csi
-            deployment_template: statefulset_template.yaml
-            node_label_selector: "cas = dedicated"
-            node_selector: "{cas: dedicated}"
-            loop_count: 1
-            warmup_deployment: false
-            capacity_type: on-demand
+        disk-boundary-10:
+          node_count: 10
+          scale_up_timeout_seconds: 1800
+          scale_down_timeout_seconds: 1800
+          storage_cleanup_timeout: 30
+          storage_class: managed-csi
+          node_label_selector: "cas=dedicated"
+          capacity_type: on-demand
       max_parallel: 1
       timeout_in_minutes: 600
       credential_type: service_connection

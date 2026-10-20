@@ -10,11 +10,18 @@ parameters:
   default: {}
 
 steps:
-- template: /steps/engine/clusterloader2/autoscale/execute.yml
-  parameters:
-    cloud: ${{ parameters.cloud }}
-    engine_input: ${{ parameters.engine_input }}
-    region: ${{ parameters.regions[0] }}
+- script: |
+    set -euo pipefail
+    PYTHONPATH="$PWD" python3 -m clusterloader2.autoscale.disk_autoscale execute \
+      --node-count "$NODE_COUNT" \
+      --selector "$NODE_LABEL_SELECTOR" \
+      --storage-class "$STORAGE_CLASS" \
+      --timeout-seconds "$SCALE_UP_TIMEOUT_SECONDS" \
+      --scale-down-timeout-seconds "$SCALE_DOWN_TIMEOUT_SECONDS" \
+      --storage-cleanup-timeout-minutes "$STORAGE_CLEANUP_TIMEOUT" \
+      --report-file "$TEST_RESULTS_DIR/disk-autoscale.json"
+  workingDirectory: modules/python
+  displayName: Verify disk-bound node autoscaling
 
 - script: |
     set -uo pipefail
@@ -32,3 +39,10 @@ steps:
     done < <(kubectl get pods -n kube-system -o name | grep azuredisk || true)
   displayName: Collect Azure Disk CSI diagnostics
   condition: always()
+
+- task: PublishPipelineArtifact@1
+  displayName: Publish disk autoscale report and diagnostics
+  condition: always()
+  inputs:
+    targetPath: $(TEST_RESULTS_DIR)
+    artifact: disk-autoscale-$(System.JobId)
