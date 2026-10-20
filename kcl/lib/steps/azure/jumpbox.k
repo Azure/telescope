@@ -152,11 +152,8 @@ RunClusterLoader2OnJumpbox = lambda \
     vmName: str, \
     totalNodes: str, \
     manifest: str, \
-    namespace: str = "clusterloader2", \
-    timeoutSeconds: int = 72000, \
     pollIntervalSeconds: int = 300 \
     -> steps.Step {
-    assert timeoutSeconds > 0, "timeoutSeconds must be positive"
     assert pollIntervalSeconds > 0, "pollIntervalSeconds must be positive"
     script = """
 work_dir=$(mktemp -d)
@@ -192,8 +189,8 @@ cat > "$launch_script" <<'REMOTE_SCRIPT'
 set -eu
 export KUBECONFIG=/var/tmp/telescope-kubeconfig
 test -s "$KUBECONFIG"
-kubectl delete namespace "${namespace}" --ignore-not-found --wait=true
-kubectl create namespace "${namespace}"
+kubectl delete namespace "clusterloader2" --ignore-not-found --wait=true
+kubectl create namespace "clusterloader2"
 sed 's/^    NODES: .*/    NODES: ${totalNodes}/' <<'MANIFEST' | kubectl apply -f -
 REMOTE_SCRIPT
 cat "$manifest_path" >> "$launch_script"
@@ -215,7 +212,7 @@ cat > "$status_script" <<'REMOTE_SCRIPT'
 set -eu
 export KUBECONFIG=/var/tmp/telescope-kubeconfig
 conditions=$(kubectl get job cl2 \\
-  --namespace "${namespace}" \\
+  --namespace "clusterloader2" \\
   --output jsonpath='{range .status.conditions[*]}{.type}={.status}{"\\n"}{end}')
 if printf '%s\\n' "$conditions" | grep -q '^Complete=True$'; then
   echo "__CL2_STATUS_COMPLETE__"
@@ -226,7 +223,7 @@ else
 fi
 REMOTE_SCRIPT
 
-deadline=$(($(date +%s) + ${timeoutSeconds}))
+deadline=$(($(date +%s) + 72000))
 cl2_status=running
 consecutive_status_errors=0
 while [ "$cl2_status" = running ]; do
@@ -263,7 +260,7 @@ if [ "$cl2_status" = failed ]; then
   exit 1
 fi
 if [ "$cl2_status" = timed_out ]; then
-  echo "ClusterLoader2 job did not finish within ${timeoutSeconds} seconds."
+  echo "ClusterLoader2 job did not finish within 72000 seconds."
   exit 1
 fi
 if [ "$cl2_status" = status_error ]; then
