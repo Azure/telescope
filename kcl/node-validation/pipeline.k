@@ -36,7 +36,7 @@ jq -n \\
   '{cluster: $cluster, resourceGroup: $cluster, subscription: $subscription,
     location: $location, buildId: $buildId, nodesPerPool: $nodesPerPool,
     systemNodes: 2, sku: "Standard_D2_v4", kubernetesVersion: "1.36.4",
-    timeoutSeconds: 900}' | tee "${RESULTS}/configuration.json"
+    timeoutSeconds: 3600}' | tee "${RESULTS}/configuration.json"
 """
                     }
                     azure.Login(const.DEFAULT_SERVICE_CONNECTION, const.DEFAULT_SUBSCRIPTION_ID, LOCATION)
@@ -78,7 +78,7 @@ az aks create \\
                     })
                     azure.GetCredentials(const.DEFAULT_SERVICE_CONNECTION, CLUSTER, CLUSTER, const.DEFAULT_SUBSCRIPTION_ID, file=KUBECONFIG)
                     steps.Bash {
-                        displayName = "Wait up to 15 minutes for Ready, untainted nodes"
+                        displayName = "Wait up to 60 minutes for Ready, untainted nodes"
                         bash = """
 bash "$(Build.SourcesDirectory)/kcl/node-validation/wait-for-node-validation.sh" \\
   "${KUBECONFIG}" ${nodesPerPool} "${RESULTS}"

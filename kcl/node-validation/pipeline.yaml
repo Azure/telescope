@@ -24,7 +24,7 @@ stages:
           '{cluster: $cluster, resourceGroup: $cluster, subscription: $subscription,
             location: $location, buildId: $buildId, nodesPerPool: $nodesPerPool,
             systemNodes: 2, sku: "Standard_D2_v4", kubernetesVersion: "1.36.4",
-            timeoutSeconds: 900}' | tee "$(Agent.TempDirectory)/node-validation-$(System.JobId)/configuration.json"
+            timeoutSeconds: 3600}' | tee "$(Agent.TempDirectory)/node-validation-$(System.JobId)/configuration.json"
       displayName: Record benchmark configuration
     - task: AzureCLI@2
       inputs:
@@ -182,7 +182,7 @@ stages:
     - bash: |
         bash "$(Build.SourcesDirectory)/kcl/node-validation/wait-for-node-validation.sh" \
           "$(Agent.TempDirectory)/$(System.JobId)-kubeconfig" 250 "$(Agent.TempDirectory)/node-validation-$(System.JobId)"
-      displayName: Wait up to 15 minutes for Ready, untainted nodes
+      displayName: Wait up to 60 minutes for Ready, untainted nodes
     - bash: |
         set -euo pipefail
         mkdir -p "$(Agent.TempDirectory)/node-validation-$(System.JobId)"
@@ -267,7 +267,7 @@ stages:
           '{cluster: $cluster, resourceGroup: $cluster, subscription: $subscription,
             location: $location, buildId: $buildId, nodesPerPool: $nodesPerPool,
             systemNodes: 2, sku: "Standard_D2_v4", kubernetesVersion: "1.36.4",
-            timeoutSeconds: 900}' | tee "$(Agent.TempDirectory)/node-validation-$(System.JobId)/configuration.json"
+            timeoutSeconds: 3600}' | tee "$(Agent.TempDirectory)/node-validation-$(System.JobId)/configuration.json"
       displayName: Record benchmark configuration
     - task: AzureCLI@2
       inputs:
@@ -425,7 +425,7 @@ stages:
     - bash: |
         bash "$(Build.SourcesDirectory)/kcl/node-validation/wait-for-node-validation.sh" \
           "$(Agent.TempDirectory)/$(System.JobId)-kubeconfig" 500 "$(Agent.TempDirectory)/node-validation-$(System.JobId)"
-      displayName: Wait up to 15 minutes for Ready, untainted nodes
+      displayName: Wait up to 60 minutes for Ready, untainted nodes
     - bash: |
         set -euo pipefail
         mkdir -p "$(Agent.TempDirectory)/node-validation-$(System.JobId)"
@@ -510,7 +510,7 @@ stages:
           '{cluster: $cluster, resourceGroup: $cluster, subscription: $subscription,
             location: $location, buildId: $buildId, nodesPerPool: $nodesPerPool,
             systemNodes: 2, sku: "Standard_D2_v4", kubernetesVersion: "1.36.4",
-            timeoutSeconds: 900}' | tee "$(Agent.TempDirectory)/node-validation-$(System.JobId)/configuration.json"
+            timeoutSeconds: 3600}' | tee "$(Agent.TempDirectory)/node-validation-$(System.JobId)/configuration.json"
       displayName: Record benchmark configuration
     - task: AzureCLI@2
       inputs:
@@ -668,7 +668,7 @@ stages:
     - bash: |
         bash "$(Build.SourcesDirectory)/kcl/node-validation/wait-for-node-validation.sh" \
           "$(Agent.TempDirectory)/$(System.JobId)-kubeconfig" 1000 "$(Agent.TempDirectory)/node-validation-$(System.JobId)"
-      displayName: Wait up to 15 minutes for Ready, untainted nodes
+      displayName: Wait up to 60 minutes for Ready, untainted nodes
     - bash: |
         set -euo pipefail
         mkdir -p "$(Agent.TempDirectory)/node-validation-$(System.JobId)"
