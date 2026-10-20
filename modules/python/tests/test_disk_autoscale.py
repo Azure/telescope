@@ -9,6 +9,12 @@ import pytest
 from clusterloader2.autoscale import disk_autoscale as disk
 
 
+@pytest.fixture(autouse=True)
+def fixed_batch_size():
+    with patch.object(disk.random, "randint", return_value=5) as batch_size:
+        yield batch_size
+
+
 def node(name="node-0"):
     return Obj(metadata=Obj(name=name), spec=Obj(unschedulable=False),
                status=Obj(conditions=[Obj(type="Ready", status="True")]))
@@ -94,11 +100,27 @@ def cluster(disks_per_node=8):
     return kube
 
 
-def test_ten_node_stage_targets():
+@pytest.mark.parametrize("batch_size", [5, 30])
+def test_ten_node_stage_targets(batch_size, fixed_batch_size):
+    fixed_batch_size.return_value = batch_size
     targets = list(disk.stage_targets(10, 8))
-    assert len(targets) == 19
-    assert targets[:4] == [(1, 8, False), (2, 9, True), (2, 16, False), (3, 17, True)]
-    assert targets[-2:] == [(10, 73, True), (10, 80, False)]
+    previous_replicas, previous_nodes = 1, 1
+    for nodes, replicas, overflow in targets:
+        assert replicas == min(80, previous_replicas + batch_size)
+        assert nodes == (replicas + 7) // 8
+        assert overflow == (nodes > previous_nodes)
+        previous_replicas, previous_nodes = replicas, nodes
+    assert targets[-1][:2] == (10, 80)
+    assert all(call.args == (5, 30) for call in fixed_batch_size.call_args_list)
+
+
+def test_stage_targets_draws_a_new_random_increment_each_batch(fixed_batch_size):
+    fixed_batch_size.side_effect = [5, 30, 12, 30, 5]
+    assert list(disk.stage_targets(10, 8)) == [
+        (1, 6, False), (5, 36, True), (6, 48, True),
+        (10, 78, True), (10, 80, False),
+    ]
+    assert fixed_batch_size.call_count == 5
 
 
 @pytest.mark.parametrize("nodes,limit", [(1, 8), (11, 8), (10, 0)])
@@ -126,7 +148,9 @@ def test_evidence_requires_disk_limit_and_autoscaler_for_same_pod():
     assert disk.scale_up_evidence(events, "disk-workload-8", 1) is None
     events.append(event("TriggeredScaleUp", "scale"))
     assert disk.scale_up_evidence(events, "disk-workload-8", 1)
-    assert disk.scale_up_evidence(events, "disk-workload-8", 2) is None
+    assert disk.scale_up_evidence(events, "disk-workload-8", 2)
+    events[0].message = "0 node(s) exceed max volume count"
+    assert disk.scale_up_evidence(events, "disk-workload-8", 1) is None
     events[0].message = "1 Insufficient cpu"
     assert disk.scale_up_evidence(events, "disk-workload-8", 1) is None
 
@@ -191,12 +215,15 @@ def test_bootstrap_uses_actual_disk_limit_for_later_batches(_cleanup, tmp_path):
     )
     assert report["disks_per_node"] == 4
     assert report["pod_count"] == 40
-    assert [stage["replicas"] for stage in report["stages"][:5]] == [1, 4, 5, 8, 9]
+    assert [stage["replicas"] for stage in report["stages"][:5]] == [1, 6, 11, 16, 21]
+    assert report["stages"][1]["node_count"] == 2
     assert set(report["stages"][-1]["pods_per_node"].values()) == {4}
 
 
 @patch.object(disk, "cleanup")
-def test_full_ten_node_execution(cleanup, tmp_path):
+@pytest.mark.parametrize("batch_size", [5, 30])
+def test_full_ten_node_execution(cleanup, tmp_path, batch_size, fixed_batch_size):
+    fixed_batch_size.return_value = batch_size
     kube = cluster()
     cleanup.return_value = {"pvc_remaining": 0, "pv_remaining": 0,
                             "volume_attachments_remaining": 0}
@@ -210,12 +237,13 @@ def test_full_ten_node_execution(cleanup, tmp_path):
     assert sum(
         stage["pod_readiness_e2e_seconds"]["sample_count"] for stage in report["stages"]
     ) == 80
-    assert len(report["stages"]) == 20
+    assert len(report["stages"]) == 1 + (79 + batch_size - 1) // batch_size
     assert report["stages"][0]["phase"] == "bootstrap"
     assert report["stages"][0]["replicas"] == 1
     assert report["stages"][0]["node_count"] == 1
     assert report["stages"][0]["evidence"]["triggered_scale_up"]
-    assert sum(stage["phase"] == "overflow" for stage in report["stages"]) == 9
+    assert all(stage["evidence"] for stage in report["stages"] if stage["phase"] == "overflow")
+    assert all(stage["new_pod_count"] <= batch_size for stage in report["stages"])
     assert set(report["stages"][-1]["pods_per_node"].values()) == {8}
     assert json.loads(path.read_text()) == report
     assert [call.args[2]["spec"]["replicas"]
@@ -255,7 +283,7 @@ def test_cleanup_failure_fails_successful_run(cleanup, tmp_path):
 
 
 @pytest.mark.parametrize("invalid", ["existing_nodes", "storage", "target", "timeout"])
-def test_preflight_does_not_mutate_cluster(invalid, tmp_path):
+def test_preflight_does_not_mutate_cluster(invalid, tmp_path, fixed_batch_size):
     kube = cluster()
     target, timeout = 10, 30
     if invalid == "existing_nodes":
@@ -272,6 +300,7 @@ def test_preflight_does_not_mutate_cluster(invalid, tmp_path):
         disk.execute(kube, target, "cas=dedicated", "managed-csi", timeout, 30, 1, path)
     kube.api.create_namespace.assert_not_called()
     kube.app.patch_namespaced_stateful_set_scale.assert_not_called()
+    fixed_batch_size.assert_not_called()
     assert json.loads(path.read_text())["result"] == "failure"
 
 
@@ -319,6 +348,60 @@ def test_overflow_must_land_on_new_node():
     with pytest.raises(ValueError, match="newly added node"):
         disk.wait_for_stage(kube, "test", "cas=dedicated", 9, 2, 8,
                             {"node-0"}, True, 0)
+
+
+def test_growth_accepts_evidence_from_any_new_pod_not_just_the_last():
+    kube = cluster()
+    kube.app.patch_namespaced_stateful_set_scale(
+        disk.WORKLOAD, "test", {"spec": {"replicas": 11}}
+    )
+    pods = [pod(index) for index in range(11)]
+    pods[7].spec.node_name, pods[10].spec.node_name = "node-1", "node-0"
+    kube.api.list_namespaced_pod.side_effect = None
+    kube.api.list_namespaced_pod.return_value = Obj(items=pods)
+    kube.storage.list_volume_attachment.side_effect = None
+    attachments = [attachment(index) for index in range(11)]
+    attachments[7].spec.node_name, attachments[10].spec.node_name = "node-1", "node-0"
+    kube.storage.list_volume_attachment.return_value = Obj(items=attachments)
+    kube.api.list_namespaced_event.side_effect = lambda _, field_selector: Obj(items=[
+        event("FailedScheduling", "1 node(s) exceed max volume count", "disk-workload-7"),
+        event("TriggeredScaleUp", "scale", "disk-workload-7"),
+    ] if field_selector == "involvedObject.name=disk-workload-7" else [])
+    stage, _ = disk.wait_for_stage(
+        kube, "test", "cas=dedicated", 11, 2, 8, {"node-0"}, True, 0,
+        previous_replicas=6,
+    )
+    assert stage["evidence"]["pod_name"] == "disk-workload-7"
+    assert stage["pods_per_node"] == {"node-0": 8, "node-1": 3}
+    assert stage["pod_readiness_e2e_seconds"]["sample_count"] == 5
+
+
+@pytest.mark.parametrize("new_pod_on_every_new_node", [True, False])
+def test_one_batch_can_add_multiple_nodes(new_pod_on_every_new_node):
+    kube = cluster()
+    kube.app.patch_namespaced_stateful_set_scale(
+        disk.WORKLOAD, "test", {"spec": {"replicas": 25}}
+    )
+    if not new_pod_on_every_new_node:
+        pods = [pod(index) for index in range(25)]
+        pods[0].spec.node_name, pods[24].spec.node_name = "node-3", "node-0"
+        kube.api.list_namespaced_pod.side_effect = None
+        kube.api.list_namespaced_pod.return_value = Obj(items=pods)
+        with pytest.raises(ValueError, match="every newly added node"):
+            disk.wait_for_stage(
+                kube, "test", "cas=dedicated", 25, 4, 8, {"node-0"}, True, 0,
+                previous_replicas=6,
+            )
+    else:
+        stage, nodes = disk.wait_for_stage(
+            kube, "test", "cas=dedicated", 25, 4, 8, {"node-0"}, True, 0,
+            previous_replicas=6,
+        )
+        assert nodes == {"node-0", "node-1", "node-2", "node-3"}
+        assert set(stage["timings"]["nodes"]) == {"node-1", "node-2", "node-3"}
+        assert stage["pods_per_node"] == {
+            "node-0": 8, "node-1": 8, "node-2": 8, "node-3": 1,
+        }
 
 
 def test_new_nodes_must_advertise_same_disk_limit():
@@ -520,13 +603,13 @@ def test_timeout_preserves_partial_samples_and_incomplete_run_summary(_cleanup, 
     failed_stage = report["stages"][-1]
     assert failed_stage["result"] == "failure"
     assert failed_stage["pod_readiness_e2e_seconds"]["sample_count"] == 1
-    assert failed_stage["pod_readiness_e2e_seconds"]["expected_pod_count"] == 7
+    assert failed_stage["pod_readiness_e2e_seconds"]["expected_pod_count"] == 5
     assert failed_stage["pod_readiness_e2e_seconds"]["p50"] is None
 
 
 @patch.object(disk, "cleanup", return_value={})
 def test_run_percentiles_combine_pods_instead_of_averaging_batch_percentiles(_cleanup, tmp_path):
-    latencies = {1: [100], 4: [10, 10, 10], 5: [200], 8: [20, 20, 20]}
+    latencies = {1: [100], 6: [10, 10, 10, 10, 10], 8: [200, 200]}
 
     def wait(*args, **kwargs):
         replicas, expected_nodes = args[3:5]
@@ -546,9 +629,9 @@ def test_run_percentiles_combine_pods_instead_of_averaging_batch_percentiles(_cl
     metrics = report["pod_readiness_e2e_seconds"]
     assert metrics["sample_count"] == 8
     assert metrics["complete"]
-    assert metrics["p50"] == 20
-    assert metrics["p90"] == pytest.approx(130)
-    assert metrics["p99"] == pytest.approx(193)
+    assert metrics["p50"] == 10
+    assert metrics["p90"] == 200
+    assert metrics["p99"] == 200
 
 
 @patch.object(disk, "cleanup", return_value={})

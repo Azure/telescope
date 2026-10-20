@@ -25,7 +25,7 @@ stages:
       matrix:
         disk-boundary-10:
           node_count: 10
-          scale_up_timeout_seconds: 1800
+          scale_up_timeout_seconds: 3600
           scale_down_timeout_seconds: 1800
           storage_cleanup_timeout: 30
           storage_class: managed-csi

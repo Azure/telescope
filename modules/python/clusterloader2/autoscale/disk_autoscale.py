@@ -4,6 +4,8 @@ import argparse
 import csv
 import json
 import os
+import random
+import re
 import time
 import uuid
 from collections import Counter
@@ -33,13 +35,16 @@ NODE_TIMING_COLUMNS = (
 
 
 def stage_targets(node_count, disks_per_node):
-    """Fill each node, then request one pod beyond the cluster's disk capacity."""
+    """Add 5-30 pods per batch after bootstrap, capped at the target disk capacity."""
     if not 2 <= node_count <= 10 or disks_per_node < 1:
         raise ValueError("The boundary test requires 2-10 nodes and a positive disk limit")
-    for count in range(1, node_count + 1):
-        if count > 1:
-            yield count, (count - 1) * disks_per_node + 1, True
-        yield count, count * disks_per_node, False
+    replicas, previous_nodes = 1, 1
+    capacity = node_count * disks_per_node
+    while replicas < capacity:
+        replicas = min(capacity, replicas + random.randint(5, 30))
+        expected_nodes = (replicas + disks_per_node - 1) // disks_per_node
+        yield expected_nodes, replicas, expected_nodes > previous_nodes
+        previous_nodes = expected_nodes
 
 
 def disk_limit(kube, node_name):
@@ -166,13 +171,14 @@ def write_timing_tables(report, report_file):
             writer.writerows(report[f"{kind}_timings"])
 
 
-def scale_up_evidence(events, pod_uid, full_node_count):
+def scale_up_evidence(events, pod_uid, existing_node_count):
     events = [event for event in events if event.involved_object.uid == pod_uid]
-    volume_message = f"{full_node_count} node(s) exceed max volume count"
     volume_events = [
         event for event in events
         if event.reason == "FailedScheduling"
-        and (full_node_count == 0 or volume_message in (event.message or ""))
+        and (existing_node_count == 0 or re.search(
+            r"\b[1-9]\d* node\(s\) exceed max volume count\b", event.message or ""
+        ))
     ]
     scale_events = [event for event in events if event.reason == "TriggeredScaleUp"]
     if not volume_events or not scale_events:
@@ -232,7 +238,6 @@ def wait_for_stage(kube, namespace, selector, replicas, expected_nodes, limit,
     evidence = None
     node_ready_seconds = None
     running_seconds = None
-    overflow_name = f"{WORKLOAD}-{replicas - 1}"
     readiness_samples = {} if readiness_samples is None else readiness_samples
     new_pod_names = {
         f"{WORKLOAD}-{index}" for index in range(previous_replicas, replicas)
@@ -247,17 +252,19 @@ def wait_for_stage(kube, namespace, selector, replicas, expected_nodes, limit,
         node_names = {node.metadata.name for node in nodes}
         if len(nodes) > expected_nodes:
             raise ValueError(f"Expected {expected_nodes} workload nodes, found {len(nodes)}")
-        if overflow:
-            overflow_pod = next(
-                (pod for pod in pods if pod.metadata.name == overflow_name), None
-            )
-            if overflow_pod:
+        if overflow and evidence is None:
+            for pod in pods:
+                if pod.metadata.name not in new_pod_names:
+                    continue
                 events = kube.api.list_namespaced_event(
-                    namespace, field_selector=f"involvedObject.name={overflow_name}"
+                    namespace, field_selector=f"involvedObject.name={pod.metadata.name}"
                 ).items
                 evidence = scale_up_evidence(
-                    events, overflow_pod.metadata.uid, len(old_nodes)
-                ) or evidence
+                    events, pod.metadata.uid, len(old_nodes)
+                )
+                if evidence:
+                    evidence["pod_name"] = pod.metadata.name
+                    break
         elapsed = time.monotonic() - started
         for pod in pods:
             name = pod.metadata.name
@@ -294,10 +301,14 @@ def wait_for_stage(kube, namespace, selector, replicas, expected_nodes, limit,
                 for node in nodes:
                     if disk_limit(kube, node.metadata.name) != limit:
                         raise ValueError("Workload nodes advertise different disk limits")
-                if overflow and overflow_pod.spec.node_name not in node_names - old_nodes:
-                    raise ValueError("The overflow pod did not run on the newly added node")
+                new_pod_nodes = {
+                    pod.spec.node_name for pod in pods if pod.metadata.name in new_pod_names
+                }
+                if overflow and not (node_names - old_nodes).issubset(new_pod_nodes):
+                    raise ValueError("New batch pods did not run on every newly added node")
                 distribution = verify_disks(
-                    kube, namespace, pods, node_names, limit, full=not overflow
+                    kube, namespace, pods, node_names, limit,
+                    full=replicas == expected_nodes * limit,
                 )
                 return {
                     "replicas": replicas,
@@ -376,7 +387,8 @@ def execute(kube, node_count, selector, storage_class, timeout, down_timeout,
     namespace = f"autoscale-disk-{uuid.uuid4().hex[:12]}"
     created = False
     try:
-        list(stage_targets(node_count, 1))
+        if not 2 <= node_count <= 10:
+            raise ValueError("The boundary test requires 2-10 workload nodes")
         if min(timeout, down_timeout, storage_timeout) <= 0:
             raise ValueError("All timeouts must be positive")
         if kube.get_nodes(label_selector=selector):

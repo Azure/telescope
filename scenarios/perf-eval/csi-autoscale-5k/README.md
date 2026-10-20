@@ -32,16 +32,21 @@ For the expected limit of four disks per workload node:
    node becomes Ready and hosts the pod with a mounted, working disk. Unlike
    later overflows, this bootstrap cannot be caused by disk-slot exhaustion:
    there is no eligible workload node yet.
-2. Read the live CSI disk limit, then request four pods and verify one fully
-   occupied workload node.
-3. Request a fifth pod. Require its `FailedScheduling` event to identify the
-   volume-count limit on the existing node and its `TriggeredScaleUp` event.
-4. Verify a second node becomes Ready and hosts the overflow pod.
-5. Fill both nodes with eight pods, then request pod nine.
-6. Repeat through ten workload nodes, finally filling them with 40 pods/disks.
+2. Read the live CSI disk limit. For each subsequent batch, draw a fresh random
+   integer from 5 through 30 (inclusive) and add that many pods to the current
+   replica count. Cap the final batch at 40 total pods; it may add fewer than five.
+3. Compute expected workload nodes as `ceil(total pods / live disk limit)`.
+   A batch may fit existing nodes or require several new nodes.
+4. For a growing batch, require a newly requested pod's `FailedScheduling` event
+   to identify a positive volume-count limit and its `TriggeredScaleUp` event.
+   The count in the scheduling message can change as nodes join during a batch.
+5. Verify all expected nodes become Ready and every new node hosts a new batch
+   pod with its disk. Wait for the batch to complete before requesting the next.
+6. Repeat until ten workload nodes host the final 40 pods/disks.
 
-There are 20 measured stages: one scale-from-zero bootstrap, ten fills, and
-nine disk-capacity overflows. The final cluster has 15 nodes including the five
+For example, random increments 5, 20, 14 produce pod totals
+`1 -> 6 -> 26 -> 40` and workload node totals `1 -> 2 -> 7 -> 10`.
+The number of stages varies per run. The final cluster has 15 nodes including the five
 system nodes. No HPA is needed: the runner changes workload replicas, while
 the real AKS Cluster Autoscaler changes node counts.
 
@@ -56,8 +61,9 @@ missing autoscaler evidence, and timeouts fail the test.
 `disk-autoscale.json` records the live disk limit and each bootstrap/fill/overflow stage:
 requested replicas, workload node count, request timestamp, elapsed time to
 node readiness, all pods Running, all pods storage-ready, per-node pod counts,
-and scheduler/autoscaler event messages. Timings use polling and have roughly
-five-second resolution. These are staged boundary timings, **not** bulk
+and scheduler/autoscaler event messages. `new_pod_count` records the actual
+increment, including the bootstrap and capped final batch. Timings use polling
+and have roughly five-second resolution. These are random-batch timings, **not** bulk
 scale-up P50/P70/P90/P99/P100; a separate common-start bulk phase is needed
 before reporting those metrics.
 
