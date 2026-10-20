@@ -1,7 +1,12 @@
 """Parity of the derived metrics with v1 (plan section 9.1)."""
 import unittest
 
-from node_startup.latency import SUB_SECOND_LATENCIES, compute_autoscale_latencies, compute_sub_second_latencies
+from node_startup.latency import (
+    SUB_SECOND_LATENCIES,
+    cilium_version_from_image,
+    compute_autoscale_latencies,
+    compute_sub_second_latencies,
+)
 from tests.node_startup import scenarios
 from tests.node_startup.golden import V1_GOLDEN as GOLDEN
 
@@ -20,6 +25,10 @@ class LatencyParityTest(unittest.TestCase):
             with self.subTest(scenario=name):
                 expected = {key: value for key, value in GOLDEN["latency"][name].items()
                             if key not in DROPPED_ALIASES}
+                # v2 prefers the agent image tag over the version in the metrics (see latency.py).
+                image_version = cilium_version_from_image(timestamps.get("cni_containers", []))
+                if image_version:
+                    expected["cilium_version"] = image_version
                 self.assertEqual(compute_autoscale_latencies(timestamps), expected)
 
     def test_dropped_aliases_equal_their_replacements_in_v1(self):
@@ -36,7 +45,7 @@ class LatencyParityTest(unittest.TestCase):
         self.assertEqual(latencies["cilium_scheduling_block_seconds"], 3.0)
         self.assertEqual(latencies["total_e2e_seconds"], 124.0)
         self.assertEqual(latencies["cilium_bootstrap_overall_seconds"], 12.5)
-        self.assertEqual(latencies["cilium_version"], "1.19.3")
+        self.assertEqual(latencies["cilium_version"], "1.19.3-260520")
         for alias in DROPPED_ALIASES:
             self.assertNotIn(alias, latencies)
 
@@ -78,6 +87,16 @@ class SubSecondLatencyTest(unittest.TestCase):
             with self.subTest(history=history):
                 latencies = compute_sub_second_latencies({**WATCH_OBSERVATIONS, "ready_condition_history": history})
                 self.assertEqual(latencies, dict.fromkeys(SUB_SECOND_LATENCIES))
+
+
+class CiliumVersionTest(unittest.TestCase):
+    def test_image_tag_first_then_metrics(self):
+        with_metrics = {"deep_cilium_metrics": {"metadata": {"cilium_version": "1.19.3"}}}
+        image = {"cni_containers": scenarios.MANAGED_CILIUM_TIMESTAMPS["cni_containers"]}
+        self.assertEqual(compute_autoscale_latencies({**with_metrics, **image})["cilium_version"], "1.19.3-260520")
+        self.assertEqual(compute_autoscale_latencies(with_metrics)["cilium_version"], "1.19.3")
+        self.assertEqual(compute_autoscale_latencies(image)["cilium_version"], "1.19.3-260520")
+        self.assertNotIn("cilium_version", compute_autoscale_latencies({}))
 
 
 class WholeSecondLatencyTest(unittest.TestCase):

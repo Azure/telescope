@@ -13,7 +13,7 @@ from node_startup.cilium import scrape_cilium_metrics
 from node_startup.latency import compute_autoscale_latencies, compute_sub_second_latencies
 from node_startup.node_watch import new_node_transitions, watch_node_transitions
 from utils.logger_config import get_logger
-from utils.timestamps import condition_transition_time, format_timestamp
+from utils.timestamps import condition_last_transition_time, format_timestamp
 
 logger = get_logger(__name__)
 
@@ -90,8 +90,13 @@ def measure_iteration(k8s, node_pool_name, node_label_key, provisioner, namespac
         cni_info = {}
         deep_cilium_metrics = None
         if cni_daemonset_label:
-            cni_info = collectors.collect_cni_pod_timestamps(k8s, new_node_name, cni_daemonset_label)
-            deep_cilium_metrics = scrape_cilium_metrics(k8s, new_node_name, cni_daemonset_label)
+            cni_pod = collectors.find_daemonset_pod(k8s, new_node_name, cni_daemonset_label)
+            if cni_pod is None:
+                logger.warning("No CNI pod found on node '%s' with label '%s'", new_node_name, cni_daemonset_label)
+            else:
+                cni_info = collectors.daemonset_pod_timing(k8s, cni_pod)
+                logger.info("CNI pod timestamps for node '%s': %s", new_node_name, cni_info)
+                deep_cilium_metrics = scrape_cilium_metrics(k8s, cni_pod)
 
         container_started = None
         if pod.status.container_statuses:
@@ -106,9 +111,9 @@ def measure_iteration(k8s, node_pool_name, node_label_key, provisioner, namespac
             "pod_created": pod_created,
             "triggered_scale_up": triggered_scale_up,
             "node_registered": format_timestamp(new_node.metadata.creation_timestamp),
-            "node_ready": condition_transition_time(new_node.status.conditions, "Ready"),
-            "node_network_unavailable_cleared": condition_transition_time(
-                new_node.status.conditions, "NetworkUnavailable"),
+            "node_ready": condition_last_transition_time(new_node.status.conditions, "Ready"),
+            "node_network_unavailable_cleared": condition_last_transition_time(
+                new_node.status.conditions, "NetworkUnavailable", observed_status="False"),
             "cni_conflist_placed": transitions["cni_conflist_placed_at"],
             "csinode_ready": transitions["csinode_ready_at"],
             "not_ready_taint_observed": transitions["not_ready_taint_observed"],
@@ -125,11 +130,11 @@ def measure_iteration(k8s, node_pool_name, node_label_key, provisioner, namespac
             "cni_image_pull_events": cni_info.get("image_pull_events", []),
             "cni_init_container_logs": cni_info.get("init_container_logs", []),
             "deep_cilium_metrics": deep_cilium_metrics,
-            "pod_scheduled": condition_transition_time(pod.status.conditions, "PodScheduled"),
-            "pod_initialized": condition_transition_time(pod.status.conditions, "Initialized"),
+            "pod_scheduled": condition_last_transition_time(pod.status.conditions, "PodScheduled"),
+            "pod_initialized": condition_last_transition_time(pod.status.conditions, "Initialized"),
             "container_started": container_started,
-            "containers_ready": condition_transition_time(pod.status.conditions, "ContainersReady"),
-            "pod_ready": condition_transition_time(pod.status.conditions, "Ready"),
+            "containers_ready": condition_last_transition_time(pod.status.conditions, "ContainersReady"),
+            "pod_ready": condition_last_transition_time(pod.status.conditions, "Ready"),
             "intermediate_states": transitions["events"],
             # New in v2. node_registered/node_ready are API-server times; these are when the watch saw them.
             "node_registered_observed": transitions["node_registered_at"],

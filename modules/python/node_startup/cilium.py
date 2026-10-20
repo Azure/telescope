@@ -9,23 +9,12 @@ DEFAULT_METRICS_PORT = 9962
 MIN_METRICS_BYTES = 100
 
 
-def scrape_cilium_metrics(k8s, node_name, cni_daemonset_label, namespace="kube-system",
-                          metrics_port=DEFAULT_METRICS_PORT):
-    """Fetch and parse the Cilium agent's metrics on `node_name`; None if scraping fails.
+def scrape_cilium_metrics(k8s, agent_pod, namespace="kube-system", metrics_port=DEFAULT_METRICS_PORT):
+    """Fetch and parse the metrics of the Cilium agent pod `agent_pod`; None if scraping fails.
 
     Tries the API server pod proxy first (no tools needed in the image), then
     falls back to exec with wget/curl.
     """
-    pods = k8s.get_pods_by_namespace(
-        namespace=namespace,
-        label_selector=cni_daemonset_label,
-        field_selector=f"spec.nodeName={node_name}",
-    )
-    if not pods:
-        logger.warning("Deep Cilium: no agent pod on node '%s'", node_name)
-        return None
-
-    agent_pod = pods[0]
     agent_pod_name = agent_pod.metadata.name
 
     container_name = "cilium-agent"
@@ -116,6 +105,14 @@ def detect_cilium_metrics_port(k8s, agent_pod, pod_name, container_name, namespa
     return default_port
 
 
+def metric_labels(line):
+    """Labels of one Prometheus text-format sample line, e.g. 'name{a="1",b="2"} 3' -> {"a": "1", "b": "2"}."""
+    start, end = line.find("{"), line.rfind("}")
+    if start == -1 or end < start:
+        return {}
+    return dict(re.findall(r'(\w+)="((?:[^"\\]|\\.)*)"', line[start + 1:end]))
+
+
 def parse_cilium_metrics(metrics_text):
     """Extract bootstrap phases, mean endpoint regeneration per scope, and agent metadata."""
     result = {
@@ -153,12 +150,9 @@ def parse_cilium_metrics(metrics_text):
                 result["endpoint_regen"].setdefault(scope, {})["count"] = float(line.split("} ")[1])
             except (IndexError, ValueError):
                 continue
-        elif line.startswith("cilium_version_info{"):
-            try:
-                if 'version="' in line:
-                    result["metadata"]["cilium_version"] = line.split('version="')[1].split('"')[0]
-            except (IndexError, ValueError):
-                pass
+        elif line.startswith("cilium_version{"):
+            # The agent's build: cilium_version{arch="amd64",revision="...",version="1.19.6"} 1
+            result["metadata"]["cilium_version"] = metric_labels(line).get("version")
         elif line.startswith("cilium_identity_count "):
             try:
                 result["metadata"]["cilium_identity_count"] = int(float(line.split(" ")[1]))

@@ -27,17 +27,23 @@ def events_of(event_dicts):
     return [to_model(event, "CoreV1Event") for event in event_dicts]
 
 
+def cilium_pod_timing(k8s):
+    return collectors.daemonset_pod_timing(
+        k8s, collectors.find_daemonset_pod(k8s, scenarios.NODE, scenarios.CILIUM_LABEL))
+
+
 class CniPodTimestampsTest(unittest.TestCase):
     def test_matches_v1(self):
-        for name, case in scenarios.CNI_POD_SCENARIOS.items():
-            with self.subTest(scenario=name):
-                entry = collectors.collect_cni_pod_timestamps(cni_client(case), scenarios.NODE, scenarios.CILIUM_LABEL)
-                v1_keys_only = {key: value for key, value in entry.items() if key not in NEW_CNI_POD_KEYS}
-                self.assertEqual(v1_keys_only, without_operations(V1_GOLDEN["cni_pod"][name]))
+        entry = cilium_pod_timing(cni_client(scenarios.CNI_POD_SCENARIOS["cilium_agent"]))
+        v1_keys_only = {key: value for key, value in entry.items() if key not in NEW_CNI_POD_KEYS}
+        self.assertEqual(v1_keys_only, without_operations(V1_GOLDEN["cni_pod"]["cilium_agent"]))
+
+    def test_no_pod_on_node(self):
+        k8s = cni_client(scenarios.CNI_POD_SCENARIOS["no_pod_on_node"])
+        self.assertIsNone(collectors.find_daemonset_pod(k8s, scenarios.NODE, scenarios.CILIUM_LABEL))
 
     def test_scheduled_event_time(self):
-        entry = collectors.collect_cni_pod_timestamps(
-            cni_client(scenarios.CNI_POD_SCENARIOS["cilium_agent"]), scenarios.NODE, scenarios.CILIUM_LABEL)
+        entry = cilium_pod_timing(cni_client(scenarios.CNI_POD_SCENARIOS["cilium_agent"]))
         self.assertEqual(entry["cni_pod_scheduled_event_time"], "2026-10-02T10:01:41.250000Z")
         self.assertEqual(entry["cni_pod_scheduled"], "2026-10-02T10:01:41Z")
 
@@ -50,7 +56,7 @@ class CniPodTimestampsTest(unittest.TestCase):
         case = scenarios.CNI_POD_SCENARIOS["cilium_agent"]
         k8s = cni_client(case)
         with mock.patch.object(k8s.api, "list_namespaced_event", wraps=k8s.api.list_namespaced_event) as list_events:
-            collectors.collect_cni_pod_timestamps(k8s, scenarios.NODE, scenarios.CILIUM_LABEL)
+            cilium_pod_timing(k8s)
         self.assertEqual(list_events.call_count, 1)
 
     def test_log_lines_without_a_timestamp_prefix_are_skipped(self):
@@ -64,8 +70,7 @@ class SupplementaryCniPodsTest(unittest.TestCase):
         k8s = cni_client(scenarios.CNI_POD_SCENARIOS["cilium_agent"])
         result = collectors.collect_supplementary_cni_pods(
             k8s, scenarios.NODE, {"agent": scenarios.CILIUM_LABEL, "azure_cns": "k8s-app=azure-cns"})
-        self.assertEqual(result["agent"],
-                         collectors.collect_cni_pod_timestamps(k8s, scenarios.NODE, scenarios.CILIUM_LABEL))
+        self.assertEqual(result["agent"], cilium_pod_timing(k8s))
         self.assertIsNone(result["azure_cns"])
 
 

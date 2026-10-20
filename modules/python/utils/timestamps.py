@@ -37,10 +37,17 @@ def parse_log_timestamp(value):
     return datetime.fromisoformat(f"{parts[0]}+00:00")
 
 
-def condition_transition_time(conditions, condition_type):
+def condition_last_transition_time(conditions, condition_type, observed_status="True"):
+    """When the condition last changed to `observed_status`, or None if it currently has another status.
+
+    A condition's lastTransitionTime is when it entered its current status, whatever that is,
+    so it's only the time of the expected transition if the status matches.
+    """
     if not conditions:
         return None
     for condition in conditions:
         if condition.type == condition_type:
+            if condition.status != observed_status:
+                return None
             return format_timestamp(condition.last_transition_time)
     return None

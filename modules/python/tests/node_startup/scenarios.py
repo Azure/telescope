@@ -99,7 +99,7 @@ CILIUM_METRICS_TEXT = "\n".join([
     'cilium_endpoint_regeneration_time_stats_seconds_sum{scope="policyCalculation"} 0',
     'cilium_endpoint_regeneration_time_stats_seconds_count{scope="policyCalculation"} 0',
     'cilium_endpoint_regeneration_time_stats_seconds_sum{scope="sumOnly"} 2',
-    # v1 takes the first label ending in version="...", here go_version; kept for parity.
+    # Not a metric Cilium exposes (it's cilium_version{version=...}); v1 read it and took go_version.
     'cilium_version_info{go_version="go1.23",revision="abc",version="1.19.3"} 1',
     'cilium_identity{type="cluster_local"} 7',
     'cilium_identity{type="node_local"} 4',

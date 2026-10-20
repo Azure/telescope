@@ -11,7 +11,7 @@ v2 additions:
 """
 from utils.logger_config import get_logger
 from utils.timestamps import (
-    condition_transition_time,
+    condition_last_transition_time,
     format_timestamp,
     format_timestamp_microseconds,
     parse_log_timestamp,
@@ -48,7 +48,8 @@ def list_pod_events(api, pod_name, namespace):
         return []
 
 
-def find_daemonset_pod(k8s, node_name, label_selector, namespace):
+def find_daemonset_pod(k8s, node_name, label_selector, namespace="kube-system"):
+    """The pod of a DaemonSet on `node_name`, or None if it has none there."""
     pods = k8s.get_pods_by_namespace(
         namespace=namespace,
         label_selector=label_selector,
@@ -57,26 +58,8 @@ def find_daemonset_pod(k8s, node_name, label_selector, namespace):
     return pods[0] if pods else None
 
 
-def collect_cni_pod_timestamps(k8s, node_name, cni_daemonset_label, namespace="kube-system"):
-    """Timing of the CNI daemonset pod on `node_name`; placeholder values if there's none (as v1)."""
-    pod = find_daemonset_pod(k8s, node_name, cni_daemonset_label, namespace)
-    if pod is None:
-        logger.warning("No CNI pod found on node '%s' with label '%s'", node_name, cni_daemonset_label)
-        return {
-            "cni_container_started": None,
-            "cni_pod_ready": None,
-            "cni_pod_scheduled": None,
-            "init_containers": [],
-            "containers": [],
-            "image_pull_events": [],
-            "cni_pod_scheduled_event_time": None,
-        }
-    entry = daemonset_pod_timing(k8s, pod, namespace)
-    logger.info("CNI pod timestamps for node '%s': %s", node_name, entry)
-    return entry
-
-
-def daemonset_pod_timing(k8s, pod, namespace):
+def daemonset_pod_timing(k8s, pod, namespace="kube-system"):
+    """Timing of one DaemonSet pod (the CNI agent, or a supplementary pod such as azure-cns)."""
     container_started = None
     if pod.status.container_statuses:
         for status in pod.status.container_statuses:
@@ -87,8 +70,8 @@ def daemonset_pod_timing(k8s, pod, namespace):
     events = list_pod_events(k8s.api, pod.metadata.name, namespace)
     return {
         "cni_container_started": container_started,
-        "cni_pod_ready": condition_transition_time(pod.status.conditions, "Ready"),
-        "cni_pod_scheduled": condition_transition_time(pod.status.conditions, "PodScheduled"),
+        "cni_pod_ready": condition_last_transition_time(pod.status.conditions, "Ready"),
+        "cni_pod_scheduled": condition_last_transition_time(pod.status.conditions, "PodScheduled"),
         "init_containers": collect_init_container_timestamps(pod),
         "containers": collect_container_timestamps(pod),
         "image_pull_events": image_pull_events(events, pod.metadata.name),

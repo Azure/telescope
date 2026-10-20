@@ -7,7 +7,10 @@ cilium_init_duration_seconds (= cni_init_seconds),
 cni_induced_delay_seconds (= cilium_scheduling_block_seconds),
 pod_init_seconds (= sandbox_setup_seconds),
 node_to_pod_seconds (= time_to_runnable_seconds).
-`compute_sub_second_latencies` is new in v2 and has no v1 counterpart.
+`cilium_version` prefers the agent image tag over the version in the agent's
+metrics (v1 preferred the metrics, but its parser never matched a real agent,
+so v1 results always held the image tag). `compute_sub_second_latencies` is new
+in v2 and has no v1 counterpart.
 
 Watch-observed timestamps have microseconds; the v1 latencies truncate every
 timestamp to whole seconds first, exactly as v1 stored them, so their values
@@ -138,6 +141,9 @@ def compute_autoscale_latencies(timestamps):
     latencies["t4b_from_t1_seconds"] = diff_seconds("cni_taint_cleared", "node_registered")
     latencies["t5_from_t1_seconds"] = latencies["time_to_runnable_seconds"]
 
+    # The agent image tag (e.g. :v1.19.3-260520) comes first: it carries the AKS build suffix,
+    # which the version the agent reports in its metrics may not.
+    image_version = cilium_version_from_image(timestamps.get("cni_containers", []))
     deep = timestamps.get("deep_cilium_metrics")
     if deep and isinstance(deep, dict):
         for scope, value in deep.get("bootstrap", {}).items():
@@ -147,16 +153,19 @@ def compute_autoscale_latencies(timestamps):
         metadata = deep.get("metadata", {})
         latencies["cilium_identity_count"] = metadata.get("cilium_identity_count")
         latencies["cilium_bpf_map_pressure"] = metadata.get("cilium_bpf_map_pressure")
-        latencies["cilium_version"] = metadata.get("cilium_version")
-
-    # Fallback: take the Cilium version from the agent image tag (e.g. :v1.19.3-260520).
-    if not latencies.get("cilium_version"):
-        for container in timestamps.get("cni_containers", []):
-            image = container.get("image", "")
-            if "cilium" in image.lower():
-                match = re.search(r':v?(\d+\.\d+\.\d+(?:-\d+)?)', image)
-                if match:
-                    latencies["cilium_version"] = match.group(1)
-                    break
+        latencies["cilium_version"] = image_version or metadata.get("cilium_version")
+    elif image_version:
+        latencies["cilium_version"] = image_version
 
     return latencies
+
+
+def cilium_version_from_image(containers):
+    """Version in the Cilium agent's image tag (':v1.19.3-260520' -> '1.19.3-260520'), or None."""
+    for container in containers:
+        image = container.get("image", "")
+        if "cilium" in image.lower():
+            match = re.search(r':v?(\d+\.\d+\.\d+(?:-\d+)?)', image)
+            if match:
+                return match.group(1)
+    return None

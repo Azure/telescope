@@ -7,6 +7,7 @@ from node_startup import probe
 from node_startup.iteration import WATCH_TIMEOUT_MARGIN_SECONDS, measure_iteration
 from tests.node_startup import scenarios
 from tests.node_startup.fake_kubernetes import FakeCoreV1Api, FakeWatch, kubernetes_client, to_model
+from tests.node_startup.golden import V1_GOLDEN
 
 # Keys of v1 `collect_autoscale_latency` output; main.py adds v1's iteration/total_iterations.
 V1_MEASUREMENT_KEYS = {
@@ -45,8 +46,8 @@ def probe_pod(phase="Running"):
     }
 
 
-def fake_cluster(phase="Running"):
-    case = scenarios.CNI_POD_SCENARIOS["cilium_agent"]
+def fake_cluster(phase="Running", cni_pod_scenario="cilium_agent"):
+    case = scenarios.CNI_POD_SCENARIOS[cni_pod_scenario]
     probe_events = [
         scenarios.event(scenarios.PROBE_POD, scenarios.PROBE_NAMESPACE, "TriggeredScaleUp",
                         first_timestamp=scenarios.at(5)),
@@ -140,6 +141,25 @@ class MeasureIterationTest(unittest.TestCase):
         affinity = created_pod.spec.affinity.node_affinity.required_during_scheduling_ignored_during_execution
         self.assertEqual(affinity.node_selector_terms[0].match_expressions[0].values, [scenarios.EXISTING_NODE])
         self.assertEqual(api.deleted_pods, [(scenarios.PROBE_NAMESPACE, scenarios.PROBE_POD)])
+
+    def test_cni_pod_is_looked_up_once(self):
+        k8s, _ = fake_cluster()
+        with mock.patch.object(KubernetesClient, "get_pods_by_namespace", autospec=True,
+                               side_effect=KubernetesClient.get_pods_by_namespace) as get_pods:
+            run_iteration(k8s)
+        cilium_lookups = [call for call in get_pods.call_args_list
+                          if call.kwargs.get("label_selector") == scenarios.CILIUM_LABEL]
+        self.assertEqual(len(cilium_lookups), 1)
+
+    def test_missing_cni_pod_gives_the_v1_placeholder_values(self):
+        measurement = run_iteration(fake_cluster(cni_pod_scenario="no_pod_on_node")[0])["measurement"]
+        placeholder = V1_GOLDEN["cni_pod"]["no_pod_on_node"]
+        for key in ("cni_container_started", "cni_pod_ready", "cni_pod_scheduled"):
+            self.assertEqual(measurement[key], placeholder[key])
+        self.assertEqual(measurement["cni_init_containers"], placeholder["init_containers"])
+        self.assertEqual(measurement["cni_containers"], placeholder["containers"])
+        self.assertEqual(measurement["cni_image_pull_events"], placeholder["image_pull_events"])
+        self.assertIsNone(measurement["deep_cilium_metrics"])
 
     def test_only_the_probe_pods_node_is_measured(self):
         single = run_iteration(fake_cluster()[0])["measurement"]
