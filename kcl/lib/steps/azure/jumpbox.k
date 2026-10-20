@@ -150,7 +150,6 @@ RunClusterLoader2OnJumpbox = lambda \
     subscription: str, \
     resourceGroup: str, \
     vmName: str, \
-    totalNodes: str, \
     manifest: str, \
     pollIntervalSeconds: int = 300 \
     -> steps.Step {
@@ -190,7 +189,7 @@ set -eu
 export KUBECONFIG=/var/tmp/telescope-kubeconfig
 test -s "$KUBECONFIG"
 kubectl create namespace "clusterloader2" --dry-run=client -o yaml | kubectl apply -f -
-sed 's/^    NODES: .*/    NODES: ${totalNodes}/' <<'MANIFEST' | kubectl apply -f -
+kubectl apply -f - <<'MANIFEST'
 REMOTE_SCRIPT
 cat "$manifest_path" >> "$launch_script"
 cat >> "$launch_script" <<'REMOTE_SCRIPT'
