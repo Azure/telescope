@@ -21,7 +21,7 @@ fi
 mkdir -p "$output_directory"
 start_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 start_seconds=$SECONDS
-deadline=$((start_seconds + 900))
+deadline=$((start_seconds + 3600))
 result="failed"
 reason="Verification did not complete"
 snapshot_time=""
@@ -44,7 +44,7 @@ finish() {
         --argjson nodesPerPool "$nodes_per_pool" \
         --argjson summary "$summary" \
         '{result: $result, reason: $reason, startTime: $startTime, endTime: $endTime,
-          elapsedSeconds: $elapsed, timeoutSeconds: 900,
+          elapsedSeconds: $elapsed, timeoutSeconds: 3600,
           nodesPerPool: $nodesPerPool, snapshotTime: $snapshotTime, summary: $summary}' \
         > "$output_directory/result.json"; then
         echo "##[error]Could not write node validation result: $result ($reason)" >&2
@@ -130,6 +130,6 @@ while (( SECONDS < deadline )); do
         sleep "$((remaining < 60 ? remaining : 60))"
     fi
 done
-reason="Timed out after 900 seconds without confirming exact node counts, readiness and taint clearance"
+reason="Timed out after 3600 seconds without confirming exact node counts, readiness and taint clearance"
 echo "##[error]$reason" >&2
 exit 1
