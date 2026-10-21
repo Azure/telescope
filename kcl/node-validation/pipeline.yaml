@@ -17,11 +17,13 @@ stages:
         mkdir -p "$(Agent.TempDirectory)/node-validation-$(System.JobId)"
         jq -n \
           --arg cluster "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobAttempt)" \
+          --arg nodeResourceGroup "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobAttempt)-nodes" \
           --arg subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --arg location "westus2" \
           --arg buildId "$(Build.BuildId)" \
           --argjson nodesPerPool 250 \
-          '{cluster: $cluster, resourceGroup: $cluster, subscription: $subscription,
+          '{cluster: $cluster, resourceGroup: $cluster, nodeResourceGroup: $nodeResourceGroup,
+            subscription: $subscription,
             location: $location, buildId: $buildId, nodesPerPool: $nodesPerPool,
             systemNodes: 2, sku: "Standard_D2s_v3", kubernetesVersion: "1.36.4",
             timeoutSeconds: 3600}' | tee "$(Agent.TempDirectory)/node-validation-$(System.JobId)/configuration.json"
@@ -60,6 +62,7 @@ stages:
           az aks create \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --resource-group "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobAttempt)" \
+            --node-resource-group "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobAttempt)-nodes" \
             --name "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobAttempt)" \
             --location "westus2" \
             --kubernetes-version "1.36.4" \
@@ -260,11 +263,13 @@ stages:
         mkdir -p "$(Agent.TempDirectory)/node-validation-$(System.JobId)"
         jq -n \
           --arg cluster "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobAttempt)" \
+          --arg nodeResourceGroup "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobAttempt)-nodes" \
           --arg subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --arg location "westus2" \
           --arg buildId "$(Build.BuildId)" \
           --argjson nodesPerPool 500 \
-          '{cluster: $cluster, resourceGroup: $cluster, subscription: $subscription,
+          '{cluster: $cluster, resourceGroup: $cluster, nodeResourceGroup: $nodeResourceGroup,
+            subscription: $subscription,
             location: $location, buildId: $buildId, nodesPerPool: $nodesPerPool,
             systemNodes: 2, sku: "Standard_D2s_v3", kubernetesVersion: "1.36.4",
             timeoutSeconds: 3600}' | tee "$(Agent.TempDirectory)/node-validation-$(System.JobId)/configuration.json"
@@ -303,6 +308,7 @@ stages:
           az aks create \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --resource-group "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobAttempt)" \
+            --node-resource-group "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobAttempt)-nodes" \
             --name "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobAttempt)" \
             --location "westus2" \
             --kubernetes-version "1.36.4" \
@@ -503,11 +509,13 @@ stages:
         mkdir -p "$(Agent.TempDirectory)/node-validation-$(System.JobId)"
         jq -n \
           --arg cluster "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobAttempt)" \
+          --arg nodeResourceGroup "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobAttempt)-nodes" \
           --arg subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --arg location "eastasia" \
           --arg buildId "$(Build.BuildId)" \
           --argjson nodesPerPool 500 \
-          '{cluster: $cluster, resourceGroup: $cluster, subscription: $subscription,
+          '{cluster: $cluster, resourceGroup: $cluster, nodeResourceGroup: $nodeResourceGroup,
+            subscription: $subscription,
             location: $location, buildId: $buildId, nodesPerPool: $nodesPerPool,
             systemNodes: 2, sku: "Standard_D2s_v3", kubernetesVersion: "1.36.4",
             timeoutSeconds: 3600}' | tee "$(Agent.TempDirectory)/node-validation-$(System.JobId)/configuration.json"
@@ -546,6 +554,7 @@ stages:
           az aks create \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --resource-group "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobAttempt)" \
+            --node-resource-group "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobAttempt)-nodes" \
             --name "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobAttempt)" \
             --location "eastasia" \
             --kubernetes-version "1.36.4" \
@@ -747,11 +756,13 @@ stages:
         mkdir -p "$(Agent.TempDirectory)/node-validation-$(System.JobId)"
         jq -n \
           --arg cluster "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobAttempt)" \
+          --arg nodeResourceGroup "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobAttempt)-nodes" \
           --arg subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --arg location "westus2" \
           --arg buildId "$(Build.BuildId)" \
           --argjson nodesPerPool 1000 \
-          '{cluster: $cluster, resourceGroup: $cluster, subscription: $subscription,
+          '{cluster: $cluster, resourceGroup: $cluster, nodeResourceGroup: $nodeResourceGroup,
+            subscription: $subscription,
             location: $location, buildId: $buildId, nodesPerPool: $nodesPerPool,
             systemNodes: 2, sku: "Standard_D2s_v3", kubernetesVersion: "1.36.4",
             timeoutSeconds: 3600}' | tee "$(Agent.TempDirectory)/node-validation-$(System.JobId)/configuration.json"
@@ -790,6 +801,7 @@ stages:
           az aks create \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --resource-group "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobAttempt)" \
+            --node-resource-group "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobAttempt)-nodes" \
             --name "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobAttempt)" \
             --location "westus2" \
             --kubernetes-version "1.36.4" \

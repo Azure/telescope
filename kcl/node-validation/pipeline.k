@@ -6,6 +6,7 @@ import lib.steps.azure
 
 NODE_SKU = "Standard_D2s_v3"
 CLUSTER = "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobAttempt)"
+NODE_RESOURCE_GROUP = "${CLUSTER}-nodes"
 KUBECONFIG = "$(Agent.TempDirectory)/$(System.JobId)-kubeconfig"
 RESULTS = "$(Agent.TempDirectory)/node-validation-$(System.JobId)"
 
@@ -34,11 +35,13 @@ set -euo pipefail
 mkdir -p "${RESULTS}"
 jq -n \\
   --arg cluster "${CLUSTER}" \\
+  --arg nodeResourceGroup "${NODE_RESOURCE_GROUP}" \\
   --arg subscription "${const.DEFAULT_SUBSCRIPTION_ID}" \\
   --arg location "${config.region}" \\
   --arg buildId "$(Build.BuildId)" \\
   --argjson nodesPerPool ${config.nodesPerPool} \\
-  '{cluster: $cluster, resourceGroup: $cluster, subscription: $subscription,
+  '{cluster: $cluster, resourceGroup: $cluster, nodeResourceGroup: $nodeResourceGroup,
+    subscription: $subscription,
     location: $location, buildId: $buildId, nodesPerPool: $nodesPerPool,
     systemNodes: 2, sku: "${config.nodeSku}", kubernetesVersion: "1.36.4",
     timeoutSeconds: 3600}' | tee "${RESULTS}/configuration.json"
@@ -50,6 +53,7 @@ jq -n \\
 az aks create \\
   --subscription "${const.DEFAULT_SUBSCRIPTION_ID}" \\
   --resource-group "${CLUSTER}" \\
+  --node-resource-group "${NODE_RESOURCE_GROUP}" \\
   --name "${CLUSTER}" \\
   --location "${config.region}" \\
   --kubernetes-version "1.36.4" \\
