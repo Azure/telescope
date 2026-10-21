@@ -45,7 +45,7 @@ def stage_targets(node_count, disks_per_node):
     replicas, previous_nodes = 1, 1
     capacity = node_count * disks_per_node
     while replicas < capacity:
-        replicas = min(capacity, replicas + random.randint(60, 100))
+        replicas = min(capacity, replicas + 1)
         expected_nodes = (replicas + disks_per_node - 1) // disks_per_node
         yield expected_nodes, replicas, expected_nodes > previous_nodes
         previous_nodes = expected_nodes
