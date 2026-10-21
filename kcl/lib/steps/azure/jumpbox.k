@@ -1,7 +1,8 @@
 import azure_pipelines.ap.steps
 
+# Match RunClusterLoader2's cutoff. With the default 30-second poll interval, this tolerates
+# about 10 minutes of transient API-server failures without allowing an indefinite wait.
 MAX_CONSECUTIVE_APISERVER_ERRORS = 20
-MAX_RUN_COMMAND_FILE_SIZE_BYTES = 45000
 
 # Default cloud-init for an AKS-friendly jumpbox: installs Azure CLI, kubectl, and the Go toolchain.
 DEFAULT_JUMPBOX_CLOUD_INIT = """#cloud-config
@@ -96,14 +97,9 @@ ${roleAssignments}"""
     AzCli(serviceConnection, "Create jumpbox ${name}", script)
 }
 
-# Generates the Bash function reused by UploadTextFileToJumpbox, RunScriptOnJumpbox,
+# Bash function reused by UploadTextFileToJumpbox, RunScriptOnJumpbox,
 # and _WaitForClusterLoader2CompletionOnJumpbox.
-_RunScriptOnJumpboxFunction = lambda \
-    subscription: str, \
-    resourceGroup: str, \
-    vmName: str \
-    -> str {
-    """
+_RUN_SCRIPT_ON_JUMPBOX_FUNCTION = """
 run_script_on_jumpbox() {
   local script_file run_command_output run_command_rc
   script_file=$(mktemp)
@@ -112,9 +108,9 @@ run_script_on_jumpbox() {
   printf '\\necho "__JUMPBOX_SCRIPT_SUCCEEDED__"\\n' >> "$script_file"
 
   if run_command_output=$(az vm run-command invoke \\
-    --resource-group "${resourceGroup}" \\
-    --name "${vmName}" \\
-    --subscription "${subscription}" \\
+    --resource-group "$2" \\
+    --name "$3" \\
+    --subscription "$1" \\
     --command-id RunShellScript \\
     --scripts @"$script_file" \\
     --query 'value[0].message' \\
@@ -136,7 +132,6 @@ run_script_on_jumpbox() {
   printf '%s\\n' "$run_command_output" | sed '/__JUMPBOX_SCRIPT_SUCCEEDED__/d'
 }
 """
-}
 
 UploadTextFileToJumpbox = lambda \
     serviceConnection: str, \
@@ -147,16 +142,11 @@ UploadTextFileToJumpbox = lambda \
     remoteFile: str \
     -> steps.Step {
     script = """
-${_RunScriptOnJumpboxFunction(subscription, resourceGroup, vmName)}
+${_RUN_SCRIPT_ON_JUMPBOX_FUNCTION}
 
 local_file="$(Pipeline.Workspace)/s/${localFile}"
 if [ ! -f "$local_file" ]; then
   echo "File not found: $local_file"
-  exit 1
-fi
-file_size=$(wc -c < "$local_file" | tr -d ' ')
-if [ "$file_size" -gt ${MAX_RUN_COMMAND_FILE_SIZE_BYTES} ]; then
-  echo "File is too large for az vm run-command invoke: $file_size bytes."
   exit 1
 fi
 if grep -qx '__TELESCOPE_FILE_CONTENT__' "$local_file"; then
@@ -179,7 +169,10 @@ cat <<'REMOTE_SCRIPT'
 __TELESCOPE_FILE_CONTENT__
 test -s "$remote_file"
 REMOTE_SCRIPT
-  } | run_script_on_jumpbox
+  } | run_script_on_jumpbox \\
+    "${subscription}" \\
+    "${resourceGroup}" \\
+    "${vmName}"
 ); then
   echo "$run_command_output"
   echo "Failed to upload ${localFile} to ${remoteFile} on jumpbox."
@@ -199,9 +192,12 @@ RunScriptOnJumpbox = lambda \
     command: str \
     -> steps.Step {
     script = """
-${_RunScriptOnJumpboxFunction(subscription, resourceGroup, vmName)}
+${_RUN_SCRIPT_ON_JUMPBOX_FUNCTION}
 
-if ! run_command_output=$(run_script_on_jumpbox <<'REMOTE_SCRIPT'
+if ! run_command_output=$(run_script_on_jumpbox \\
+  "${subscription}" \\
+  "${resourceGroup}" \\
+  "${vmName}" <<'REMOTE_SCRIPT'
 ${command}
 REMOTE_SCRIPT
 ); then
@@ -256,14 +252,17 @@ _WaitForClusterLoader2CompletionOnJumpbox = lambda \
     -> steps.Step {
     assert pollIntervalSeconds > 0, "pollIntervalSeconds must be positive"
     script = """
-${_RunScriptOnJumpboxFunction(subscription, resourceGroup, vmName)}
+${_RUN_SCRIPT_ON_JUMPBOX_FUNCTION}
 
 # Mirror the polling behavior of RunClusterLoader2.
 consecutive_status_errors=0
 
 # Run each status query through the shared run_script_on_jumpbox helper.
 while true; do
-  if status_message=$(run_script_on_jumpbox <<'REMOTE_SCRIPT'
+  if status_message=$(run_script_on_jumpbox \\
+    "${subscription}" \\
+    "${resourceGroup}" \\
+    "${vmName}" <<'REMOTE_SCRIPT'
 export KUBECONFIG=/var/tmp/telescope-kubeconfig
 kubectl get pods \\
   --namespace="clusterloader2" \\
