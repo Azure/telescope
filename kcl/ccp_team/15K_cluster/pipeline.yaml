@@ -926,6 +926,73 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
+        run_script_on_jumpbox() {
+          local script_file run_command_output run_command_rc
+          script_file=$(mktemp)
+          printf 'set -eu\n' > "$script_file"
+          cat >> "$script_file"
+          printf '\necho "__JUMPBOX_SCRIPT_SUCCEEDED__"\n' >> "$script_file"
+
+          if run_command_output=$(az vm run-command invoke \
+            --resource-group "$2" \
+            --name "$3" \
+            --subscription "$1" \
+            --command-id RunShellScript \
+            --scripts @"$script_file" \
+            --query 'value[0].message' \
+            --output tsv); then
+            run_command_rc=0
+          else
+            run_command_rc=$?
+          fi
+          rm -f "$script_file"
+
+          if [ "$run_command_rc" -ne 0 ]; then
+            printf '%s\n' "$run_command_output"
+            return "$run_command_rc"
+          fi
+          if ! grep -q '__JUMPBOX_SCRIPT_SUCCEEDED__' <<< "$run_command_output"; then
+            printf '%s\n' "$run_command_output"
+            return 1
+          fi
+          printf '%s\n' "$run_command_output" | sed '/__JUMPBOX_SCRIPT_SUCCEEDED__/d'
+        }
+
+
+        if ! run_command_output=$(run_script_on_jumpbox \
+          "$(subscription_id)" \
+          "$(RUN_ID)" \
+          "$(cluster_name)-jumpbox" <<'REMOTE_SCRIPT'
+        export KUBECONFIG=/var/tmp/telescope-kubeconfig
+        pods=$(kubectl get pods \
+          --namespace="clusterloader2" \
+          --selector job-name=cl2 \
+          --output jsonpath='{.items[*].metadata.name}')
+        test -n "$pods"
+
+        for pod in $pods; do
+          echo "===== Results for pod: $pod ====="
+          kubectl logs \
+            --namespace="clusterloader2" \
+            "$pod" \
+            --container=cl2-results
+        done
+
+        REMOTE_SCRIPT
+        ); then
+          echo "$run_command_output"
+          echo "Failed to run script on jumpbox."
+          exit 1
+        fi
+        echo "$run_command_output"
+    displayName: Print ClusterLoader2 results
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(AZURE_SERVICE_CONNECTION)
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
         az group delete --name "$(RUN_ID)" --subscription "$(subscription_id)" --yes
     condition: succeeded()
     displayName: Delete resource group ($(subscription_id))
