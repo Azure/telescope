@@ -1,5 +1,9 @@
 import azure_pipelines.ap.steps
 
+# Match RunClusterLoader2's cutoff. With the default 30-second poll interval, this tolerates
+# about 10 minutes of transient API-server failures without allowing an indefinite wait.
+MAX_CONSECUTIVE_APISERVER_ERRORS = 20
+
 # Default cloud-init for an AKS-friendly jumpbox: installs Azure CLI, kubectl, and the Go toolchain.
 DEFAULT_JUMPBOX_CLOUD_INIT = """#cloud-config
 package_update: true
@@ -91,4 +95,257 @@ JUMPBOX_PRINCIPAL_ID=$(az vm identity assign \\
   --query systemAssignedIdentity -o tsv)
 ${roleAssignments}"""
     AzCli(serviceConnection, "Create jumpbox ${name}", script)
+}
+
+# Bash function reused by UploadTextFileToJumpbox, RunScriptOnJumpbox,
+# and _WaitForClusterLoader2CompletionOnJumpbox.
+_RUN_SCRIPT_ON_JUMPBOX_FUNCTION = """
+run_script_on_jumpbox() {
+  local script_file run_command_output run_command_rc
+  script_file=$(mktemp)
+  printf 'set -eu\\n' > "$script_file"
+  cat >> "$script_file"
+  printf '\\necho "__JUMPBOX_SCRIPT_SUCCEEDED__"\\n' >> "$script_file"
+
+  if run_command_output=$(az vm run-command invoke \\
+    --resource-group "$2" \\
+    --name "$3" \\
+    --subscription "$1" \\
+    --command-id RunShellScript \\
+    --scripts @"$script_file" \\
+    --query 'value[0].message' \\
+    --output tsv); then
+    run_command_rc=0
+  else
+    run_command_rc=$?
+  fi
+  rm -f "$script_file"
+
+  if [ "$run_command_rc" -ne 0 ]; then
+    printf '%s\\n' "$run_command_output"
+    return "$run_command_rc"
+  fi
+  if ! grep -q '__JUMPBOX_SCRIPT_SUCCEEDED__' <<< "$run_command_output"; then
+    printf '%s\\n' "$run_command_output"
+    return 1
+  fi
+  printf '%s\\n' "$run_command_output" | sed '/__JUMPBOX_SCRIPT_SUCCEEDED__/d'
+}
+"""
+
+UploadTextFileToJumpbox = lambda \
+    serviceConnection: str, \
+    subscription: str, \
+    resourceGroup: str, \
+    vmName: str, \
+    localFile: str, \
+    remoteFile: str \
+    -> steps.Step {
+    script = """
+${_RUN_SCRIPT_ON_JUMPBOX_FUNCTION}
+
+local_file="$(Pipeline.Workspace)/s/${localFile}"
+if [ ! -f "$local_file" ]; then
+  echo "File not found: $local_file"
+  exit 1
+fi
+if grep -qx '__TELESCOPE_FILE_CONTENT__' "$local_file"; then
+  echo "File contains the reserved upload delimiter: __TELESCOPE_FILE_CONTENT__"
+  exit 1
+fi
+
+if ! run_command_output=$(
+  {
+cat <<'REMOTE_SCRIPT'
+remote_file="${remoteFile}"
+mkdir -p "$(dirname "$remote_file")"
+cat > "$remote_file" <<'__TELESCOPE_FILE_CONTENT__'
+REMOTE_SCRIPT
+
+cat "$local_file"
+printf '\n'
+
+cat <<'REMOTE_SCRIPT'
+__TELESCOPE_FILE_CONTENT__
+test -s "$remote_file"
+REMOTE_SCRIPT
+  } | run_script_on_jumpbox \\
+    "${subscription}" \\
+    "${resourceGroup}" \\
+    "${vmName}"
+); then
+  echo "$run_command_output"
+  echo "Failed to upload ${localFile} to ${remoteFile} on jumpbox."
+  exit 1
+fi
+echo "$run_command_output"
+"""
+    AzCli(serviceConnection, "Upload ${localFile} to jumpbox", script)
+}
+
+RunScriptOnJumpbox = lambda \
+    serviceConnection: str, \
+    subscription: str, \
+    resourceGroup: str, \
+    vmName: str, \
+    displayName: str, \
+    command: str \
+    -> steps.Step {
+    script = """
+${_RUN_SCRIPT_ON_JUMPBOX_FUNCTION}
+
+if ! run_command_output=$(run_script_on_jumpbox \\
+  "${subscription}" \\
+  "${resourceGroup}" \\
+  "${vmName}" <<'REMOTE_SCRIPT'
+${command}
+REMOTE_SCRIPT
+); then
+  echo "$run_command_output"
+  echo "Failed to run script on jumpbox."
+  exit 1
+fi
+echo "$run_command_output"
+"""
+    AzCli(serviceConnection, displayName, script)
+}
+
+ApplyManifestOnJumpbox = lambda \
+    serviceConnection: str, \
+    subscription: str, \
+    resourceGroup: str, \
+    vmName: str, \
+    manifest: str \
+    -> [steps.Step] {
+    remoteManifest = "/var/tmp/telescope/$(Build.BuildId)/manifest.yaml"
+    [
+        UploadTextFileToJumpbox(
+            serviceConnection,
+            subscription,
+            resourceGroup,
+            vmName,
+            manifest,
+            remoteManifest
+        ),
+        RunScriptOnJumpbox(
+            serviceConnection,
+            subscription,
+            resourceGroup,
+            vmName,
+            "Apply ${manifest} from jumpbox",
+            """
+export KUBECONFIG=/var/tmp/telescope-kubeconfig
+test -s "$KUBECONFIG"
+trap 'rm -f "${remoteManifest}"' EXIT
+kubectl apply -f "${remoteManifest}"
+"""
+        ),
+    ]
+}
+
+_WaitForClusterLoader2CompletionOnJumpbox = lambda \
+    serviceConnection: str, \
+    subscription: str, \
+    resourceGroup: str, \
+    vmName: str, \
+    pollIntervalSeconds: int = 30 \
+    -> steps.Step {
+    assert pollIntervalSeconds > 0, "pollIntervalSeconds must be positive"
+    script = """
+${_RUN_SCRIPT_ON_JUMPBOX_FUNCTION}
+
+# Mirror the polling behavior of RunClusterLoader2.
+consecutive_status_errors=0
+
+# Run each status query through the shared run_script_on_jumpbox helper.
+while true; do
+  if status_message=$(run_script_on_jumpbox \\
+    "${subscription}" \\
+    "${resourceGroup}" \\
+    "${vmName}" <<'REMOTE_SCRIPT'
+export KUBECONFIG=/var/tmp/telescope-kubeconfig
+kubectl get pods \\
+  --namespace="clusterloader2" \\
+  --output jsonpath='{range .items[*]}{.status.phase}{"\\n"}{end}'
+REMOTE_SCRIPT
+  ); then
+    echo "$status_message"
+    consecutive_status_errors=0
+    phases=$(printf '%s\\n' "$status_message" | tr -d '\\r' | grep -E '^(Pending|Running|Succeeded|Failed|Unknown)$' || true)
+    total=0
+    terminal=0
+
+    if [ -n "$phases" ]; then
+      while IFS= read -r phase; do
+        if [ -z "$phase" ]; then
+          continue
+        fi
+
+        total=$((total + 1))
+        if [ "$phase" = "Succeeded" ] || [ "$phase" = "Failed" ]; then
+          terminal=$((terminal + 1))
+        fi
+      done <<< "$phases"
+    fi
+
+    if [ "$total" -gt 0 ] && [ "$terminal" -eq "$total" ]; then
+      echo "All cl2 pods reached terminal state (Succeeded or Failed)"
+      break
+    fi
+  else
+    echo "$status_message"
+    consecutive_status_errors=$((consecutive_status_errors + 1))
+    if [ "$consecutive_status_errors" -ge "${MAX_CONSECUTIVE_APISERVER_ERRORS}" ]; then
+      echo "Unable to read ClusterLoader2 status after $consecutive_status_errors/${MAX_CONSECUTIVE_APISERVER_ERRORS} consecutive attempts."
+      exit 1
+    fi
+  fi
+
+  sleep ${pollIntervalSeconds}
+done
+"""
+    AzCli(serviceConnection, "Wait for ClusterLoader2 completion from jumpbox", script)
+}
+
+RunClusterLoader2OnJumpbox = lambda \
+    serviceConnection: str, \
+    subscription: str, \
+    resourceGroup: str, \
+    vmName: str, \
+    cl2ConfigFile: str, \
+    pollIntervalSeconds: int = 30 \
+    -> [steps.Step] {
+    remoteCl2ConfigFile = "/var/tmp/telescope/$(Build.BuildId)/cl2.yaml"
+    [
+        UploadTextFileToJumpbox(
+            serviceConnection,
+            subscription,
+            resourceGroup,
+            vmName,
+            cl2ConfigFile,
+            remoteCl2ConfigFile
+        ),
+        RunScriptOnJumpbox(
+            serviceConnection,
+            subscription,
+            resourceGroup,
+            vmName,
+            "Start ClusterLoader2 from jumpbox",
+            """
+export KUBECONFIG=/var/tmp/telescope-kubeconfig
+test -s "$KUBECONFIG"
+test -s "${remoteCl2ConfigFile}"
+trap 'rm -f "${remoteCl2ConfigFile}"' EXIT
+kubectl create namespace "clusterloader2" --dry-run=client -o yaml | kubectl apply -f -
+kubectl apply -f "${remoteCl2ConfigFile}"
+"""
+        ),
+        _WaitForClusterLoader2CompletionOnJumpbox(
+            serviceConnection,
+            subscription,
+            resourceGroup,
+            vmName,
+            pollIntervalSeconds
+        ),
+    ]
 }
