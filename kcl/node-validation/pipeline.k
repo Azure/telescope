@@ -4,15 +4,20 @@ import azure_pipelines.ap.steps
 import lib.const
 import lib.steps.azure
 
-LOCATION = "westus2"
+NODE_SKU = "Standard_D2s_v3"
 CLUSTER = "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobAttempt)"
 KUBECONFIG = "$(Agent.TempDirectory)/$(System.JobId)-kubeconfig"
 RESULTS = "$(Agent.TempDirectory)/node-validation-$(System.JobId)"
 
-benchmarkStage = lambda nodesPerPool: int, predecessor: [str] -> ap.Stage {
+schema JobConfig:
+    nodesPerPool: int
+    region: str
+    nodeSku: str
+
+benchmarkStage = lambda config: JobConfig, predecessor: [str] -> ap.Stage {
     ap.Stage {
-        stage = "nodes${nodesPerPool}"
-        displayName = "Two ${nodesPerPool}-node pools"
+        stage = "nodes${config.nodesPerPool}_${config.region}"
+        displayName = "Two ${config.nodesPerPool}-node pools in ${config.region}"
         dependsOn = predecessor
         condition = "succeeded()"
         jobs = [
@@ -30,28 +35,28 @@ mkdir -p "${RESULTS}"
 jq -n \\
   --arg cluster "${CLUSTER}" \\
   --arg subscription "${const.DEFAULT_SUBSCRIPTION_ID}" \\
-  --arg location "${LOCATION}" \\
+  --arg location "${config.region}" \\
   --arg buildId "$(Build.BuildId)" \\
-  --argjson nodesPerPool ${nodesPerPool} \\
+  --argjson nodesPerPool ${config.nodesPerPool} \\
   '{cluster: $cluster, resourceGroup: $cluster, subscription: $subscription,
     location: $location, buildId: $buildId, nodesPerPool: $nodesPerPool,
-    systemNodes: 2, sku: "Standard_D2_v4", kubernetesVersion: "1.36.4",
+    systemNodes: 2, sku: "${config.nodeSku}", kubernetesVersion: "1.36.4",
     timeoutSeconds: 3600}' | tee "${RESULTS}/configuration.json"
 """
                     }
-                    azure.Login(const.DEFAULT_SERVICE_CONNECTION, const.DEFAULT_SUBSCRIPTION_ID, LOCATION)
-                    azure.CreateResourceGroup(const.DEFAULT_SERVICE_CONNECTION, CLUSTER, LOCATION, const.DEFAULT_SUBSCRIPTION_ID)
+                    azure.Login(const.DEFAULT_SERVICE_CONNECTION, const.DEFAULT_SUBSCRIPTION_ID, config.region)
+                    azure.CreateResourceGroup(const.DEFAULT_SERVICE_CONNECTION, CLUSTER, config.region, const.DEFAULT_SUBSCRIPTION_ID)
                     azure.AzCli(const.DEFAULT_SERVICE_CONNECTION, "Create Standard-tier cluster", """
 az aks create \\
   --subscription "${const.DEFAULT_SUBSCRIPTION_ID}" \\
   --resource-group "${CLUSTER}" \\
   --name "${CLUSTER}" \\
-  --location "${LOCATION}" \\
+  --location "${config.region}" \\
   --kubernetes-version "1.36.4" \\
   --tier standard \\
   --nodepool-name systempool \\
   --node-count 2 \\
-  --node-vm-size Standard_D2_v4 \\
+  --node-vm-size ${config.nodeSku} \\
   --max-pods 250 \\
   --network-plugin azure \\
   --network-plugin-mode overlay \\
@@ -66,14 +71,14 @@ az aks create \\
 """)
                     azure.CreateNodePool(const.DEFAULT_SERVICE_CONNECTION, CLUSTER, CLUSTER, const.DEFAULT_SUBSCRIPTION_ID, azure.NodePool {
                         name = "workerpool0"
-                        sku = "Standard_D2_v4"
-                        count = nodesPerPool
+                        sku = config.nodeSku
+                        count = config.nodesPerPool
                         maxPods = 250
                     })
                     azure.CreateNodePool(const.DEFAULT_SERVICE_CONNECTION, CLUSTER, CLUSTER, const.DEFAULT_SUBSCRIPTION_ID, azure.NodePool {
                         name = "workerpool1"
-                        sku = "Standard_D2_v4"
-                        count = nodesPerPool
+                        sku = config.nodeSku
+                        count = config.nodesPerPool
                         maxPods = 250
                     })
                     azure.GetCredentials(const.DEFAULT_SERVICE_CONNECTION, CLUSTER, CLUSTER, const.DEFAULT_SUBSCRIPTION_ID, file=KUBECONFIG)
@@ -81,7 +86,7 @@ az aks create \\
                         displayName = "Wait up to 60 minutes for Ready, untainted nodes"
                         bash = """
 bash "$(Build.SourcesDirectory)/kcl/node-validation/wait-for-node-validation.sh" \\
-  "${KUBECONFIG}" ${nodesPerPool} "${RESULTS}"
+  "${KUBECONFIG}" ${config.nodesPerPool} "${RESULTS}"
 """
                     }
                     steps.Bash {
@@ -153,8 +158,37 @@ output = ap.Pipeline {
     trigger = "none"
     pool = const.DEFAULT_POOL
     stages = [
-        benchmarkStage(250, [])
-        benchmarkStage(500, ["nodes250"])
-        benchmarkStage(1000, ["nodes500"])
+        benchmarkStage(
+            JobConfig {
+                nodesPerPool = 250
+                region = "westus2"
+                nodeSku = NODE_SKU
+            }
+            []
+        )
+        benchmarkStage(
+            JobConfig {
+                nodesPerPool = 500
+                region = "westus2"
+                nodeSku = NODE_SKU
+            }
+            ["nodes250_westus2"]
+        )
+        benchmarkStage(
+            JobConfig {
+                nodesPerPool = 500
+                region = "eastasia"
+                nodeSku = NODE_SKU
+            }
+            ["nodes250_westus2"]
+        )
+        benchmarkStage(
+            JobConfig {
+                nodesPerPool = 1000
+                region = "westus2"
+                nodeSku = NODE_SKU
+            }
+            ["nodes500_westus2", "nodes500_eastasia"]
+        )
     ]
 }
