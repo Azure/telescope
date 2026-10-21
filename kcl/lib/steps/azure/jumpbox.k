@@ -328,30 +328,6 @@ REMOTE_SCRIPT
 
   sleep ${pollIntervalSeconds}
 done
-
-results_script="$work_dir/cl2-results.sh"
-cat > "$results_script" <<'REMOTE_SCRIPT'
-set -eu
-export KUBECONFIG=/var/tmp/telescope-kubeconfig
-pods=$(kubectl get pods \\
-  --namespace="clusterloader2" \\
-  --selector job-name=cl2 \\
-  --output jsonpath='{.items[*].metadata.name}')
-test -n "$pods"
-for pod in $pods; do
-  echo "===== Results for pod: $pod ====="
-  kubectl logs --namespace="clusterloader2" "$pod" --container=cl2-results
-done
-echo "__CL2_RESULTS_PRINTED__"
-REMOTE_SCRIPT
-
-echo "Printing ClusterLoader2 results from jumpbox ${vmName}..."
-results_message=$(invoke_jumpbox "$results_script")
-echo "$results_message"
-if ! grep -q '__CL2_RESULTS_PRINTED__' <<< "$results_message"; then
-  echo "Failed to print ClusterLoader2 results from jumpbox."
-  exit 1
-fi
 """
     AzCli(serviceConnection, "Wait for ClusterLoader2 completion from jumpbox", script)
 }
