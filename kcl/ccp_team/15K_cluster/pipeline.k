@@ -297,6 +297,29 @@ fi
                     JUMPBOX_NAME,
                     "kcl/ccp_team/15K_cluster/cl2.yaml"
                 ),
+                azure.RunScriptOnJumpbox(
+                    SERVICE_CONNECTION,
+                    SUBSCRIPTION_ID,
+                    RESOURCE_GROUP,
+                    JUMPBOX_NAME,
+                    "Print ClusterLoader2 results",
+                    """
+export KUBECONFIG=/var/tmp/telescope-kubeconfig
+pods=$(kubectl get pods \\
+  --namespace="clusterloader2" \\
+  --selector job-name=cl2 \\
+  --output jsonpath='{.items[*].metadata.name}')
+test -n "$pods"
+
+for pod in $pods; do
+  echo "===== Results for pod: $pod ====="
+  kubectl logs \\
+    --namespace="clusterloader2" \\
+    "$pod" \\
+    --container=cl2-results
+done
+"""
+                ),
                 azure.DeleteResourceGroup(
                     SERVICE_CONNECTION,
                     RESOURCE_GROUP,
