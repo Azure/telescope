@@ -5,7 +5,7 @@ import lib.const
 import lib.steps.azure
 
 NODE_SKU = "Standard_D2s_v3"
-CLUSTER = "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobAttempt)"
+CLUSTER = "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)"
 NODE_RESOURCE_GROUP = "${CLUSTER}-nodes"
 KUBECONFIG = "$(Agent.TempDirectory)/$(System.JobId)-kubeconfig"
 RESULTS = "$(Agent.TempDirectory)/node-validation-$(System.JobId)"
@@ -15,22 +15,18 @@ schema JobConfig:
     region: str
     nodeSku: str
 
-benchmarkStage = lambda config: JobConfig, predecessor: [str] -> ap.Stage {
-    ap.Stage {
-        stage = "nodes${config.nodesPerPool}_${config.region}"
+benchmarkJob = lambda config: JobConfig, predecessor: [str] -> job.Job {
+    job.Job {
+        job = "nodes${config.nodesPerPool}"
         displayName = "Two ${config.nodesPerPool}-node pools in ${config.region}"
         dependsOn = predecessor
         condition = "succeeded()"
-        jobs = [
-            job.Job {
-                job = "node_validation"
-                displayName = "Provision and validate node initialization"
-                timeoutInMinutes = 240
-                cancelTimeoutInMinutes = 60
-                steps = [
-                    steps.Bash {
-                        displayName = "Record benchmark configuration"
-                        bash = """
+        timeoutInMinutes = 240
+        cancelTimeoutInMinutes = 60
+        steps = [
+            steps.Bash {
+                displayName = "Record benchmark configuration"
+                bash = """
 set -euo pipefail
 mkdir -p "${RESULTS}"
 jq -n \\
@@ -46,10 +42,10 @@ jq -n \\
     systemNodes: 2, sku: "${config.nodeSku}", kubernetesVersion: "1.36.4",
     timeoutSeconds: 3600}' | tee "${RESULTS}/configuration.json"
 """
-                    }
-                    azure.Login(const.DEFAULT_SERVICE_CONNECTION, const.DEFAULT_SUBSCRIPTION_ID, config.region)
-                    azure.CreateResourceGroup(const.DEFAULT_SERVICE_CONNECTION, CLUSTER, config.region, const.DEFAULT_SUBSCRIPTION_ID)
-                    azure.AzCli(const.DEFAULT_SERVICE_CONNECTION, "Create Standard-tier cluster", """
+            }
+            azure.Login(const.DEFAULT_SERVICE_CONNECTION, const.DEFAULT_SUBSCRIPTION_ID, config.region)
+            azure.CreateResourceGroup(const.DEFAULT_SERVICE_CONNECTION, CLUSTER, config.region, const.DEFAULT_SUBSCRIPTION_ID)
+            azure.AzCli(const.DEFAULT_SERVICE_CONNECTION, "Create Standard-tier cluster", """
 az aks create \\
   --subscription "${const.DEFAULT_SUBSCRIPTION_ID}" \\
   --resource-group "${CLUSTER}" \\
@@ -73,30 +69,19 @@ az aks create \\
   --generate-ssh-keys \\
   --yes
 """)
-                    azure.CreateNodePool(const.DEFAULT_SERVICE_CONNECTION, CLUSTER, CLUSTER, const.DEFAULT_SUBSCRIPTION_ID, azure.NodePool {
-                        name = "workerpool0"
-                        sku = config.nodeSku
-                        count = config.nodesPerPool
-                        maxPods = 250
-                    })
-                    azure.CreateNodePool(const.DEFAULT_SERVICE_CONNECTION, CLUSTER, CLUSTER, const.DEFAULT_SUBSCRIPTION_ID, azure.NodePool {
-                        name = "workerpool1"
-                        sku = config.nodeSku
-                        count = config.nodesPerPool
-                        maxPods = 250
-                    })
-                    azure.GetCredentials(const.DEFAULT_SERVICE_CONNECTION, CLUSTER, CLUSTER, const.DEFAULT_SUBSCRIPTION_ID, file=KUBECONFIG)
-                    steps.Bash {
-                        displayName = "Wait up to 60 minutes for Ready, untainted nodes"
-                        bash = """
+            *[azure.CreateNodePool(const.DEFAULT_SERVICE_CONNECTION, CLUSTER, CLUSTER, const.DEFAULT_SUBSCRIPTION_ID, pool | {maxPods = 250}) for pool in azure.PlanNodePools({(config.nodeSku): 2 * config.nodesPerPool}, maxNodesPerPool=config.nodesPerPool)]
+            azure.GetCredentials(const.DEFAULT_SERVICE_CONNECTION, CLUSTER, CLUSTER, const.DEFAULT_SUBSCRIPTION_ID, file=KUBECONFIG)
+            steps.Bash {
+                displayName = "Wait up to 60 minutes for Ready, untainted nodes"
+                bash = """
 bash "$(Build.SourcesDirectory)/kcl/node-validation/wait-for-node-validation.sh" \\
   "${KUBECONFIG}" ${config.nodesPerPool} "${RESULTS}"
 """
-                    }
-                    steps.Bash {
-                        displayName = "Collect bounded cloud-node-manager diagnostics"
-                        condition = "failed()"
-                        bash = """
+            }
+            steps.Bash {
+                displayName = "Collect bounded cloud-node-manager diagnostics"
+                condition = "failed()"
+                bash = """
 set -euo pipefail
 mkdir -p "${RESULTS}"
 if [ ! -f "${KUBECONFIG}" ]; then
@@ -140,19 +125,17 @@ while read -r node; do
   fi
 done < "${RESULTS}/diagnostic-nodes.txt"
 """
-                    }
-                    steps.Task {
-                        task = "PublishPipelineArtifact@1"
-                        displayName = "Publish node validation evidence"
-                        condition = "always()"
-                        inputs = {
-                            targetPath = RESULTS
-                            artifact = "node-validation-$(System.StageName)-$(System.JobAttempt)"
-                        }
-                    }
-                    azure.DeleteResourceGroup(const.DEFAULT_SERVICE_CONNECTION, CLUSTER, const.DEFAULT_SUBSCRIPTION_ID)
-                ]
             }
+            steps.Task {
+                task = "PublishPipelineArtifact@1"
+                displayName = "Publish node validation evidence"
+                condition = "always()"
+                inputs = {
+                    targetPath = RESULTS
+                    artifact = "node-validation-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)"
+                }
+            }
+            azure.DeleteResourceGroup(const.DEFAULT_SERVICE_CONNECTION, CLUSTER, const.DEFAULT_SUBSCRIPTION_ID)
         ]
     }
 }
@@ -162,37 +145,41 @@ output = ap.Pipeline {
     trigger = "none"
     pool = const.DEFAULT_POOL
     stages = [
-        benchmarkStage(
-            JobConfig {
-                nodesPerPool = 250
-                region = "westus2"
-                nodeSku = NODE_SKU
-            }
-            []
-        )
-        benchmarkStage(
-            JobConfig {
-                nodesPerPool = 500
-                region = "westus2"
-                nodeSku = NODE_SKU
-            }
-            ["nodes250_westus2"]
-        )
-        benchmarkStage(
-            JobConfig {
-                nodesPerPool = 500
-                region = "eastasia"
-                nodeSku = NODE_SKU
-            }
-            ["nodes250_westus2"]
-        )
-        benchmarkStage(
-            JobConfig {
-                nodesPerPool = 1000
-                region = "westus2"
-                nodeSku = NODE_SKU
-            }
-            ["nodes500_westus2", "nodes500_eastasia"]
-        )
+        ap.Stage {
+            stage = "eastasia"
+            displayName = "East Asia"
+            dependsOn = []
+            condition = "succeeded()"
+            jobs = [
+                benchmarkJob(JobConfig {
+                    nodesPerPool = 500
+                    region = "eastasia"
+                    nodeSku = NODE_SKU
+                }, [])
+            ]
+        }
+        ap.Stage {
+            stage = "westus2"
+            displayName = "West US 2"
+            dependsOn = []
+            condition = "succeeded()"
+            jobs = [
+                benchmarkJob(JobConfig {
+                    nodesPerPool = 250
+                    region = "westus2"
+                    nodeSku = NODE_SKU
+                }, [])
+                benchmarkJob(JobConfig {
+                    nodesPerPool = 500
+                    region = "westus2"
+                    nodeSku = NODE_SKU
+                }, ["nodes250"])
+                benchmarkJob(JobConfig {
+                    nodesPerPool = 1000
+                    region = "westus2"
+                    nodeSku = NODE_SKU
+                }, ["nodes500"])
+            ]
+        }
     ]
 }
