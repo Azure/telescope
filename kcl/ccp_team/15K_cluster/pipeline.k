@@ -283,14 +283,14 @@ if ! grep -q '__KUBECONFIG_READY__' <<< "$RUN_COMMAND_OUTPUT"; then
 fi
 """
                 ),
-                azure.ApplyManifestOnJumpbox(
+                *azure.ApplyManifestOnJumpbox(
                     SERVICE_CONNECTION,
                     SUBSCRIPTION_ID,
                     RESOURCE_GROUP,
                     JUMPBOX_NAME,
                     "kcl/ccp_team/15K_cluster/disable-thp.yaml"
                 ),
-                azure.RunClusterLoader2OnJumpbox(
+                *azure.RunClusterLoader2OnJumpbox(
                     SERVICE_CONNECTION,
                     SUBSCRIPTION_ID,
                     RESOURCE_GROUP,
