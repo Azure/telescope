@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
 scenario_name  = "csi-autoscale-5k"
-deletion_delay = "10h"
+deletion_delay = "60h"
 owner          = "storage"
 
 aks_config_list = [
@@ -29,7 +29,47 @@ aks_config_list = [
         name                 = "csipool1"
         node_count           = 0
         min_count            = 0
-        max_count            = 10
+        max_count            = 1000
+        auto_scaling_enabled = true
+        vm_size              = "Standard_D2ds_v4"
+        max_pods             = 30
+        node_labels          = { "cas" = "dedicated" }
+      },
+      {
+        name                 = "csipool2"
+        node_count           = 0
+        min_count            = 0
+        max_count            = 1000
+        auto_scaling_enabled = true
+        vm_size              = "Standard_D2ds_v4"
+        max_pods             = 30
+        node_labels          = { "cas" = "dedicated" }
+      },
+      {
+        name                 = "csipool3"
+        node_count           = 0
+        min_count            = 0
+        max_count            = 1000
+        auto_scaling_enabled = true
+        vm_size              = "Standard_D2ds_v4"
+        max_pods             = 30
+        node_labels          = { "cas" = "dedicated" }
+      },
+      {
+        name                 = "csipool4"
+        node_count           = 0
+        min_count            = 0
+        max_count            = 1000
+        auto_scaling_enabled = true
+        vm_size              = "Standard_D2ds_v4"
+        max_pods             = 30
+        node_labels          = { "cas" = "dedicated" }
+      },
+      {
+        name                 = "csipool5"
+        node_count           = 0
+        min_count            = 0
+        max_count            = 1000
         auto_scaling_enabled = true
         vm_size              = "Standard_D2ds_v4"
         max_pods             = 30

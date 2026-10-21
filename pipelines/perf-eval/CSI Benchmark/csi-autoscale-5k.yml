@@ -3,6 +3,14 @@ trigger: none
 pool:
   name: 'AKS-Telescope-Airlock'
 
+schedules:
+  - cron: "30 12 * * 5"
+    displayName: "6:00 PM IST on Fridays"
+    branches:
+      include:
+        - main
+    always: true
+
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: csi-autoscale-5k
@@ -23,15 +31,15 @@ stages:
         image: ghcr.io/azure/clusterloader2:v20250423
       topology: csi-autoscale
       matrix:
-        disk-boundary-10:
-          node_count: 10
-          scale_up_timeout_seconds: 3600
-          scale_down_timeout_seconds: 1800
-          storage_cleanup_timeout: 30
+        disk_limit_autoscale_5000_nodes:
+          node_count: 5000
+          scale_up_timeout_seconds: 10800
+          scale_down_timeout_seconds: 21600
+          storage_cleanup_timeout: 360
           storage_class: managed-csi
           node_label_selector: "cas=dedicated"
           capacity_type: on-demand
       max_parallel: 1
-      timeout_in_minutes: 600
+      timeout_in_minutes: 2880
       credential_type: service_connection
       ssh_key_enabled: false

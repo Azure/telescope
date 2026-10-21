@@ -11,7 +11,7 @@ from clusterloader2.autoscale import disk_autoscale as disk
 
 @pytest.fixture(autouse=True)
 def fixed_batch_size():
-    with patch.object(disk.random, "randint", return_value=5) as batch_size:
+    with patch.object(disk.random, "randint", return_value=60) as batch_size:
         yield batch_size
 
 
@@ -75,7 +75,9 @@ def cluster(disks_per_node=8):
             spec=Obj(volume_name=f"pv-{index}"))
         for index in range(state["replicas"])
     ])
-    kube.api.read_persistent_volume.side_effect = lambda name: volume(int(name.split("-")[1]))
+    kube.api.list_persistent_volume.side_effect = lambda: Obj(
+        items=[volume(index) for index in range(state["replicas"])]
+    )
     kube.storage.list_volume_attachment.side_effect = lambda: Obj(
         items=[attachment(index, disks_per_node) for index in range(state["replicas"])]
     )
@@ -100,33 +102,96 @@ def cluster(disks_per_node=8):
     return kube
 
 
-@pytest.mark.parametrize("batch_size", [5, 30])
-def test_ten_node_stage_targets(batch_size, fixed_batch_size):
+@pytest.mark.parametrize("batch_size", [60, 100])
+@pytest.mark.parametrize("node_count,limit", [(10, 8), (5000, 4)])
+def test_stage_targets(batch_size, node_count, limit, fixed_batch_size):
     fixed_batch_size.return_value = batch_size
-    targets = list(disk.stage_targets(10, 8))
+    capacity = node_count * limit
+    targets = list(disk.stage_targets(node_count, limit))
     previous_replicas, previous_nodes = 1, 1
     for nodes, replicas, overflow in targets:
-        assert replicas == min(80, previous_replicas + batch_size)
-        assert nodes == (replicas + 7) // 8
+        assert replicas == min(capacity, previous_replicas + batch_size)
+        assert nodes == (replicas + limit - 1) // limit
         assert overflow == (nodes > previous_nodes)
         previous_replicas, previous_nodes = replicas, nodes
-    assert targets[-1][:2] == (10, 80)
-    assert all(call.args == (5, 30) for call in fixed_batch_size.call_args_list)
+    assert targets[-1][:2] == (node_count, capacity)
+    assert all(call.args == (60, 100) for call in fixed_batch_size.call_args_list)
 
 
 def test_stage_targets_draws_a_new_random_increment_each_batch(fixed_batch_size):
-    fixed_batch_size.side_effect = [5, 30, 12, 30, 5]
-    assert list(disk.stage_targets(10, 8)) == [
-        (1, 6, False), (5, 36, True), (6, 48, True),
-        (10, 78, True), (10, 80, False),
+    fixed_batch_size.side_effect = [60, 100, 72, 60]
+    assert list(disk.stage_targets(60, 4)) == [
+        (16, 61, True), (41, 161, True), (59, 233, True),
+        (60, 240, True),
     ]
-    assert fixed_batch_size.call_count == 5
+    assert fixed_batch_size.call_count == 4
 
 
-@pytest.mark.parametrize("nodes,limit", [(1, 8), (11, 8), (10, 0)])
+@pytest.mark.parametrize("nodes,limit", [(1, 8), (5001, 8), (10, 0)])
 def test_reject_unsafe_targets(nodes, limit):
     with pytest.raises(ValueError):
         list(disk.stage_targets(nodes, limit))
+
+
+@patch.object(disk, "cleanup", return_value={})
+@pytest.mark.parametrize("node_count,limit", [(20, 4), (2, 8)])
+def test_node_target_execution(_cleanup, tmp_path, node_count, limit):
+    kube = cluster(disks_per_node=limit)
+    path = tmp_path / "report.json"
+    pod_count = node_count * limit
+    report = disk.execute(
+        kube, node_count, "cas=dedicated", "managed-csi", 3600, 30, 1, path,
+    )
+    assert report["result"] == "success"
+    assert report["pod_count"] == pod_count
+    assert report["node_count"] == node_count
+    assert report["stages"][-1]["replicas"] == pod_count
+    assert report["stages"][-1]["node_count"] == report["node_count"]
+    assert sum(report["stages"][-1]["pods_per_node"].values()) == pod_count
+    assert len(report["pod_timings"]) == pod_count
+    assert len(report["node_timings"]) == report["node_count"]
+    assert report["pod_readiness_e2e_seconds"]["sample_count"] == pod_count
+    assert report["pod_readiness_e2e_seconds"]["expected_pod_count"] == pod_count
+    assert report["pod_readiness_e2e_seconds"]["complete"]
+    assert json.loads(path.read_text()) == report
+    assert all(call.kwargs == {"label_selector": "cas=dedicated"}
+               for call in kube.get_nodes.call_args_list)
+    _cleanup.assert_called_once()
+
+
+@pytest.mark.parametrize("node_count", [None, 0, 1, -1, 5001])
+def test_execute_rejects_invalid_node_targets(tmp_path, node_count):
+    kube = cluster()
+    path = tmp_path / "report.json"
+    with pytest.raises(ValueError):
+        disk.execute(kube, node_count, "cas=dedicated", "managed-csi",
+                     30, 30, 1, path)
+    kube.api.create_namespace.assert_not_called()
+    assert json.loads(path.read_text())["result"] == "failure"
+
+
+@patch.object(disk, "execute")
+@patch.object(disk, "KubernetesClient")
+@pytest.mark.parametrize("target,node_count", [
+    ([], 10), (["--node-count", "20"], 20), (["--node-count", "5000"], 5000),
+])
+def test_cli_targets(_client, execute, monkeypatch, target, node_count):
+    monkeypatch.setattr("sys.argv", [
+        "disk_autoscale", "execute", "--report-file", "report.json", *target,
+    ])
+    disk.main()
+    assert execute.call_args.args[1] == node_count
+    assert execute.call_args.kwargs == {}
+
+
+def test_cli_rejects_pod_target(monkeypatch):
+    monkeypatch.setattr("sys.argv", [
+        "disk_autoscale", "execute", "--report-file", "report.json",
+        "--pod-count", "5000",
+    ])
+    with pytest.raises(SystemExit) as error:
+        disk.main()
+    assert error.value.code == 2
 
 
 @pytest.mark.parametrize("drivers", [
@@ -215,13 +280,13 @@ def test_bootstrap_uses_actual_disk_limit_for_later_batches(_cleanup, tmp_path):
     )
     assert report["disks_per_node"] == 4
     assert report["pod_count"] == 40
-    assert [stage["replicas"] for stage in report["stages"][:5]] == [1, 6, 11, 16, 21]
-    assert report["stages"][1]["node_count"] == 2
+    assert [stage["replicas"] for stage in report["stages"]] == [1, 40]
+    assert report["stages"][1]["node_count"] == 10
     assert set(report["stages"][-1]["pods_per_node"].values()) == {4}
 
 
 @patch.object(disk, "cleanup")
-@pytest.mark.parametrize("batch_size", [5, 30])
+@pytest.mark.parametrize("batch_size", [60, 100])
 def test_full_ten_node_execution(cleanup, tmp_path, batch_size, fixed_batch_size):
     fixed_batch_size.return_value = batch_size
     kube = cluster()
@@ -254,6 +319,8 @@ def test_full_ten_node_execution(cleanup, tmp_path, batch_size, fixed_batch_size
     assert manifest["spec"]["template"]["spec"]["nodeSelector"] == {"cas": "dedicated"}
     assert manifest["spec"]["replicas"] == 0
     assert manifest["spec"]["volumeClaimTemplates"][0]["spec"]["storageClassName"] == "managed-csi"
+    assert kube.api.list_persistent_volume.call_count == len(report["stages"])
+    kube.api.read_persistent_volume.assert_not_called()
     cleanup.assert_called_once()
 
 
@@ -292,7 +359,7 @@ def test_preflight_does_not_mutate_cluster(invalid, tmp_path, fixed_batch_size):
     elif invalid == "storage":
         kube.storage.read_storage_class.return_value.reclaim_policy = "Retain"
     elif invalid == "target":
-        target = 5000
+        target = 5001
     else:
         timeout = 0
     path = tmp_path / "report.json"
@@ -421,14 +488,17 @@ def test_disk_verification_rejects_false_success(invalid):
     kube.app.patch_namespaced_stateful_set_scale(disk.WORKLOAD, "test", {"spec": {"replicas": 8}})
     pods = [pod(index) for index in range(8)]
     if invalid == "shared":
-        kube.api.read_persistent_volume.side_effect = lambda _: volume(0)
+        volumes = [volume(index) for index in range(8)]
+        for item in volumes:
+            item.spec.csi.volume_handle = "shared-disk"
+        kube.api.list_persistent_volume.side_effect = lambda: Obj(items=volumes)
     elif invalid == "unattached":
         kube.storage.list_volume_attachment.side_effect = None
         kube.storage.list_volume_attachment.return_value = Obj(items=[])
     elif invalid == "wrong_driver":
         wrong = volume(0)
         wrong.spec.csi.driver = "other"
-        kube.api.read_persistent_volume.side_effect = lambda _: wrong
+        kube.api.list_persistent_volume.side_effect = lambda: Obj(items=[wrong])
     else:
         pods.pop()
     with pytest.raises(ValueError):
@@ -463,6 +533,7 @@ def test_cleanup_node_timeout(tmp_path):
 
 def test_cleanup_storage_timeout_preserves_attachment_check(tmp_path):
     kube = cluster()
+    kube.api.list_persistent_volume.side_effect = None
     kube.api.list_persistent_volume.return_value = Obj(items=[volume(0)])
     kube.api.list_persistent_volume_claim_for_all_namespaces.return_value = Obj(items=[])
     kube.storage.list_volume_attachment.side_effect = None
@@ -603,7 +674,7 @@ def test_timeout_preserves_partial_samples_and_incomplete_run_summary(_cleanup, 
     failed_stage = report["stages"][-1]
     assert failed_stage["result"] == "failure"
     assert failed_stage["pod_readiness_e2e_seconds"]["sample_count"] == 1
-    assert failed_stage["pod_readiness_e2e_seconds"]["expected_pod_count"] == 5
+    assert failed_stage["pod_readiness_e2e_seconds"]["expected_pod_count"] == 60
     assert failed_stage["pod_readiness_e2e_seconds"]["p50"] is None
 
 
@@ -622,7 +693,9 @@ def test_run_percentiles_combine_pods_instead_of_averaging_batch_percentiles(_cl
             f"node-{index}" for index in range(expected_nodes)
         }
 
-    with patch.object(disk, "wait_for_stage", side_effect=wait):
+    with patch.object(disk, "wait_for_stage", side_effect=wait), patch.object(
+        disk, "stage_targets", return_value=[(2, 6, True), (2, 8, False)]
+    ):
         report = disk.execute(
             cluster(4), 2, "cas=dedicated", "managed-csi", 30, 30, 1, tmp_path / "report.json"
         )

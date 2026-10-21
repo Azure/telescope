@@ -23,6 +23,7 @@ logger = get_logger(__name__)
 DRIVER = "disk.csi.azure.com"
 WORKLOAD = "disk-workload"
 LABEL = f"app={WORKLOAD}"
+MAX_WORKLOAD_NODES = 5000
 POD_TIMING_COLUMNS = (
     "pod_name", "pod_uid", "node_name", "requested_at", "pod_created_at",
     "pod_started_at", "ready_transition_at", "ready_observed_at",
@@ -35,13 +36,16 @@ NODE_TIMING_COLUMNS = (
 
 
 def stage_targets(node_count, disks_per_node):
-    """Add 5-30 pods per batch after bootstrap, capped at the target disk capacity."""
-    if not 2 <= node_count <= 10 or disks_per_node < 1:
-        raise ValueError("The boundary test requires 2-10 nodes and a positive disk limit")
+    """Add 60-100 pods per batch, capped at the target node disk capacity."""
+    if not 2 <= node_count <= MAX_WORKLOAD_NODES or disks_per_node < 1:
+        raise ValueError(
+            f"The boundary test requires 2-{MAX_WORKLOAD_NODES} nodes "
+            "and a positive disk limit"
+        )
     replicas, previous_nodes = 1, 1
     capacity = node_count * disks_per_node
     while replicas < capacity:
-        replicas = min(capacity, replicas + random.randint(5, 30))
+        replicas = min(capacity, replicas + random.randint(60, 100))
         expected_nodes = (replicas + disks_per_node - 1) // disks_per_node
         yield expected_nodes, replicas, expected_nodes > previous_nodes
         previous_nodes = expected_nodes
@@ -207,6 +211,10 @@ def verify_disks(kube, namespace, pods, node_names, limit, full):
         and attachment.status and attachment.status.attached
     }
     handles = set()
+    volumes_by_name = {
+        volume.metadata.name: volume
+        for volume in kube.api.list_persistent_volume().items
+    }
     for pod in pods:
         volumes = [
             volume.persistent_volume_claim
@@ -217,7 +225,7 @@ def verify_disks(kube, namespace, pods, node_names, limit, full):
         claim = claims[volumes[0].claim_name]
         if claim.status.phase != "Bound":
             raise ValueError(f"PVC {claim.metadata.name} is not Bound")
-        volume = kube.api.read_persistent_volume(claim.spec.volume_name)
+        volume = volumes_by_name[claim.spec.volume_name]
         if not volume.spec.csi or volume.spec.csi.driver != DRIVER:
             raise ValueError(f"PV {volume.metadata.name} is not an Azure Disk CSI volume")
         if volume.spec.csi.volume_handle in handles:
@@ -387,8 +395,10 @@ def execute(kube, node_count, selector, storage_class, timeout, down_timeout,
     namespace = f"autoscale-disk-{uuid.uuid4().hex[:12]}"
     created = False
     try:
-        if not 2 <= node_count <= 10:
-            raise ValueError("The boundary test requires 2-10 workload nodes")
+        if node_count is None or not 2 <= node_count <= MAX_WORKLOAD_NODES:
+            raise ValueError(
+                f"The boundary test requires 2-{MAX_WORKLOAD_NODES} workload nodes"
+            )
         if min(timeout, down_timeout, storage_timeout) <= 0:
             raise ValueError("All timeouts must be positive")
         if kube.get_nodes(label_selector=selector):
@@ -444,7 +454,10 @@ def execute(kube, node_count, selector, storage_class, timeout, down_timeout,
 
         bootstrap, old_nodes = run_stage(1, 1, True, None, set(), 0)
         limit = bootstrap["disks_per_node"]
-        report.update(disks_per_node=limit, pod_count=node_count * limit)
+        report.update(
+            node_count=node_count, disks_per_node=limit,
+            pod_count=node_count * limit,
+        )
         previous_replicas = 1
         for expected_nodes, replicas, overflow in stage_targets(node_count, limit):
             _, old_nodes = run_stage(

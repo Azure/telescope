@@ -8,13 +8,20 @@ distinct dynamically provisioned Azure Disk, requests 4 GiB, and becomes Ready
 only after reading back its own data from the mounted disk. Small CPU/memory
 requests keep the intended constraint on disk attachments, not CPU packing.
 
-The first qualification is limited to **10 workload nodes**. The existing
-scenario/pipeline names retain `5k`, but the 5,000-node profile is intentionally
-disabled until the small test passes.
+The benchmark and manual qualification pipeline target **exactly 5,000 workload
+nodes**, excluding the five fixed system nodes. At four disks per node this
+requires **20,000 workload pods and disks**. Smaller manual tests can specify
+a lower node-count target.
+
+This configuration requires an approved AKS cluster-size limit exception:
+5,000 workload nodes plus five system nodes total **5,005 nodes**, above the
+documented 5,000-node cluster limit. Confirm that the exception applies to the
+subscription, region, and cluster before running either pipeline.
 
 ## Infrastructure and workload
 
-- One `Standard_D2ds_v4` workload pool, initially zero nodes, autoscaling min=0/max=10.
+- Five `Standard_D2ds_v4` workload pools, initially zero nodes, autoscaling min=0,
+  each with a maximum of 1,000. All share `cas=dedicated`.
   This matches the workload SKU in upstream main's 500/1,000-node autoscaler
   scenarios; eligibility still depends on the subscription and region.
 - Five separate fixed system nodes are excluded from test node counts.
@@ -33,8 +40,9 @@ For the expected limit of four disks per workload node:
    later overflows, this bootstrap cannot be caused by disk-slot exhaustion:
    there is no eligible workload node yet.
 2. Read the live CSI disk limit. For each subsequent batch, draw a fresh random
-   integer from 5 through 30 (inclusive) and add that many pods to the current
-   replica count. Cap the final batch at 40 total pods; it may add fewer than five.
+   integer from 60 through 100 (inclusive) and add that many pods to the current
+   replica count. Cap the final batch at `5000 * live disk limit` total pods
+   (20,000 for a limit of four); it may add fewer than 60.
 3. Compute expected workload nodes as `ceil(total pods / live disk limit)`.
    A batch may fit existing nodes or require several new nodes.
 4. For a growing batch, require a newly requested pod's `FailedScheduling` event
@@ -42,11 +50,12 @@ For the expected limit of four disks per workload node:
    The count in the scheduling message can change as nodes join during a batch.
 5. Verify all expected nodes become Ready and every new node hosts a new batch
    pod with its disk. Wait for the batch to complete before requesting the next.
-6. Repeat until ten workload nodes host the final 40 pods/disks.
+6. Repeat until 5,000 workload nodes host the final 20,000 pods/disks.
 
-For example, random increments 5, 20, 14 produce pod totals
-`1 -> 6 -> 26 -> 40` and workload node totals `1 -> 2 -> 7 -> 10`.
-The number of stages varies per run. The final cluster has 15 nodes including the five
+For example, random increments 60, 80, 100 produce pod totals
+`1 -> 61 -> 141 -> 241` and workload node totals `1 -> 16 -> 36 -> 61`.
+The number of stages varies per run, averaging about 250 batches after bootstrap.
+The final cluster has 5,005 nodes including the five
 system nodes. No HPA is needed: the runner changes workload replicas, while
 the real AKS Cluster Autoscaler changes node counts.
 
@@ -55,6 +64,23 @@ checks exact node and pod counts, pod readiness, per-node density, distinct
 Azure Disk PV handles, and successful VolumeAttachments to the correct nodes.
 Extra nodes, unrelated scheduling constraints preventing disk-limit evidence,
 missing autoscaler evidence, and timeouts fail the test.
+
+## Schedule and execution budgets
+
+The benchmark runs on `main` every Friday at 18:00 IST (12:30 UTC), even without
+code changes. Each scale-up stage allows three hours. Storage cleanup and subsequent
+scale-down each allow six hours, within a 48-hour job budget. Resources have a
+60-hour deletion lifetime. These budgets do not guarantee that the run will
+finish: provisioning, serial batches, validation, and cleanup all consume time.
+
+Before enabling the schedule, verify regional VM/vCPU and disk quotas, capacity,
+networking, agent job-duration limits, the cluster-size limit exception, and cost
+approval for 20,000 workload disks and 5,005 cluster nodes. The disk limit is
+discovered at runtime; the workload-node target stays at 5,000, while the final
+pod/disk target is `5000 * live disk limit`. The configured workload pools
+support at most 5,000 nodes in total.
+Storage verification lists PVs
+once per completed stage rather than issuing one read request per pod.
 
 ## Results and cleanup
 
@@ -150,9 +176,13 @@ are also collected. Structured results use the `disk_boundary` autoscale type.
 
 Manually queue [the validation pipeline](../../../pipelines/system/new-pipeline-test.yml)
 or [the CSI pipeline](../../../pipelines/perf-eval/CSI%20Benchmark/csi-autoscale-5k.yml).
-Both currently run the same 10-node boundary test. The scale-up timeout is per
+Both request `node_count: 5000`, passed to the runner as `--node-count 5000`.
+The runner accepts only node-based targets; omitting `--node-count` retains
+the default ten-node test. The final pod count is the node target multiplied
+by the live CSI disk limit.
+The scale-up timeout is per
 stage; storage cleanup and node scale-down have separate timeouts.
 
-Only after this run passes should qualification expand to 100, 500, 1,000,
-and 5,000 workload nodes, with appropriately sized node pools, quotas, and
-batch-based measurements. The current runner rejects targets above ten.
+Qualify changes at smaller scales before launching the full workload. The runner
+rejects targets requiring more than 5,000 workload nodes; system nodes are never
+included in workload-node counts or workload-pod readiness samples.
