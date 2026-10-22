@@ -2,8 +2,8 @@ name: node-validation
 pool: AKS-Telescope-Airlock
 trigger: none
 parameters:
-- name: keep_cluster
-  displayName: Keep all clusters after benchmark (manual cleanup required)
+- name: keep_failed_cluster
+  displayName: Keep clusters when a job step fails (manual cleanup required)
   type: boolean
   default: false
 stages:
@@ -23,8 +23,8 @@ stages:
         set -euo pipefail
         mkdir -p "$(Agent.TempDirectory)/node-validation-$(System.JobId)"
         jq -n \
-          --arg cluster "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
-          --arg nodeResourceGroup "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)-nodes" \
+          --arg cluster "nodevalidation-$(Build.BuildId)-eastasia-nodes1000-$(System.JobAttempt)" \
+          --arg nodeResourceGroup "nodevalidation-$(Build.BuildId)-eastasia-nodes1000-$(System.JobAttempt)-nodes" \
           --arg subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --arg location "eastasia" \
           --arg buildId "$(Build.BuildId)" \
@@ -54,7 +54,7 @@ stages:
         inlineScript: |+
           set -exo pipefail
           az group create \
-            --name "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
+            --name "nodevalidation-$(Build.BuildId)-eastasia-nodes1000-$(System.JobAttempt)" \
             --location "eastasia" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
 
@@ -68,9 +68,9 @@ stages:
           set -exo pipefail
           az aks create \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-            --resource-group "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
-            --node-resource-group "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)-nodes" \
-            --name "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
+            --resource-group "nodevalidation-$(Build.BuildId)-eastasia-nodes1000-$(System.JobAttempt)" \
+            --node-resource-group "nodevalidation-$(Build.BuildId)-eastasia-nodes1000-$(System.JobAttempt)-nodes" \
+            --name "nodevalidation-$(Build.BuildId)-eastasia-nodes1000-$(System.JobAttempt)" \
             --location "eastasia" \
             --kubernetes-version "1.36.4" \
             --tier standard \
@@ -103,8 +103,8 @@ stages:
             attempt=$((attempt + 1))
             set +e
             output=$(az aks nodepool add \
-              --cluster-name "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
-              --resource-group "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
+              --cluster-name "nodevalidation-$(Build.BuildId)-eastasia-nodes1000-$(System.JobAttempt)" \
+              --resource-group "nodevalidation-$(Build.BuildId)-eastasia-nodes1000-$(System.JobAttempt)" \
               --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
               --name "workerpool0" \
               --node-count 1000 \
@@ -146,8 +146,8 @@ stages:
             attempt=$((attempt + 1))
             set +e
             output=$(az aks nodepool add \
-              --cluster-name "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
-              --resource-group "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
+              --cluster-name "nodevalidation-$(Build.BuildId)-eastasia-nodes1000-$(System.JobAttempt)" \
+              --resource-group "nodevalidation-$(Build.BuildId)-eastasia-nodes1000-$(System.JobAttempt)" \
               --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
               --name "workerpool1" \
               --node-count 1000 \
@@ -183,12 +183,12 @@ stages:
         inlineScript: |
           set -exo pipefail
           az aks get-credentials \
-            --name "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
-            --resource-group "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
+            --name "nodevalidation-$(Build.BuildId)-eastasia-nodes1000-$(System.JobAttempt)" \
+            --resource-group "nodevalidation-$(Build.BuildId)-eastasia-nodes1000-$(System.JobAttempt)" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --overwrite-existing \
             -f $(Agent.TempDirectory)/$(System.JobId)-kubeconfig
-      displayName: Get credentials for nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)
+      displayName: Get credentials for nodevalidation-$(Build.BuildId)-eastasia-nodes1000-$(System.JobAttempt)
     - bash: |
         bash "$(Build.SourcesDirectory)/kcl/node-validation/wait-for-node-validation.sh" \
           "$(Agent.TempDirectory)/$(System.JobId)-kubeconfig" 1000 "$(Agent.TempDirectory)/node-validation-$(System.JobId)"
@@ -241,7 +241,7 @@ stages:
     - task: PublishPipelineArtifact@1
       inputs:
         targetPath: $(Agent.TempDirectory)/node-validation-$(System.JobId)
-        artifact: node-validation-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)
+        artifact: node-validation-eastasia-nodes1000-$(System.JobAttempt)
       condition: always()
       displayName: Publish node validation evidence
     - task: AzureCLI@2
@@ -251,8 +251,8 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-          az group delete --name "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
-      condition: and(always(), not(${{ parameters.keep_cluster }}))
+          az group delete --name "nodevalidation-$(Build.BuildId)-eastasia-nodes1000-$(System.JobAttempt)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
+      condition: and(always(), not(and(${{ parameters.keep_failed_cluster }}, failed())))
       displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
 - stage: westus2
   displayName: West US 2
@@ -270,8 +270,8 @@ stages:
         set -euo pipefail
         mkdir -p "$(Agent.TempDirectory)/node-validation-$(System.JobId)"
         jq -n \
-          --arg cluster "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
-          --arg nodeResourceGroup "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)-nodes" \
+          --arg cluster "nodevalidation-$(Build.BuildId)-westus2-nodes250-$(System.JobAttempt)" \
+          --arg nodeResourceGroup "nodevalidation-$(Build.BuildId)-westus2-nodes250-$(System.JobAttempt)-nodes" \
           --arg subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --arg location "westus2" \
           --arg buildId "$(Build.BuildId)" \
@@ -301,7 +301,7 @@ stages:
         inlineScript: |+
           set -exo pipefail
           az group create \
-            --name "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
+            --name "nodevalidation-$(Build.BuildId)-westus2-nodes250-$(System.JobAttempt)" \
             --location "westus2" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
 
@@ -315,9 +315,9 @@ stages:
           set -exo pipefail
           az aks create \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-            --resource-group "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
-            --node-resource-group "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)-nodes" \
-            --name "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
+            --resource-group "nodevalidation-$(Build.BuildId)-westus2-nodes250-$(System.JobAttempt)" \
+            --node-resource-group "nodevalidation-$(Build.BuildId)-westus2-nodes250-$(System.JobAttempt)-nodes" \
+            --name "nodevalidation-$(Build.BuildId)-westus2-nodes250-$(System.JobAttempt)" \
             --location "westus2" \
             --kubernetes-version "1.36.4" \
             --tier standard \
@@ -350,8 +350,8 @@ stages:
             attempt=$((attempt + 1))
             set +e
             output=$(az aks nodepool add \
-              --cluster-name "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
-              --resource-group "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
+              --cluster-name "nodevalidation-$(Build.BuildId)-westus2-nodes250-$(System.JobAttempt)" \
+              --resource-group "nodevalidation-$(Build.BuildId)-westus2-nodes250-$(System.JobAttempt)" \
               --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
               --name "workerpool0" \
               --node-count 250 \
@@ -393,8 +393,8 @@ stages:
             attempt=$((attempt + 1))
             set +e
             output=$(az aks nodepool add \
-              --cluster-name "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
-              --resource-group "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
+              --cluster-name "nodevalidation-$(Build.BuildId)-westus2-nodes250-$(System.JobAttempt)" \
+              --resource-group "nodevalidation-$(Build.BuildId)-westus2-nodes250-$(System.JobAttempt)" \
               --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
               --name "workerpool1" \
               --node-count 250 \
@@ -430,12 +430,12 @@ stages:
         inlineScript: |
           set -exo pipefail
           az aks get-credentials \
-            --name "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
-            --resource-group "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
+            --name "nodevalidation-$(Build.BuildId)-westus2-nodes250-$(System.JobAttempt)" \
+            --resource-group "nodevalidation-$(Build.BuildId)-westus2-nodes250-$(System.JobAttempt)" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --overwrite-existing \
             -f $(Agent.TempDirectory)/$(System.JobId)-kubeconfig
-      displayName: Get credentials for nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)
+      displayName: Get credentials for nodevalidation-$(Build.BuildId)-westus2-nodes250-$(System.JobAttempt)
     - bash: |
         bash "$(Build.SourcesDirectory)/kcl/node-validation/wait-for-node-validation.sh" \
           "$(Agent.TempDirectory)/$(System.JobId)-kubeconfig" 250 "$(Agent.TempDirectory)/node-validation-$(System.JobId)"
@@ -488,7 +488,7 @@ stages:
     - task: PublishPipelineArtifact@1
       inputs:
         targetPath: $(Agent.TempDirectory)/node-validation-$(System.JobId)
-        artifact: node-validation-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)
+        artifact: node-validation-westus2-nodes250-$(System.JobAttempt)
       condition: always()
       displayName: Publish node validation evidence
     - task: AzureCLI@2
@@ -498,8 +498,8 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-          az group delete --name "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
-      condition: and(always(), not(${{ parameters.keep_cluster }}))
+          az group delete --name "nodevalidation-$(Build.BuildId)-westus2-nodes250-$(System.JobAttempt)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
+      condition: and(always(), not(and(${{ parameters.keep_failed_cluster }}, failed())))
       displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
   - job: nodes500
     displayName: Two 500-node pools in westus2
@@ -513,8 +513,8 @@ stages:
         set -euo pipefail
         mkdir -p "$(Agent.TempDirectory)/node-validation-$(System.JobId)"
         jq -n \
-          --arg cluster "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
-          --arg nodeResourceGroup "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)-nodes" \
+          --arg cluster "nodevalidation-$(Build.BuildId)-westus2-nodes500-$(System.JobAttempt)" \
+          --arg nodeResourceGroup "nodevalidation-$(Build.BuildId)-westus2-nodes500-$(System.JobAttempt)-nodes" \
           --arg subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --arg location "westus2" \
           --arg buildId "$(Build.BuildId)" \
@@ -544,7 +544,7 @@ stages:
         inlineScript: |+
           set -exo pipefail
           az group create \
-            --name "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
+            --name "nodevalidation-$(Build.BuildId)-westus2-nodes500-$(System.JobAttempt)" \
             --location "westus2" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
 
@@ -558,9 +558,9 @@ stages:
           set -exo pipefail
           az aks create \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-            --resource-group "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
-            --node-resource-group "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)-nodes" \
-            --name "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
+            --resource-group "nodevalidation-$(Build.BuildId)-westus2-nodes500-$(System.JobAttempt)" \
+            --node-resource-group "nodevalidation-$(Build.BuildId)-westus2-nodes500-$(System.JobAttempt)-nodes" \
+            --name "nodevalidation-$(Build.BuildId)-westus2-nodes500-$(System.JobAttempt)" \
             --location "westus2" \
             --kubernetes-version "1.36.4" \
             --tier standard \
@@ -593,8 +593,8 @@ stages:
             attempt=$((attempt + 1))
             set +e
             output=$(az aks nodepool add \
-              --cluster-name "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
-              --resource-group "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
+              --cluster-name "nodevalidation-$(Build.BuildId)-westus2-nodes500-$(System.JobAttempt)" \
+              --resource-group "nodevalidation-$(Build.BuildId)-westus2-nodes500-$(System.JobAttempt)" \
               --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
               --name "workerpool0" \
               --node-count 500 \
@@ -636,8 +636,8 @@ stages:
             attempt=$((attempt + 1))
             set +e
             output=$(az aks nodepool add \
-              --cluster-name "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
-              --resource-group "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
+              --cluster-name "nodevalidation-$(Build.BuildId)-westus2-nodes500-$(System.JobAttempt)" \
+              --resource-group "nodevalidation-$(Build.BuildId)-westus2-nodes500-$(System.JobAttempt)" \
               --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
               --name "workerpool1" \
               --node-count 500 \
@@ -673,12 +673,12 @@ stages:
         inlineScript: |
           set -exo pipefail
           az aks get-credentials \
-            --name "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
-            --resource-group "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
+            --name "nodevalidation-$(Build.BuildId)-westus2-nodes500-$(System.JobAttempt)" \
+            --resource-group "nodevalidation-$(Build.BuildId)-westus2-nodes500-$(System.JobAttempt)" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --overwrite-existing \
             -f $(Agent.TempDirectory)/$(System.JobId)-kubeconfig
-      displayName: Get credentials for nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)
+      displayName: Get credentials for nodevalidation-$(Build.BuildId)-westus2-nodes500-$(System.JobAttempt)
     - bash: |
         bash "$(Build.SourcesDirectory)/kcl/node-validation/wait-for-node-validation.sh" \
           "$(Agent.TempDirectory)/$(System.JobId)-kubeconfig" 500 "$(Agent.TempDirectory)/node-validation-$(System.JobId)"
@@ -731,7 +731,7 @@ stages:
     - task: PublishPipelineArtifact@1
       inputs:
         targetPath: $(Agent.TempDirectory)/node-validation-$(System.JobId)
-        artifact: node-validation-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)
+        artifact: node-validation-westus2-nodes500-$(System.JobAttempt)
       condition: always()
       displayName: Publish node validation evidence
     - task: AzureCLI@2
@@ -741,8 +741,8 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-          az group delete --name "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
-      condition: and(always(), not(${{ parameters.keep_cluster }}))
+          az group delete --name "nodevalidation-$(Build.BuildId)-westus2-nodes500-$(System.JobAttempt)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
+      condition: and(always(), not(and(${{ parameters.keep_failed_cluster }}, failed())))
       displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
   - job: nodes1000
     displayName: Two 1000-node pools in westus2
@@ -756,8 +756,8 @@ stages:
         set -euo pipefail
         mkdir -p "$(Agent.TempDirectory)/node-validation-$(System.JobId)"
         jq -n \
-          --arg cluster "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
-          --arg nodeResourceGroup "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)-nodes" \
+          --arg cluster "nodevalidation-$(Build.BuildId)-westus2-nodes1000-$(System.JobAttempt)" \
+          --arg nodeResourceGroup "nodevalidation-$(Build.BuildId)-westus2-nodes1000-$(System.JobAttempt)-nodes" \
           --arg subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --arg location "westus2" \
           --arg buildId "$(Build.BuildId)" \
@@ -787,7 +787,7 @@ stages:
         inlineScript: |+
           set -exo pipefail
           az group create \
-            --name "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
+            --name "nodevalidation-$(Build.BuildId)-westus2-nodes1000-$(System.JobAttempt)" \
             --location "westus2" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
 
@@ -801,9 +801,9 @@ stages:
           set -exo pipefail
           az aks create \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-            --resource-group "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
-            --node-resource-group "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)-nodes" \
-            --name "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
+            --resource-group "nodevalidation-$(Build.BuildId)-westus2-nodes1000-$(System.JobAttempt)" \
+            --node-resource-group "nodevalidation-$(Build.BuildId)-westus2-nodes1000-$(System.JobAttempt)-nodes" \
+            --name "nodevalidation-$(Build.BuildId)-westus2-nodes1000-$(System.JobAttempt)" \
             --location "westus2" \
             --kubernetes-version "1.36.4" \
             --tier standard \
@@ -836,8 +836,8 @@ stages:
             attempt=$((attempt + 1))
             set +e
             output=$(az aks nodepool add \
-              --cluster-name "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
-              --resource-group "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
+              --cluster-name "nodevalidation-$(Build.BuildId)-westus2-nodes1000-$(System.JobAttempt)" \
+              --resource-group "nodevalidation-$(Build.BuildId)-westus2-nodes1000-$(System.JobAttempt)" \
               --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
               --name "workerpool0" \
               --node-count 1000 \
@@ -879,8 +879,8 @@ stages:
             attempt=$((attempt + 1))
             set +e
             output=$(az aks nodepool add \
-              --cluster-name "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
-              --resource-group "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
+              --cluster-name "nodevalidation-$(Build.BuildId)-westus2-nodes1000-$(System.JobAttempt)" \
+              --resource-group "nodevalidation-$(Build.BuildId)-westus2-nodes1000-$(System.JobAttempt)" \
               --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
               --name "workerpool1" \
               --node-count 1000 \
@@ -916,12 +916,12 @@ stages:
         inlineScript: |
           set -exo pipefail
           az aks get-credentials \
-            --name "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
-            --resource-group "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
+            --name "nodevalidation-$(Build.BuildId)-westus2-nodes1000-$(System.JobAttempt)" \
+            --resource-group "nodevalidation-$(Build.BuildId)-westus2-nodes1000-$(System.JobAttempt)" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --overwrite-existing \
             -f $(Agent.TempDirectory)/$(System.JobId)-kubeconfig
-      displayName: Get credentials for nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)
+      displayName: Get credentials for nodevalidation-$(Build.BuildId)-westus2-nodes1000-$(System.JobAttempt)
     - bash: |
         bash "$(Build.SourcesDirectory)/kcl/node-validation/wait-for-node-validation.sh" \
           "$(Agent.TempDirectory)/$(System.JobId)-kubeconfig" 1000 "$(Agent.TempDirectory)/node-validation-$(System.JobId)"
@@ -974,7 +974,7 @@ stages:
     - task: PublishPipelineArtifact@1
       inputs:
         targetPath: $(Agent.TempDirectory)/node-validation-$(System.JobId)
-        artifact: node-validation-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)
+        artifact: node-validation-westus2-nodes1000-$(System.JobAttempt)
       condition: always()
       displayName: Publish node validation evidence
     - task: AzureCLI@2
@@ -984,6 +984,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-          az group delete --name "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
-      condition: and(always(), not(${{ parameters.keep_cluster }}))
+          az group delete --name "nodevalidation-$(Build.BuildId)-westus2-nodes1000-$(System.JobAttempt)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
+      condition: and(always(), not(and(${{ parameters.keep_failed_cluster }}, failed())))
       displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)

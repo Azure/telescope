@@ -5,8 +5,6 @@ import lib.const
 import lib.steps.azure
 
 NODE_SKU = "Standard_D2s_v3"
-CLUSTER = "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)"
-NODE_RESOURCE_GROUP = "${CLUSTER}-nodes"
 KUBECONFIG = "$(Agent.TempDirectory)/$(System.JobId)-kubeconfig"
 RESULTS = "$(Agent.TempDirectory)/node-validation-$(System.JobId)"
 
@@ -16,6 +14,8 @@ schema JobConfig:
     nodeSku: str
 
 benchmarkJob = lambda config: JobConfig, predecessor: [str] -> job.Job {
+    cluster = "nodevalidation-$(Build.BuildId)-${config.region}-nodes${config.nodesPerPool}-$(System.JobAttempt)"
+    nodeResourceGroup = "${cluster}-nodes"
     job.Job {
         job = "nodes${config.nodesPerPool}"
         displayName = "Two ${config.nodesPerPool}-node pools in ${config.region}"
@@ -30,8 +30,8 @@ benchmarkJob = lambda config: JobConfig, predecessor: [str] -> job.Job {
 set -euo pipefail
 mkdir -p "${RESULTS}"
 jq -n \\
-  --arg cluster "${CLUSTER}" \\
-  --arg nodeResourceGroup "${NODE_RESOURCE_GROUP}" \\
+  --arg cluster "${cluster}" \\
+  --arg nodeResourceGroup "${nodeResourceGroup}" \\
   --arg subscription "${const.DEFAULT_SUBSCRIPTION_ID}" \\
   --arg location "${config.region}" \\
   --arg buildId "$(Build.BuildId)" \\
@@ -44,13 +44,13 @@ jq -n \\
 """
             }
             azure.Login(const.DEFAULT_SERVICE_CONNECTION, const.DEFAULT_SUBSCRIPTION_ID, config.region)
-            azure.CreateResourceGroup(const.DEFAULT_SERVICE_CONNECTION, CLUSTER, config.region, const.DEFAULT_SUBSCRIPTION_ID)
+            azure.CreateResourceGroup(const.DEFAULT_SERVICE_CONNECTION, cluster, config.region, const.DEFAULT_SUBSCRIPTION_ID)
             azure.AzCli(const.DEFAULT_SERVICE_CONNECTION, "Create Standard-tier cluster", """
 az aks create \\
   --subscription "${const.DEFAULT_SUBSCRIPTION_ID}" \\
-  --resource-group "${CLUSTER}" \\
-  --node-resource-group "${NODE_RESOURCE_GROUP}" \\
-  --name "${CLUSTER}" \\
+  --resource-group "${cluster}" \\
+  --node-resource-group "${nodeResourceGroup}" \\
+  --name "${cluster}" \\
   --location "${config.region}" \\
   --kubernetes-version "1.36.4" \\
   --tier standard \\
@@ -69,8 +69,8 @@ az aks create \\
   --generate-ssh-keys \\
   --yes
 """)
-            *[azure.CreateNodePool(const.DEFAULT_SERVICE_CONNECTION, CLUSTER, CLUSTER, const.DEFAULT_SUBSCRIPTION_ID, pool | {maxPods = 250}) for pool in azure.PlanNodePools({(config.nodeSku): 2 * config.nodesPerPool}, maxNodesPerPool=config.nodesPerPool)]
-            azure.GetCredentials(const.DEFAULT_SERVICE_CONNECTION, CLUSTER, CLUSTER, const.DEFAULT_SUBSCRIPTION_ID, file=KUBECONFIG)
+            *[azure.CreateNodePool(const.DEFAULT_SERVICE_CONNECTION, cluster, cluster, const.DEFAULT_SUBSCRIPTION_ID, pool | {maxPods = 250}) for pool in azure.PlanNodePools({(config.nodeSku): 2 * config.nodesPerPool}, maxNodesPerPool=config.nodesPerPool)]
+            azure.GetCredentials(const.DEFAULT_SERVICE_CONNECTION, cluster, cluster, const.DEFAULT_SUBSCRIPTION_ID, file=KUBECONFIG)
             steps.Bash {
                 displayName = "Wait up to 60 minutes for Ready, untainted nodes"
                 bash = """
@@ -132,14 +132,14 @@ done < "${RESULTS}/diagnostic-nodes.txt"
                 condition = "always()"
                 inputs = {
                     targetPath = RESULTS
-                    artifact = "node-validation-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)"
+                    artifact = "node-validation-${config.region}-nodes${config.nodesPerPool}-$(System.JobAttempt)"
                 }
             }
             azure.DeleteResourceGroup(
                 const.DEFAULT_SERVICE_CONNECTION
-                CLUSTER
+                cluster
                 const.DEFAULT_SUBSCRIPTION_ID
-                condition="and(always(), not(\${{ parameters.keep_cluster }}))"
+                condition="and(always(), not(and(\${{ parameters.keep_failed_cluster }}, failed())))"
             )
         ]
     }
@@ -151,8 +151,8 @@ output = ap.Pipeline {
     pool = const.DEFAULT_POOL
     parameters = [
         ap.Parameter {
-            name = "keep_cluster"
-            displayName = "Keep all clusters after benchmark (manual cleanup required)"
+            name = "keep_failed_cluster"
+            displayName = "Keep clusters when a job step fails (manual cleanup required)"
             type = "boolean"
             default = False
         }
