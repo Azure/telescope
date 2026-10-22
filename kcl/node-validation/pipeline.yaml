@@ -1,14 +1,19 @@
 name: node-validation
 pool: AKS-Telescope-Airlock
 trigger: none
+parameters:
+- name: keep_cluster
+  displayName: Keep all clusters after benchmark (manual cleanup required)
+  type: boolean
+  default: false
 stages:
 - stage: eastasia
   displayName: East Asia
   dependsOn: []
   condition: succeeded()
   jobs:
-  - job: nodes500
-    displayName: Two 500-node pools in eastasia
+  - job: nodes1000
+    displayName: Two 1000-node pools in eastasia
     dependsOn: []
     condition: succeeded()
     timeoutInMinutes: 240
@@ -23,7 +28,7 @@ stages:
           --arg subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --arg location "eastasia" \
           --arg buildId "$(Build.BuildId)" \
-          --argjson nodesPerPool 500 \
+          --argjson nodesPerPool 1000 \
           '{cluster: $cluster, resourceGroup: $cluster, nodeResourceGroup: $nodeResourceGroup,
             subscription: $subscription,
             location: $location, buildId: $buildId, nodesPerPool: $nodesPerPool,
@@ -102,7 +107,7 @@ stages:
               --resource-group "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
               --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
               --name "workerpool0" \
-              --node-count 500 \
+              --node-count 1000 \
               --node-vm-size "Standard_D2s_v3" \
               --mode User \
               --max-pods 250 2>&1)
@@ -145,7 +150,7 @@ stages:
               --resource-group "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" \
               --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
               --name "workerpool1" \
-              --node-count 500 \
+              --node-count 1000 \
               --node-vm-size "Standard_D2s_v3" \
               --mode User \
               --max-pods 250 2>&1)
@@ -186,7 +191,7 @@ stages:
       displayName: Get credentials for nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)
     - bash: |
         bash "$(Build.SourcesDirectory)/kcl/node-validation/wait-for-node-validation.sh" \
-          "$(Agent.TempDirectory)/$(System.JobId)-kubeconfig" 500 "$(Agent.TempDirectory)/node-validation-$(System.JobId)"
+          "$(Agent.TempDirectory)/$(System.JobId)-kubeconfig" 1000 "$(Agent.TempDirectory)/node-validation-$(System.JobId)"
       displayName: Wait up to 60 minutes for Ready, untainted nodes
     - bash: |
         set -euo pipefail
@@ -247,7 +252,7 @@ stages:
         inlineScript: |
           set -exo pipefail
           az group delete --name "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
-      condition: always()
+      condition: and(always(), not(${{ parameters.keep_cluster }}))
       displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
 - stage: westus2
   displayName: West US 2
@@ -494,7 +499,7 @@ stages:
         inlineScript: |
           set -exo pipefail
           az group delete --name "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
-      condition: always()
+      condition: and(always(), not(${{ parameters.keep_cluster }}))
       displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
   - job: nodes500
     displayName: Two 500-node pools in westus2
@@ -737,7 +742,7 @@ stages:
         inlineScript: |
           set -exo pipefail
           az group delete --name "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
-      condition: always()
+      condition: and(always(), not(${{ parameters.keep_cluster }}))
       displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
   - job: nodes1000
     displayName: Two 1000-node pools in westus2
@@ -980,5 +985,5 @@ stages:
         inlineScript: |
           set -exo pipefail
           az group delete --name "nodevalidation-$(Build.BuildId)-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
-      condition: always()
+      condition: and(always(), not(${{ parameters.keep_cluster }}))
       displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)

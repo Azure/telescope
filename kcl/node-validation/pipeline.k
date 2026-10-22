@@ -135,7 +135,12 @@ done < "${RESULTS}/diagnostic-nodes.txt"
                     artifact = "node-validation-$(System.StageName)-$(System.JobName)-$(System.JobAttempt)"
                 }
             }
-            azure.DeleteResourceGroup(const.DEFAULT_SERVICE_CONNECTION, CLUSTER, const.DEFAULT_SUBSCRIPTION_ID)
+            azure.DeleteResourceGroup(
+                const.DEFAULT_SERVICE_CONNECTION
+                CLUSTER
+                const.DEFAULT_SUBSCRIPTION_ID
+                condition="and(always(), not(\${{ parameters.keep_cluster }}))"
+            )
         ]
     }
 }
@@ -144,6 +149,14 @@ output = ap.Pipeline {
     name = "node-validation"
     trigger = "none"
     pool = const.DEFAULT_POOL
+    parameters = [
+        ap.Parameter {
+            name = "keep_cluster"
+            displayName = "Keep all clusters after benchmark (manual cleanup required)"
+            type = "boolean"
+            default = False
+        }
+    ]
     stages = [
         ap.Stage {
             stage = "eastasia"
@@ -152,7 +165,7 @@ output = ap.Pipeline {
             condition = "succeeded()"
             jobs = [
                 benchmarkJob(JobConfig {
-                    nodesPerPool = 500
+                    nodesPerPool = 1000
                     region = "eastasia"
                     nodeSku = NODE_SKU
                 }, [])
