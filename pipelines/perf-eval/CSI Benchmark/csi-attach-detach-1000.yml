@@ -40,6 +40,7 @@ stages:
             disk_number: 1000
             storage_class: default
             wait_time: 300
+            execution_timeout_minutes: 60
           matrix:
             Standard_D16s_v6_1000pods_40nodes:
               case_name: Standard_D16s_v6_1000pods_40nodes
@@ -69,6 +70,7 @@ stages:
             disk_number: 200
             storage_class: default
             wait_time: 300
+            execution_timeout_minutes: 60
           matrix:
             Standard_D16ds_v5_1000pods_40nodes_qad:
               case_name: Standard_D16ds_v5_1000pods_40nodes_qad
