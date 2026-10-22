@@ -122,9 +122,15 @@ class TestCoordinator(unittest.TestCase):
             output = {"items": self.nodes}
         elif arguments[:2] == ["create", "namespace"]:
             output = {}
+        elif arguments[:2] == ["create", "serviceaccount"]:
+            self.assertEqual(arguments, ["create", "serviceaccount", pull.SERVICE_ACCOUNT, "-n", pull.NAMESPACE])
+            output = {}
         elif arguments == ["create", "-f", "-"]:
             output = {}
+            if payload["kind"] == "Secret":
+                self.selected = json.loads(payload["stringData"]["target.json"]) or None
             if payload["kind"] == "List":
+                self.assertTrue(any(args[:2] == ["create", "serviceaccount"] for args, _ in self.calls))
                 self.pods = payload["items"]
                 for pod in self.pods:
                     pod["status"] = {
@@ -140,20 +146,11 @@ class TestCoordinator(unittest.TestCase):
                     self.pods[0]["status"]["containerStatuses"][0]["restartCount"] = 1
                 elif self.mode == "partial-create":
                     raise subprocess.CalledProcessError(1, command)
+                if self.selected:
+                    self.complete_downloads()
         elif arguments == ["replace", "-f", "-"]:
             self.selected = json.loads(payload["stringData"]["target.json"])
-            self.sleep(self.selected["start"] + 3 - self.epoch)
-            for pod in self.pods:
-                pod["status"]["phase"] = "Succeeded"
-                pod["status"]["containerStatuses"][0]["state"] = {"terminated": {"exitCode": 0}}
-            if self.mode == "pending":
-                self.pods[0]["status"]["phase"] = "Running"
-            if self.mode == "failure":
-                self.pods[self.failed_index]["status"]["phase"] = "Failed"
-                self.pods[self.failed_index]["status"]["containerStatuses"][0]["state"] = {
-                    "terminated": {"exitCode": 1}}
-            if self.mode == "unexpected-pod":
-                self.pods.append({**self.pods[0], "metadata": {"name": "unexpected"}})
+            self.complete_downloads()
             output = {}
         elif arguments[:2] == ["get", "pods"]:
             if self.selected is None and self.mode != "not-ready":
@@ -197,6 +194,20 @@ class TestCoordinator(unittest.TestCase):
             self.fail(f"Unexpected command: {arguments}")
         return subprocess.CompletedProcess(command, 0, json.dumps(output), "")
 
+    def complete_downloads(self):
+        self.sleep(self.selected["start"] + 3 - self.epoch)
+        for pod in self.pods:
+            pod["status"]["phase"] = "Succeeded"
+            pod["status"]["containerStatuses"][0]["state"] = {"terminated": {"exitCode": 0}}
+        if self.mode == "pending":
+            self.pods[0]["status"]["phase"] = "Running"
+        if self.mode == "failure":
+            self.pods[self.failed_index]["status"]["phase"] = "Failed"
+            self.pods[self.failed_index]["status"]["containerStatuses"][0]["state"] = {
+                "terminated": {"exitCode": 1}}
+        if self.mode == "unexpected-pod":
+            self.pods.append({**self.pods[0], "metadata": {"name": "unexpected"}})
+
     def execute(self):
         stdout, stderr = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
@@ -223,6 +234,8 @@ class TestCoordinator(unittest.TestCase):
             self.assertEqual(pod["metadata"]["name"], f"pull-{index+1}")
             self.assertEqual(pod["spec"]["nodeName"], f"worker-{index}")
             self.assertEqual(pod["spec"]["restartPolicy"], "Never")
+            self.assertEqual(pod["spec"]["serviceAccountName"], pull.SERVICE_ACCOUNT)
+            self.assertFalse(pod["spec"]["automountServiceAccountToken"])
             self.assertEqual(pod["spec"]["containers"][0]["image"], RUNNER)
             self.assertEqual(pod["spec"]["volumes"][0]["secret"]["secretName"], "acr-download-target")
             self.assertEqual(report["pulls"][index]["downloaded_bytes"], 1073741824)
@@ -255,6 +268,125 @@ class TestCoordinator(unittest.TestCase):
         code, _ = self.execute()
         self.assertEqual(code, 1)
         self.assertEqual(len(self.calls), 1)
+
+    def test_local_mode_downloads_five_times_on_one_node(self):
+        self.nodes = self.nodes[:1]
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
+            code = pull.run(self.args, node_count=1, region="local", registry_resource_group=None)
+        report = json.loads(self.result_file.read_text())
+        self.assertEqual(code, 0)
+        self.assertEqual(report["node_count"], 1)
+        self.assertEqual(report["region"], "local")
+        self.assertIsNone(report["registry_resource_group"])
+        self.assertEqual(report["successful_pulls"], 5)
+        self.assertEqual(len(report["pulls"]), 5)
+        self.assertEqual({entry["node"] for entry in report["pulls"]}, {"worker-0"})
+        self.assertEqual(len({entry["pod"] for entry in report["pulls"]}), 5)
+        self.assertEqual(len({entry["storage_request_id"] for entry in report["pulls"]}), 5)
+        workload = next(payload for _, payload in self.calls if payload and payload["kind"] == "List")
+        self.assertEqual(len(workload["items"]), 5)
+        self.assertTrue(all(pod["spec"]["nodeName"] == "worker-0" for pod in workload["items"]))
+        self.assertNotIn("secret-value", output.getvalue())
+
+    def test_local_mode_rejects_extra_nodes_before_creating_pods(self):
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            code = pull.run(self.args, node_count=1)
+        self.assertEqual(code, 1)
+        self.assertEqual(len(self.calls), 1)
+
+    def test_four_downloads_create_and_verify_exactly_four_pods(self):
+        self.nodes = self.nodes[:1]
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            code = pull.run(self.args, node_count=1, pull_count=4, start_immediately=True)
+        report = json.loads(self.result_file.read_text())
+        self.assertEqual(code, 0)
+        self.assertEqual(report["expected_pulls"], 4)
+        self.assertEqual(report["successful_pulls"], 4)
+        self.assertEqual(len(report["pulls"]), 4)
+        self.assertEqual(sum(item["downloaded_bytes"] for item in report["pulls"]), 4294967296)
+        self.assertEqual(len({item["storage_request_id"] for item in report["pulls"]}), 4)
+        workload = next(payload for _, payload in self.calls if payload and payload["kind"] == "List")
+        self.assertEqual([pod["metadata"]["name"] for pod in workload["items"]], ["pull-1", "pull-2", "pull-3", "pull-4"])
+        self.assertTrue(all(pod["spec"]["nodeName"] == "worker-0" for pod in workload["items"]))
+        self.assertFalse(any(args[0] == "replace" for args, _ in self.calls))
+        self.assertEqual(sum(args[0] == "logs" for args, _ in self.calls), 4)
+        self.assertEqual(self.calls[-1][0][:2], ["delete", "namespace"])
+
+    def test_four_downloads_preserve_partial_results_and_reject_duplicates(self):
+        self.nodes = self.nodes[:1]
+        for mode, expected_successes in (("failure", 3), ("pending", 3), ("duplicate-request", 4)):
+            with self.subTest(mode=mode):
+                self.mode = mode
+                self.clock = 0
+                self.epoch = BASE_TIME
+                self.selected = None
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                    code = pull.run(self.args, node_count=1, pull_count=4, start_immediately=True)
+                report = json.loads(self.result_file.read_text())
+                self.assertEqual(code, 1)
+                self.assertEqual(report["status"], "failure")
+                self.assertEqual(report["expected_pulls"], 4)
+                self.assertEqual(report["successful_pulls"], expected_successes)
+                self.assertEqual(len(report["pulls"]), 4)
+
+    def test_invalid_download_counts_fail_before_kubernetes_calls(self):
+        for count in (0, 3, 6):
+            with self.subTest(count=count):
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                    code = pull.run(self.args, node_count=1, pull_count=count)
+                self.assertEqual(code, 1)
+                self.assertEqual(self.calls, [])
+                self.assertEqual(self.requests, [])
+
+    def test_immediate_mode_provides_target_before_five_pods_start(self):
+        self.nodes = self.nodes[:1]
+        self.epoch = BASE_TIME + 121
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            code = pull.run(self.args, node_count=1, start_immediately=True)
+        report = json.loads(self.result_file.read_text())
+        self.assertEqual(code, 0)
+        self.assertEqual(report["successful_pulls"], 5)
+        self.assertEqual(report["start_mode"], "immediate")
+        self.assertEqual(self.selected["start"], BASE_TIME + 121)
+        self.assertEqual(self.selected["end"], BASE_TIME + 421)
+        self.assertEqual(self.clock, 3)
+        secret_index = next(index for index, (_, payload) in enumerate(self.calls) if payload and payload["kind"] == "Secret")
+        pod_index = next(index for index, (_, payload) in enumerate(self.calls) if payload and payload["kind"] == "List")
+        self.assertLess(secret_index, pod_index)
+        self.assertEqual(json.loads(self.calls[secret_index][1]["stringData"]["target.json"])["url"], target()["url"])
+        self.assertFalse(any(args[0] == "replace" for args, _ in self.calls))
+        self.assertEqual(len({entry["storage_request_id"] for entry in report["pulls"]}), 5)
+
+    def test_immediate_mode_retains_partial_results_and_fails(self):
+        self.nodes = self.nodes[:1]
+        self.mode = "failure"
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            code = pull.run(self.args, node_count=1, start_immediately=True)
+        report = json.loads(self.result_file.read_text())
+        self.assertEqual(code, 1)
+        self.assertEqual(report["successful_pulls"], 4)
+        self.assertEqual(report["pulls"][0]["status"], "failure")
+        self.assertEqual(self.clock, 3)
+
+    def test_immediate_auth_failure_creates_no_workload_pods(self):
+        self.mode = "unauthorized"
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            code = pull.run(self.args, start_immediately=True)
+        self.assertEqual(code, 1)
+        self.assertFalse(any(payload and payload["kind"] == "List" for _, payload in self.calls))
+        self.assertEqual(self.calls[-1][0][:2], ["delete", "namespace"])
+
+    def test_local_mode_preserves_four_successes_when_one_pod_fails(self):
+        self.nodes = self.nodes[:1]
+        self.mode = "failure"
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            code = pull.run(self.args, node_count=1)
+        report = json.loads(self.result_file.read_text())
+        self.assertEqual(code, 1)
+        self.assertEqual(report["successful_pulls"], 4)
+        self.assertEqual(report["pulls"][0]["status"], "failure")
+        self.assertEqual(sum(arguments[0] == "logs" for arguments, _ in self.calls), 5)
 
     def test_no_target_resolution_until_every_worker_is_ready(self):
         self.mode = "not-ready"
@@ -454,6 +586,14 @@ class TestCoordinator(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertFalse(any(arguments[:2] == ["delete", "namespace"] for arguments, _ in self.calls))
 
+    def test_service_account_creation_failure_cleans_up_without_downloads(self):
+        self.fail_command = ["create", "serviceaccount"]
+        code, report = self.execute()
+        self.assertEqual(code, 1)
+        self.assertEqual(self.requests, [])
+        self.assertIn("serviceaccount", report["errors"][0])
+        self.assertEqual(self.calls[-1][0][:2], ["delete", "namespace"])
+
     def test_cleanup_failure_fails_successful_downloads(self):
         self.fail_command = ["delete", "namespace"]
         code, report = self.execute()
@@ -469,6 +609,15 @@ class TestCoordinator(unittest.TestCase):
                 self.assertGreaterEqual(selected["start"] - self.epoch, 180)
                 self.assertEqual(selected["start"] % 300, 0)
                 self.assertEqual(selected["end"] - selected["start"], 300)
+
+    def test_immediate_schedule_never_waits_for_a_boundary(self):
+        for offset in (0, 119, 120, 121, 299):
+            with self.subTest(offset=offset):
+                self.epoch = BASE_TIME + offset
+                selected = pull.resolve_target(IMAGE, "williamjcusaue1", "secret-value", start_immediately=True)
+                self.assertEqual(selected["start"], self.epoch)
+                self.assertEqual(selected["end"], self.epoch + 300)
+                self.assertEqual(selected["start_mode"], "immediate")
 
 
 class StreamingResponse:
@@ -545,6 +694,32 @@ class TestDownloadWorker(unittest.TestCase):
         ):
             with self.subTest(changes=changes), self.assertRaises(download.DownloadError):
                 download.validate_target({**self.target, **changes})
+
+    def test_immediate_worker_downloads_without_sleeping(self):
+        self.target.update(start_mode="immediate", start=BASE_TIME + 121, end=BASE_TIME + 421)
+        self.epoch = self.target["start"]
+        with patch("time.sleep") as sleep:
+            with patch("urllib.request.OpenerDirector.open", return_value=StreamingResponse(download.LAYER_BYTES)) as opened:
+                result = download.download(self.target)
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["downloaded_bytes"], download.LAYER_BYTES)
+        opened.assert_called_once()
+        sleep.assert_not_called()
+
+    def test_immediate_mode_still_rejects_invalid_deadlines_and_expired_sas(self):
+        self.target.update(start_mode="immediate", start=BASE_TIME + 121, end=BASE_TIME + 421)
+        for changes in (
+            {"start_mode": "unknown"},
+            {"end": self.target["end"] + 1},
+            {"url": self.target["url"].replace("05%3A00", "02%3A40")},
+        ):
+            with self.subTest(changes=changes), self.assertRaises(download.DownloadError):
+                download.validate_target({**self.target, **changes})
+        self.epoch = self.target["end"]
+        with patch("urllib.request.OpenerDirector.open") as opened:
+            with self.assertRaisesRegex(download.DownloadError, "expired"):
+                download.download(self.target)
+        opened.assert_not_called()
 
     def test_no_redirects_are_followed(self):
         self.assertIsNone(download.NoRedirect().redirect_request(None, None, 307, "", {}, "https://other.example"))
@@ -666,6 +841,33 @@ class TestDiagnostics(unittest.TestCase):
         self.assertNotIn("PRIVATE-SAS", message)
         self.assertNotIn("https", message)
         self.assertEqual(download.sanitize_diagnostic(message), message)
+
+
+class TestCoordinatorCli(unittest.TestCase):
+    def test_batch_cli_selects_its_own_namespace_and_single_node(self):
+        argv = [
+            "pull.py", "--image", IMAGE, "--runner-image", RUNNER, "--result-file", "result.json",
+            "--run-id", "batch-1", "--run-url", "file:///result.json",
+            "--namespace", "acr-five-pulls-batch-1", "--local", "--start-immediately",
+        ]
+        with patch("sys.argv", argv), patch.object(pull, "NAMESPACE", pull.NAMESPACE):
+            with patch.object(pull, "run", return_value=0) as run:
+                self.assertEqual(pull.main(), 0)
+                self.assertEqual(pull.NAMESPACE, "acr-five-pulls-batch-1")
+                self.assertEqual(run.call_args.kwargs, {
+                    "node_count": 1, "region": "local", "registry_resource_group": None, "start_immediately": True,
+                })
+
+    def test_default_cli_preserves_azure_aligned_mode(self):
+        argv = [
+            "pull.py", "--image", IMAGE, "--runner-image", RUNNER, "--result-file", "result.json",
+            "--run-id", "run", "--run-url", "https://example/run",
+        ]
+        with patch("sys.argv", argv), patch.object(pull, "NAMESPACE", pull.NAMESPACE):
+            with patch.object(pull, "run", return_value=0) as run:
+                self.assertEqual(pull.main(), 0)
+                self.assertEqual(pull.NAMESPACE, "acr-five-pulls")
+                self.assertEqual(run.call_args.kwargs, {"start_immediately": False})
 
 
 class TestNetworkConfiguration(unittest.TestCase):

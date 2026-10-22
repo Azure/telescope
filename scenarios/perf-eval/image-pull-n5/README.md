@@ -130,9 +130,162 @@ storage request timestamps and counters remain authoritative.
 ## Offline validation
 
 ```powershell
-python -m unittest discover -s scenarios\perf-eval\image-pull-n5 -p test_pull.py -v
+python -m unittest discover -s scenarios\perf-eval\image-pull-n5 -p "test_*.py" -v
 ```
 
 Tests use Python's standard library and mock HTTP/subprocess boundaries, not live
 cloud resources. Streaming tests hash a generated one-GiB response in small chunks
 without allocating or writing a one-GiB file.
+The local-launcher tests run on Linux (including WSL) and are skipped on Windows.
+
+## Run locally from Windows
+
+[run-local.ps1](run-local.ps1) runs five downloader Pods on **one local kind node**
+inside WSL2 Ubuntu, using Podman. It does not use Azure DevOps or provision AKS.
+The existing Azure pipeline still uses five distinct workers.
+
+The Windows launcher enables **immediate starts**: the coordinator obtains one
+signed target URL and creates the populated Secret before creating the five Pods.
+Each Pod downloads as soon as its process starts and the initial volume is mounted.
+There is no wait for a five-minute boundary, three-minute propagation allowance,
+or later Secret-volume refresh. Kubernetes startup and registry authentication
+still take time, and starts may be slightly staggered rather than simultaneous.
+
+The five-minute **transfer deadline** remains, measured from target resolution;
+Pod startup uses part of that budget. Byte/hash, account, expiry, failure, and
+cleanup checks are unchanged. Local reports contain `start_mode: "immediate"`;
+their `window_start`/`window_end` fields describe a client deadline, **not a
+server-aligned accounting window**. Traffic can span server buckets, so five
+successful downloads no longer ensure reaching a per-bucket scale-out threshold.
+The Azure pipeline retains its original aligned start by default. Direct WSL
+invocations of `local.py` can opt in with `--start-immediately`.
+
+From the repository root in PowerShell:
+
+```powershell
+# Create/reuse the dedicated cluster and verify five Ready Pods without target traffic.
+.\scenarios\perf-eval\image-pull-n5\run-local.ps1 -SetupOnly
+
+# Perform one five-download run; enter the registry password/token at the hidden prompt.
+.\scenarios\perf-eval\image-pull-n5\run-local.ps1
+```
+
+### Four concurrent downloads
+
+```powershell
+.\scenarios\perf-eval\image-pull-n5\run-local-four-pulls.ps1
+```
+
+[run-local-four-pulls.ps1](run-local-four-pulls.ps1) inherits the saved target
+settings and password/prompt behavior from [run-local.ps1](run-local.ps1), but
+creates exactly **four** downloader Pods on the local node. All four start
+independently as soon as possible, with no aligned-window wait. It accepts the
+same registry/image/username/password overrides. `-SetupOnly` verifies four
+Ready Pods without downloading the layer.
+
+A successful report has `expected_pulls: 4`, `successful_pulls: 4`, and four
+per-Pod results: **4 GiB total** for this one-GiB layer. This exceeds the discussed
+3-GiB warm threshold, but the still-warm test also depends on cooldown, account/window
+totals, and server-side counters. Only four or five pulls are supported; three is
+rejected. The usual single-batch launcher still defaults to five downloads and also
+accepts `-PullCount 4`. The two-batch launcher remains five plus five and rejects
+a four-download override.
+
+### Two overlapping batches, one minute apart
+
+To launch five downloads, then another five after one minute:
+
+```powershell
+.\scenarios\perf-eval\image-pull-n5\run-local-two-batches.ps1
+```
+
+[run-local-two-batches.ps1](run-local-two-batches.ps1) inherits the registry, image,
+username, and password/prompt behavior from [run-local.ps1](run-local.ps1). It also
+accepts the same per-run overrides and `-SetupOnly` (which checks readiness only).
+The normal single-batch launcher still performs only five downloads by default.
+
+The new launcher prepares the cluster once and starts two independent coordinators
+60 seconds apart, **without waiting for the first batch to finish**. Each creates
+five Pods, so up to ten downloads can overlap on the same node. These are ten
+copies of the configured one-GiB layer, not ten different image references.
+The delay is measured between coordinator launches; actual HTTP start times also
+depend on registry authentication and Pod startup.
+
+Batch namespaces are `acr-five-pulls-batch-1` and `acr-five-pulls-batch-2`, preventing
+either batch from deleting the other's Pods. Each batch resolves its own ACR
+redirect and has its own five-minute transfer deadline, so their selected storage
+accounts may differ. Both reports must show `successful_pulls: 5` for ten verified
+downloads overall. Reports use a shared run-ID prefix and `-batch-1.json` /
+`-batch-2.json` suffixes in the usual WSL results directory.
+
+The terminal remains attached until both batches finish; either batch failing
+fails the command. Ctrl+C interrupts only these child coordinators so they can
+clean up. Existing workload/batch namespaces are never silently reused or removed.
+Do not start a separate launcher concurrently; the existing local lock covers
+both batches. Two batches can generate 10 GiB and compete for the same bandwidth.
+
+Edit the `Registry`, `Image`, and `Username` defaults at the top of
+[run-local.ps1](run-local.ps1) to save a different target, or override them:
+
+```powershell
+.\scenarios\perf-eval\image-pull-n5\run-local.ps1 `
+    -Registry "another.azurecr.io" `
+    -Image "repository@sha256:<64-character-manifest-digest>" `
+    -Username "pull-user"
+```
+
+The `Password` parameter defaults to the non-secret placeholder
+`<REGISTRY_PASSWORD>`. Leaving it unchanged or empty preserves the hidden prompt.
+A supplied value is passed to WSL through stdin, never in WSL command arguments;
+`-SetupOnly` ignores it. Do not save real passwords in this file or terminal history.
+Linux automation can supply `ACR_PULL_PASSWORD` or use `local.py --password-stdin`.
+Credentials are not copied from the pipeline YAML. Rotate any exposed credentials
+before reuse.
+
+This preserves the scale-out test's constraints: the image must be a
+digest-pinned, single-manifest image containing exactly one one-GiB layer, and
+ACR must return an eligible Azure Storage replica URL. Tags, multi-layer images,
+other layer sizes, and arbitrary non-ACR registries are not supported by this
+specific test. These are direct layer downloads, not native image pulls.
+
+The dedicated cluster is `acr-scaleout-local`. Its kubeconfig and timestamped
+reports live under `~/.local/state/telescope-five-pulls` **in WSL Ubuntu**;
+the launcher prints the exact report path. It never changes the default kubeconfig.
+The local report has `node_count: 1`, `expected_pulls` matching the selected count,
+and that many distinct Pods and storage request IDs on success. All Pods
+intentionally share the node.
+
+Each run creates fresh Pods and deletes the workload namespace afterward. The
+local node is kept for the next run. `-SetupOnly` also removes its temporary
+readiness-check Pods. A file lock prevents overlapping launcher runs; a leftover
+workload namespace causes an explicit failure rather than deleting existing work.
+Do not retry automatically after a partial failure: some traffic may already have
+reached storage. Check `status`, `successful_pulls`, and each Pod's result.
+
+After Windows/WSL restarts, kind may still list the cluster while its Podman node
+container is stopped or back in `created` state. The launcher starts only its
+expected node container before exporting kubeconfig, then waits up to three
+minutes for API readiness. Already-running nodes are left running; unexpected
+containers or paused/removing states fail explicitly. It does not delete or
+recreate the cluster to recover from a stopped container.
+Setup checks and actual downloads create a dedicated `acr-download` service
+account before submitting Pods, avoiding the asynchronous default-service-account
+creation race after startup. API token automounting remains disabled.
+
+If you previously saw `can only create exec sessions on running containers`,
+rerun `run-local.ps1 -SetupOnly` to recover and verify five Ready Pods without
+downloading the target layer. Then run the launcher normally. A rootless Podman
+`"/" is not a shared mount` warning alone is not that exec failure; do not change
+system mount propagation or delete unrelated containers to address it.
+
+Local requirements: Python 3.10+, kubectl, kind, Podman with cgroup v2 and a working
+user systemd session in WSL2 Ubuntu. The first setup downloads the kind node and
+Python helper images. All Pods share this machine's bandwidth; five GiB in 300
+seconds requires roughly 143 Mbps of payload throughput plus headroom.
+Storage counters and replica status must still be checked separately for scale-out.
+
+To remove **only this dedicated local cluster**, from PowerShell:
+
+```powershell
+wsl --distribution Ubuntu --exec env KIND_EXPERIMENTAL_PROVIDER=podman kind delete cluster --name acr-scaleout-local
+```

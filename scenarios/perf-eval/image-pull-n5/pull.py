@@ -23,7 +23,9 @@ from download import (
 
 
 NAMESPACE = "acr-five-pulls"
+SERVICE_ACCOUNT = "acr-download"
 PULL_COUNT = 5
+SUPPORTED_PULL_COUNTS = (4, PULL_COUNT)
 TIMEOUT_SECONDS = WORKER_TIMEOUT_SECONDS
 POLL_SECONDS = 5
 KUBECTL_TIMEOUT_SECONDS = 45
@@ -72,7 +74,7 @@ def parse_image(image):
     return match.groups()
 
 
-def resolve_target(image, username, password):
+def resolve_target(image, username, password, *, start_immediately=False):
     registry, repository, manifest_digest = parse_image(image)
     token_url = f"https://{registry}/oauth2/token?" + urllib.parse.urlencode({
         "service": registry, "scope": f"repository:{repository}:pull",
@@ -110,12 +112,16 @@ def resolve_target(image, username, password):
         error.close()
     account = storage_account(url, digest)
     now = time.time()
-    start = (int(now) // WINDOW_SECONDS + 1) * WINDOW_SECONDS
-    if start - now < SECRET_PROPAGATION_SECONDS:
-        start += WINDOW_SECONDS
+    if start_immediately:
+        start = int(now)
+    else:
+        start = (int(now) // WINDOW_SECONDS + 1) * WINDOW_SECONDS
+        if start - now < SECRET_PROPAGATION_SECONDS:
+            start += WINDOW_SECONDS
     target = {
         "url": url, "account": account, "digest": digest, "size": LAYER_BYTES,
         "start": start, "end": start + WINDOW_SECONDS,
+        "start_mode": "immediate" if start_immediately else "aligned",
     }
     validate_target(target)
     return target
@@ -131,6 +137,7 @@ def manifests(runner_image, nodes):
                 "nodeName": node,
                 "restartPolicy": "Never",
                 "activeDeadlineSeconds": TIMEOUT_SECONDS,
+                "serviceAccountName": SERVICE_ACCOUNT,
                 "automountServiceAccountToken": False,
                 "containers": [{
                     "name": "pull",
@@ -249,15 +256,21 @@ def verify_result(log, target):
     start = datetime.fromisoformat(log["started_at"].replace("Z", "+00:00"))
     end = datetime.fromisoformat(log["finished_at"].replace("Z", "+00:00"))
     if start.tzinfo is None or end.tzinfo is None or not target["start"] <= start.timestamp() <= end.timestamp() < target["end"]:
-        raise DownloadError("Worker downloaded outside the common five-minute window")
+        raise DownloadError("Worker downloaded outside the permitted five-minute interval")
 
 
-def run(args):
+def run(
+    args, *, node_count=PULL_COUNT, region="australiaeast", registry_resource_group="rg_wj_cus1",
+    start_immediately=False, pull_count=PULL_COUNT,
+):
     result = {
         "timestamp": utc(time.time()), "run_id": args.run_id, "run_url": args.run_url,
+        "namespace": NAMESPACE,
         "image": args.image, "runner_image": args.runner_image,
-        "registry_resource_group": "rg_wj_cus1", "region": "australiaeast",
-        "node_count": PULL_COUNT, "status": "failure", "successful_pulls": 0,
+        "registry_resource_group": registry_resource_group, "region": region,
+        "node_count": node_count, "status": "failure", "successful_pulls": 0,
+        "expected_pulls": pull_count,
+        "start_mode": "immediate" if start_immediately else "aligned",
         "pulls": [], "errors": [],
     }
     owned_namespace = False
@@ -267,29 +280,36 @@ def run(args):
         if any(not value or value.startswith("$(") for value in (username, password)):
             raise DownloadError("Set ACR_PULL_USERNAME and secret ACR_PULL_PASSWORD")
         parse_image(args.image)
+        if pull_count not in SUPPORTED_PULL_COUNTS:
+            raise DownloadError("Expected four or five downloads")
+        if node_count not in (1, PULL_COUNT):
+            raise DownloadError("Use one local node or five distinct workers")
+        if node_count > pull_count:
+            raise DownloadError("The requested node count exceeds the download count")
         nodes = get_json("nodes", "-l", "cri-resource-consume=true")["items"]
-        if len(nodes) != PULL_COUNT or any(
+        if len(nodes) != node_count or any(
             node.get("spec", {}).get("unschedulable", False) or not any(
                 condition["type"] == "Ready" and condition["status"] == "True"
                 for condition in node["status"].get("conditions", [])
             ) for node in nodes
         ):
-            raise DownloadError("Expected exactly five Ready, schedulable worker nodes")
+            raise DownloadError(f"Expected exactly {node_count} Ready, schedulable worker nodes")
         node_names = sorted(node["metadata"]["name"] for node in nodes)
-        if len(set(node_names)) != PULL_COUNT:
-            raise DownloadError("Expected five distinct worker nodes")
+        if len(set(node_names)) != node_count:
+            raise DownloadError(f"Expected {node_count} distinct worker nodes")
+        assigned_nodes = [node_names[index % node_count] for index in range(pull_count)]
         result["pulls"] = [
             {"pod": f"pull-{index}", "node": node, "status": "pending"}
-            for index, node in enumerate(node_names, 1)
+            for index, node in enumerate(assigned_nodes, 1)
         ]
         kubectl("create", "namespace", NAMESPACE)
         owned_namespace = True
+        kubectl("create", "serviceaccount", SERVICE_ACCOUNT, "-n", NAMESPACE)
         secret = {
             "apiVersion": "v1", "kind": "Secret",
             "metadata": {"name": "acr-download-target", "namespace": NAMESPACE},
             "type": "Opaque", "stringData": {"target.json": "{}"},
         }
-        kubectl("create", "-f", "-", payload=secret)
         kubectl("create", "-f", "-", payload={
             "apiVersion": "v1", "kind": "ConfigMap",
             "metadata": {"name": "acr-download-script", "namespace": NAMESPACE},
@@ -298,39 +318,47 @@ def run(args):
         # Starting the shared budget before Pod creation is conservative for both
         # Pod activeDeadlineSeconds and the worker process's identical timeout.
         deadline = time.monotonic() + TIMEOUT_SECONDS
-        kubectl("create", "-f", "-", payload=manifests(args.runner_image, node_names))
-        while time.monotonic() < deadline:
-            pods = pod_snapshot()
-            collect_snapshot(result, pods)
-            if len(pods) == PULL_COUNT and all(any(
-                condition["type"] == "Ready" and condition["status"] == "True"
-                for condition in pod.get("status", {}).get("conditions", [])
-            ) for pod in pods.values()):
-                break
-            time.sleep(POLL_SECONDS)
-        else:
-            raise DownloadError("Timed out waiting for all five download workers to be ready")
-        target = resolve_target(args.image, username, password)
-        ensure_schedule_fits(target, deadline)
+        target = None
+        if start_immediately:
+            target = resolve_target(args.image, username, password, start_immediately=True)
+            ensure_schedule_fits(target, deadline)
+            secret["stringData"]["target.json"] = json.dumps(target)
+        # Immediate mode mounts the populated Secret on first start, avoiding refresh delays.
+        kubectl("create", "-f", "-", payload=secret)
+        kubectl("create", "-f", "-", payload=manifests(args.runner_image, assigned_nodes))
+        if not start_immediately:
+            while time.monotonic() < deadline:
+                pods = pod_snapshot()
+                collect_snapshot(result, pods)
+                if len(pods) == pull_count and all(any(
+                    condition["type"] == "Ready" and condition["status"] == "True"
+                    for condition in pod.get("status", {}).get("conditions", [])
+                ) for pod in pods.values()):
+                    break
+                time.sleep(POLL_SECONDS)
+            else:
+                raise DownloadError(f"Timed out waiting for all {pull_count} download workers to be ready")
+            target = resolve_target(args.image, username, password)
+            ensure_schedule_fits(target, deadline)
+            # Replace over stdin; never put the SAS in arguments, local files, or logs.
+            secret["stringData"]["target.json"] = json.dumps(target)
+            kubectl("replace", "-f", "-", payload=secret)
         result.update(
             storage_account=target["account"], blob_digest=target["digest"],
             window_start=utc(target["start"]), window_end=utc(target["end"]),
         )
-        # Replace over stdin; never put the SAS in arguments, local files, or logs.
-        secret["stringData"]["target.json"] = json.dumps(target)
-        kubectl("replace", "-f", "-", payload=secret)
         while time.monotonic() < deadline:
             pods = pod_snapshot()
             collect_snapshot(result, pods, target)
-            if result["successful_pulls"] == PULL_COUNT:
+            if result["successful_pulls"] == pull_count:
                 if time.monotonic() >= deadline:
                     raise DownloadError("Coordinator deadline exceeded")
-                if len({pull["storage_request_id"] for pull in result["pulls"]}) != PULL_COUNT:
-                    raise DownloadError("Expected five distinct Azure Storage request IDs")
+                if len({pull["storage_request_id"] for pull in result["pulls"]}) != pull_count:
+                    raise DownloadError(f"Expected {pull_count} distinct Azure Storage request IDs")
                 break
             time.sleep(POLL_SECONDS)
         else:
-            raise DownloadError("Timed out waiting for all five single-account downloads")
+            raise DownloadError(f"Timed out waiting for all {pull_count} single-account downloads")
     except (OSError, ValueError, KeyError, TypeError, DownloadError, subprocess.SubprocessError, http.client.HTTPException) as error:
         result["errors"].append(error_message(error))
     finally:
@@ -340,7 +368,7 @@ def run(args):
             except (OSError, DownloadError, subprocess.SubprocessError) as error:
                 result["errors"].append(f"Namespace cleanup failed: {error_message(error)}")
         result["finished_at"] = utc(time.time())
-        if result["successful_pulls"] == PULL_COUNT and not result["errors"]:
+        if result["successful_pulls"] == pull_count and not result["errors"]:
             result["status"] = "success"
         output = Path(args.result_file)
         output.parent.mkdir(parents=True, exist_ok=True)
@@ -352,13 +380,26 @@ def run(args):
 
 
 def main():
+    global NAMESPACE
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--image", required=True)
     parser.add_argument("--runner-image", required=True)
     parser.add_argument("--result-file", required=True)
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--run-url", required=True)
-    return run(parser.parse_args())
+    parser.add_argument("--namespace", default=NAMESPACE)
+    parser.add_argument("--local", action="store_true", help="Use one local node instead of five Azure workers")
+    parser.add_argument("--start-immediately", action="store_true")
+    args = parser.parse_args()
+    if len(args.namespace) > 63 or not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]*[a-z0-9])?", args.namespace):
+        parser.error("--namespace must be a valid Kubernetes namespace name")
+    NAMESPACE = args.namespace
+    if args.local:
+        return run(
+            args, node_count=1, region="local", registry_resource_group=None,
+            start_immediately=args.start_immediately,
+        )
+    return run(args, start_immediately=args.start_immediately)
 
 
 if __name__ == "__main__":

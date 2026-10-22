@@ -68,7 +68,12 @@ def validate_target(target):
     if target["size"] != LAYER_BYTES:
         raise DownloadError("Expected exactly one GiB of layer data")
     start, end = target["start"], target["end"]
-    if type(start) is not int or type(end) is not int or start % WINDOW_SECONDS or end != start + WINDOW_SECONDS:
+    start_mode = target.get("start_mode", "aligned")
+    if start_mode not in ("aligned", "immediate"):
+        raise DownloadError("Invalid download start mode")
+    if type(start) is not int or type(end) is not int or end != start + WINDOW_SECONDS:
+        raise DownloadError("Invalid five-minute download interval")
+    if start_mode == "aligned" and start % WINDOW_SECONDS:
         raise DownloadError("Invalid aligned five-minute download window")
     parameters = urllib.parse.parse_qs(urllib.parse.urlsplit(target["url"]).query)
     expiry = parameters.get("se", [])
@@ -153,14 +158,14 @@ def download(target):
             if count > target["size"]:
                 raise DownloadError("Storage returned more bytes than the layer size")
             if time.time() >= target["end"]:
-                raise DownloadError("Download exceeded the aligned five-minute window")
+                raise DownloadError("Download exceeded the five-minute transfer deadline")
             digest.update(chunk)
     finished = time.time()
     actual_digest = "sha256:" + digest.hexdigest()
     if count != target["size"] or actual_digest != target["digest"]:
         raise DownloadError("Downloaded layer size or SHA-256 digest does not match")
     if finished >= target["end"]:
-        raise DownloadError("Download finished outside the aligned five-minute window")
+        raise DownloadError("Download finished outside the five-minute transfer deadline")
     return {
         "status": "success",
         "storage_account": target["account"],
