@@ -69,6 +69,18 @@ az aks create \\
   --generate-ssh-keys \\
   --yes
 """)
+            steps.Bash {
+                displayName = "Pause 15 minutes for manual ccp-webhook scaling"
+                bash = """
+set -euo pipefail
+echo "Cluster/resource group: ${cluster}"
+echo "Subscription: ${const.DEFAULT_SUBSCRIPTION_ID}; region: ${config.region}"
+echo "Pausing 15 minutes before worker-pool creation for manual ccp-webhook scaling."
+echo "Verify the target CCP webhook replicas and ready Service backends using authorized underlay access."
+echo "Worker-pool creation resumes automatically; this step does not verify scaling."
+sleep 900
+"""
+            }
             *[azure.CreateNodePool(const.DEFAULT_SERVICE_CONNECTION, cluster, cluster, const.DEFAULT_SUBSCRIPTION_ID, pool | {maxPods = 250}) for pool in azure.PlanNodePools({(config.nodeSku): 2 * config.nodesPerPool}, maxNodesPerPool=config.nodesPerPool)]
             azure.GetCredentials(const.DEFAULT_SERVICE_CONNECTION, cluster, cluster, const.DEFAULT_SUBSCRIPTION_ID, file=KUBECONFIG)
             steps.Bash {
@@ -178,15 +190,10 @@ output = ap.Pipeline {
             condition = "succeeded()"
             jobs = [
                 benchmarkJob(JobConfig {
-                    nodesPerPool = 250
-                    region = "westus2"
-                    nodeSku = NODE_SKU
-                }, [])
-                benchmarkJob(JobConfig {
                     nodesPerPool = 500
                     region = "westus2"
                     nodeSku = NODE_SKU
-                }, ["nodes250"])
+                }, [])
                 benchmarkJob(JobConfig {
                     nodesPerPool = 1000
                     region = "westus2"
