@@ -1,4 +1,4 @@
-name: '15K Nodes Cluster Creation'
+name: Large Scale Cluster Creation
 pool: AKS-Telescope-Airlock
 trigger: none
 parameters:
@@ -13,7 +13,7 @@ parameters:
 - name: cluster_name
   displayName: AKS cluster name
   type: string
-  default: '15k'
+  default: large-scale
 - name: user_pool_vm_size
   displayName: User node pool VM size
   type: string
@@ -45,7 +45,7 @@ variables:
   enable_kms: ${{ parameters.enable_kms }}
 jobs:
 - job: create_cluster
-  displayName: Create 15K Nodes Cluster
+  displayName: Create Large Scale Cluster
   timeoutInMinutes: 1440
   steps:
   - task: AzureCLI@2
@@ -286,7 +286,7 @@ jobs:
         # Merge rule collections from the policy file into the current firewall and PUT it back in one call.
         # This handles large rule sets faster than incremental CLI commands (az network firewall policy rule-collection-group)
         # and avoids overwriting other firewall properties (e.g. location, ipConfigurations).
-        if [ -n "$(Pipeline.Workspace)/s/kcl/ccp_team/15K_cluster/firewall-policy.json" ]; then
+        if [ -n "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/firewall-policy.json" ]; then
           FW_CURRENT=$(mktemp)
           FW_MERGED=$(mktemp)
           az rest \
@@ -299,7 +299,7 @@ jobs:
             | .properties.applicationRuleCollections = ($rules.properties.applicationRuleCollections // [])
             | .properties.networkRuleCollections     = ($rules.properties.networkRuleCollections // [])
             | .properties.natRuleCollections         = ($rules.properties.natRuleCollections // [])
-          ' "$FW_CURRENT" "$(Pipeline.Workspace)/s/kcl/ccp_team/15K_cluster/firewall-policy.json" > "$FW_MERGED"
+          ' "$FW_CURRENT" "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/firewall-policy.json" > "$FW_MERGED"
           az rest \
             --method put \
             --uri "https://management.azure.com/subscriptions/$(subscription_id)/resourceGroups/$(RUN_ID)/providers/Microsoft.Network/azureFirewalls/$(cluster_name)-firewall?api-version=2025-05-01" \
@@ -613,7 +613,7 @@ jobs:
         }
 
 
-        local_file="$(Pipeline.Workspace)/s/kcl/ccp_team/15K_cluster/disable-thp.yaml"
+        local_file="$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/disable-thp.yaml"
         if [ ! -f "$local_file" ]; then
           echo "File not found: $local_file"
           exit 1
@@ -645,11 +645,11 @@ jobs:
             "$(cluster_name)-jumpbox"
         ); then
           echo "$run_command_output"
-          echo "Failed to upload kcl/ccp_team/15K_cluster/disable-thp.yaml to /var/tmp/telescope/$(Build.BuildId)/manifest.yaml on jumpbox."
+          echo "Failed to upload kcl/ccp_team/large_scale_cluster_benchmarking/disable-thp.yaml to /var/tmp/telescope/$(Build.BuildId)/manifest.yaml on jumpbox."
           exit 1
         fi
         echo "$run_command_output"
-    displayName: Upload kcl/ccp_team/15K_cluster/disable-thp.yaml to jumpbox
+    displayName: Upload kcl/ccp_team/large_scale_cluster_benchmarking/disable-thp.yaml to jumpbox
   - task: AzureCLI@2
     inputs:
       azureSubscription: $(AZURE_SERVICE_CONNECTION)
@@ -706,7 +706,7 @@ jobs:
           exit 1
         fi
         echo "$run_command_output"
-    displayName: Apply kcl/ccp_team/15K_cluster/disable-thp.yaml from jumpbox
+    displayName: Apply kcl/ccp_team/large_scale_cluster_benchmarking/disable-thp.yaml from jumpbox
   - task: AzureCLI@2
     inputs:
       azureSubscription: $(AZURE_SERVICE_CONNECTION)
@@ -747,7 +747,7 @@ jobs:
         }
 
 
-        local_file="$(Pipeline.Workspace)/s/kcl/ccp_team/15K_cluster/cl2.yaml"
+        local_file="$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/cl2.yaml"
         if [ ! -f "$local_file" ]; then
           echo "File not found: $local_file"
           exit 1
@@ -779,11 +779,11 @@ jobs:
             "$(cluster_name)-jumpbox"
         ); then
           echo "$run_command_output"
-          echo "Failed to upload kcl/ccp_team/15K_cluster/cl2.yaml to /var/tmp/telescope/$(Build.BuildId)/cl2.yaml on jumpbox."
+          echo "Failed to upload kcl/ccp_team/large_scale_cluster_benchmarking/cl2.yaml to /var/tmp/telescope/$(Build.BuildId)/cl2.yaml on jumpbox."
           exit 1
         fi
         echo "$run_command_output"
-    displayName: Upload kcl/ccp_team/15K_cluster/cl2.yaml to jumpbox
+    displayName: Upload kcl/ccp_team/large_scale_cluster_benchmarking/cl2.yaml to jumpbox
   - task: AzureCLI@2
     inputs:
       azureSubscription: $(AZURE_SERVICE_CONNECTION)

@@ -55,7 +55,7 @@ az aks create "\${CREATE_ARGS[@]}"
 """
 
 output = ap.Pipeline {
-    name = "15K Nodes Cluster Creation"
+    name = "Large Scale Cluster Creation"
 
     trigger = "none"
     pool = const.DEFAULT_POOL
@@ -77,7 +77,7 @@ output = ap.Pipeline {
             name = "cluster_name"
             displayName = "AKS cluster name"
             type = "string"
-            default = "15k"
+            default = "large-scale"
         }
         ap.Parameter {
             name = "user_pool_vm_size"
@@ -125,7 +125,7 @@ output = ap.Pipeline {
     jobs = [
         job.Job {
             job = "create_cluster"
-            displayName = "Create 15K Nodes Cluster"
+            displayName = "Create Large Scale Cluster"
             timeoutInMinutes = 1440
 
             steps = [
@@ -200,7 +200,7 @@ output = ap.Pipeline {
                     "${CLUSTER_NAME}-firewall",
                     VNET_NAME,
                     "nodes",
-                    "$(Pipeline.Workspace)/s/kcl/ccp_team/15K_cluster/firewall-policy.json",
+                    "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/firewall-policy.json",
                     minCapacity="45",
                     maxCapacity="45"
                 ),
@@ -259,14 +259,14 @@ test -s /var/tmp/telescope-kubeconfig
                     SUBSCRIPTION_ID,
                     RESOURCE_GROUP,
                     JUMPBOX_NAME,
-                    "kcl/ccp_team/15K_cluster/disable-thp.yaml"
+                    "kcl/ccp_team/large_scale_cluster_benchmarking/disable-thp.yaml"
                 ),
                 *azure.RunClusterLoader2OnJumpbox(
                     SERVICE_CONNECTION,
                     SUBSCRIPTION_ID,
                     RESOURCE_GROUP,
                     JUMPBOX_NAME,
-                    "kcl/ccp_team/15K_cluster/cl2.yaml"
+                    "kcl/ccp_team/large_scale_cluster_benchmarking/cl2.yaml"
                 ),
                 azure.RunScriptOnJumpbox(
                     SERVICE_CONNECTION,
