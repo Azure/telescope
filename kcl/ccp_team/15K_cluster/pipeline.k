@@ -9,11 +9,10 @@ RESOURCE_GROUP = "$(RUN_ID)"
 LOCATION = "$(location)"
 CLUSTER_NAME = "$(cluster_name)"
 SERVICE_CONNECTION = "$(AZURE_SERVICE_CONNECTION)"
-K8S_VERSION = "1.35.0"
-
 VNET_NAME = "${CLUSTER_NAME}-net"
 JUMPBOX_NAME = "${CLUSTER_NAME}-jumpbox"
 
+# Keep each pool at 800 nodes to leave capacity for max-surge nodes during upgrades.
 MAX_NODES_PER_POOL = 800
 
 createClusterScript = """
@@ -24,7 +23,7 @@ CREATE_ARGS=(
   --resource-group "${RESOURCE_GROUP}"
   --name "${CLUSTER_NAME}"
   --location "${LOCATION}"
-  --kubernetes-version "1.35.0"
+  --kubernetes-version "1.37"
   --dns-name-prefix "${CLUSTER_NAME}-dns"
   --tier standard
   --assign-identity "$(createManagedIdentity.IDENTITY_ID)"
@@ -47,28 +46,12 @@ CREATE_ARGS=(
   --yes
 )
 [[ "$(network_dataplane)" != "none" ]] && CREATE_ARGS+=(--network-dataplane "$(network_dataplane)")
-[[ "$(apiserver_vnet_integration)" == "true" ]] && CREATE_ARGS+=(--enable-apiserver-vnet-integration --apiserver-subnet-id "$(createApiserverSubnet.APISERVER_SUBNET_ID)")
-[[ "$(kms_key_id)" != "none" ]] && CREATE_ARGS+=(--enable-azure-keyvault-kms --azure-keyvault-kms-key-id "$(kms_key_id)" --azure-keyvault-kms-key-vault-network-access Public)
+# Azure Pipelines exposes boolean parameters as string variables, so accept either True or true.
+[[ "$(enable_apiserver_vnet_integration)" == [Tt][Rr][Uu][Ee] ]] && CREATE_ARGS+=(--enable-apiserver-vnet-integration --apiserver-subnet-id "$(createApiserverSubnet.APISERVER_SUBNET_ID)")
+[[ "$(enable_kms)" == [Tt][Rr][Uu][Ee] ]] && CREATE_ARGS+=(--kms-infrastructure-encryption Enabled)
 
 
 az aks create "\${CREATE_ARGS[@]}"
-"""
-
-grantKmsAccessScript = """
-KEY_ID="$(kms_key_id)"
-HOST="\${KEY_ID#https://}"
-VAULT_NAME="\${HOST%%.*}"
-
-KEY_VAULT_RESOURCE_ID=$(az keyvault show \\
-  --subscription "${SUBSCRIPTION_ID}" \\
-  --name "\${VAULT_NAME}" \\
-  --query id -o tsv)
-
-az role assignment create \\
-  --role "Key Vault Crypto User" \\
-  --assignee-object-id "$(createManagedIdentity.IDENTITY_PRINCIPAL_ID)" \\
-  --assignee-principal-type ServicePrincipal \\
-  --scope "\${KEY_VAULT_RESOURCE_ID}"
 """
 
 output = ap.Pipeline {
@@ -115,16 +98,16 @@ output = ap.Pipeline {
             default = "none"
         }
         ap.Parameter {
-            name = "apiserver_vnet_integration"
-            displayName = "Enable API server vNet integration (leave empty to disable)"
-            type = "string"
-            default = "true"
+            name = "enable_apiserver_vnet_integration"
+            displayName = "Enable API server VNet integration"
+            type = "boolean"
+            default = False
         }
         ap.Parameter {
-            name = "kms_key_id"
-            displayName = "Azure Key Vault KMS key ID (versioned key URI; use 'none' to disable KMS)"
-            type = "string"
-            default = "none"
+            name = "enable_kms"
+            displayName = "Enable KMS infrastructure encryption (Preview)"
+            type = "boolean"
+            default = False
         }
     ]
 
@@ -135,15 +118,15 @@ output = ap.Pipeline {
         user_pool_vm_size = "\${{ parameters.user_pool_vm_size }}"
         user_total_nodes = "\${{ parameters.user_total_nodes }}"
         network_dataplane = "\${{ parameters.network_dataplane }}"
-        apiserver_vnet_integration = "\${{ parameters.apiserver_vnet_integration }}"
-        kms_key_id = "\${{ parameters.kms_key_id }}"
+        enable_apiserver_vnet_integration = "\${{ parameters.enable_apiserver_vnet_integration }}"
+        enable_kms = "\${{ parameters.enable_kms }}"
     }
 
     jobs = [
         job.Job {
             job = "create_cluster"
             displayName = "Create 15K Nodes Cluster"
-            timeoutInMinutes = 2160
+            timeoutInMinutes = 1440
 
             steps = [
                 azure.Login(
@@ -231,12 +214,6 @@ output = ap.Pipeline {
                 ),
                 azure.AzCli(
                     SERVICE_CONNECTION,
-                    "Grant KMS access to cluster identity",
-                    grantKmsAccessScript,
-                    condition = "ne(variables['kms_key_id'], 'none')"
-                ),
-                azure.AzCli(
-                    SERVICE_CONNECTION,
                     "Create AKS cluster",
                     createClusterScript
                 ),
@@ -257,30 +234,24 @@ output = ap.Pipeline {
                     vnetSubnetId = "$(createNodesSubnet.NODES_SUBNET_ID)",
                     osSKU = "Ubuntu"
                 ),
-                azure.AzCli(
+                azure.RunScriptOnJumpbox(
                     SERVICE_CONNECTION,
+                    SUBSCRIPTION_ID,
+                    RESOURCE_GROUP,
+                    JUMPBOX_NAME,
                     "Configure kubeconfig on jumpbox ${JUMPBOX_NAME}",
                     """
-RUN_COMMAND_OUTPUT=$(az vm run-command invoke \\
+az login --identity --output none
+az account set --subscription "${SUBSCRIPTION_ID}"
+az aks get-credentials \\
+  --admin \\
+  --overwrite-existing \\
+  --file /var/tmp/telescope-kubeconfig \\
   --resource-group "${RESOURCE_GROUP}" \\
-  --name "${JUMPBOX_NAME}" \\
-  --subscription "${SUBSCRIPTION_ID}" \\
-  --command-id RunShellScript \\
-  --scripts \\
-    "set -eu" \\
-    "az login --identity --output none" \\
-    "az account set --subscription '${SUBSCRIPTION_ID}'" \\
-    "az aks get-credentials --admin --overwrite-existing --file /var/tmp/telescope-kubeconfig --resource-group '${RESOURCE_GROUP}' --name '${CLUSTER_NAME}' --subscription '${SUBSCRIPTION_ID}'" \\
-    "chmod 600 /var/tmp/telescope-kubeconfig" \\
-    "test -s /var/tmp/telescope-kubeconfig" \\
-    "echo __KUBECONFIG_READY__" \\
-  --query 'value[0].message' \\
-  --output tsv)
-echo "$RUN_COMMAND_OUTPUT"
-if ! grep -q '__KUBECONFIG_READY__' <<< "$RUN_COMMAND_OUTPUT"; then
-  echo "Failed to configure kubeconfig on jumpbox."
-  exit 1
-fi
+  --name "${CLUSTER_NAME}" \\
+  --subscription "${SUBSCRIPTION_ID}"
+chmod 600 /var/tmp/telescope-kubeconfig
+test -s /var/tmp/telescope-kubeconfig
 """
                 ),
                 *azure.ApplyManifestOnJumpbox(
