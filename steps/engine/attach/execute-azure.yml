@@ -3,13 +3,116 @@ parameters:
   result_dir: ""
   disk_number: 1
   storage_class: ""
+  execution_timeout_minutes: 0
 
 steps:
   - script: |
       set -eo pipefail
 
-      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
-        $DISK_NUMBER $STORAGE_CLASS $WAIT_TIME $RESULT_DIR
+      if [[ ! "$EXECUTION_TIMEOUT_MINUTES" =~ ^[0-9]+$ ]]; then
+        echo "##vso[task.logissue type=error;]execution_timeout_minutes must be a non-negative integer."
+        exit 1
+      fi
+
+      export PYTHONPATH="${PYTHONPATH:-}:$(pwd)"
+      export CSI_NAMESPACE_FILE
+      CSI_NAMESPACE_FILE=$(mktemp)
+
+      delete_failed_workload() {
+        local namespace="$1"
+        local volumes tracked_volumes resources attachments remaining_volumes remaining_attachments
+        local deadline=$((SECONDS + 900))
+        local failed=0
+
+        # Retain PV names before PVC deletion removes their namespace association.
+        tracked_volumes='[]'
+        if volumes=$(kubectl get pv --output=json --request-timeout=30s); then
+          tracked_volumes=$(jq -c --arg namespace "$namespace" \
+            '[.items[] | select(.spec.claimRef.namespace == $namespace) | .metadata.name]' <<< "$volumes") || return 1
+        else
+          echo "##vso[task.logissue type=error;]Failed to discover persistent volumes for $namespace."
+          failed=1
+        fi
+
+        if ! kubectl delete statefulset statefulset-local \
+          --namespace "$namespace" --ignore-not-found --cascade=foreground --wait=false --request-timeout=30s; then
+          echo "##vso[task.logissue type=error;]Failed to delete StatefulSet in $namespace."
+          failed=1
+        fi
+        if ! kubectl delete pvc --all \
+          --namespace "$namespace" --ignore-not-found --wait=false --request-timeout=30s; then
+          echo "##vso[task.logissue type=error;]Failed to delete PVCs in $namespace."
+          failed=1
+        fi
+        if [[ "$failed" -ne 0 ]]; then
+          return 1
+        fi
+
+        while (( SECONDS < deadline )); do
+          if ! resources=$(kubectl get statefulsets,pods,pvc \
+            --namespace "$namespace" --output=json --request-timeout=30s) ||
+            ! volumes=$(kubectl get pv --output=json --request-timeout=30s) ||
+            ! attachments=$(kubectl get volumeattachments --output=json --request-timeout=30s); then
+            echo "##vso[task.logissue type=error;]Failed to query workload deletion progress for $namespace."
+            return 1
+          fi
+
+          tracked_volumes=$(jq -c --arg namespace "$namespace" --argjson tracked "$tracked_volumes" \
+            '($tracked + [.items[] | select(.spec.claimRef.namespace == $namespace) | .metadata.name]) | unique' \
+            <<< "$volumes") || return 1
+          remaining_volumes=$(jq -c --argjson tracked "$tracked_volumes" \
+            '[.items[] | select(.metadata.name as $name | $tracked | index($name)) | .metadata.name]' \
+            <<< "$volumes") || return 1
+          remaining_attachments=$(jq -c --argjson tracked "$tracked_volumes" \
+            '[.items[] | select(.spec.source.persistentVolumeName as $name | $tracked | index($name)) |
+              .metadata.name]' <<< "$attachments") || return 1
+
+          if [[ "$(jq '.items | length' <<< "$resources")" -eq 0 &&
+            "$remaining_volumes" == '[]' && "$remaining_attachments" == '[]' ]]; then
+            echo "StatefulSet, pods, PVCs, PVs, and VolumeAttachments in $namespace have been removed."
+            return 0
+          fi
+
+          echo "Waiting for workload deletion in $namespace."
+          jq -c '[.items[] | {kind, name: .metadata.name}]' <<< "$resources"
+          echo "Remaining PVs: $remaining_volumes; VolumeAttachments: $remaining_attachments"
+          sleep 10
+        done
+
+        echo "##vso[task.logissue type=error;]Workload deletion in $namespace exceeded 15 minutes; cluster cleanup will follow."
+        return 1
+      }
+
+      cleanup_failed_workload() {
+        local status=$?
+        trap - EXIT TERM INT
+        if [[ "$status" -ne 0 && -s "$CSI_NAMESPACE_FILE" ]]; then
+          local namespace
+          namespace=$(cat "$CSI_NAMESPACE_FILE")
+          if [[ "$namespace" =~ ^test-[0-9]+$ ]]; then
+            echo "Deleting StatefulSet and PVCs from failed attach/detach test namespace $namespace."
+            if ! delete_failed_workload "$namespace"; then
+              echo "##vso[task.logissue type=error;]Workload cleanup did not complete for $namespace."
+            fi
+          else
+            echo "##vso[task.logissue type=error;]Invalid attach/detach cleanup namespace: $namespace"
+          fi
+        fi
+        rm -f "$CSI_NAMESPACE_FILE"
+        exit "$status"
+      }
+      trap cleanup_failed_workload EXIT
+      trap 'exit 143' TERM
+      trap 'exit 130' INT
+
+      exit_code=0
+      timeout --signal=TERM --kill-after=30s "${EXECUTION_TIMEOUT_MINUTES}m" \
+        python3 "$PYTHON_SCRIPT_FILE" execute \
+        "$DISK_NUMBER" "$STORAGE_CLASS" "$WAIT_TIME" "$RESULT_DIR" || exit_code=$?
+      if [[ "$exit_code" -eq 124 || "$exit_code" -eq 137 ]]; then
+        echo "##vso[task.logissue type=error;]Attach/detach execution exceeded $EXECUTION_TIMEOUT_MINUTES minutes."
+      fi
+      exit "$exit_code"
     displayName: "Execute Test attach detach ${{ parameters.disk_number }}"
     workingDirectory: modules/python
     env:
@@ -19,3 +122,4 @@ steps:
       WAIT_TIME: ${{ parameters.wait_time }}
       RESULT_DIR: ${{ parameters.result_dir }}
       PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/csi/csi.py
+      EXECUTION_TIMEOUT_MINUTES: ${{ parameters.execution_timeout_minutes }}

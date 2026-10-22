@@ -20,3 +20,5 @@ steps:
       disk_number: ${{ parameters.engine_input.disk_number }}
       storage_class: ${{ parameters.engine_input.storage_class }}
       wait_time: ${{ parameters.engine_input.wait_time }}
+      ${{ if eq(parameters.cloud, 'azure') }}:
+        execution_timeout_minutes: ${{ coalesce(parameters.engine_input.execution_timeout_minutes, 0) }}
