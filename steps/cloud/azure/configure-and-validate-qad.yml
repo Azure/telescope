@@ -7,8 +7,7 @@ steps:
     set -euo pipefail
 
     readonly APIVER="2026-07-02-preview"
-    # Temporarily use Contributor while custom-role definition capacity is exhausted.
-    # readonly ROLE_NAME="AKS QAD Node Attach Detach"
+    readonly ROLE_NAME="AKS QAD Node Attach Detach"
     readonly SUB=$(az account show --query id --output tsv)
     readonly RG="$RUN_ID"
     readonly REGION="$QAD_REGION"
@@ -56,91 +55,91 @@ steps:
     echo "##vso[task.setvariable variable=QAD_PRINCIPAL_ID]$QAD_PRINCIPAL_ID"
     echo "##vso[task.setvariable variable=QAD_NODE_RG_SCOPE]/subscriptions/$SUB/resourceGroups/$NODE_RG"
 
-    # ROLE_DEF_GUID=$(az role definition list \
-    #   --name "$ROLE_NAME" \
-    #   --query "[0].name" \
-    #   --output tsv)
-    # if [[ -z "$ROLE_DEF_GUID" ]]; then
-    #   role_file=$(mktemp)
-    #   trap 'rm -f "$role_file"' EXIT
-    #   jq -n \
-    #     --arg name "$ROLE_NAME" \
-    #     --arg scope "/subscriptions/$SUB" \
-    #     '{
-    #       Name: $name,
-    #       Description: "Permissions required by the AKS Quick Attach/Detach managed identity.",
-    #       Actions: [
-    #         "Microsoft.Compute/virtualMachines/read",
-    #         "Microsoft.Compute/virtualMachines/write",
-    #         "Microsoft.Compute/disks/write",
-    #         "Microsoft.Compute/virtualMachines/attachDetachDataDisks/action",
-    #         "Microsoft.Network/networkInterfaces/join/action",
-    #         "Microsoft.ManagedIdentity/userAssignedIdentities/assign/action",
-    #         "Microsoft.Compute/virtualMachineScaleSets/write"
-    #       ],
-    #       NotActions: [],
-    #       AssignableScopes: [$scope]
-    #     }' > "$role_file"
-    #
-    #   set +e
-    #   ROLE_DEF_GUID=$(az role definition create \
-    #     --role-definition "$role_file" \
-    #     --query name \
-    #     --output tsv)
-    #   create_exit_code=$?
-    #   set -e
-    #   if [[ "$create_exit_code" -ne 0 ]]; then
-    #     ROLE_DEF_GUID=$(az role definition list \
-    #       --name "$ROLE_NAME" \
-    #       --query "[0].name" \
-    #       --output tsv)
-    #   fi
-    # fi
-    # if [[ -z "$ROLE_DEF_GUID" ]]; then
-    #   echo "##vso[task.logissue type=error;]Unable to create or find shared role $ROLE_NAME."
-    #   exit 1
-    # fi
-    # ROLE_DEF_ID="/subscriptions/$SUB/providers/Microsoft.Authorization/roleDefinitions/$ROLE_DEF_GUID"
+    ROLE_DEF_GUID=$(az role definition list \
+      --name "$ROLE_NAME" \
+      --query "[0].name" \
+      --output tsv)
+    if [[ -z "$ROLE_DEF_GUID" ]]; then
+      role_file=$(mktemp)
+      trap 'rm -f "$role_file"' EXIT
+      jq -n \
+        --arg name "$ROLE_NAME" \
+        --arg scope "/subscriptions/$SUB" \
+        '{
+          Name: $name,
+          Description: "Permissions required by the AKS Quick Attach/Detach managed identity.",
+          Actions: [
+            "Microsoft.Compute/virtualMachines/read",
+            "Microsoft.Compute/virtualMachines/write",
+            "Microsoft.Compute/disks/write",
+            "Microsoft.Compute/virtualMachines/attachDetachDataDisks/action",
+            "Microsoft.Network/networkInterfaces/join/action",
+            "Microsoft.ManagedIdentity/userAssignedIdentities/assign/action",
+            "Microsoft.Compute/virtualMachineScaleSets/write"
+          ],
+          NotActions: [],
+          AssignableScopes: [$scope]
+        }' > "$role_file"
+
+      set +e
+      ROLE_DEF_GUID=$(az role definition create \
+        --role-definition "$role_file" \
+        --query name \
+        --output tsv)
+      create_exit_code=$?
+      set -e
+      if [[ "$create_exit_code" -ne 0 ]]; then
+        ROLE_DEF_GUID=$(az role definition list \
+          --name "$ROLE_NAME" \
+          --query "[0].name" \
+          --output tsv)
+      fi
+    fi
+    if [[ -z "$ROLE_DEF_GUID" ]]; then
+      echo "##vso[task.logissue type=error;]Unable to create or find shared role $ROLE_NAME."
+      exit 1
+    fi
+
+    ROLE_DEF_ID="/subscriptions/$SUB/providers/Microsoft.Authorization/roleDefinitions/$ROLE_DEF_GUID"
     NODE_RG_SCOPE="/subscriptions/$SUB/resourceGroups/$NODE_RG"
 
-    # assignments_url="https://management.azure.com${NODE_RG_SCOPE}/providers/Microsoft.Authorization/roleAssignments?api-version=2022-04-01&\$filter=principalId%20eq%20'$QAD_PRINCIPAL_ID'"
-    # assignments=$(az rest --method get --url "$assignments_url" --query value --output json)
-    # matching_count=$(jq \
-    #   --arg role "${ROLE_DEF_ID,,}" \
-    #   --arg scope "${NODE_RG_SCOPE,,}" \
-    #   '[.[] | select(
-    #     (.properties.roleDefinitionId | ascii_downcase) == $role and
-    #     (.properties.scope | ascii_downcase) == $scope and
-    #     .properties.principalType == "ServicePrincipal"
-    #   )] | length' <<< "$assignments")
-    #
-    # if [[ "$matching_count" -eq 0 ]]; then
-    # Custom-role argument: --role "$ROLE_DEF_ID"
-    az role assignment create \
-      --assignee-object-id "$QAD_PRINCIPAL_ID" \
-      --assignee-principal-type ServicePrincipal \
-      --role Contributor \
-      --scope "$NODE_RG_SCOPE" \
-      --output none
-    # fi
+    assignments_url="https://management.azure.com${NODE_RG_SCOPE}/providers/Microsoft.Authorization/roleAssignments?api-version=2022-04-01&\$filter=principalId%20eq%20'$QAD_PRINCIPAL_ID'"
+    assignments=$(az rest --method get --url "$assignments_url" --query value --output json)
+    matching_count=$(jq \
+      --arg role "${ROLE_DEF_ID,,}" \
+      --arg scope "${NODE_RG_SCOPE,,}" \
+      '[.[] | select(
+        (.properties.roleDefinitionId | ascii_downcase) == $role and
+        (.properties.scope | ascii_downcase) == $scope and
+        .properties.principalType == "ServicePrincipal"
+      )] | length' <<< "$assignments")
 
-    # assignments=$(az rest --method get --url "$assignments_url" --query value --output json)
-    # matching_assignments=$(jq \
-    #   --arg role "${ROLE_DEF_ID,,}" \
-    #   --arg scope "${NODE_RG_SCOPE,,}" \
-    #   '[.[] | select(
-    #     (.properties.roleDefinitionId | ascii_downcase) == $role and
-    #     (.properties.scope | ascii_downcase) == $scope and
-    #     .properties.principalType == "ServicePrincipal"
-    #   )]' <<< "$assignments")
-    # matching_count=$(jq length <<< "$matching_assignments")
-    # if [[ "$matching_count" -ne 1 ]]; then
-    #   echo "##vso[task.logissue type=error;]Expected one QAD role assignment, found $matching_count."
-    #   jq . <<< "$assignments"
-    #   exit 1
-    # fi
+    if [[ "$matching_count" -eq 0 ]]; then
+      az role assignment create \
+        --assignee-object-id "$QAD_PRINCIPAL_ID" \
+        --assignee-principal-type ServicePrincipal \
+        --role "$ROLE_DEF_ID" \
+        --scope "$NODE_RG_SCOPE" \
+        --output none
+    fi
 
-    echo "QAD Contributor role assignment created. Waiting 5 minutes for RBAC propagation."
+    assignments=$(az rest --method get --url "$assignments_url" --query value --output json)
+    matching_assignments=$(jq \
+      --arg role "${ROLE_DEF_ID,,}" \
+      --arg scope "${NODE_RG_SCOPE,,}" \
+      '[.[] | select(
+        (.properties.roleDefinitionId | ascii_downcase) == $role and
+        (.properties.scope | ascii_downcase) == $scope and
+        .properties.principalType == "ServicePrincipal"
+      )]' <<< "$assignments")
+    matching_count=$(jq length <<< "$matching_assignments")
+    if [[ "$matching_count" -ne 1 ]]; then
+      echo "##vso[task.logissue type=error;]Expected one QAD role assignment, found $matching_count."
+      jq . <<< "$assignments"
+      exit 1
+    fi
+
+    echo "QAD custom role assignment verified. Waiting 5 minutes for RBAC propagation."
     sleep 300
 
     federated_issuer=""

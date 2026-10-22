@@ -107,11 +107,10 @@ jobs:
       regions: ${{ parameters.regions }}
       engine_input: ${{ parameters.engine_input }}
       credential_type: ${{ parameters.credential_type }}
-  # Temporarily rely on node resource group deletion to remove QAD role assignments.
-  # - ${{ if eq(parameters.qad_enabled, true) }}:
-  #   - template: /steps/cloud/azure/cleanup-qad-role-assignment.yml
-  #     parameters:
-  #       region: ${{ parameters.regions[0] }}
+  - ${{ if eq(parameters.qad_enabled, true) }}:
+    - template: /steps/cloud/azure/cleanup-qad-role-assignment.yml
+      parameters:
+        region: ${{ parameters.regions[0] }}
   - template: /steps/cleanup-resources.yml
     parameters:
       cloud: ${{ parameters.cloud }}
