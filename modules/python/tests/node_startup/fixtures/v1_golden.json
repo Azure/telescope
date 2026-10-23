@@ -1,0 +1,739 @@
+{
+  "cilium_metrics": {
+    "empty": {
+      "bootstrap": {},
+      "endpoint_regen": {},
+      "metadata": {
+        "cilium_bpf_map_pressure": null,
+        "cilium_identity_count": null,
+        "cilium_version": null
+      }
+    },
+    "legacy_identity_count": {
+      "bootstrap": {
+        "k8sInit": 3.25,
+        "overall": 12.5,
+        "restore": 0.75
+      },
+      "endpoint_regen": {
+        "policyCalculation": 0,
+        "sumOnly": 0,
+        "total": 0.5
+      },
+      "metadata": {
+        "cilium_bpf_map_pressure": 0.02,
+        "cilium_identity_count": 42,
+        "cilium_version": "go1.23"
+      }
+    },
+    "per_type_identity_gauges": {
+      "bootstrap": {
+        "k8sInit": 3.25,
+        "overall": 12.5,
+        "restore": 0.75
+      },
+      "endpoint_regen": {
+        "policyCalculation": 0,
+        "sumOnly": 0,
+        "total": 0.5
+      },
+      "metadata": {
+        "cilium_bpf_map_pressure": 0.02,
+        "cilium_identity_count": 11,
+        "cilium_version": "go1.23"
+      }
+    }
+  },
+  "cni_pod": {
+    "cilium_agent": {
+      "cni_container_started": "2026-10-02T10:01:50Z",
+      "cni_pod_ready": "2026-10-02T10:01:58Z",
+      "cni_pod_scheduled": "2026-10-02T10:01:41Z",
+      "containers": [
+        {
+          "image": "mcr.microsoft.com/containernetworking/cilium/cilium:v1.19.3-260520",
+          "name": "cilium-agent",
+          "ready": true,
+          "started_at": "2026-10-02T10:01:50Z"
+        },
+        {
+          "image": "mcr.microsoft.com/containernetworking/cilium/cilium:v1.19.3-260520",
+          "name": "cilium-monitor",
+          "ready": false,
+          "started_at": null
+        }
+      ],
+      "image_pull_events": [
+        {
+          "already_present": false,
+          "duration_seconds": 1.0,
+          "image": "cilium-init:1",
+          "message": "Successfully pulled image \"cilium-init:1\" in 1.2s (1.2s including waiting)",
+          "pulled_at": "2026-10-02T10:01:43Z",
+          "pulling_at": "2026-10-02T10:01:42Z"
+        },
+        {
+          "already_present": true,
+          "duration_seconds": null,
+          "image": "mcr.microsoft.com/containernetworking/cilium/cilium:v1.19.3-260520",
+          "message": "Container image \"mcr.microsoft.com/containernetworking/cilium/cilium:v1.19.3-260520\" already present on machine",
+          "pulled_at": "2026-10-02T10:01:49Z",
+          "pulling_at": null
+        }
+      ],
+      "init_container_logs": [
+        {
+          "first_log_ts": "2026-10-02T10:01:43.100000123Z",
+          "inferred_duration_seconds": null,
+          "last_log_ts": "2026-10-02T10:01:43.900000456Z",
+          "log_duration_seconds": 0.8,
+          "name": "install-cni-binaries",
+          "operations": [
+            {
+              "line": "Installing cilium-cni binaries to /host/opt/cni/bin",
+              "name": "install-cni-binaries",
+              "started_at": "2026-10-02T10:01:43.100000123Z"
+            }
+          ],
+          "raw_lines": [
+            {
+              "line": "Installing cilium-cni binaries to /host/opt/cni/bin",
+              "ts": "2026-10-02T10:01:43.100000123Z"
+            },
+            {
+              "line": "install-plugin done",
+              "ts": "2026-10-02T10:01:43.900000456Z"
+            }
+          ]
+        },
+        {
+          "first_log_ts": "2026-10-02T10:01:45.200000000Z",
+          "inferred_duration_seconds": 1.3,
+          "last_log_ts": "2026-10-02T10:01:45.200000000Z",
+          "log_duration_seconds": 0.0,
+          "name": "mount-cgroup",
+          "operations": [
+            {
+              "line": "Mounted cgroupv2 filesystem at /run/cilium/cgroupv2",
+              "name": "mount-cgroup",
+              "started_at": "2026-10-02T10:01:45.200000000Z"
+            }
+          ],
+          "raw_lines": [
+            {
+              "line": "Mounted cgroupv2 filesystem at /run/cilium/cgroupv2",
+              "ts": "2026-10-02T10:01:45.200000000Z"
+            }
+          ]
+        },
+        {
+          "first_log_ts": null,
+          "inferred_duration_seconds": 2.3,
+          "last_log_ts": null,
+          "log_duration_seconds": null,
+          "name": "silent-init",
+          "operations": []
+        },
+        {
+          "first_log_ts": "2026-10-02T10:01:47.500000000Z",
+          "inferred_duration_seconds": 2.7,
+          "last_log_ts": "2026-10-02T10:01:47.900000000Z",
+          "log_duration_seconds": 0.4,
+          "name": "clean-cilium-state",
+          "operations": [
+            {
+              "line": "Removing stale cilium state; rm -rf /var/run/cilium/state",
+              "name": "clean-cilium-state",
+              "started_at": "2026-10-02T10:01:47.500000000Z"
+            },
+            {
+              "line": "sysctl net.ipv4.conf.all.rp_filter=0",
+              "name": "apply-sysctl-overwrites",
+              "started_at": "2026-10-02T10:01:47.600000000Z"
+            },
+            {
+              "line": "Mounted bpf on /sys/fs/bpf",
+              "name": "mount-bpf-fs",
+              "started_at": "2026-10-02T10:01:47.900000000Z"
+            }
+          ],
+          "raw_lines": [
+            {
+              "line": "Removing stale cilium state; rm -rf /var/run/cilium/state",
+              "ts": "2026-10-02T10:01:47.500000000Z"
+            },
+            {
+              "line": "sysctl net.ipv4.conf.all.rp_filter=0",
+              "ts": "2026-10-02T10:01:47.600000000Z"
+            },
+            {
+              "line": "Mounted bpf on /sys/fs/bpf",
+              "ts": "2026-10-02T10:01:47.900000000Z"
+            }
+          ]
+        }
+      ],
+      "init_containers": [
+        {
+          "duration_seconds": 1.0,
+          "finished_at": "2026-10-02T10:01:44Z",
+          "image": "cilium-init:1",
+          "name": "install-cni-binaries",
+          "started_at": "2026-10-02T10:01:43Z"
+        },
+        {
+          "duration_seconds": 2.0,
+          "finished_at": "2026-10-02T10:01:46Z",
+          "image": "cilium-init:1",
+          "name": "mount-cgroup",
+          "started_at": "2026-10-02T10:01:44Z"
+        },
+        {
+          "duration_seconds": null,
+          "finished_at": null,
+          "image": "cilium-init:1",
+          "name": "silent-init",
+          "started_at": null
+        },
+        {
+          "duration_seconds": 1.0,
+          "finished_at": "2026-10-02T10:01:48Z",
+          "image": "cilium-init:1",
+          "name": "clean-cilium-state",
+          "started_at": "2026-10-02T10:01:47Z"
+        }
+      ]
+    },
+    "no_pod_on_node": {
+      "cni_container_started": null,
+      "cni_pod_ready": null,
+      "cni_pod_scheduled": null,
+      "containers": [],
+      "image_pull_events": [],
+      "init_containers": []
+    }
+  },
+  "generated_from": {
+    "commit": "0c6de95af312f3f2488f74a53c296d3e9d3a11ae",
+    "file": "modules/python/clients/kubernetes_client.py",
+    "ref": "carlota-cilium-testing"
+  },
+  "latency": {
+    "azure_cni_no_cni_pod": {
+      "autoscaler_reaction_seconds": 4.0,
+      "cilium_init_duration_seconds": null,
+      "cilium_scheduling_block_seconds": null,
+      "cloud_provisioning_seconds": 91.0,
+      "cni_conflist_install_seconds": 9.0,
+      "cni_gating_node_ready_seconds": null,
+      "cni_induced_delay_seconds": null,
+      "cni_init_seconds": null,
+      "cni_scheduler_latency_seconds": null,
+      "cni_taint_active_seconds": null,
+      "cni_taint_seconds": null,
+      "csinode_ready_seconds": 4.0,
+      "network_unavailable_seconds": null,
+      "network_unavailable_taint_active_seconds": null,
+      "network_unavailable_taint_seconds": null,
+      "node_init_seconds": 13.0,
+      "node_ready_after_register_seconds": 13.0,
+      "node_ready_to_cni_clear_seconds": null,
+      "node_register_latency_seconds": 95.0,
+      "node_to_pod_seconds": 17.0,
+      "node_workload_ready_seconds": 13.0,
+      "not_ready_taint_active_seconds": 13.0,
+      "not_ready_taint_seconds": 14.0,
+      "pod_init_seconds": 2.0,
+      "pod_ready_seconds": 1.0,
+      "pod_scheduling_seconds": 2.0,
+      "post_conflist_ready_seconds": 4.0,
+      "registration_to_cni_taint_seconds": null,
+      "registration_to_not_ready_taint_seconds": 1.0,
+      "sandbox_setup_seconds": 2.0,
+      "t1c_from_t1_seconds": 9.0,
+      "t2_from_t1_seconds": null,
+      "t3_from_t1_seconds": null,
+      "t4_from_t1_seconds": 13.0,
+      "t4b_from_t1_seconds": null,
+      "t5_from_t1_seconds": 17.0,
+      "time_to_runnable_seconds": 17.0,
+      "total_e2e_seconds": 113.0,
+      "total_node_startup_seconds": 13.0
+    },
+    "empty": {
+      "autoscaler_reaction_seconds": null,
+      "cilium_init_duration_seconds": null,
+      "cilium_scheduling_block_seconds": null,
+      "cloud_provisioning_seconds": null,
+      "cni_conflist_install_seconds": null,
+      "cni_gating_node_ready_seconds": null,
+      "cni_induced_delay_seconds": null,
+      "cni_init_seconds": null,
+      "cni_scheduler_latency_seconds": null,
+      "cni_taint_active_seconds": null,
+      "cni_taint_seconds": null,
+      "csinode_ready_seconds": null,
+      "network_unavailable_seconds": null,
+      "network_unavailable_taint_active_seconds": null,
+      "network_unavailable_taint_seconds": null,
+      "node_init_seconds": null,
+      "node_ready_after_register_seconds": null,
+      "node_ready_to_cni_clear_seconds": null,
+      "node_register_latency_seconds": null,
+      "node_to_pod_seconds": null,
+      "node_workload_ready_seconds": null,
+      "not_ready_taint_active_seconds": null,
+      "not_ready_taint_seconds": null,
+      "pod_init_seconds": null,
+      "pod_ready_seconds": null,
+      "pod_scheduling_seconds": null,
+      "post_conflist_ready_seconds": null,
+      "registration_to_cni_taint_seconds": null,
+      "registration_to_not_ready_taint_seconds": null,
+      "sandbox_setup_seconds": null,
+      "t1c_from_t1_seconds": null,
+      "t2_from_t1_seconds": null,
+      "t3_from_t1_seconds": null,
+      "t4_from_t1_seconds": null,
+      "t4b_from_t1_seconds": null,
+      "t5_from_t1_seconds": null,
+      "time_to_runnable_seconds": null,
+      "total_e2e_seconds": null,
+      "total_node_startup_seconds": null
+    },
+    "kubenet_network_unavailable": {
+      "autoscaler_reaction_seconds": null,
+      "cilium_init_duration_seconds": null,
+      "cilium_scheduling_block_seconds": null,
+      "cloud_provisioning_seconds": null,
+      "cni_conflist_install_seconds": 2.0,
+      "cni_gating_node_ready_seconds": null,
+      "cni_induced_delay_seconds": null,
+      "cni_init_seconds": null,
+      "cni_scheduler_latency_seconds": null,
+      "cni_taint_active_seconds": null,
+      "cni_taint_seconds": null,
+      "csinode_ready_seconds": null,
+      "network_unavailable_seconds": 28.0,
+      "network_unavailable_taint_active_seconds": 28.0,
+      "network_unavailable_taint_seconds": 29.0,
+      "node_init_seconds": 10.0,
+      "node_ready_after_register_seconds": 10.0,
+      "node_ready_to_cni_clear_seconds": null,
+      "node_register_latency_seconds": 90.0,
+      "node_to_pod_seconds": 31.0,
+      "node_workload_ready_seconds": 28.0,
+      "not_ready_taint_active_seconds": null,
+      "not_ready_taint_seconds": null,
+      "pod_init_seconds": 1.0,
+      "pod_ready_seconds": 1.0,
+      "pod_scheduling_seconds": 20.0,
+      "post_conflist_ready_seconds": 8.0,
+      "registration_to_cni_taint_seconds": null,
+      "registration_to_not_ready_taint_seconds": null,
+      "sandbox_setup_seconds": 1.0,
+      "t1c_from_t1_seconds": 2.0,
+      "t2_from_t1_seconds": null,
+      "t3_from_t1_seconds": null,
+      "t4_from_t1_seconds": 10.0,
+      "t4b_from_t1_seconds": null,
+      "t5_from_t1_seconds": 31.0,
+      "time_to_runnable_seconds": 31.0,
+      "total_e2e_seconds": 122.0,
+      "total_node_startup_seconds": 10.0
+    },
+    "malformed_and_missing": {
+      "autoscaler_reaction_seconds": null,
+      "cilium_init_duration_seconds": null,
+      "cilium_scheduling_block_seconds": null,
+      "cloud_provisioning_seconds": null,
+      "cni_conflist_install_seconds": null,
+      "cni_gating_node_ready_seconds": null,
+      "cni_induced_delay_seconds": null,
+      "cni_init_seconds": null,
+      "cni_scheduler_latency_seconds": null,
+      "cni_taint_active_seconds": null,
+      "cni_taint_seconds": null,
+      "csinode_ready_seconds": null,
+      "network_unavailable_seconds": null,
+      "network_unavailable_taint_active_seconds": null,
+      "network_unavailable_taint_seconds": null,
+      "node_init_seconds": null,
+      "node_ready_after_register_seconds": null,
+      "node_ready_to_cni_clear_seconds": null,
+      "node_register_latency_seconds": null,
+      "node_to_pod_seconds": 10.0,
+      "node_workload_ready_seconds": null,
+      "not_ready_taint_active_seconds": null,
+      "not_ready_taint_seconds": null,
+      "pod_init_seconds": null,
+      "pod_ready_seconds": null,
+      "pod_scheduling_seconds": null,
+      "post_conflist_ready_seconds": null,
+      "registration_to_cni_taint_seconds": null,
+      "registration_to_not_ready_taint_seconds": null,
+      "sandbox_setup_seconds": null,
+      "t1c_from_t1_seconds": null,
+      "t2_from_t1_seconds": null,
+      "t3_from_t1_seconds": null,
+      "t4_from_t1_seconds": null,
+      "t4b_from_t1_seconds": null,
+      "t5_from_t1_seconds": 10.0,
+      "time_to_runnable_seconds": 10.0,
+      "total_e2e_seconds": null,
+      "total_node_startup_seconds": null
+    },
+    "managed_cilium": {
+      "autoscaler_reaction_seconds": 5.0,
+      "cilium_bootstrap_k8sInit_seconds": 3.25,
+      "cilium_bootstrap_overall_seconds": 12.5,
+      "cilium_bpf_map_pressure": 0.02,
+      "cilium_endpoint_regen_policyCalculation_seconds": 0,
+      "cilium_endpoint_regen_total_seconds": 0.5,
+      "cilium_identity_count": 11,
+      "cilium_init_duration_seconds": 8.0,
+      "cilium_scheduling_block_seconds": 3.0,
+      "cilium_version": "1.19.3",
+      "cloud_provisioning_seconds": 95.0,
+      "cni_conflist_install_seconds": 12.0,
+      "cni_gating_node_ready_seconds": 0,
+      "cni_induced_delay_seconds": 3.0,
+      "cni_init_seconds": 8.0,
+      "cni_scheduler_latency_seconds": 1.0,
+      "cni_taint_active_seconds": 17.0,
+      "cni_taint_seconds": 19.0,
+      "csinode_ready_seconds": 5.0,
+      "network_unavailable_seconds": 3.0,
+      "network_unavailable_taint_active_seconds": null,
+      "network_unavailable_taint_seconds": null,
+      "node_init_seconds": 15.0,
+      "node_ready_after_register_seconds": 15.0,
+      "node_ready_to_cni_clear_seconds": 4.0,
+      "node_register_latency_seconds": 100.0,
+      "node_to_pod_seconds": 23.0,
+      "node_workload_ready_seconds": 18.0,
+      "not_ready_taint_active_seconds": 15.0,
+      "not_ready_taint_seconds": 16.0,
+      "pod_init_seconds": 3.0,
+      "pod_ready_seconds": 1.0,
+      "pod_scheduling_seconds": 5.0,
+      "post_conflist_ready_seconds": 3.0,
+      "registration_to_cni_taint_seconds": 2.0,
+      "registration_to_not_ready_taint_seconds": 1.0,
+      "sandbox_setup_seconds": 3.0,
+      "t1c_from_t1_seconds": 12.0,
+      "t2_from_t1_seconds": 10.0,
+      "t3_from_t1_seconds": 18.0,
+      "t4_from_t1_seconds": 15.0,
+      "t4b_from_t1_seconds": 19.0,
+      "t5_from_t1_seconds": 23.0,
+      "time_to_runnable_seconds": 23.0,
+      "total_e2e_seconds": 124.0,
+      "total_node_startup_seconds": 18.0
+    },
+    "node_ready_after_cni": {
+      "autoscaler_reaction_seconds": 5.0,
+      "cilium_bootstrap_k8sInit_seconds": 3.25,
+      "cilium_bootstrap_overall_seconds": 12.5,
+      "cilium_bpf_map_pressure": 0.02,
+      "cilium_endpoint_regen_policyCalculation_seconds": 0,
+      "cilium_endpoint_regen_total_seconds": 0.5,
+      "cilium_identity_count": 11,
+      "cilium_init_duration_seconds": 4.0,
+      "cilium_scheduling_block_seconds": 0,
+      "cilium_version": "1.19.3",
+      "cloud_provisioning_seconds": 95.0,
+      "cni_conflist_install_seconds": 12.0,
+      "cni_gating_node_ready_seconds": 7.0,
+      "cni_induced_delay_seconds": 0,
+      "cni_init_seconds": 4.0,
+      "cni_scheduler_latency_seconds": 1.0,
+      "cni_taint_active_seconds": 17.0,
+      "cni_taint_seconds": 19.0,
+      "csinode_ready_seconds": 5.0,
+      "network_unavailable_seconds": 3.0,
+      "network_unavailable_taint_active_seconds": null,
+      "network_unavailable_taint_seconds": null,
+      "node_init_seconds": 21.0,
+      "node_ready_after_register_seconds": 21.0,
+      "node_ready_to_cni_clear_seconds": -2.0,
+      "node_register_latency_seconds": 100.0,
+      "node_to_pod_seconds": 23.0,
+      "node_workload_ready_seconds": 21.0,
+      "not_ready_taint_active_seconds": 15.0,
+      "not_ready_taint_seconds": 16.0,
+      "pod_init_seconds": 3.0,
+      "pod_ready_seconds": 1.0,
+      "pod_scheduling_seconds": -1.0,
+      "post_conflist_ready_seconds": 9.0,
+      "registration_to_cni_taint_seconds": 2.0,
+      "registration_to_not_ready_taint_seconds": 1.0,
+      "sandbox_setup_seconds": 3.0,
+      "t1c_from_t1_seconds": 12.0,
+      "t2_from_t1_seconds": 10.0,
+      "t3_from_t1_seconds": 14.0,
+      "t4_from_t1_seconds": 21.0,
+      "t4b_from_t1_seconds": 19.0,
+      "t5_from_t1_seconds": 23.0,
+      "time_to_runnable_seconds": 23.0,
+      "total_e2e_seconds": 124.0,
+      "total_node_startup_seconds": 21.0
+    },
+    "version_from_image_only": {
+      "autoscaler_reaction_seconds": 5.0,
+      "cilium_init_duration_seconds": 8.0,
+      "cilium_scheduling_block_seconds": 3.0,
+      "cilium_version": "1.19.3-260520",
+      "cloud_provisioning_seconds": 95.0,
+      "cni_conflist_install_seconds": 12.0,
+      "cni_gating_node_ready_seconds": 0,
+      "cni_induced_delay_seconds": 3.0,
+      "cni_init_seconds": 8.0,
+      "cni_scheduler_latency_seconds": 1.0,
+      "cni_taint_active_seconds": 17.0,
+      "cni_taint_seconds": 19.0,
+      "csinode_ready_seconds": 5.0,
+      "network_unavailable_seconds": 3.0,
+      "network_unavailable_taint_active_seconds": null,
+      "network_unavailable_taint_seconds": null,
+      "node_init_seconds": 15.0,
+      "node_ready_after_register_seconds": 15.0,
+      "node_ready_to_cni_clear_seconds": 4.0,
+      "node_register_latency_seconds": 100.0,
+      "node_to_pod_seconds": 23.0,
+      "node_workload_ready_seconds": 18.0,
+      "not_ready_taint_active_seconds": 15.0,
+      "not_ready_taint_seconds": 16.0,
+      "pod_init_seconds": 3.0,
+      "pod_ready_seconds": 1.0,
+      "pod_scheduling_seconds": 5.0,
+      "post_conflist_ready_seconds": 3.0,
+      "registration_to_cni_taint_seconds": 2.0,
+      "registration_to_not_ready_taint_seconds": 1.0,
+      "sandbox_setup_seconds": 3.0,
+      "t1c_from_t1_seconds": 12.0,
+      "t2_from_t1_seconds": 10.0,
+      "t3_from_t1_seconds": 18.0,
+      "t4_from_t1_seconds": 15.0,
+      "t4b_from_t1_seconds": 19.0,
+      "t5_from_t1_seconds": 23.0,
+      "time_to_runnable_seconds": 23.0,
+      "total_e2e_seconds": 124.0,
+      "total_node_startup_seconds": 18.0
+    },
+    "version_missing_in_metrics": {
+      "autoscaler_reaction_seconds": 5.0,
+      "cilium_bpf_map_pressure": null,
+      "cilium_identity_count": null,
+      "cilium_init_duration_seconds": 8.0,
+      "cilium_scheduling_block_seconds": 3.0,
+      "cilium_version": "1.19.3-260520",
+      "cloud_provisioning_seconds": 95.0,
+      "cni_conflist_install_seconds": 12.0,
+      "cni_gating_node_ready_seconds": 0,
+      "cni_induced_delay_seconds": 3.0,
+      "cni_init_seconds": 8.0,
+      "cni_scheduler_latency_seconds": 1.0,
+      "cni_taint_active_seconds": 17.0,
+      "cni_taint_seconds": 19.0,
+      "csinode_ready_seconds": 5.0,
+      "network_unavailable_seconds": 3.0,
+      "network_unavailable_taint_active_seconds": null,
+      "network_unavailable_taint_seconds": null,
+      "node_init_seconds": 15.0,
+      "node_ready_after_register_seconds": 15.0,
+      "node_ready_to_cni_clear_seconds": 4.0,
+      "node_register_latency_seconds": 100.0,
+      "node_to_pod_seconds": 23.0,
+      "node_workload_ready_seconds": 18.0,
+      "not_ready_taint_active_seconds": 15.0,
+      "not_ready_taint_seconds": 16.0,
+      "pod_init_seconds": 3.0,
+      "pod_ready_seconds": 1.0,
+      "pod_scheduling_seconds": 5.0,
+      "post_conflist_ready_seconds": 3.0,
+      "registration_to_cni_taint_seconds": 2.0,
+      "registration_to_not_ready_taint_seconds": 1.0,
+      "sandbox_setup_seconds": 3.0,
+      "t1c_from_t1_seconds": 12.0,
+      "t2_from_t1_seconds": 10.0,
+      "t3_from_t1_seconds": 18.0,
+      "t4_from_t1_seconds": 15.0,
+      "t4b_from_t1_seconds": 19.0,
+      "t5_from_t1_seconds": 23.0,
+      "time_to_runnable_seconds": 23.0,
+      "total_e2e_seconds": 124.0,
+      "total_node_startup_seconds": 18.0
+    }
+  },
+  "trigger": {
+    "failed_scheduling_fallback": {
+      "first_scheduling_event": "2026-10-02T10:00:01Z",
+      "triggered_scale_up": null
+    },
+    "no_events": {
+      "first_scheduling_event": null,
+      "triggered_scale_up": null
+    },
+    "triggered_scale_up_whole_second": {
+      "first_scheduling_event": "2026-10-02T10:00:01Z",
+      "triggered_scale_up": "2026-10-02T10:00:05Z"
+    },
+    "triggered_scale_up_with_event_time": {
+      "first_scheduling_event": null,
+      "triggered_scale_up": "2026-10-02T10:00:05Z"
+    }
+  },
+  "watch": {
+    "first_event_already_ready": {
+      "cni_conflist_placed_at": "2026-10-02T10:01:49Z",
+      "cni_taint_cleared": null,
+      "cni_taint_observed": null,
+      "csinode_ready_at": "2026-10-02T10:01:49Z",
+      "events": [
+        {
+          "creation_timestamp": "2026-10-02T10:01:40Z",
+          "event": "node_registered",
+          "node": "aks-userpool-12345678-vmss000003",
+          "observed_at": "2026-10-02T10:01:49Z"
+        },
+        {
+          "event": "node_ready",
+          "last_transition_time": "2026-10-02T10:01:48Z",
+          "node": "aks-userpool-12345678-vmss000003",
+          "observed_at": "2026-10-02T10:01:49Z"
+        },
+        {
+          "event": "cni_conflist_placed",
+          "node": "aks-userpool-12345678-vmss000003",
+          "observed_at": "2026-10-02T10:01:49Z"
+        },
+        {
+          "event": "csinode_ready",
+          "node": "aks-userpool-12345678-vmss000003",
+          "observed_at": "2026-10-02T10:01:49Z"
+        }
+      ],
+      "network_unavailable_taint_cleared": null,
+      "network_unavailable_taint_observed": null,
+      "node_ready_at": "2026-10-02T10:01:49Z",
+      "node_registered_at": "2026-10-02T10:01:49Z",
+      "not_ready_taint_cleared": null,
+      "not_ready_taint_observed": null
+    },
+    "kubenet_network_unavailable": {
+      "cni_conflist_placed_at": "2026-10-02T10:01:40Z",
+      "cni_taint_cleared": null,
+      "cni_taint_observed": null,
+      "csinode_ready_at": "2026-10-02T10:01:30Z",
+      "events": [
+        {
+          "creation_timestamp": "2026-10-02T10:01:40Z",
+          "event": "node_registered",
+          "node": "aks-userpool-12345678-vmss000003",
+          "observed_at": "2026-10-02T10:01:30Z"
+        },
+        {
+          "event": "not_ready_taint_observed",
+          "node": "aks-userpool-12345678-vmss000003",
+          "observed_at": "2026-10-02T10:01:30Z"
+        },
+        {
+          "event": "network_unavailable_taint_observed",
+          "node": "aks-userpool-12345678-vmss000003",
+          "observed_at": "2026-10-02T10:01:30Z"
+        },
+        {
+          "event": "csinode_ready",
+          "node": "aks-userpool-12345678-vmss000003",
+          "observed_at": "2026-10-02T10:01:30Z"
+        },
+        {
+          "event": "not_ready_taint_cleared",
+          "node": "aks-userpool-12345678-vmss000003",
+          "observed_at": "2026-10-02T10:01:40Z"
+        },
+        {
+          "event": "node_ready",
+          "last_transition_time": "2026-10-02T10:01:40Z",
+          "node": "aks-userpool-12345678-vmss000003",
+          "observed_at": "2026-10-02T10:01:40Z"
+        },
+        {
+          "event": "cni_conflist_placed",
+          "node": "aks-userpool-12345678-vmss000003",
+          "observed_at": "2026-10-02T10:01:40Z"
+        },
+        {
+          "event": "network_unavailable_taint_cleared",
+          "node": "aks-userpool-12345678-vmss000003",
+          "observed_at": "2026-10-02T10:01:59Z"
+        }
+      ],
+      "network_unavailable_taint_cleared": "2026-10-02T10:01:59Z",
+      "network_unavailable_taint_observed": "2026-10-02T10:01:30Z",
+      "node_ready_at": "2026-10-02T10:01:40Z",
+      "node_registered_at": "2026-10-02T10:01:30Z",
+      "not_ready_taint_cleared": "2026-10-02T10:01:40Z",
+      "not_ready_taint_observed": "2026-10-02T10:01:30Z"
+    },
+    "managed_cilium": {
+      "cni_conflist_placed_at": "2026-10-02T10:01:41Z",
+      "cni_taint_cleared": "2026-10-02T10:01:55Z",
+      "cni_taint_observed": "2026-10-02T10:01:40Z",
+      "csinode_ready_at": "2026-10-02T10:01:40Z",
+      "events": [
+        {
+          "creation_timestamp": "2026-10-02T10:01:40Z",
+          "event": "node_registered",
+          "node": "aks-userpool-12345678-vmss000003",
+          "observed_at": "2026-10-02T10:01:40Z"
+        },
+        {
+          "event": "not_ready_taint_observed",
+          "node": "aks-userpool-12345678-vmss000003",
+          "observed_at": "2026-10-02T10:01:40Z"
+        },
+        {
+          "event": "cni_taint_observed",
+          "node": "aks-userpool-12345678-vmss000003",
+          "observed_at": "2026-10-02T10:01:40Z",
+          "taint": "node.cilium.io/agent-not-ready"
+        },
+        {
+          "event": "csinode_ready",
+          "node": "aks-userpool-12345678-vmss000003",
+          "observed_at": "2026-10-02T10:01:40Z"
+        },
+        {
+          "event": "cni_conflist_placed",
+          "node": "aks-userpool-12345678-vmss000003",
+          "observed_at": "2026-10-02T10:01:41Z"
+        },
+        {
+          "event": "not_ready_taint_cleared",
+          "node": "aks-userpool-12345678-vmss000003",
+          "observed_at": "2026-10-02T10:01:52Z"
+        },
+        {
+          "event": "node_ready",
+          "last_transition_time": "2026-10-02T10:01:55Z",
+          "node": "aks-userpool-12345678-vmss000003",
+          "observed_at": "2026-10-02T10:01:52Z"
+        },
+        {
+          "event": "cni_taint_cleared",
+          "node": "aks-userpool-12345678-vmss000003",
+          "observed_at": "2026-10-02T10:01:55Z",
+          "taint": "node.cilium.io/agent-not-ready"
+        }
+      ],
+      "network_unavailable_taint_cleared": null,
+      "network_unavailable_taint_observed": null,
+      "node_ready_at": "2026-10-02T10:01:52Z",
+      "node_registered_at": "2026-10-02T10:01:40Z",
+      "not_ready_taint_cleared": "2026-10-02T10:01:52Z",
+      "not_ready_taint_observed": "2026-10-02T10:01:40Z"
+    }
+  }
+}
