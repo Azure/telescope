@@ -69,9 +69,9 @@ done
     AzCli(serviceConnection, "Create node pool ${pool.name}", script)
 }
 
-# CreateNodePoolsFromRuntimeCount splits a node count resolved at pipeline runtime
+# CreateNodePoolsFromPipelineParameter splits a pipeline-provided node count
 # across sequentially created pools.
-CreateNodePoolsFromRuntimeCount = lambda \
+CreateNodePoolsFromPipelineParameter = lambda \
     serviceConnection: str, \
     cluster: str, \
     resourceGroup: str, \
@@ -155,7 +155,7 @@ while [ "$remaining" -gt 0 ]; do
   pool_index=$((pool_index + 1))
 done
 """
-    AzCli(serviceConnection, "Create node pools from runtime count", script)
+    AzCli(serviceConnection, "Create node pools from pipeline parameter", script)
 }
 
 # PlanNodePools expands a {sku: totalNodes} map into an ordered list of
