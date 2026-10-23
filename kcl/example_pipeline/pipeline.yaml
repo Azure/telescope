@@ -81,41 +81,46 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
-        deadline=$(($(date +%s) + 600))
-        sleep_between=30
-        attempt=0
-        while :; do
-          attempt=$((attempt + 1))
-          set +e
-          output=$(az aks nodepool add \
-            --cluster-name "example-yaolei" \
-            --resource-group "$(RUN_ID)" \
-            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-            --name "cl2pool" \
-            --node-count 4 \
-            --node-vm-size "Standard_D8S_v4" \
-            --mode User \
-            --node-taints cl2pool=true:NoSchedule 2>&1)
-          rc=$?
-          set -e
-          echo "$output"
-          if [ $rc -eq 0 ]; then
-            exit 0
-          fi
-          if echo "$output" | grep -qiE "OperationNotAllowed"; then
-            now=$(date +%s)
-            if [ $now -ge $deadline ]; then
-              echo "Retriable error persisted past 600s retry window ($attempt attempts); giving up."
-              exit $rc
+        create_node_pool() {
+          local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
+          deadline=$(($(date +%s) + 600))
+          while :; do
+            attempt=$((attempt + 1))
+            if output=$(az aks nodepool add "$@" 2>&1); then
+              rc=0
+            else
+              rc=$?
             fi
-            remaining=$((deadline - now))
-            echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining seconds remain in retry window)."
-            sleep $sleep_between
-          else
-            echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
-            exit $rc
-          fi
-        done
+            echo "$output"
+            if [ "$rc" -eq 0 ]; then
+              return 0
+            fi
+            if echo "$output" | grep -qiE "OperationNotAllowed"; then
+              now=$(date +%s)
+              if [ "$now" -ge "$deadline" ]; then
+                echo "Retriable error persisted past 600s retry window ($attempt attempts); giving up."
+                return "$rc"
+              fi
+              remaining_retry_seconds=$((deadline - now))
+              echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining_retry_seconds seconds remain in retry window)."
+              sleep "$sleep_between"
+            else
+              echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+              return "$rc"
+            fi
+          done
+        }
+
+
+        create_node_pool \
+          --cluster-name "example-yaolei" \
+          --resource-group "$(RUN_ID)" \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --name "cl2pool" \
+          --node-count 4 \
+          --node-vm-size "Standard_D8S_v4" \
+          --mode User \
+          --node-taints cl2pool=true:NoSchedule
     displayName: Create node pool cl2pool
   - task: AzureCLI@2
     inputs:
