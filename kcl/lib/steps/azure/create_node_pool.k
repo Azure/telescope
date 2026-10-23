@@ -71,13 +71,17 @@ done
 
 # CreateNodePoolsFromPipelineParameter splits a pipeline-provided node count
 # across sequentially created pools.
+# totalNodesParameterName must be a full Azure DevOps parameter reference written
+# in KCL as "\${{ parameters.total_nodes }}", not a bare parameter name.
+# The reference is preserved in the generated script for Azure DevOps to resolve.
+# For a node count known during KCL generation, use PlanNodePools and CreateNodePool.
 CreateNodePoolsFromPipelineParameter = lambda \
     serviceConnection: str, \
     cluster: str, \
     resourceGroup: str, \
     subscription: str, \
     sku: str, \
-    totalNodes: str, \
+    totalNodesParameterName: str, \
     maxNodesPerPool: int = 800, \
     namePrefix: str = "workerpool", \
     vnetSubnetId: str = "", \
@@ -92,8 +96,11 @@ CreateNodePoolsFromPipelineParameter = lambda \
     ]
     flags = " \\\n      ".join([f for f in flagDecision if f])
     script = """
-TOTAL_NODES="${totalNodes}"
+TOTAL_NODES="${totalNodesParameterName}"
 MAX_NODES_PER_POOL=${maxNodesPerPool}
+# AKS allows up to 100 node pools per cluster, including existing pools.
+# https://learn.microsoft.com/en-us/azure/aks/quotas-skus-regions#service-quotas-and-limits
+# This guard does not account for existing pools; AKS enforces the cluster-wide limit.
 MAX_NODE_POOLS=100
 
 if ! [[ "$TOTAL_NODES" =~ ^[1-9][0-9]*$ ]]; then
