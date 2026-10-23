@@ -18,6 +18,38 @@ CREATE_NODEPOOL_RETRY_WINDOW_SEC = 600
 # Transient errors to retry when creating node pools (separated with '|')
 CREATE_NODEPOOL_TRANSIENT_ERRORS = "OperationNotAllowed"
 
+_CREATE_NODE_POOL_FUNCTION = """
+create_node_pool() {
+  local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
+  deadline=$(($(date +%s) + ${CREATE_NODEPOOL_RETRY_WINDOW_SEC}))
+  while :; do
+    attempt=$((attempt + 1))
+    if output=$(az aks nodepool add "$@" 2>&1); then
+      rc=0
+    else
+      rc=$?
+    fi
+    echo "$output"
+    if [ "$rc" -eq 0 ]; then
+      return 0
+    fi
+    if echo "$output" | grep -qiE "${CREATE_NODEPOOL_TRANSIENT_ERRORS}"; then
+      now=$(date +%s)
+      if [ "$now" -ge "$deadline" ]; then
+        echo "Retriable error persisted past ${CREATE_NODEPOOL_RETRY_WINDOW_SEC}s retry window ($attempt attempts); giving up."
+        return "$rc"
+      fi
+      remaining_retry_seconds=$((deadline - now))
+      echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining_retry_seconds seconds remain in retry window)."
+      sleep "$sleep_between"
+    else
+      echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+      return "$rc"
+    fi
+  done
+}
+"""
+
 CreateNodePool = lambda serviceConnection: str, cluster: str, resourceGroup: str, subscription: str, pool: NodePool, noWait: bool = False -> steps.Step {
     flagDecision = [
         "--node-taints ${pool.taintPrefix}=true:NoSchedule" if pool.taintPrefix else "",
@@ -28,43 +60,18 @@ CreateNodePool = lambda serviceConnection: str, cluster: str, resourceGroup: str
         "--no-wait" if noWait else "",
     ]
     flags = " \\\n  ".join([f for f in flagDecision if f])
-    # Retry on transient errors — e.g., AKS can spin up PutExtensionAddonHandler in the background, causing transient OperationNotAllowed on node pool PUT requests.
     script = """
-deadline=$(($(date +%s) + ${CREATE_NODEPOOL_RETRY_WINDOW_SEC}))
-sleep_between=30
-attempt=0
-while :; do
-  attempt=$((attempt + 1))
-  set +e
-  output=$(az aks nodepool add \\
-    --cluster-name "${cluster}" \\
-    --resource-group "${resourceGroup}" \\
-    --subscription "${subscription}" \\
-    --name "${pool.name}" \\
-    --node-count ${pool.count} \\
-    --node-vm-size "${pool.sku}" \\
-    --mode User \\
-    ${flags} 2>&1)
-  rc=$?
-  set -e
-  echo "$output"
-  if [ $rc -eq 0 ]; then
-    exit 0
-  fi
-  if echo "$output" | grep -qiE "${CREATE_NODEPOOL_TRANSIENT_ERRORS}"; then
-    now=$(date +%s)
-    if [ $now -ge $deadline ]; then
-      echo "Retriable error persisted past ${CREATE_NODEPOOL_RETRY_WINDOW_SEC}s retry window ($attempt attempts); giving up."
-      exit $rc
-    fi
-    remaining=$((deadline - now))
-    echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining seconds remain in retry window)."
-    sleep $sleep_between
-  else
-    echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
-    exit $rc
-  fi
-done
+${_CREATE_NODE_POOL_FUNCTION}
+
+create_node_pool \\
+  --cluster-name "${cluster}" \\
+  --resource-group "${resourceGroup}" \\
+  --subscription "${subscription}" \\
+  --name "${pool.name}" \\
+  --node-count ${pool.count} \\
+  --node-vm-size "${pool.sku}" \\
+  --mode User \\
+  ${flags}
 """
     AzCli(serviceConnection, "Create node pool ${pool.name}", script)
 }
@@ -96,6 +103,8 @@ CreateNodePoolsFromPipelineParameter = lambda \
     ]
     flags = " \\\n      ".join([f for f in flagDecision if f])
     script = """
+${_CREATE_NODE_POOL_FUNCTION}
+
 TOTAL_NODES="${totalNodesParameterName}"
 MAX_NODES_PER_POOL=${maxNodesPerPool}
 # AKS allows up to 100 node pools per cluster, including existing pools.
@@ -122,41 +131,15 @@ while [ "$remaining" -gt 0 ]; do
   pool_name="${namePrefix}$pool_index"
   echo "Creating node pool $pool_name with $node_count nodes."
 
-  deadline=$(($(date +%s) + ${CREATE_NODEPOOL_RETRY_WINDOW_SEC}))
-  sleep_between=30
-  attempt=0
-  while :; do
-    attempt=$((attempt + 1))
-    set +e
-    output=$(az aks nodepool add \\
-      --cluster-name "${cluster}" \\
-      --resource-group "${resourceGroup}" \\
-      --subscription "${subscription}" \\
-      --name "$pool_name" \\
-      --node-count "$node_count" \\
-      --node-vm-size "${sku}" \\
-      --mode User \\
-      ${flags} 2>&1)
-    rc=$?
-    set -e
-    echo "$output"
-    if [ $rc -eq 0 ]; then
-      break
-    fi
-    if echo "$output" | grep -qiE "${CREATE_NODEPOOL_TRANSIENT_ERRORS}"; then
-      now=$(date +%s)
-      if [ $now -ge $deadline ]; then
-        echo "Retriable error persisted past ${CREATE_NODEPOOL_RETRY_WINDOW_SEC}s retry window ($attempt attempts); giving up."
-        exit $rc
-      fi
-      remaining_retry_seconds=$((deadline - now))
-      echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining_retry_seconds seconds remain in retry window)."
-      sleep $sleep_between
-    else
-      echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
-      exit $rc
-    fi
-  done
+  create_node_pool \\
+    --cluster-name "${cluster}" \\
+    --resource-group "${resourceGroup}" \\
+    --subscription "${subscription}" \\
+    --name "$pool_name" \\
+    --node-count "$node_count" \\
+    --node-vm-size "${sku}" \\
+    --mode User \\
+    ${flags}
 
   remaining=$((remaining - node_count))
   pool_index=$((pool_index + 1))
