@@ -52,19 +52,10 @@ spec:
           {{else}}
         image: registry.k8s.io/e2e-test-images/resource-consumer:1.13
           {{end}}
-          {{if eq $TestImage "e2e-test-images/resource-consumer:1.13"}}
         command:
-          - stress
+          - sleep
         args:
-          - --vm
-          - "1"
-          - --vm-bytes
-          - {{$Memory}}
-          - --vm-hang
-          - "0"
-          - --timeout
           - "3600"
-          {{end}}
         {{end}}
         resources:
           requests:
@@ -77,6 +68,9 @@ spec:
         image: {{$RegistryEndpoint}}/e2e-test-images/resource-consumer:1.13-windows-amd64-ltsc2022
         command:
           - /consume-cpu/consume-cpu.exe
+        args:
+          - --duration-sec=3600
+          - {{$CPU}}
         {{else}}
           {{if eq $Provider "aks"}}
         image: {{$RegistryEndpoint}}/e2e-test-images/resource-consumer:1.13
@@ -84,11 +78,10 @@ spec:
         image: registry.k8s.io/e2e-test-images/resource-consumer:1.13
           {{end}}
         command:
-          - /consume-cpu/consume-cpu
-        {{end}}
+          - sleep
         args:
-          - --duration-sec=3600
-          - {{$CPU}}
+          - "3600"
+        {{end}}
         resources:
           requests:
             cpu: {{$CPURequest}}
