@@ -6,7 +6,6 @@ import lib.steps.azure
 
 NODE_SKU = "Standard_D2s_v3"
 KUBECONFIG = "$(Agent.TempDirectory)/$(System.JobId)-kubeconfig"
-RESULTS = "$(Agent.TempDirectory)/node-validation-$(System.JobId)"
 
 schema JobConfig:
     nodesPerPool: int
@@ -24,25 +23,6 @@ benchmarkJob = lambda config: JobConfig, predecessor: [str] -> job.Job {
         timeoutInMinutes = 240
         cancelTimeoutInMinutes = 60
         steps = [
-            steps.Bash {
-                displayName = "Record benchmark configuration"
-                bash = """
-set -euo pipefail
-mkdir -p "${RESULTS}"
-jq -n \\
-  --arg cluster "${cluster}" \\
-  --arg nodeResourceGroup "${nodeResourceGroup}" \\
-  --arg subscription "${const.DEFAULT_SUBSCRIPTION_ID}" \\
-  --arg location "${config.region}" \\
-  --arg buildId "$(Build.BuildId)" \\
-  --argjson nodesPerPool ${config.nodesPerPool} \\
-  '{cluster: $cluster, resourceGroup: $cluster, nodeResourceGroup: $nodeResourceGroup,
-    subscription: $subscription,
-    location: $location, buildId: $buildId, nodesPerPool: $nodesPerPool,
-    systemNodes: 2, sku: "${config.nodeSku}", kubernetesVersion: "1.36.4",
-    timeoutSeconds: 3600}' | tee "${RESULTS}/configuration.json"
-"""
-            }
             azure.Login(const.DEFAULT_SERVICE_CONNECTION, const.DEFAULT_SUBSCRIPTION_ID, config.region)
             azure.CreateResourceGroup(const.DEFAULT_SERVICE_CONNECTION, cluster, config.region, const.DEFAULT_SUBSCRIPTION_ID)
             azure.AzCli(const.DEFAULT_SERVICE_CONNECTION, "Create Standard-tier cluster", """
@@ -69,83 +49,26 @@ az aks create \\
   --generate-ssh-keys \\
   --yes
 """)
-            steps.Bash {
-                displayName = "Pause 15 minutes for manual ccp-webhook scaling"
-                bash = """
-set -euo pipefail
-echo "Cluster/resource group: ${cluster}"
-echo "Subscription: ${const.DEFAULT_SUBSCRIPTION_ID}; region: ${config.region}"
-echo "Pausing 15 minutes before worker-pool creation for manual ccp-webhook scaling."
-echo "Verify the target CCP webhook replicas and ready Service backends using authorized underlay access."
-echo "Worker-pool creation resumes automatically; this step does not verify scaling."
-sleep 900
-"""
-            }
-            *[azure.CreateNodePool(const.DEFAULT_SERVICE_CONNECTION, cluster, cluster, const.DEFAULT_SUBSCRIPTION_ID, pool | {maxPods = 250}) for pool in azure.PlanNodePools({(config.nodeSku): 2 * config.nodesPerPool}, maxNodesPerPool=config.nodesPerPool)]
+            *[
+                azure.CreateNodePool(
+                    const.DEFAULT_SERVICE_CONNECTION
+                    cluster
+                    cluster
+                    const.DEFAULT_SUBSCRIPTION_ID
+                    pool | {maxPods = 250}
+                )
+                for pool in azure.PlanNodePools(
+                    {(config.nodeSku): 2 * config.nodesPerPool}
+                    maxNodesPerPool=config.nodesPerPool
+                )
+            ]
             azure.GetCredentials(const.DEFAULT_SERVICE_CONNECTION, cluster, cluster, const.DEFAULT_SUBSCRIPTION_ID, file=KUBECONFIG)
             steps.Bash {
-                displayName = "Wait up to 60 minutes for Ready, untainted nodes"
+                displayName = "Wait up to 10 minutes for Ready, untainted nodes"
                 bash = """
 bash "$(Build.SourcesDirectory)/kcl/node-validation/wait-for-node-validation.sh" \\
-  "${KUBECONFIG}" ${config.nodesPerPool} "${RESULTS}"
+  "${KUBECONFIG}" ${config.nodesPerPool}
 """
-            }
-            steps.Bash {
-                displayName = "Collect bounded cloud-node-manager diagnostics"
-                condition = "failed()"
-                bash = """
-set -euo pipefail
-mkdir -p "${RESULTS}"
-if [ ! -f "${KUBECONFIG}" ]; then
-  echo "##[warning]No kubeconfig available for node diagnostics"
-  exit 0
-fi
-if ! timeout 30s kubectl --kubeconfig "${KUBECONFIG}" --request-timeout=25s \\
-  -n kube-system get daemonset cloud-node-manager -o json \\
-  > "${RESULTS}/cloud-node-manager-daemonset.json"; then
-  echo "##[warning]Could not collect cloud-node-manager DaemonSet"
-fi
-if [ ! -f "${RESULTS}/nodes.json" ]; then
-  echo "##[warning]No valid node snapshot available for log selection"
-  exit 0
-fi
-if ! timeout 30s kubectl --kubeconfig "${KUBECONFIG}" --request-timeout=25s \\
-  -n kube-system get pods -l k8s-app=cloud-node-manager -o json \\
-  > "${RESULTS}/cloud-node-manager-pods.json"; then
-  echo "##[warning]Could not discover cloud-node-manager pods"
-  exit 0
-fi
-jq -r '
-  [.items[]
-    | select(any(.spec.taints[]?; .effect == "NoSchedule"))
-    | {name: .metadata.name,
-       pool: (.metadata.labels.agentpool // .metadata.labels["kubernetes.azure.com/agentpool"])}]
-  | group_by(.pool) | .[] | .[0].name' "${RESULTS}/nodes.json" \\
-  > "${RESULTS}/diagnostic-nodes.txt"
-while read -r node; do
-  pod=$(jq -r --arg node "$node" \\
-    '[.items[] | select(.spec.nodeName == $node)][0].metadata.name // empty' \\
-    "${RESULTS}/cloud-node-manager-pods.json")
-  if [ -z "$pod" ]; then
-    echo "##[warning]No cloud-node-manager pod found for $node"
-    continue
-  fi
-  if ! timeout 30s kubectl --kubeconfig "${KUBECONFIG}" --request-timeout=25s \\
-    -n kube-system logs "$pod" --timestamps --tail=50 \\
-    > "${RESULTS}/$pod.log" 2>&1; then
-    echo "##[warning]Could not fetch logs for $pod"
-  fi
-done < "${RESULTS}/diagnostic-nodes.txt"
-"""
-            }
-            steps.Task {
-                task = "PublishPipelineArtifact@1"
-                displayName = "Publish node validation evidence"
-                condition = "always()"
-                inputs = {
-                    targetPath = RESULTS
-                    artifact = "node-validation-${config.region}-nodes${config.nodesPerPool}-$(System.JobAttempt)"
-                }
             }
             azure.DeleteResourceGroup(
                 const.DEFAULT_SERVICE_CONNECTION
@@ -164,7 +87,7 @@ output = ap.Pipeline {
     parameters = [
         ap.Parameter {
             name = "keep_failed_cluster"
-            displayName = "Keep clusters when a job step fails (manual cleanup required)"
+            displayName = "Keep the cluster when job fails (manual cleanup required)"
             type = "boolean"
             default = False
         }
