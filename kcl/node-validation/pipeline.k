@@ -15,6 +15,11 @@ schema JobConfig:
 benchmarkJob = lambda config: JobConfig, predecessor: [str] -> job.Job {
     cluster = "nodevalidation-$(Build.BuildId)-${config.region}-nodes${config.nodesPerPool}-$(System.JobAttempt)"
     nodeResourceGroup = "${cluster}-nodes"
+    workerPools = azure.PlanNodePools(
+        {(config.nodeSku): 2 * config.nodesPerPool}
+        maxNodesPerPool=config.nodesPerPool
+    )
+    expectedPools = " ".join(["\"${pool.name}:${pool.count}\"" for pool in workerPools])
     job.Job {
         job = "nodes${config.nodesPerPool}"
         displayName = "Two ${config.nodesPerPool}-node pools in ${config.region}"
@@ -57,17 +62,14 @@ az aks create \\
                     const.DEFAULT_SUBSCRIPTION_ID
                     pool | {maxPods = 250}
                 )
-                for pool in azure.PlanNodePools(
-                    {(config.nodeSku): 2 * config.nodesPerPool}
-                    maxNodesPerPool=config.nodesPerPool
-                )
+                for pool in workerPools
             ]
             azure.GetCredentials(const.DEFAULT_SERVICE_CONNECTION, cluster, cluster, const.DEFAULT_SUBSCRIPTION_ID, file=KUBECONFIG)
             steps.Bash {
-                displayName = "Wait up to 10 minutes for Ready, untainted nodes"
+                displayName = "Wait up to 10 minutes for Ready, untainted worker nodes"
                 bash = """
 bash "$(Build.SourcesDirectory)/kcl/node-validation/wait-for-node-validation.sh" \\
-  "${KUBECONFIG}" ${config.nodesPerPool}
+  "${KUBECONFIG}" ${expectedPools}
 """
             }
             azure.DeleteResourceGroup(
