@@ -67,7 +67,7 @@ az aks create \\
             steps.Bash {
                 displayName = "Wait up to 10 minutes for Ready, untainted worker nodes"
                 bash = """
-bash "$(Build.SourcesDirectory)/kcl/node-validation/wait-for-node-validation.sh" \\
+bash "$(Build.SourcesDirectory)/kcl/ccp_team/node-validation/wait-for-node-validation.sh" \\
   "${KUBECONFIG}" ${expectedPools}
 """
             }

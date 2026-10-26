@@ -184,7 +184,7 @@ stages:
             -f $(Agent.TempDirectory)/$(System.JobId)-kubeconfig
       displayName: Get credentials for nodevalidation-$(Build.BuildId)-eastasia-nodes1000-$(System.JobAttempt)
     - bash: |
-        bash "$(Build.SourcesDirectory)/kcl/node-validation/wait-for-node-validation.sh" \
+        bash "$(Build.SourcesDirectory)/kcl/ccp_team/node-validation/wait-for-node-validation.sh" \
           "$(Agent.TempDirectory)/$(System.JobId)-kubeconfig" "workerpool0:1000" "workerpool1:1000"
       displayName: Wait up to 10 minutes for Ready, untainted worker nodes
     - task: AzureCLI@2
@@ -374,7 +374,7 @@ stages:
             -f $(Agent.TempDirectory)/$(System.JobId)-kubeconfig
       displayName: Get credentials for nodevalidation-$(Build.BuildId)-westus2-nodes500-$(System.JobAttempt)
     - bash: |
-        bash "$(Build.SourcesDirectory)/kcl/node-validation/wait-for-node-validation.sh" \
+        bash "$(Build.SourcesDirectory)/kcl/ccp_team/node-validation/wait-for-node-validation.sh" \
           "$(Agent.TempDirectory)/$(System.JobId)-kubeconfig" "workerpool0:500" "workerpool1:500"
       displayName: Wait up to 10 minutes for Ready, untainted worker nodes
     - task: AzureCLI@2
@@ -560,7 +560,7 @@ stages:
             -f $(Agent.TempDirectory)/$(System.JobId)-kubeconfig
       displayName: Get credentials for nodevalidation-$(Build.BuildId)-westus2-nodes1000-$(System.JobAttempt)
     - bash: |
-        bash "$(Build.SourcesDirectory)/kcl/node-validation/wait-for-node-validation.sh" \
+        bash "$(Build.SourcesDirectory)/kcl/ccp_team/node-validation/wait-for-node-validation.sh" \
           "$(Agent.TempDirectory)/$(System.JobId)-kubeconfig" "workerpool0:1000" "workerpool1:1000"
       displayName: Wait up to 10 minutes for Ready, untainted worker nodes
     - task: AzureCLI@2
