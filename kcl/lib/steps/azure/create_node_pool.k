@@ -80,7 +80,19 @@ create_node_pool \\
 # across sequentially created pools.
 # totalNodesParameterName must be a full Azure DevOps parameter reference written
 # in KCL as "\${{ parameters.total_nodes }}", not a bare parameter name.
-# The reference is preserved in the generated script for Azure DevOps to resolve.
+# Example: define a numeric pipeline parameter, then pass its reference:
+#   ap.Parameter {
+#       name = "total_nodes"
+#       type = "number"
+#       default = 14997
+#   }
+#   azure.CreateNodePoolsFromPipelineParameter(
+#       SERVICE_CONNECTION, CLUSTER_NAME, RESOURCE_GROUP, SUBSCRIPTION_ID,
+#       "Standard_D4s_v3",
+#       totalNodesParameterName = "\${{ parameters.total_nodes }}"
+#   )
+# KCL emits TOTAL_NODES="${{ parameters.total_nodes }}" in the script.
+# Azure DevOps replaces the expression with the selected count before execution.
 # For a node count known during KCL generation, use PlanNodePools and CreateNodePool.
 CreateNodePoolsFromPipelineParameter = lambda \
     serviceConnection: str, \
