@@ -106,86 +106,14 @@ stages:
         azureSubscription: Azure-for-Telescope-internal
         scriptType: bash
         scriptLocation: inlineScript
-        inlineScript: |
-          set -exo pipefail
-          deadline=$(($(date +%s) + 600))
-          sleep_between=30
-          attempt=0
-          while :; do
-            attempt=$((attempt + 1))
-            set +e
-            output=$(az aks nodepool add \
-              --cluster-name "underlay-validation" \
-              --resource-group "$(RUN_ID)" \
-              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-              --name "runner" \
-              --node-count 5 \
-              --node-vm-size "Standard_D4s_v4" \
-              --mode User \
-               2>&1)
-            rc=$?
-            set -e
-            echo "$output"
-            if [ $rc -eq 0 ]; then
-              exit 0
-            fi
-            if echo "$output" | grep -qiE "OperationNotAllowed"; then
-              now=$(date +%s)
-              if [ $now -ge $deadline ]; then
-                echo "Retriable error persisted past 600s retry window ($attempt attempts); giving up."
-                exit $rc
-              fi
-              remaining=$((deadline - now))
-              echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining seconds remain in retry window)."
-              sleep $sleep_between
-            else
-              echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
-              exit $rc
-            fi
-          done
+        inlineScript: "set -exo pipefail\ncreate_node_pool() {\n  local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds\n  deadline=$(($(date +%s) + 600))\n  while :; do\n    attempt=$((attempt + 1))\n    if output=$(az aks nodepool add \"$@\" 2>&1); then\n      rc=0\n    else\n      rc=$?\n    fi\n    echo \"$output\"\n    if [ \"$rc\" -eq 0 ]; then\n      return 0\n    fi\n    if echo \"$output\" | grep -qiE \"OperationNotAllowed\"; then\n      now=$(date +%s)\n      if [ \"$now\" -ge \"$deadline\" ]; then\n        echo \"Retriable error persisted past 600s retry window ($attempt attempts); giving up.\"\n        return \"$rc\"\n      fi\n      remaining_retry_seconds=$((deadline - now))\n      echo \"Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining_retry_seconds seconds remain in retry window).\"\n      sleep \"$sleep_between\"\n    else\n      echo \"Non-retriable error (rc=$rc); giving up after attempt $attempt.\"\n      return \"$rc\"\n    fi\n  done\n}\n\n\ncreate_node_pool \\\n  --cluster-name \"underlay-validation\" \\\n  --resource-group \"$(RUN_ID)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"runner\" \\\n  --node-count 5 \\\n  --node-vm-size \"Standard_D4s_v4\" \\\n  --mode User \\\n  \n"
       displayName: Create node pool runner
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
         scriptType: bash
         scriptLocation: inlineScript
-        inlineScript: |
-          set -exo pipefail
-          deadline=$(($(date +%s) + 600))
-          sleep_between=30
-          attempt=0
-          while :; do
-            attempt=$((attempt + 1))
-            set +e
-            output=$(az aks nodepool add \
-              --cluster-name "underlay-validation" \
-              --resource-group "$(RUN_ID)" \
-              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-              --name "userpool" \
-              --node-count 100 \
-              --node-vm-size "Standard_D2s_v4" \
-              --mode User \
-               2>&1)
-            rc=$?
-            set -e
-            echo "$output"
-            if [ $rc -eq 0 ]; then
-              exit 0
-            fi
-            if echo "$output" | grep -qiE "OperationNotAllowed"; then
-              now=$(date +%s)
-              if [ $now -ge $deadline ]; then
-                echo "Retriable error persisted past 600s retry window ($attempt attempts); giving up."
-                exit $rc
-              fi
-              remaining=$((deadline - now))
-              echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining seconds remain in retry window)."
-              sleep $sleep_between
-            else
-              echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
-              exit $rc
-            fi
-          done
+        inlineScript: "set -exo pipefail\ncreate_node_pool() {\n  local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds\n  deadline=$(($(date +%s) + 600))\n  while :; do\n    attempt=$((attempt + 1))\n    if output=$(az aks nodepool add \"$@\" 2>&1); then\n      rc=0\n    else\n      rc=$?\n    fi\n    echo \"$output\"\n    if [ \"$rc\" -eq 0 ]; then\n      return 0\n    fi\n    if echo \"$output\" | grep -qiE \"OperationNotAllowed\"; then\n      now=$(date +%s)\n      if [ \"$now\" -ge \"$deadline\" ]; then\n        echo \"Retriable error persisted past 600s retry window ($attempt attempts); giving up.\"\n        return \"$rc\"\n      fi\n      remaining_retry_seconds=$((deadline - now))\n      echo \"Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining_retry_seconds seconds remain in retry window).\"\n      sleep \"$sleep_between\"\n    else\n      echo \"Non-retriable error (rc=$rc); giving up after attempt $attempt.\"\n      return \"$rc\"\n    fi\n  done\n}\n\n\ncreate_node_pool \\\n  --cluster-name \"underlay-validation\" \\\n  --resource-group \"$(RUN_ID)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"userpool\" \\\n  --node-count 100 \\\n  --node-vm-size \"Standard_D2s_v4\" \\\n  --mode User \\\n  \n"
       displayName: Create node pool userpool
     - task: AzureCLI@2
       inputs:
@@ -4779,86 +4707,14 @@ stages:
         azureSubscription: Azure-for-Telescope-internal
         scriptType: bash
         scriptLocation: inlineScript
-        inlineScript: |
-          set -exo pipefail
-          deadline=$(($(date +%s) + 600))
-          sleep_between=30
-          attempt=0
-          while :; do
-            attempt=$((attempt + 1))
-            set +e
-            output=$(az aks nodepool add \
-              --cluster-name "underlay-validation" \
-              --resource-group "$(RUN_ID)" \
-              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-              --name "runner" \
-              --node-count 5 \
-              --node-vm-size "Standard_D4s_v4" \
-              --mode User \
-               2>&1)
-            rc=$?
-            set -e
-            echo "$output"
-            if [ $rc -eq 0 ]; then
-              exit 0
-            fi
-            if echo "$output" | grep -qiE "OperationNotAllowed"; then
-              now=$(date +%s)
-              if [ $now -ge $deadline ]; then
-                echo "Retriable error persisted past 600s retry window ($attempt attempts); giving up."
-                exit $rc
-              fi
-              remaining=$((deadline - now))
-              echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining seconds remain in retry window)."
-              sleep $sleep_between
-            else
-              echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
-              exit $rc
-            fi
-          done
+        inlineScript: "set -exo pipefail\ncreate_node_pool() {\n  local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds\n  deadline=$(($(date +%s) + 600))\n  while :; do\n    attempt=$((attempt + 1))\n    if output=$(az aks nodepool add \"$@\" 2>&1); then\n      rc=0\n    else\n      rc=$?\n    fi\n    echo \"$output\"\n    if [ \"$rc\" -eq 0 ]; then\n      return 0\n    fi\n    if echo \"$output\" | grep -qiE \"OperationNotAllowed\"; then\n      now=$(date +%s)\n      if [ \"$now\" -ge \"$deadline\" ]; then\n        echo \"Retriable error persisted past 600s retry window ($attempt attempts); giving up.\"\n        return \"$rc\"\n      fi\n      remaining_retry_seconds=$((deadline - now))\n      echo \"Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining_retry_seconds seconds remain in retry window).\"\n      sleep \"$sleep_between\"\n    else\n      echo \"Non-retriable error (rc=$rc); giving up after attempt $attempt.\"\n      return \"$rc\"\n    fi\n  done\n}\n\n\ncreate_node_pool \\\n  --cluster-name \"underlay-validation\" \\\n  --resource-group \"$(RUN_ID)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"runner\" \\\n  --node-count 5 \\\n  --node-vm-size \"Standard_D4s_v4\" \\\n  --mode User \\\n  \n"
       displayName: Create node pool runner
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
         scriptType: bash
         scriptLocation: inlineScript
-        inlineScript: |
-          set -exo pipefail
-          deadline=$(($(date +%s) + 600))
-          sleep_between=30
-          attempt=0
-          while :; do
-            attempt=$((attempt + 1))
-            set +e
-            output=$(az aks nodepool add \
-              --cluster-name "underlay-validation" \
-              --resource-group "$(RUN_ID)" \
-              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-              --name "userpool" \
-              --node-count 100 \
-              --node-vm-size "Standard_D2s_v4" \
-              --mode User \
-               2>&1)
-            rc=$?
-            set -e
-            echo "$output"
-            if [ $rc -eq 0 ]; then
-              exit 0
-            fi
-            if echo "$output" | grep -qiE "OperationNotAllowed"; then
-              now=$(date +%s)
-              if [ $now -ge $deadline ]; then
-                echo "Retriable error persisted past 600s retry window ($attempt attempts); giving up."
-                exit $rc
-              fi
-              remaining=$((deadline - now))
-              echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining seconds remain in retry window)."
-              sleep $sleep_between
-            else
-              echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
-              exit $rc
-            fi
-          done
+        inlineScript: "set -exo pipefail\ncreate_node_pool() {\n  local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds\n  deadline=$(($(date +%s) + 600))\n  while :; do\n    attempt=$((attempt + 1))\n    if output=$(az aks nodepool add \"$@\" 2>&1); then\n      rc=0\n    else\n      rc=$?\n    fi\n    echo \"$output\"\n    if [ \"$rc\" -eq 0 ]; then\n      return 0\n    fi\n    if echo \"$output\" | grep -qiE \"OperationNotAllowed\"; then\n      now=$(date +%s)\n      if [ \"$now\" -ge \"$deadline\" ]; then\n        echo \"Retriable error persisted past 600s retry window ($attempt attempts); giving up.\"\n        return \"$rc\"\n      fi\n      remaining_retry_seconds=$((deadline - now))\n      echo \"Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining_retry_seconds seconds remain in retry window).\"\n      sleep \"$sleep_between\"\n    else\n      echo \"Non-retriable error (rc=$rc); giving up after attempt $attempt.\"\n      return \"$rc\"\n    fi\n  done\n}\n\n\ncreate_node_pool \\\n  --cluster-name \"underlay-validation\" \\\n  --resource-group \"$(RUN_ID)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"userpool\" \\\n  --node-count 100 \\\n  --node-vm-size \"Standard_D2s_v4\" \\\n  --mode User \\\n  \n"
       displayName: Create node pool userpool
     - task: AzureCLI@2
       inputs:
@@ -9452,86 +9308,14 @@ stages:
         azureSubscription: Azure-for-Telescope-internal
         scriptType: bash
         scriptLocation: inlineScript
-        inlineScript: |
-          set -exo pipefail
-          deadline=$(($(date +%s) + 600))
-          sleep_between=30
-          attempt=0
-          while :; do
-            attempt=$((attempt + 1))
-            set +e
-            output=$(az aks nodepool add \
-              --cluster-name "underlay-validation" \
-              --resource-group "$(RUN_ID)" \
-              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-              --name "runner" \
-              --node-count 5 \
-              --node-vm-size "${{ parameters.custom_runner_pool_vm_sku }}" \
-              --mode User \
-               2>&1)
-            rc=$?
-            set -e
-            echo "$output"
-            if [ $rc -eq 0 ]; then
-              exit 0
-            fi
-            if echo "$output" | grep -qiE "OperationNotAllowed"; then
-              now=$(date +%s)
-              if [ $now -ge $deadline ]; then
-                echo "Retriable error persisted past 600s retry window ($attempt attempts); giving up."
-                exit $rc
-              fi
-              remaining=$((deadline - now))
-              echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining seconds remain in retry window)."
-              sleep $sleep_between
-            else
-              echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
-              exit $rc
-            fi
-          done
+        inlineScript: "set -exo pipefail\ncreate_node_pool() {\n  local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds\n  deadline=$(($(date +%s) + 600))\n  while :; do\n    attempt=$((attempt + 1))\n    if output=$(az aks nodepool add \"$@\" 2>&1); then\n      rc=0\n    else\n      rc=$?\n    fi\n    echo \"$output\"\n    if [ \"$rc\" -eq 0 ]; then\n      return 0\n    fi\n    if echo \"$output\" | grep -qiE \"OperationNotAllowed\"; then\n      now=$(date +%s)\n      if [ \"$now\" -ge \"$deadline\" ]; then\n        echo \"Retriable error persisted past 600s retry window ($attempt attempts); giving up.\"\n        return \"$rc\"\n      fi\n      remaining_retry_seconds=$((deadline - now))\n      echo \"Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining_retry_seconds seconds remain in retry window).\"\n      sleep \"$sleep_between\"\n    else\n      echo \"Non-retriable error (rc=$rc); giving up after attempt $attempt.\"\n      return \"$rc\"\n    fi\n  done\n}\n\n\ncreate_node_pool \\\n  --cluster-name \"underlay-validation\" \\\n  --resource-group \"$(RUN_ID)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"runner\" \\\n  --node-count 5 \\\n  --node-vm-size \"${{ parameters.custom_runner_pool_vm_sku }}\" \\\n  --mode User \\\n  \n"
       displayName: Create node pool runner
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
         scriptType: bash
         scriptLocation: inlineScript
-        inlineScript: |
-          set -exo pipefail
-          deadline=$(($(date +%s) + 600))
-          sleep_between=30
-          attempt=0
-          while :; do
-            attempt=$((attempt + 1))
-            set +e
-            output=$(az aks nodepool add \
-              --cluster-name "underlay-validation" \
-              --resource-group "$(RUN_ID)" \
-              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-              --name "userpool" \
-              --node-count 100 \
-              --node-vm-size "${{ parameters.custom_user_pool_vm_sku }}" \
-              --mode User \
-               2>&1)
-            rc=$?
-            set -e
-            echo "$output"
-            if [ $rc -eq 0 ]; then
-              exit 0
-            fi
-            if echo "$output" | grep -qiE "OperationNotAllowed"; then
-              now=$(date +%s)
-              if [ $now -ge $deadline ]; then
-                echo "Retriable error persisted past 600s retry window ($attempt attempts); giving up."
-                exit $rc
-              fi
-              remaining=$((deadline - now))
-              echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining seconds remain in retry window)."
-              sleep $sleep_between
-            else
-              echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
-              exit $rc
-            fi
-          done
+        inlineScript: "set -exo pipefail\ncreate_node_pool() {\n  local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds\n  deadline=$(($(date +%s) + 600))\n  while :; do\n    attempt=$((attempt + 1))\n    if output=$(az aks nodepool add \"$@\" 2>&1); then\n      rc=0\n    else\n      rc=$?\n    fi\n    echo \"$output\"\n    if [ \"$rc\" -eq 0 ]; then\n      return 0\n    fi\n    if echo \"$output\" | grep -qiE \"OperationNotAllowed\"; then\n      now=$(date +%s)\n      if [ \"$now\" -ge \"$deadline\" ]; then\n        echo \"Retriable error persisted past 600s retry window ($attempt attempts); giving up.\"\n        return \"$rc\"\n      fi\n      remaining_retry_seconds=$((deadline - now))\n      echo \"Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining_retry_seconds seconds remain in retry window).\"\n      sleep \"$sleep_between\"\n    else\n      echo \"Non-retriable error (rc=$rc); giving up after attempt $attempt.\"\n      return \"$rc\"\n    fi\n  done\n}\n\n\ncreate_node_pool \\\n  --cluster-name \"underlay-validation\" \\\n  --resource-group \"$(RUN_ID)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"userpool\" \\\n  --node-count 100 \\\n  --node-vm-size \"${{ parameters.custom_user_pool_vm_sku }}\" \\\n  --mode User \\\n  \n"
       displayName: Create node pool userpool
     - task: AzureCLI@2
       inputs:
