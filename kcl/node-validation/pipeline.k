@@ -14,7 +14,6 @@ schema JobConfig:
 
 benchmarkJob = lambda config: JobConfig, predecessor: [str] -> job.Job {
     cluster = "nodevalidation-$(Build.BuildId)-${config.region}-nodes${config.nodesPerPool}-$(System.JobAttempt)"
-    nodeResourceGroup = "${cluster}-nodes"
     workerPools = azure.PlanNodePools(
         {(config.nodeSku): 2 * config.nodesPerPool}
         maxNodesPerPool=config.nodesPerPool
@@ -34,7 +33,7 @@ benchmarkJob = lambda config: JobConfig, predecessor: [str] -> job.Job {
 az aks create \\
   --subscription "${const.DEFAULT_SUBSCRIPTION_ID}" \\
   --resource-group "${cluster}" \\
-  --node-resource-group "${nodeResourceGroup}" \\
+  --node-resource-group "${cluster}-nodes" \\
   --name "${cluster}" \\
   --location "${config.region}" \\
   --kubernetes-version "1.36.4" \\
