@@ -1,5 +1,6 @@
 import azure_pipelines.ap
 import azure_pipelines.ap.jobs.job
+import azure_pipelines.ap.steps
 import lib.const
 import lib.steps.azure
 import lib.steps.common
@@ -7,7 +8,7 @@ import lib.steps.common
 SUBSCRIPTION_ID = "$(subscription_id)"
 RESOURCE_GROUP = "$(RUN_ID)"
 LOCATION = "$(location)"
-CLUSTER_NAME = "$(cluster_name)"
+CLUSTER_NAME = "large-scale"
 SERVICE_CONNECTION = "$(AZURE_SERVICE_CONNECTION)"
 VNET_NAME = "${CLUSTER_NAME}-net"
 JUMPBOX_NAME = "${CLUSTER_NAME}-jumpbox"
@@ -104,12 +105,6 @@ output = ap.Pipeline {
             default = "eastasia"
         }
         ap.Parameter {
-            name = "cluster_name"
-            displayName = "AKS cluster name"
-            type = "string"
-            default = "large-scale"
-        }
-        ap.Parameter {
             name = "user_pool_vm_size"
             displayName = "User node pool VM size"
             type = "string"
@@ -144,7 +139,6 @@ output = ap.Pipeline {
     variables = {
         subscription_id = "\${{ parameters.subscription_id }}"
         location = "\${{ parameters.location }}"
-        cluster_name = "\${{ parameters.cluster_name }}"
         user_pool_vm_size = "\${{ parameters.user_pool_vm_size }}"
         user_total_nodes = "\${{ parameters.user_total_nodes }}"
         network_dataplane = "\${{ parameters.network_dataplane }}"
@@ -157,8 +151,24 @@ output = ap.Pipeline {
             job = "create_cluster"
             displayName = "Create Large Scale Cluster"
             timeoutInMinutes = 1440
+            # Leave time for the always() cleanup step to delete the cluster after cancellation or timeout.
+            cancelTimeoutInMinutes = 120
 
             steps = [
+                steps.Bash {
+                    # The nodes subnet 10.1.0.0/18 has 16379 usable IPs. Reserve 3 for the system
+                    # pool and one user pool's worth of IPs as upgrade surge headroom.
+                    bash = """
+set -eo pipefail
+total_nodes="$(user_total_nodes)"
+max_total_nodes=${16379 - 3 - MAX_NODES_PER_POOL}
+if [ "$total_nodes" -gt "$max_total_nodes" ]; then
+  echo "user_total_nodes=$total_nodes exceeds the nodes subnet capacity of $max_total_nodes."
+  exit 1
+fi
+"""
+                    displayName = "Validate total user nodes"
+                },
                 azure.Login(
                     SERVICE_CONNECTION,
                     SUBSCRIPTION_ID,
@@ -312,7 +322,7 @@ test -s /var/tmp/telescope-kubeconfig
                     SUBSCRIPTION_ID,
                     RESOURCE_GROUP,
                     JUMPBOX_NAME,
-                    "Print ClusterLoader2 results",
+                    "Collect ClusterLoader2 results and check success",
                     """
 export KUBECONFIG=/var/tmp/telescope-kubeconfig
 pods=$(kubectl get pods \\
@@ -328,13 +338,23 @@ for pod in $pods; do
     "$pod" \\
     --container=cl2-results
 done
+
+# Collect all results before failing the step for an unsuccessful benchmark.
+for pod in $pods; do
+  pod_result=$(kubectl get pod "$pod" \\
+    --namespace="clusterloader2" \\
+    --output jsonpath='{.status.phase}:{.status.containerStatuses[?(@.name=="cl2")].state.terminated.exitCode}')
+  if [ "$pod_result" != "Succeeded:0" ]; then
+    echo "ClusterLoader2 pod $pod failed: phase:exitCode=$pod_result (expected Succeeded:0)"
+    exit 1
+  fi
+done
 """
                 ),
                 azure.DeleteResourceGroup(
                     SERVICE_CONNECTION,
                     RESOURCE_GROUP,
-                    SUBSCRIPTION_ID,
-                    condition = "succeededOrFailed()"
+                    SUBSCRIPTION_ID
                 ),
             ]
         }
