@@ -334,7 +334,7 @@ done
                     SERVICE_CONNECTION,
                     RESOURCE_GROUP,
                     SUBSCRIPTION_ID,
-                    condition = "succeeded()"
+                    condition = "succeededOrFailed()"
                 ),
             ]
         }

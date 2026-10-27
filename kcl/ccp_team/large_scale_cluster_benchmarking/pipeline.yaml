@@ -1048,5 +1048,5 @@ jobs:
       inlineScript: |
         set -exo pipefail
         az group delete --name "$(RUN_ID)" --subscription "$(subscription_id)" --yes
-    condition: succeeded()
+    condition: succeededOrFailed()
     displayName: Delete resource group ($(subscription_id))
