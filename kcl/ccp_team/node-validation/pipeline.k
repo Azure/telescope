@@ -65,7 +65,7 @@ az aks create \\
             ]
             azure.GetCredentials(const.DEFAULT_SERVICE_CONNECTION, cluster, cluster, const.DEFAULT_SUBSCRIPTION_ID, file=KUBECONFIG)
             steps.Bash {
-                displayName = "Wait up to 10 minutes for Ready, untainted worker nodes"
+                displayName = "Wait up to 5 minutes for expected worker counts and no NoSchedule taints"
                 bash = """
 bash "$(Build.SourcesDirectory)/kcl/ccp_team/node-validation/wait-for-node-validation.sh" \\
   "${KUBECONFIG}" ${expectedPools}

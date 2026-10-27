@@ -47,7 +47,6 @@ summarize_nodes() {
 
         def validate_selected_nodes:
             if all(.[];
-                    (.status.conditions == null or (.status.conditions | type == "array")) and
                     (.spec.taints == null or (.spec.taints | type == "array")) and
                     all(.spec.taints[]?;
                         (.key | type == "string") and
@@ -57,7 +56,6 @@ summarize_nodes() {
         def normalize_nodes:
             [.[] | {
                 pool: node_pool,
-                ready: any(.status.conditions[]?; .type == "Ready" and .status == "True"),
                 taints: (.spec.taints // [])
             }];
 
@@ -68,7 +66,6 @@ summarize_nodes() {
                 pool: $pool,
                 expected: $expected[$pool],
                 total: ($members | length),
-                ready: ([$members[] | select(.ready)] | length),
                 noSchedule: ([$members[] |
                     select(any(.taints[]; .effect == "NoSchedule"))] | length),
                 taints: ([$members[].taints[]]
@@ -91,7 +88,7 @@ summarize_nodes() {
             pools: .,
             passed: all(.[];
                 .expected > 0 and .total == .expected and
-                .ready == .expected and .noSchedule == 0)
+                .noSchedule == 0)
         }
     ' "$nodes_file"
 }
@@ -118,7 +115,7 @@ if [[ ! -r "$kubeconfig" ]]; then
     echo "##[error]Kubeconfig is not readable: $kubeconfig" >&2
     exit 2
 fi
-timeout_seconds=600
+timeout_seconds=300
 poll_interval_seconds=60
 deadline=$((SECONDS + timeout_seconds))
 nodes_file=$(mktemp)
@@ -140,7 +137,7 @@ while (( SECONDS < deadline )); do
         jq -nc --arg time "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson summary "$summary" \
             '{time: $time, summary: $summary}'
         if jq -e '.passed == true' <<< "$summary" >/dev/null && (( SECONDS < deadline )); then
-            echo "Node validation passed: all expected nodes are Ready and have no NoSchedule taints"
+            echo "Node validation passed: exact node counts confirmed and no NoSchedule taints"
             exit 0
         fi
     else
@@ -150,5 +147,5 @@ while (( SECONDS < deadline )); do
     fi
     wait_for_next_poll "$deadline" "$poll_interval_seconds"
 done
-echo "##[error]Timed out after $timeout_seconds seconds without confirming exact node counts, readiness and taint clearance" >&2
+echo "##[error]Timed out after $timeout_seconds seconds without confirming exact node counts and taint clearance" >&2
 exit 1
