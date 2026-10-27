@@ -14,9 +14,10 @@ Measures containerd image pulling throughput (MB/s) and network plugin operation
 | Region | australiaeast |
 | Cluster SKU | Standard |
 | Network Plugin | Azure CNI Overlay |
-| Default Node Pool | 3 x Standard_D4s_v3 |
+| Outbound | NAT gateway with 5 public IPs (avoids package repository rate limiting from a single IP at 1000 nodes) |
+| Default Node Pool | 3 x Standard_D4ds_v5 |
 | Prometheus Pool | 1 x Standard_D64_v3 (larger size required for 1000 nodes - needs more memory and CPU for Prometheus) |
-| User Pool | 1000 x Standard_D4s_v3 |
+| User Pool | 1000 x Standard_D4ds_v5 |
 
 ## Test Workload
 
