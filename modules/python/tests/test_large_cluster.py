@@ -361,6 +361,86 @@ class TestLargeCluster(unittest.TestCase):
 
         mock_kube_client.get_ready_nodes.assert_called()
 
+    @patch('clusterloader2.large_cluster.large_cluster.KubernetesClient')
+    @patch('clusterloader2.large_cluster.large_cluster.time.sleep')
+    @patch('clusterloader2.large_cluster.large_cluster.time.time')
+    def test_validate_clusterloader2_loose_passes_when_count_is_stable(self, mock_time, _mock_sleep, mock_kube_client_class):
+        """Loose validation passes once the ready count meets the threshold and stops changing"""
+        mock_kube_client = MagicMock()
+        mock_kube_client.get_ready_nodes.return_value = [f"node{i}" for i in range(96)]
+        mock_kube_client_class.return_value = mock_kube_client
+
+        start = 1000
+        # timeout calc, then (loop check, stable check) per iteration; 5 minutes of stability needed
+        mock_time.side_effect = [start, start + 1, start + 1, start + 2, start + 2, start + 400, start + 400]
+
+        validate_clusterloader2(node_count=100, operation_timeout_in_minutes=60,
+                                min_ready_percent=95, stable_minutes=5)
+
+        self.assertGreaterEqual(mock_kube_client.get_ready_nodes.call_count, 2)
+
+    @patch('clusterloader2.large_cluster.large_cluster.KubernetesClient')
+    @patch('clusterloader2.large_cluster.large_cluster.time.sleep')
+    @patch('clusterloader2.large_cluster.large_cluster.time.time')
+    def test_validate_clusterloader2_loose_passes_at_timeout_when_threshold_met(self, mock_time, _mock_sleep, mock_kube_client_class):
+        """Loose validation accepts the threshold when the timeout is reached"""
+        mock_kube_client = MagicMock()
+        mock_kube_client.get_ready_nodes.return_value = [f"node{i}" for i in range(96)]
+        mock_kube_client_class.return_value = mock_kube_client
+
+        start = 1000
+        mock_time.side_effect = [start, start + 1, start + 3601]
+
+        validate_clusterloader2(node_count=100, operation_timeout_in_minutes=60, min_ready_percent=95)
+
+    @patch('clusterloader2.large_cluster.large_cluster.KubernetesClient')
+    @patch('clusterloader2.large_cluster.large_cluster.time.sleep')
+    @patch('clusterloader2.large_cluster.large_cluster.time.time')
+    def test_validate_clusterloader2_loose_fails_below_threshold(self, mock_time, _mock_sleep, mock_kube_client_class):
+        """Loose validation still fails when fewer nodes than the threshold are ready"""
+        mock_kube_client = MagicMock()
+        mock_kube_client.get_ready_nodes.return_value = [f"node{i}" for i in range(90)]
+        mock_kube_client_class.return_value = mock_kube_client
+
+        start = 1000
+        mock_time.side_effect = [start, start + 1, start + 3601]
+
+        with self.assertRaises(Exception) as context:
+            validate_clusterloader2(node_count=100, operation_timeout_in_minutes=60,
+                                    min_ready_percent=95, stable_minutes=5)
+
+        self.assertIn("Only 90 nodes are ready, expected 100 nodes!", str(context.exception))
+
+    @patch('builtins.print')
+    @patch('clusterloader2.large_cluster.large_cluster.KubernetesClient')
+    def test_validate_clusterloader2_exports_ready_labeled_node_count(self, mock_kube_client_class, mock_print):
+        """The number of ready nodes with the label is exported as READY_NODE_COUNT"""
+        mock_kube_client = MagicMock()
+        mock_kube_client.get_ready_nodes.side_effect = lambda label_selector=None, field_selector=None: (
+            [f"node{i}" for i in range(3)] if label_selector else [f"node{i}" for i in range(5)]
+        )
+        mock_kube_client_class.return_value = mock_kube_client
+
+        validate_clusterloader2(node_count=5, operation_timeout_in_minutes=5, node_label="role=test")
+
+        mock_kube_client.get_ready_nodes.assert_any_call(label_selector="role=test")
+        printed = [str(c.args[0]) for c in mock_print.call_args_list if c.args]
+        self.assertIn("##vso[task.setvariable variable=READY_NODE_COUNT]3", printed)
+
+    @patch('clusterloader2.large_cluster.large_cluster.KubernetesClient')
+    def test_validate_clusterloader2_fails_without_ready_labeled_nodes(self, mock_kube_client_class):
+        """Validation fails when no ready node has the requested label"""
+        mock_kube_client = MagicMock()
+        mock_kube_client.get_ready_nodes.side_effect = lambda label_selector=None, field_selector=None: (
+            [] if label_selector else ["node1", "node2"]
+        )
+        mock_kube_client_class.return_value = mock_kube_client
+
+        with self.assertRaises(Exception) as context:
+            validate_clusterloader2(node_count=2, operation_timeout_in_minutes=5, node_label="role=test")
+
+        self.assertIn("No ready nodes found with label 'role=test'", str(context.exception))
+
     # ==================== execute_clusterloader2() Tests ====================
 
     @patch('clusterloader2.large_cluster.large_cluster.run_cl2_command')
@@ -726,7 +806,16 @@ class TestLargeCluster(unittest.TestCase):
         """Test validate command parsing"""
         main()
 
-        mock_validate.assert_called_once_with(20, 600)
+        mock_validate.assert_called_once_with(20, 600, 100, 0, None)
+
+    @patch('clusterloader2.large_cluster.large_cluster.validate_clusterloader2')
+    @patch('sys.argv', ['large_cluster.py', 'validate', '--node_count', '20', '--operation_timeout', '600',
+                        '--min_ready_percent', '95', '--stable_minutes', '5', '--node_label', 'role=test'])
+    def test_main_validate_command_loose(self, mock_validate):
+        """Test validate command parsing with loose validation options"""
+        main()
+
+        mock_validate.assert_called_once_with(20, 600, 95.0, 5.0, 'role=test')
 
     @patch('clusterloader2.large_cluster.large_cluster.execute_clusterloader2')
     @patch('sys.argv', ['large_cluster.py', 'execute',

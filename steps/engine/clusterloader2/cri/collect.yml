@@ -18,6 +18,9 @@ steps:
   - script: |
       set -eo pipefail
 
+      # READY_NODE_COUNT is set by the validate step when fewer nodes than requested joined the cluster
+      NODE_COUNT=${READY_NODE_COUNT:-$NODE_COUNT}
+
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
         --node_count $NODE_COUNT \
         --max_pods $MAX_PODS \

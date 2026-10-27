@@ -4,6 +4,15 @@ parameters:
   - name: validation_timeout_in_minutes
     type: number
     default: 10
+  - name: min_ready_percent
+    type: number
+    default: 100
+  - name: stable_minutes
+    type: number
+    default: 0
+  - name: node_label
+    type: string
+    default: ""
 
 steps:
   - script: |
@@ -11,11 +20,17 @@ steps:
 
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE validate \
         --node_count $DESIRED_NODES \
-        --operation_timeout $VALIDATION_TIMEOUT_IN_MINUTES
+        --operation_timeout $VALIDATION_TIMEOUT_IN_MINUTES \
+        --min_ready_percent $MIN_READY_PERCENT \
+        --stable_minutes $STABLE_MINUTES \
+        ${NODE_LABEL:+--node_label "$NODE_LABEL"}
     workingDirectory: modules/python
     timeoutInMinutes: ${{ parameters.validation_timeout_in_minutes }}
     displayName: "Validate node count"
     env:
       DESIRED_NODES: ${{ parameters.desired_nodes }}
       VALIDATION_TIMEOUT_IN_MINUTES: ${{ parameters.validation_timeout_in_minutes }}
+      MIN_READY_PERCENT: ${{ parameters.min_ready_percent }}
+      STABLE_MINUTES: ${{ parameters.stable_minutes }}
+      NODE_LABEL: ${{ parameters.node_label }}
       PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/large_cluster/large_cluster.py

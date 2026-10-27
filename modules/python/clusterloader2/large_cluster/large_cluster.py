@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import argparse
 import time
@@ -85,25 +86,60 @@ def configure_clusterloader2(
 
     file.close()
 
-def validate_clusterloader2(node_count, operation_timeout_in_minutes=10):
+def validate_clusterloader2(node_count, operation_timeout_in_minutes=10, min_ready_percent=100, stable_minutes=0, node_label=None):
+    """
+    Wait until node_count nodes are ready.
+
+    With min_ready_percent < 100 the validation is loose: it also passes when at least that percentage of
+    node_count nodes are ready, either once the ready count has stopped changing for stable_minutes or
+    when the timeout is reached. If node_label is set, the number of ready nodes carrying that label is
+    exported as the READY_NODE_COUNT pipeline variable so later steps can size the workload to it.
+    """
     kube_client = KubernetesClient()
     ready_node_count = 0
+    loose = min_ready_percent < 100
+    required_node_count = math.ceil(node_count * min_ready_percent / 100) if loose else node_count
     timeout = time.time() + (operation_timeout_in_minutes * 60)
+    last_count = None
+    stable_since = None
     while time.time() < timeout:
         try:
             ready_nodes = kube_client.get_ready_nodes()
         except Exception as e:
-            print(f"Transient error querying nodes, will retry: {e}")
+            print(f"Transient error querying nodes, will retry: {e}", flush=True)
             time.sleep(10)
             continue
         ready_node_count = len(ready_nodes)
-        print(f"Currently {ready_node_count} nodes are ready.")
+        print(f"Currently {ready_node_count} nodes are ready.", flush=True)
         if ready_node_count == node_count:
             break
-        print(f"Waiting for {node_count} nodes to be ready.")
+        if loose and stable_minutes > 0 and required_node_count <= ready_node_count <= node_count:
+            now = time.time()
+            if ready_node_count != last_count:
+                last_count = ready_node_count
+                stable_since = now
+            elif now - stable_since >= stable_minutes * 60:
+                print(f"Ready node count has been {ready_node_count} for {stable_minutes} minutes, "
+                      f"which meets the {min_ready_percent}% threshold ({required_node_count} of {node_count}).", flush=True)
+                break
+        else:
+            last_count = None
+        print(f"Waiting for {node_count} nodes to be ready.", flush=True)
         time.sleep(10)
-    if ready_node_count != node_count:
+
+    meets_loose_threshold = loose and required_node_count <= ready_node_count <= node_count
+    if ready_node_count != node_count and not meets_loose_threshold:
         raise Exception(f"Only {ready_node_count} nodes are ready, expected {node_count} nodes!")
+    if ready_node_count != node_count:
+        print(f"##vso[task.logissue type=warning;] Proceeding with {ready_node_count} of {node_count} nodes ready "
+              f"(minimum {required_node_count}, {min_ready_percent}%).", flush=True)
+
+    if node_label:
+        labeled_ready_count = len(kube_client.get_ready_nodes(label_selector=node_label))
+        if labeled_ready_count == 0:
+            raise Exception(f"No ready nodes found with label '{node_label}'!")
+        print(f"{labeled_ready_count} ready nodes have label '{node_label}'.", flush=True)
+        print(f"##vso[task.setvariable variable=READY_NODE_COUNT]{labeled_ready_count}", flush=True)
 
 def execute_clusterloader2(
     cl2_image,
@@ -213,6 +249,12 @@ def main():
     parser_validate = subparsers.add_parser("validate", help="Validate cluster setup")
     parser_validate.add_argument("--node_count", type=int, help="Number of desired nodes")
     parser_validate.add_argument("--operation_timeout", type=int, default=600, help="Operation timeout to wait for nodes to be ready")
+    parser_validate.add_argument("--min_ready_percent", type=float, default=100,
+                                 help="Minimum percentage of node_count that must be ready for validation to pass (100 requires all)")
+    parser_validate.add_argument("--stable_minutes", type=float, default=0,
+                                 help="With min_ready_percent < 100, pass early once the ready count meets the minimum and has not changed for this many minutes")
+    parser_validate.add_argument("--node_label", type=str, default="",
+                                 help="Label selector; if set, the number of ready nodes with this label is exported as READY_NODE_COUNT")
 
     # Sub-command for execute_clusterloader2
     parser_execute = subparsers.add_parser("execute", help="Execute scale up operation")
@@ -256,6 +298,9 @@ def main():
         validate_clusterloader2(
             args.node_count,
             args.operation_timeout,
+            args.min_ready_percent,
+            args.stable_minutes,
+            args.node_label or None,
         )
     elif args.command == "execute":
         execute_clusterloader2(

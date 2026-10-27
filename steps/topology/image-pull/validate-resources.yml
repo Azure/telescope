@@ -20,3 +20,7 @@ steps:
   parameters:
     desired_nodes: $(desired_nodes)
     validation_timeout_in_minutes: 40
+    # Tolerate a few nodes that never join, then size the benchmark to the ready benchmark nodes (READY_NODE_COUNT)
+    min_ready_percent: 95
+    stable_minutes: 5
+    node_label: cri-resource-consume=true
