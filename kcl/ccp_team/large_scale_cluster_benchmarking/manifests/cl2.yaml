@@ -5,8 +5,10 @@ metadata:
   namespace: clusterloader2
 data:
   override.yaml: |
+    # Keep creation and deletion rates modest; large-scale tests do not need rapid churn.
     CL2_LOAD_TEST_THROUGHPUT: 20
     CL2_DELETE_TEST_THROUGHPUT: 25
+    # Add approximately 5 KB of payload to each Pod.
     CL2_STATEFULSET_POD_PAYLOAD_SIZE: 5000
     CL2_DEPLOYMENT_POD_PAYLOAD_SIZE: 5000
     CL2_DAEMONSET_POD_PAYLOAD_SIZE: 5000
