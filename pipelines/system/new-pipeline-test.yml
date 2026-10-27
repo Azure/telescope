@@ -19,11 +19,13 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
+          terraform_input_file_mapping:
+            - centraluseuap: "scenarios/perf-eval/image-pull-n1000/terraform-inputs/azure-500nodes.tfvars"
           topology: image-pull
           matrix:
-            image-pull-1000nodes:
-              desired_nodes: 1004
-              node_count: 1000
+            image-pull-500nodes:
+              desired_nodes: 504
+              node_count: 500
               max_pods: 7
               repeats: 1
               operation_timeout: 60m
