@@ -1,11 +1,6 @@
 name: Update ClusterLoader2 package
 
 on:
-  pull_request:
-    branches: [v2]
-    paths:
-      - .github/workflows/clusterloader2.yml
-      - packaging/clusterloader2/Dockerfile
   schedule:
     # Track upstream weekly without rebuilding unchanged source.
     - cron: "23 3 * * 1"
@@ -14,18 +9,21 @@ permissions:
   contents: read
 
 concurrency:
-  group: clusterloader2-package-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: clusterloader2-package
+  cancel-in-progress: false
 
 env:
   IMAGE: ghcr.io/azure/telescope/clusterloader2
 
 jobs:
-  validate:
-    if: github.event_name == 'pull_request'
+  publish:
+    if: github.repository == 'Azure/telescope' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-24.04
     timeout-minutes: 45
-    steps: &clusterloader2_steps
+    permissions:
+      contents: read
+      packages: write
+    steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
@@ -33,16 +31,13 @@ jobs:
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
-        if: github.event_name == 'schedule'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Resolve upstream and compare published package for scheduled runs
+      - name: Compare upstream with published package
         id: compare
-        env:
-          EVENT_NAME: ${{ github.event_name }}
         shell: bash
         run: |
           set -euo pipefail
@@ -52,12 +47,6 @@ jobs:
             exit 1
           fi
           echo "revision=$revision" >> "$GITHUB_OUTPUT"
-
-          if [[ "$EVENT_NAME" == "pull_request" ]]; then
-            echo "action=build" >> "$GITHUB_OUTPUT"
-            echo "Validating kubernetes/perf-tests@$revision without publishing." >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
 
           error_file="$(mktemp)"
           trap 'rm -f "$error_file"' EXIT
@@ -164,7 +153,7 @@ jobs:
           echo "Smoke test passed for $IMAGE:sha-$REVISION." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish commit tag
-        if: github.event_name == 'schedule' && steps.compare.outputs.action == 'build'
+        if: steps.compare.outputs.action == 'build'
         env:
           REVISION: ${{ steps.compare.outputs.revision }}
         shell: bash
@@ -173,7 +162,7 @@ jobs:
           docker push "$IMAGE:sha-$REVISION"
 
       - name: Update latest
-        if: github.event_name == 'schedule' && steps.compare.outputs.action != 'skip'
+        if: steps.compare.outputs.action != 'skip'
         env:
           REVISION: ${{ steps.compare.outputs.revision }}
         shell: bash
@@ -184,12 +173,3 @@ jobs:
             --tag "$IMAGE:latest" \
             "$IMAGE:sha-$REVISION"
           echo "Published $IMAGE:latest from kubernetes/perf-tests@$REVISION." >> "$GITHUB_STEP_SUMMARY"
-
-  publish:
-    if: github.event_name == 'schedule' && github.repository == 'Azure/telescope' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    permissions:
-      contents: read
-      packages: write
-    steps: *clusterloader2_steps
