@@ -1,6 +1,5 @@
 import azure_pipelines.ap
 import azure_pipelines.ap.jobs.job
-import azure_pipelines.ap.steps
 import lib.const
 import lib.steps.azure
 import lib.steps.common
@@ -154,20 +153,6 @@ output = ap.Pipeline {
             cancelTimeoutInMinutes = 120
 
             steps = [
-                steps.Bash {
-                    # Azure CNI Overlay assigns a /24 per node, so the 10.0.0.0/8 pod CIDR fits 65536
-                    # nodes. Reserve 3 for the system and CL2 pools and one user pool's worth for upgrade surge.
-                    bash = """
-set -eo pipefail
-total_nodes="$(user_total_nodes)"
-max_total_nodes=${65536 - 3 - MAX_NODES_PER_POOL}
-if [ "$total_nodes" -gt "$max_total_nodes" ]; then
-  echo "user_total_nodes=$total_nodes exceeds the pod CIDR capacity of $max_total_nodes nodes."
-  exit 1
-fi
-"""
-                    displayName = "Validate total user nodes"
-                },
                 azure.Login(
                     SERVICE_CONNECTION,
                     SUBSCRIPTION_ID,

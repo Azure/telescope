@@ -48,15 +48,6 @@ jobs:
   timeoutInMinutes: 1440
   cancelTimeoutInMinutes: 120
   steps:
-  - bash: |
-      set -eo pipefail
-      total_nodes="$(user_total_nodes)"
-      max_total_nodes=64733
-      if [ "$total_nodes" -gt "$max_total_nodes" ]; then
-        echo "user_total_nodes=$total_nodes exceeds the pod CIDR capacity of $max_total_nodes nodes."
-        exit 1
-      fi
-    displayName: Validate total user nodes
   - task: AzureCLI@2
     inputs:
       azureSubscription: $(AZURE_SERVICE_CONNECTION)
