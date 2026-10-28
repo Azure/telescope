@@ -186,7 +186,7 @@ stages:
     - bash: |
         bash "$(Build.SourcesDirectory)/kcl/ccp_team/node-validation/wait-for-node-validation.sh" \
           "$(Agent.TempDirectory)/$(System.JobId)-kubeconfig" "workerpool0:1000" "workerpool1:1000"
-      displayName: Wait up to 5 minutes for expected worker counts and no NoSchedule taints
+      displayName: Check worker counts and NoSchedule taints (5-minute polling window)
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -376,7 +376,7 @@ stages:
     - bash: |
         bash "$(Build.SourcesDirectory)/kcl/ccp_team/node-validation/wait-for-node-validation.sh" \
           "$(Agent.TempDirectory)/$(System.JobId)-kubeconfig" "workerpool0:500" "workerpool1:500"
-      displayName: Wait up to 5 minutes for expected worker counts and no NoSchedule taints
+      displayName: Check worker counts and NoSchedule taints (5-minute polling window)
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -562,7 +562,7 @@ stages:
     - bash: |
         bash "$(Build.SourcesDirectory)/kcl/ccp_team/node-validation/wait-for-node-validation.sh" \
           "$(Agent.TempDirectory)/$(System.JobId)-kubeconfig" "workerpool0:1000" "workerpool1:1000"
-      displayName: Wait up to 5 minutes for expected worker counts and no NoSchedule taints
+      displayName: Check worker counts and NoSchedule taints (5-minute polling window)
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal

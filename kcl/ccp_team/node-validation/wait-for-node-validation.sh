@@ -102,14 +102,6 @@ summarize_nodes() {
     ' "$nodes_file"
 }
 
-wait_for_next_poll() {
-    local deadline=$1 poll_interval_seconds=$2
-    local remaining=$((deadline - SECONDS))
-    if (( remaining > 0 )); then
-        sleep "$((remaining < poll_interval_seconds ? remaining : poll_interval_seconds))"
-    fi
-}
-
 if [[ $# -lt 2 ]]; then
     echo "##[error]Usage: $0 <kubeconfig> <pool_name:expected_count> [pool_name:expected_count ...]" >&2
     exit 2
@@ -126,6 +118,8 @@ if [[ ! -r "$kubeconfig" ]]; then
 fi
 timeout_seconds=300
 poll_interval_seconds=60
+request_timeout=30
+final_check_window_seconds=5
 deadline=$((SECONDS + timeout_seconds))
 nodes_file=$(mktemp)
 trap 'rm -f "$nodes_file"' EXIT
@@ -133,11 +127,7 @@ trap 'echo "##[error]Node validation interrupted" >&2; exit 130' INT
 trap 'echo "##[error]Node validation terminated" >&2; exit 143' TERM
 
 while (( SECONDS < deadline )); do
-    remaining=$((deadline - SECONDS))
-    if (( remaining <= 0 )); then
-        break
-    fi
-    request_timeout=$((remaining < 30 ? remaining : 30))
+    final_check=$((deadline - SECONDS <= final_check_window_seconds))
     if fetch_nodes "$kubeconfig" "$nodes_file" "$request_timeout" "$expected_pools"; then
         if ! summary=$(summarize_nodes "$nodes_file" "$expected_pools"); then
             echo "##[error]Could not validate or summarize node-list response" >&2
@@ -145,7 +135,7 @@ while (( SECONDS < deadline )); do
         fi
         jq -nc --arg time "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson summary "$summary" \
             '{time: $time, summary: $summary}'
-        if jq -e '.passed == true' <<< "$summary" >/dev/null && (( SECONDS < deadline )); then
+        if jq -e '.passed == true' <<< "$summary" >/dev/null; then
             echo "Node validation passed: exact node counts confirmed and no NoSchedule taints"
             exit 0
         fi
@@ -153,11 +143,23 @@ while (( SECONDS < deadline )); do
         if (( $? == 2 )); then
             exit 1
         fi
-        echo "##[warning]Node-list request failed; retrying within the verification deadline" >&2
+        echo "##[warning]Node-list request failed" >&2
         jq -nc --arg time "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             '{time: $time, error: "Node-list request failed"}'
     fi
-    wait_for_next_poll "$deadline" "$poll_interval_seconds"
+
+    if (( final_check )); then
+        break
+    fi
+    # Reserve the last five seconds to start a final, normally bounded request.
+    remaining=$((deadline - SECONDS))
+    sleep_interval=$((remaining - final_check_window_seconds))
+    if (( sleep_interval > 0 )); then
+        if (( sleep_interval > poll_interval_seconds )); then
+            sleep_interval=$poll_interval_seconds
+        fi
+        sleep "$sleep_interval"
+    fi
 done
-echo "##[error]Timed out after $timeout_seconds seconds without confirming exact node counts and taint clearance" >&2
+echo "##[error]Node validation failed: exact node counts and taint clearance were not confirmed during the $timeout_seconds-second polling window or its final in-flight request" >&2
 exit 1
