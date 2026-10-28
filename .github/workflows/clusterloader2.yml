@@ -1,0 +1,167 @@
+name: Update ClusterLoader2 package
+
+on:
+  schedule:
+    # Track upstream weekly without rebuilding unchanged source.
+    - cron: "23 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: clusterloader2-package
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/azure/telescope/clusterloader2
+
+jobs:
+  publish:
+    if: github.repository == 'Azure/telescope' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compare upstream with published package
+        id: compare
+        shell: bash
+        run: |
+          set -euo pipefail
+          revision="$(git ls-remote https://github.com/kubernetes/perf-tests.git refs/heads/master | cut -f1)"
+          if [[ ! "$revision" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Could not resolve the upstream master commit."
+            exit 1
+          fi
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+
+          error_file="$(mktemp)"
+          trap 'rm -f "$error_file"' EXIT
+          image_revision() {
+            local metadata
+            if metadata="$(docker buildx imagetools inspect "$1" --format '{{json .Image}}' 2>"$error_file")"; then
+              jq -er 'if type == "object" then . else error("Invalid image configuration") end' <<< "$metadata" > /dev/null
+              jq -r '
+                .config.Labels["io.kubernetes.perf-tests.revision"]
+                | if . == null then ""
+                  elif type == "string" and test("^[0-9a-f]{40}$") then .
+                  else error("Invalid upstream revision label")
+                  end
+              ' <<< "$metadata"
+            elif grep -Fxq "ERROR: $1: not found" "$error_file"; then
+              echo "No published image at $1." >&2
+              echo "missing"
+            else
+              cat "$error_file" >&2
+              return 1
+            fi
+          }
+
+          published_revision="$(image_revision "$IMAGE:latest")"
+          if [[ "$published_revision" == "$revision" ]]; then
+            echo "action=skip" >> "$GITHUB_OUTPUT"
+            echo "ClusterLoader2 is already at $revision." >> "$GITHUB_STEP_SUMMARY"
+          else
+            tagged_revision="$(image_revision "$IMAGE:sha-$revision")"
+            if [[ "$tagged_revision" == "$revision" ]]; then
+              echo "action=promote" >> "$GITHUB_OUTPUT"
+            elif [[ "$tagged_revision" == "missing" ]]; then
+              echo "action=build" >> "$GITHUB_OUTPUT"
+            else
+              echo "::error::The commit tag has a missing or different upstream revision: $tagged_revision"
+              exit 1
+            fi
+          fi
+
+      - name: Check out the exact upstream revision
+        if: steps.compare.outputs.action == 'build'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: kubernetes/perf-tests
+          ref: ${{ steps.compare.outputs.revision }}
+          path: upstream
+          persist-credentials: false
+
+      - name: Read upstream Go version
+        if: steps.compare.outputs.action == 'build'
+        id: go
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(awk '$1 == "go" {print $2}' upstream/clusterloader2/go.mod)"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
+            echo "::error::Invalid Go version in upstream go.mod: $version"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Build package
+        if: steps.compare.outputs.action == 'build'
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: upstream/clusterloader2
+          file: packaging/clusterloader2/Dockerfile
+          platforms: linux/amd64
+          build-args: |
+            GO_VERSION=${{ steps.go.outputs.version }}
+          load: true
+          provenance: false
+          tags: ${{ env.IMAGE }}:sha-${{ steps.compare.outputs.revision }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/Azure/telescope
+            org.opencontainers.image.revision=${{ github.sha }}
+            io.kubernetes.perf-tests.revision=${{ steps.compare.outputs.revision }}
+            org.opencontainers.image.url=https://github.com/kubernetes/perf-tests/tree/${{ steps.compare.outputs.revision }}/clusterloader2
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test and publish commit tag
+        if: steps.compare.outputs.action == 'build'
+        id: smoke
+        env:
+          REVISION: ${{ steps.compare.outputs.revision }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          help_output="$(mktemp)"
+          trap 'rm -f "$help_output"' EXIT
+          help_status=0
+          docker run --rm "$IMAGE:sha-$REVISION" --help > "$help_output" 2>&1 || help_status=$?
+          cat "$help_output"
+          # Upstream reports pflag's help request as a fatal flag-parse error.
+          if [[ "$help_status" -ne 0 ]]; then
+            if [[ "$help_status" -ne 1 ]] || ! grep -Fq 'Flag parse failed: pflag: help requested' "$help_output"; then
+              echo "::error::ClusterLoader2 failed its startup smoke test (exit $help_status)."
+              exit 1
+            fi
+          fi
+          grep -q '^      --testconfig ' "$help_output"
+          docker run --rm --entrypoint test "$IMAGE:sha-$REVISION" -f testing/load/config.yaml
+          docker push "$IMAGE:sha-$REVISION"
+
+      - name: Update latest
+        if: steps.compare.outputs.action != 'skip'
+        env:
+          REVISION: ${{ steps.compare.outputs.revision }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker buildx imagetools create \
+            --prefer-index=false \
+            --tag "$IMAGE:latest" \
+            "$IMAGE:sha-$REVISION"
+          echo "Published $IMAGE:latest from kubernetes/perf-tests@$REVISION." >> "$GITHUB_STEP_SUMMARY"
