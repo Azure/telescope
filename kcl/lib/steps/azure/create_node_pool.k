@@ -11,6 +11,9 @@ schema NodePool:
     maxPods?: int
     vnetSubnetId?: str
     osSKU?: str
+    # Path to a custom Linux OS configuration JSON file, e.g. to disable transparent huge pages.
+    # https://learn.microsoft.com/en-us/azure/aks/custom-node-configuration
+    linuxOsConfig?: str
 
 # CREATE_NODEPOOL_RETRY_WINDOW_SEC is the maximum time (in seconds) to keep retrying node pool creation when AKS returns a transient retriable error.
 CREATE_NODEPOOL_RETRY_WINDOW_SEC = 600
@@ -57,6 +60,7 @@ CreateNodePool = lambda serviceConnection: str, cluster: str, resourceGroup: str
         "--max-pods ${pool.maxPods}" if pool.maxPods else "",
         "--vnet-subnet-id \"${pool.vnetSubnetId}\"" if pool.vnetSubnetId else "",
         "--os-sku ${pool.osSKU}" if pool.osSKU else "",
+        "--linux-os-config \"${pool.linuxOsConfig}\"" if pool.linuxOsConfig else "",
         "--no-wait" if noWait else "",
     ]
     flags = " \\\n  ".join([f for f in flagDecision if f])
@@ -104,7 +108,8 @@ CreateNodePoolsFromPipelineParameter = lambda \
     maxNodesPerPool: int = 800, \
     namePrefix: str = "workerpool", \
     vnetSubnetId: str = "", \
-    osSKU: str = "" \
+    osSKU: str = "", \
+    linuxOsConfig: str = "" \
     -> steps.Step {
     assert maxNodesPerPool > 0, "maxNodesPerPool must be positive"
     assert namePrefix, "namePrefix must not be empty"
@@ -112,6 +117,7 @@ CreateNodePoolsFromPipelineParameter = lambda \
     flagDecision = [
         "--vnet-subnet-id \"${vnetSubnetId}\"" if vnetSubnetId else "",
         "--os-sku ${osSKU}" if osSKU else "",
+        "--linux-os-config \"${linuxOsConfig}\"" if linuxOsConfig else "",
     ]
     flags = " \\\n      ".join([f for f in flagDecision if f])
     script = """
