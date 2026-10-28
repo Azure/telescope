@@ -177,12 +177,62 @@ python3 -m crud.main job \
 
 ## Collect Benchmark Results
 
-Collect and process benchmark results from JSON files:
+`telescope-crud collect` converts canonical operation files into final Telescope
+JSONL rows. Pipeline-owned context can be passed explicitly; the equivalent
+uppercase environment variables remain supported for existing callers.
+
+By default, collection preserves the canonical `operation_info` object and
+appends rows containing `timestamp`, `region`, `operation_info`, `run_id`, and
+`run_url`, as before. No legacy names or pipeline context fields are added.
+
+Internal pipelines publishing to legacy ADX consumers must explicitly opt in:
 
 ```bash
-# Set environment variables for collection
-export RESULT_DIR=/tmp/${RUN_ID}
-export RUN_URL="https://example.com/pipeline/run"
-
-python3 -m crud.main collect
+telescope-crud collect \
+    --legacy-output \
+    --result-dir "/tmp/${RUN_ID}" \
+    --result-file "/tmp/${RUN_ID}/results.json" \
+    --run-id "$RUN_ID" \
+    --run-url "$RUN_URL" \
+    --region "$REGION" \
+    --cloud-info "$CLOUD_INFO" \
+    --vm-size "$VM_SIZE" \
+    --node-pool-name "$NODE_POOL_NAME" \
+    --create-node-count "$CREATE_NODE_COUNT" \
+    --scale-node-count "$SCALE_NODE_COUNT" \
+    --node-pool-type "$NODE_POOL_TYPE" \
+    --node-pool-number "$NODE_POOL_NUMBER" \
+    --batch-size "$BATCH_SIZE" \
+    --workload-test-setting "$WORKLOAD_TEST_SETTING"
 ```
+
+`python3 -m crud.main collect` is also supported.
+
+Explicit arguments override their environment variables. `RESULT_DIR`, `RUN_ID`,
+`RUN_URL`, and `REGION` (or their CLI equivalents) are required. The output
+defaults to `RESULT_DIR/results.json`. `CLOUD_INFO` / `--cloud-info` supplies a
+JSON-encoded object such as `{"cloud":"azure","aks_name":"my-cluster"}`; it
+defaults to `{}` when omitted. Other context fields are optional and used only
+with `--legacy-output`. Node counts and batch size are published as integers;
+the node-pool number retains the legacy string representation.
+
+With `--legacy-output`, the published `operation_info` retains canonical fields such as `success`,
+`duration`, timestamps, errors, and `metadata`. At the publishing boundary it
+also includes the established ADX names and fields (`succeeded`, `time`, node
+timings, and legacy node-pool operation names). Keeping this compatibility
+adapter in the collector protects existing alerts and dashboards without
+coupling CRUD execution logic to the legacy schema.
+
+The original operation name is retained as `canonical_name`; the published
+`name` maps `create_node_pool`, `scale_up`, `scale_down`, and `delete_node_pool`
+to `create_agent_pool`, `scale_agent_pool`, `clean_agent_pool`, and
+`delete_agent_pool`, respectively. Workload names are unchanged. `data` contains
+JSON-encoded node-pool `metadata.cluster_info` (the legacy string representation)
+or the workload metadata. Source files are never modified.
+
+Legacy collection requires each source to contain an `operation_info` object with a
+non-empty string `name`, boolean `success`, and object `metadata` if present.
+Invalid inputs or publishing failures are logged and return a nonzero exit
+code without replacing the previous output. In legacy mode, validated rows are
+published by atomically replacing the output file, so rerunning collection does
+not duplicate rows. Default collection retains its existing append behavior.

@@ -5,12 +5,14 @@ Unit tests for crud/main.py module (functions beyond collect_benchmark_results)
 
 import unittest
 from unittest import mock
+import argparse
 import os
 import tempfile
 import shutil
 import json
 
 from crud.main import (
+    _build_operation_info,
     get_node_pool_crud_class,
     handle_node_pool_operation,
     handle_workload_operations,
@@ -19,6 +21,101 @@ from crud.main import (
     collect_benchmark_results,
     handle_node_pool_all,
 )
+
+
+class TestBuildOperationInfo(unittest.TestCase):
+    """Tests for the ADX compatibility adapter."""
+
+    def test_preserves_canonical_names_and_maps_legacy_names(self):
+        """Canonical names remain available while ADX receives legacy names."""
+        expected_names = {
+            "create_node_pool": "create_agent_pool",
+            "scale_up": "scale_agent_pool",
+            "scale_down": "clean_agent_pool",
+            "delete_node_pool": "delete_agent_pool",
+            "create_pods": "create_pods",
+            "create_statefulset": "create_statefulset",
+            "create_jobs": "create_jobs",
+        }
+
+        for canonical_name, legacy_name in expected_names.items():
+            with self.subTest(canonical_name=canonical_name):
+                operation_info = _build_operation_info(
+                    {
+                        "operation_info": {
+                            "name": canonical_name,
+                            "duration": 12.5,
+                            "success": True,
+                            "metadata": {},
+                        }
+                    }
+                )
+
+                self.assertEqual(operation_info["canonical_name"], canonical_name)
+                self.assertEqual(operation_info["name"], legacy_name)
+                self.assertEqual(operation_info["duration"], 12.5)
+                self.assertEqual(operation_info["time"], 12.5)
+                self.assertTrue(operation_info["success"])
+                self.assertTrue(operation_info["succeeded"])
+
+    def test_preserves_failure_and_workload_metadata(self):
+        """Failure state and workload metadata survive compatibility mapping."""
+        metadata = {"workload_count": 3, "successful_workloads": 2}
+
+        operation_info = _build_operation_info(
+            {
+                "operation_info": {
+                    "name": "create_pods",
+                    "duration": 30.0,
+                    "success": False,
+                    "error_message": "Created 2/3 Deployment(s)",
+                    "metadata": metadata,
+                }
+            }
+        )
+
+        self.assertFalse(operation_info["success"])
+        self.assertFalse(operation_info["succeeded"])
+        self.assertEqual(operation_info["error_message"], "Created 2/3 Deployment(s)")
+        self.assertEqual(operation_info["data"], metadata)
+
+    def test_preserves_node_pool_metadata_without_mutating_source(self):
+        """Node timings and cluster data are aliases of canonical metadata."""
+        metadata = {
+            "command_execution_time": 45.0,
+            "node_readiness_time": 75.0,
+            "cluster_info": {"nodeImageVersion": "AKSUbuntu-2204gen2"},
+        }
+        source = {
+            "operation_info": {
+                "name": "scale_down",
+                "success": False,
+                "duration": 120.0,
+                "metadata": metadata,
+                "error_message": "readiness timed out",
+            }
+        }
+        original = json.loads(json.dumps(source))
+
+        operation_info = _build_operation_info(source)
+
+        self.assertEqual(source, original)
+        self.assertEqual(operation_info["name"], "clean_agent_pool")
+        self.assertEqual(operation_info["command_execution_time"], 45.0)
+        self.assertEqual(operation_info["node_readiness_time"], 75.0)
+        self.assertEqual(json.loads(operation_info["data"]), metadata["cluster_info"])
+        self.assertEqual(operation_info["metadata"], metadata)
+        self.assertFalse(operation_info["succeeded"])
+
+    def test_preserves_unmapped_operations(self):
+        """Other canonical operations remain collectable without legacy renaming."""
+        operation_info = _build_operation_info(
+            {"operation_info": {"name": "create_machines", "success": True}}
+        )
+
+        self.assertEqual(operation_info["name"], "create_machines")
+        self.assertEqual(operation_info["canonical_name"], "create_machines")
+        self.assertEqual(operation_info["data"], {})
 
 
 class TestNodePoolCRUDFunctions(unittest.TestCase):
@@ -423,17 +520,39 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
 
     @mock.patch("crud.main.collect_benchmark_results")
     def test_main_collect_command_simple(self, mock_collect_func):
-        """Test main function with collect command - simplified version"""
-        # Setup
+        """Test collect command passes explicit pipeline context."""
         mock_collect_func.return_value = 0
 
-        test_args = ["crud.py", "collect"]
+        test_args = [
+            "crud.py",
+            "collect",
+            "--legacy-output",
+            "--result-dir",
+            "/tmp/results",
+            "--result-file",
+            "/tmp/results/final.json",
+            "--run-id",
+            "run-123",
+            "--run-url",
+            "https://example.com/run/123",
+            "--region",
+            "eastus",
+            "--cloud-info",
+            '{"cloud":"azure"}',
+            "--scale-node-count",
+            "10",
+        ]
         with mock.patch("sys.argv", test_args):
             with self.assertRaises(SystemExit) as cm:
-                main()  # Use the imported main function
+                main()
 
-        # Verify collect function was called and exit code was 0
-        mock_collect_func.assert_called_once()
+        collect_args = mock_collect_func.call_args.args[0]
+        self.assertTrue(collect_args.legacy_output)
+        self.assertEqual(collect_args.result_dir, "/tmp/results")
+        self.assertEqual(collect_args.result_file, "/tmp/results/final.json")
+        self.assertEqual(collect_args.run_id, "run-123")
+        self.assertEqual(collect_args.region, "eastus")
+        self.assertEqual(collect_args.scale_node_count, "10")
         self.assertEqual(cm.exception.code, 0)
 
     @mock.patch("crud.main.AzureNodePoolCRUD")
@@ -587,6 +706,13 @@ class TestCollectBenchmarkResults(unittest.TestCase):
         """Set up test environment"""
         self.test_dir = tempfile.mkdtemp()
         self.old_environ = dict(os.environ)
+        self.env_vars = {
+            "RESULT_DIR": self.test_dir,
+            "RUN_URL": "https://example.com/run/123",
+            "RUN_ID": "test-run-123",
+            "REGION": "eastus",
+        }
+        self.legacy_args = argparse.Namespace(legacy_output=True)
 
     def tearDown(self):
         """Clean up after tests"""
@@ -594,93 +720,59 @@ class TestCollectBenchmarkResults(unittest.TestCase):
         os.environ.clear()
         os.environ.update(self.old_environ)
 
-    @mock.patch("crud.main.get_env_vars")
+    def _set_env(self, **values):
+        """Configure collector environment values for a test."""
+        self.env_vars.update(values)
+        os.environ.update(self.env_vars)
+
+    def _write_operation(self, name, filename=None, **values):
+        """Write one canonical operation fixture and return its path."""
+        operation = {"name": name, "success": True, "metadata": {}}
+        operation.update(values)
+        path = os.path.join(self.test_dir, filename or f"{name}.json")
+        with open(path, "w", encoding="utf-8") as result_file:
+            json.dump({"operation_info": operation}, result_file)
+        return path
+
+    def _read_rows(self):
+        """Read final JSONL rows from the default output file."""
+        with open(
+            os.path.join(self.test_dir, "results.json"), "r", encoding="utf-8"
+        ) as results_file:
+            return [json.loads(line) for line in results_file]
+
     @mock.patch("crud.main.glob.glob")
     @mock.patch("crud.main.datetime")
-    def test_collect_benchmark_results_success(
-        self, mock_datetime, mock_glob, mock_get_env_vars
-    ):
+    def test_collect_benchmark_results_success(self, mock_datetime, mock_glob):
         """Test successful collection of benchmark results"""
-        # Setup
-        env_vars = {
-            "RESULT_DIR": self.test_dir,
-            "RUN_URL": "https://example.com/run/123",
-            "RUN_ID": "test-run-123",
-            "REGION": "eastus",
-        }
-        mock_get_env_vars.side_effect = env_vars.get
-
-        # Create test JSON files
-        test_file1 = os.path.join(self.test_dir, "test1.json")
-        test_file2 = os.path.join(self.test_dir, "test2.json")
-
-        test_data1 = {"operation_info": {"operation": "create", "status": "success"}}
-        test_data2 = {"operation_info": {"operation": "scale", "status": "success"}}
-
-        with open(test_file1, "w", encoding="utf-8") as f:
-            json.dump(test_data1, f)
-        with open(test_file2, "w", encoding="utf-8") as f:
-            json.dump(test_data2, f)
-
+        self._set_env()
+        test_file1 = self._write_operation("create_node_pool", "test1.json")
+        test_file2 = self._write_operation("scale_up", "test2.json")
         mock_glob.return_value = [test_file1, test_file2]
         # Mock datetime.now(timezone.utc).strftime() properly
         mock_datetime_instance = mock.MagicMock()
         mock_datetime_instance.strftime.return_value = "2023-01-01T00:00:00Z"
         mock_datetime.now.return_value = mock_datetime_instance
 
-        # Execute
-        result = collect_benchmark_results()
+        self.assertEqual(collect_benchmark_results(), 0)
+        self.assertEqual(len(self._read_rows()), 2)
 
-        # Verify
-        self.assertEqual(result, 0)
-
-        # Check results.json was created
-        results_file = os.path.join(self.test_dir, "results.json")
-        self.assertTrue(os.path.exists(results_file))
-
-        # Verify content
-        with open(results_file, "r", encoding="utf-8") as f:
-            lines = f.readlines()
-            self.assertEqual(len(lines), 2)  # Two result entries
-
-    @mock.patch("crud.main.get_env_vars")
-    def test_collect_benchmark_results_preserves_workload_operations(
-        self, mock_get_env_vars
-    ):
+    def test_collect_benchmark_results_preserves_workload_operations(self):
         """Test aggregate workload records are collected as distinct rows."""
-        env_vars = {
-            "RESULT_DIR": self.test_dir,
-            "RUN_URL": "https://example.com/run/123",
-            "RUN_ID": "test-run-123",
-            "REGION": "eastus",
-        }
-        mock_get_env_vars.side_effect = env_vars.get
+        self._set_env()
 
         operation_names = ["create_pods", "create_statefulset", "create_jobs"]
         for operation_name in operation_names:
-            operation_file = os.path.join(self.test_dir, f"{operation_name}.json")
-            with open(operation_file, "w", encoding="utf-8") as result_file:
-                json.dump(
-                    {
-                        "operation_info": {
-                            "name": operation_name,
-                            "cloud": "azure",
-                            "duration": 10.0,
-                            "success": True,
-                            "metadata": {"workload_type": operation_name},
-                            "unit": "seconds",
-                        }
-                    },
-                    result_file,
-                )
+            self._write_operation(
+                operation_name,
+                cloud="azure",
+                duration=10.0,
+                metadata={"workload_type": operation_name},
+                unit="seconds",
+            )
 
-        result = collect_benchmark_results()
-
-        self.assertEqual(result, 0)
-        with open(
-            os.path.join(self.test_dir, "results.json"), "r", encoding="utf-8"
-        ) as results_file:
-            rows = [json.loads(line) for line in results_file]
+        self.assertEqual(collect_benchmark_results(), 0)
+        rows = self._read_rows()
 
         self.assertEqual(len(rows), 3)
         collected_names = {
@@ -692,63 +784,241 @@ class TestCollectBenchmarkResults(unittest.TestCase):
             self.assertEqual(row["run_id"], "test-run-123")
             self.assertEqual(row["run_url"], "https://example.com/run/123")
 
-    @mock.patch("crud.main.get_env_vars")
+    def test_collect_benchmark_results_emits_scale_up_compatibility_row(self):
+        """Scale-up rows retain canonical data and legacy ADX fields."""
+        self._set_env(
+            CLOUD_INFO='{"cloud":"azure","aks_name":"test-cluster"}',
+            VM_SIZE="Standard_D4s_v5",
+            NODE_POOL_NAME="np1",
+            CREATE_NODE_COUNT="1",
+            SCALE_NODE_COUNT="10",
+            NODE_POOL_TYPE="VirtualMachineScaleSets",
+            NODE_POOL_NUMBER="1",
+            BATCH_SIZE="1",
+            WORKLOAD_TEST_SETTING="PodSetting=10*10*1200",
+        )
+        self._write_operation(
+            "scale_up",
+            filename="azure_scale_up.json",
+            cloud="azure",
+            start_timestamp="2026-10-09T12:00:00Z",
+            end_timestamp="2026-10-09T12:02:00Z",
+            duration=120.0,
+            error_message=None,
+            error_traceback=None,
+            metadata={
+                "command_execution_time": 45.0,
+                "node_readiness_time": 75.0,
+                "cluster_info": {"nodeImageVersion": "AKSUbuntu-2204gen2"},
+            },
+            unit="seconds",
+        )
+
+        self.assertEqual(collect_benchmark_results(self.legacy_args), 0)
+        row = self._read_rows()[0]
+        operation_info = json.loads(row["operation_info"])
+
+        self.assertEqual(operation_info["name"], "scale_agent_pool")
+        self.assertEqual(operation_info["canonical_name"], "scale_up")
+        self.assertTrue(operation_info["success"])
+        self.assertTrue(operation_info["succeeded"])
+        self.assertEqual(operation_info["duration"], 120.0)
+        self.assertEqual(operation_info["command_execution_time"], 45.0)
+        self.assertEqual(operation_info["node_readiness_time"], 75.0)
+        self.assertEqual(
+            json.loads(operation_info["data"]), {"nodeImageVersion": "AKSUbuntu-2204gen2"}
+        )
+        self.assertEqual(json.loads(row["cloud_info"])["cloud"], "azure")
+        self.assertEqual(json.loads(row["aks_data"])["scale_node_count"], 10)
+        self.assertEqual(json.loads(row["aks_data"])["create_node_count"], 1)
+        self.assertEqual(json.loads(row["aks_data"])["batch_size"], 1)
+        self.assertEqual(json.loads(row["aks_data"])["node_pool_number"], "1")
+
     @mock.patch("crud.main.glob.glob")
-    def test_collect_benchmark_results_skip_results_json(
-        self, mock_glob, mock_get_env_vars
-    ):
+    def test_collect_benchmark_results_skip_results_json(self, mock_glob):
         """Test that results.json is skipped during collection"""
-        # Setup
-        env_vars = {
-            "RESULT_DIR": self.test_dir,
-            "RUN_URL": "https://example.com/run/123",
-            "RUN_ID": "test-run-123",
-            "REGION": "eastus",
-        }
-        mock_get_env_vars.side_effect = env_vars.get
-
-        # Create test files including results.json
-        test_file = os.path.join(self.test_dir, "test.json")
+        self._set_env()
+        test_file = self._write_operation("create_pods", "test.json")
         results_file = os.path.join(self.test_dir, "results.json")
-
-        with open(test_file, "w", encoding="utf-8") as f:
-            json.dump({"operation_info": {"operation": "test"}}, f)
         with open(results_file, "w", encoding="utf-8") as f:
             f.write("existing content\n")
 
         mock_glob.return_value = [test_file, results_file]
+        self.assertEqual(collect_benchmark_results(), 0)
 
-        # Execute
-        result = collect_benchmark_results()
-
-        # Verify
-        self.assertEqual(result, 0)
-
-        # Check that results.json still has existing content plus new content
         with open(results_file, "r", encoding="utf-8") as f:
-            content = f.read()
-            self.assertIn("existing content", content)
+            rows = f.readlines()
+            self.assertEqual(len(rows), 2)
+            self.assertEqual(rows[0], "existing content\n")
 
-    @mock.patch("crud.main.get_env_vars")
     @mock.patch("crud.main.glob.glob")
-    def test_collect_benchmark_results_no_files(self, mock_glob, mock_get_env_vars):
+    def test_collect_benchmark_results_no_files(self, mock_glob):
         """Test collection when no JSON files are found"""
-        # Setup
-        env_vars = {
-            "RESULT_DIR": self.test_dir,
-            "RUN_URL": "https://example.com/run/123",
-            "RUN_ID": "test-run-123",
-            "REGION": "eastus",
-        }
-        mock_get_env_vars.side_effect = env_vars.get
-
+        self._set_env()
         mock_glob.return_value = []
+        self.assertEqual(collect_benchmark_results(), 0)
+        self.assertFalse(os.path.exists(os.path.join(self.test_dir, "results.json")))
 
-        # Execute
-        result = collect_benchmark_results()
+    def test_collect_benchmark_results_preserves_default_schema_and_append(self):
+        """Default collection retains the original row shape and operation data."""
+        self._set_env(CLOUD_INFO='{"cloud":"azure"}', SCALE_NODE_COUNT="10")
+        source = self._write_operation("scale_up", duration=12.5)
+        with open(source, encoding="utf-8") as source_file:
+            original = json.load(source_file)["operation_info"]
 
-        # Verify
-        self.assertEqual(result, 0)
+        self.assertEqual(collect_benchmark_results(), 0)
+        self.assertEqual(collect_benchmark_results(), 0)
+
+        rows = self._read_rows()
+        self.assertEqual(len(rows), 2)
+        for row in rows:
+            self.assertEqual(
+                set(row), {"timestamp", "region", "operation_info", "run_id", "run_url"}
+            )
+            self.assertEqual(json.loads(row["operation_info"]), original)
+
+    def test_collect_benchmark_results_is_idempotent(self):
+        """Collecting the same operation files twice does not duplicate rows."""
+        self._set_env()
+        self._write_operation("create_pods", duration=10.0)
+
+        self.assertEqual(collect_benchmark_results(self.legacy_args), 0)
+        self.assertEqual(collect_benchmark_results(self.legacy_args), 0)
+        self.assertEqual(len(self._read_rows()), 1)
+
+    def test_collect_benchmark_results_cli_overrides_environment(self):
+        """Explicit arguments win while omitted arguments use the environment."""
+        self._set_env(VM_SIZE="Standard_D4s_v5")
+        self._write_operation("create_pods", duration=10.0)
+        result_file = os.path.join(self.test_dir, "published", "final.json")
+        args = argparse.Namespace(
+            legacy_output=True,
+            result_file=result_file,
+            run_id="cli-run",
+            region="westus2",
+            cloud_info='{"cloud":"azure","aks_name":"test-cluster"}',
+            scale_node_count="10",
+        )
+
+        self.assertEqual(collect_benchmark_results(args), 0)
+        self.assertEqual(collect_benchmark_results(args), 0)
+
+        with open(result_file, encoding="utf-8") as results_file:
+            rows = [json.loads(line) for line in results_file]
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["run_id"], "cli-run")
+        self.assertEqual(rows[0]["region"], "westus2")
+        self.assertEqual(rows[0]["run_url"], self.env_vars["RUN_URL"])
+        self.assertEqual(json.loads(rows[0]["cloud_info"])["aks_name"], "test-cluster")
+        self.assertEqual(json.loads(rows[0]["aks_data"])["vm_size"], "Standard_D4s_v5")
+        self.assertEqual(json.loads(rows[0]["aks_data"])["scale_node_count"], 10)
+
+    def test_collect_benchmark_results_requires_context(self):
+        """Missing required context reports the specific missing value."""
+        for name in self.env_vars:
+            with self.subTest(name=name):
+                with mock.patch.dict(os.environ, self.env_vars, clear=True):
+                    del os.environ[name]
+                    with self.assertRaisesRegex(RuntimeError, name):
+                        collect_benchmark_results()
+
+    def test_collect_benchmark_results_rejects_invalid_legacy_counts(self):
+        """Invalid numeric pipeline context must not produce a successful row."""
+        self._set_env(SCALE_NODE_COUNT="not-a-number")
+        self._write_operation("scale_up", duration=10.0)
+
+        with self.assertLogs("crud.main", level="ERROR"):
+            self.assertEqual(collect_benchmark_results(self.legacy_args), 1)
+
+        self.assertFalse(os.path.exists(os.path.join(self.test_dir, "results.json")))
+
+    def test_collect_benchmark_results_custom_output_in_source_directory(self):
+        """A custom output is skipped on subsequent collections."""
+        self._set_env()
+        self._write_operation("create_pods", duration=10.0)
+        result_file = os.path.join(self.test_dir, "final.json")
+        args = argparse.Namespace(result_file=result_file, legacy_output=True)
+
+        self.assertEqual(collect_benchmark_results(args), 0)
+        self.assertEqual(collect_benchmark_results(args), 0)
+
+        with open(result_file, encoding="utf-8") as results_file:
+            self.assertEqual(len([json.loads(line) for line in results_file]), 1)
+
+    @mock.patch("crud.main.glob.glob")
+    def test_collect_benchmark_results_reports_unreadable_source(self, mock_glob):
+        """A missing source is logged rather than producing partial output."""
+        self._set_env()
+        mock_glob.return_value = [os.path.join(self.test_dir, "missing.json")]
+
+        with self.assertLogs("crud.main", level="ERROR"):
+            self.assertEqual(collect_benchmark_results(self.legacy_args), 1)
+        self.assertFalse(os.path.exists(os.path.join(self.test_dir, "results.json")))
+
+    def test_collect_benchmark_results_rejects_invalid_operation_shapes(self):
+        """Invalid source data is logged without replacing valid published rows."""
+        self._set_env()
+        invalid_contents = [
+            [],
+            None,
+            {},
+            {"operation_info": []},
+            {"operation_info": "invalid"},
+            {"operation_info": {"name": [], "success": True}},
+            {"operation_info": {"name": " ", "success": True}},
+            {"operation_info": {"name": "create_pods"}},
+            {"operation_info": {"name": "create_pods", "success": "false"}},
+            {"operation_info": {"name": "create_pods", "success": True, "metadata": []}},
+        ]
+        results_path = os.path.join(self.test_dir, "results.json")
+        self._write_operation("create_pods", filename="a-valid.json")
+        for content in invalid_contents:
+            with self.subTest(content=content):
+                with open(results_path, "w", encoding="utf-8") as results_file:
+                    results_file.write("previous-valid-output\n")
+                with open(
+                    os.path.join(self.test_dir, "invalid.json"), "w", encoding="utf-8"
+                ) as invalid_file:
+                    json.dump(content, invalid_file)
+
+                with self.assertLogs("crud.main", level="ERROR"):
+                    self.assertEqual(collect_benchmark_results(self.legacy_args), 1)
+
+                with open(results_path, encoding="utf-8") as results_file:
+                    self.assertEqual(results_file.read(), "previous-valid-output\n")
+
+    @mock.patch("crud.main.os.replace", side_effect=OSError("publish failed"))
+    def test_collect_benchmark_results_preserves_output_on_publish_failure(self, _replace):
+        """An output failure leaves the previous file intact and cleans staging."""
+        self._set_env()
+        self._write_operation("create_pods", duration=10.0)
+        results_path = os.path.join(self.test_dir, "results.json")
+        with open(results_path, "w", encoding="utf-8") as results_file:
+            results_file.write("previous-valid-output\n")
+        original_files = sorted(os.listdir(self.test_dir))
+
+        with self.assertLogs("crud.main", level="ERROR"):
+            self.assertEqual(collect_benchmark_results(self.legacy_args), 1)
+
+        with open(results_path, encoding="utf-8") as results_file:
+            self.assertEqual(results_file.read(), "previous-valid-output\n")
+        self.assertEqual(sorted(os.listdir(self.test_dir)), original_files)
+
+    def test_collect_benchmark_results_rejects_malformed_json(self):
+        """Malformed operation files fail collection before output is replaced."""
+        self._set_env()
+        results_path = os.path.join(self.test_dir, "results.json")
+        with open(results_path, "w", encoding="utf-8") as results_file:
+            results_file.write("previous-valid-output\n")
+        with open(
+            os.path.join(self.test_dir, "malformed.json"), "w", encoding="utf-8"
+        ) as malformed_file:
+            malformed_file.write("{")
+
+        self.assertEqual(collect_benchmark_results(), 1)
+
+        with open(results_path, "r", encoding="utf-8") as results_file:
+            self.assertEqual(results_file.read(), "previous-valid-output\n")
 
 
 class TestHandleNodePoolAll(unittest.TestCase):
