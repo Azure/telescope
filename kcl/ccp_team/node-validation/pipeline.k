@@ -5,24 +5,19 @@ import lib.const
 import lib.steps.azure
 
 NODE_SKU = "Standard_D2s_v3"
+NODES_PER_POOL = 1000
 KUBECONFIG = "$(Agent.TempDirectory)/$(System.JobId)-kubeconfig"
 
-schema JobConfig:
-    nodesPerPool: int
-    region: str
-    nodeSku: str
-
-benchmarkJob = lambda config: JobConfig, predecessors: [str] -> job.Job {
-    cluster = "nodevalidation-$(Build.BuildId)-${config.region}-nodes${config.nodesPerPool}-$(System.JobAttempt)"
+benchmarkJob = lambda region: str -> job.Job {
+    cluster = "nodevalidation-$(Build.BuildId)-${region}-nodes${NODES_PER_POOL}-$(System.JobAttempt)"
     workerPools = azure.PlanNodePools(
-        {(config.nodeSku): 2 * config.nodesPerPool}
-        maxNodesPerPool=config.nodesPerPool
+        {(NODE_SKU): 2 * NODES_PER_POOL}
+        maxNodesPerPool=NODES_PER_POOL
     )
     expectedPools = " ".join(["\"${pool.name}:${pool.count}\"" for pool in workerPools])
     job.Job {
-        job = "nodes${config.nodesPerPool}"
-        displayName = "Two ${config.nodesPerPool}-node pools in ${config.region}"
-        dependsOn = predecessors
+        job = "nodes${NODES_PER_POOL}"
+        displayName = "Two ${NODES_PER_POOL}-node pools in ${region}"
         condition = "succeeded()"
         timeoutInMinutes = 240
         cancelTimeoutInMinutes = 60
@@ -30,12 +25,12 @@ benchmarkJob = lambda config: JobConfig, predecessors: [str] -> job.Job {
             azure.Login(
                 const.DEFAULT_SERVICE_CONNECTION
                 const.DEFAULT_SUBSCRIPTION_ID
-                config.region
+                region
             )
             azure.CreateResourceGroup(
                 const.DEFAULT_SERVICE_CONNECTION
                 cluster
-                config.region
+                region
                 const.DEFAULT_SUBSCRIPTION_ID
             )
             azure.AzCli(
@@ -47,12 +42,12 @@ az aks create \\
   --resource-group "${cluster}" \\
   --node-resource-group "${cluster}-nodes" \\
   --name "${cluster}" \\
-  --location "${config.region}" \\
+  --location "${region}" \\
   --kubernetes-version "1.36.4" \\
   --tier standard \\
   --nodepool-name systempool \\
   --node-count 2 \\
-  --node-vm-size ${config.nodeSku} \\
+  --node-vm-size ${NODE_SKU} \\
   --max-pods 250 \\
   --network-plugin azure \\
   --network-plugin-mode overlay \\
@@ -118,14 +113,7 @@ output = ap.Pipeline {
             displayName = "East Asia"
             dependsOn = []
             jobs = [
-                benchmarkJob(
-                    JobConfig {
-                        nodesPerPool = 1000
-                        region = "eastasia"
-                        nodeSku = NODE_SKU
-                    }
-                    []
-                )
+                benchmarkJob("eastasia")
             ]
         }
         ap.Stage {
@@ -133,22 +121,7 @@ output = ap.Pipeline {
             displayName = "West US 2"
             dependsOn = []
             jobs = [
-                benchmarkJob(
-                    JobConfig {
-                        nodesPerPool = 500
-                        region = "westus2"
-                        nodeSku = NODE_SKU
-                    }
-                    []
-                )
-                benchmarkJob(
-                    JobConfig {
-                        nodesPerPool = 1000
-                        region = "westus2"
-                        nodeSku = NODE_SKU
-                    }
-                    ["nodes500"]
-                )
+                benchmarkJob("westus2")
             ]
         }
     ]
