@@ -267,7 +267,10 @@ fi
                     "\${{ parameters.user_total_nodes }}",
                     MAX_NODES_PER_POOL,
                     vnetSubnetId = "$(createSubnet_nodes.NODES_SUBNET_ID)",
-                    osSKU = "Ubuntu"
+                    osSKU = "Ubuntu",
+                    # AKS nodes enable THP by default, but the test VMs have limited memory.
+                    # Disable THP on all node pools to avoid excessive node memory usage affecting benchmark results.
+                    linuxOsConfig = "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
                 ),
                 azure.RunScriptOnJumpbox(
                     SERVICE_CONNECTION,
