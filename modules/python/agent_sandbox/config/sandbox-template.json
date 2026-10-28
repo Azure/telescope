@@ -1,0 +1,152 @@
+{
+  "_source": "kubernetes-sigs/agent-sandbox examples/kata-aks/sandboxtemplate.yaml at f83f2d8; the image placeholder is filled in and spec.service removed. Pods run on simulated (KWOK) nodes, so the image is never pulled.",
+  "apiVersion": "extensions.agents.x-k8s.io/v1beta1",
+  "kind": "SandboxTemplate",
+  "spec": {
+    "envVarsInjectionPolicy": "Allowed",
+    "podTemplate": {
+      "spec": {
+        "runtimeClassName": "kata-vm-isolation",
+        "nodeSelector": {
+          "kubernetes.azure.com/kata-vm-isolation": "true"
+        },
+        "tolerations": [
+          {
+            "key": "kata",
+            "operator": "Equal",
+            "value": "enabled",
+            "effect": "NoSchedule"
+          }
+        ],
+        "restartPolicy": "OnFailure",
+        "containers": [
+          {
+            "name": "agent",
+            "image": "myregistry.azurecr.io/agents/agent:1.0.0",
+            "imagePullPolicy": "Always",
+            "securityContext": {
+              "runAsNonRoot": true,
+              "runAsUser": 1000,
+              "runAsGroup": 1000,
+              "allowPrivilegeEscalation": false,
+              "capabilities": {
+                "drop": [
+                  "ALL"
+                ]
+              },
+              "seccompProfile": {
+                "type": "RuntimeDefault"
+              }
+            },
+            "env": [
+              {
+                "name": "OPENAI_BASE_URL",
+                "valueFrom": {
+                  "secretKeyRef": {
+                    "name": "azure-foundry",
+                    "key": "OPENAI_BASE_URL"
+                  }
+                }
+              },
+              {
+                "name": "OPENAI_API_KEY",
+                "valueFrom": {
+                  "secretKeyRef": {
+                    "name": "azure-foundry",
+                    "key": "OPENAI_API_KEY"
+                  }
+                }
+              },
+              {
+                "name": "LLM_MODEL",
+                "valueFrom": {
+                  "secretKeyRef": {
+                    "name": "azure-foundry",
+                    "key": "LLM_MODEL"
+                  }
+                }
+              }
+            ],
+            "ports": [
+              {
+                "containerPort": 8080,
+                "name": "http",
+                "protocol": "TCP"
+              }
+            ],
+            "readinessProbe": {
+              "httpGet": {
+                "path": "/healthz",
+                "port": 8080
+              },
+              "initialDelaySeconds": 3,
+              "periodSeconds": 5
+            },
+            "livenessProbe": {
+              "httpGet": {
+                "path": "/healthz",
+                "port": 8080
+              },
+              "initialDelaySeconds": 10,
+              "periodSeconds": 10
+            },
+            "resources": {
+              "requests": {
+                "cpu": "250m",
+                "memory": "512Mi"
+              },
+              "limits": {
+                "cpu": "1",
+                "memory": "1Gi"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "networkPolicyManagement": "Managed",
+    "networkPolicy": {
+      "ingress": [
+        {
+          "from": [
+            {
+              "podSelector": {
+                "matchLabels": {
+                  "app": "sandbox-router"
+                }
+              }
+            }
+          ],
+          "ports": [
+            {
+              "protocol": "TCP",
+              "port": 8080
+            }
+          ]
+        }
+      ],
+      "egress": [
+        {
+          "ports": [
+            {
+              "protocol": "UDP",
+              "port": 53
+            },
+            {
+              "protocol": "TCP",
+              "port": 53
+            }
+          ]
+        },
+        {
+          "ports": [
+            {
+              "protocol": "TCP",
+              "port": 443
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

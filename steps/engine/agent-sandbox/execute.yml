@@ -1,0 +1,59 @@
+parameters:
+- name: cloud
+  type: string
+  default: ''
+- name: engine_input
+  type: object
+  default: {}
+- name: region
+  type: string
+
+steps:
+- script: |
+    set -eo pipefail
+
+    python3 -m agent_sandbox.main configure \
+      --workdir "$WORKDIR" \
+      --node_selector "$NODE_SELECTOR" \
+      --pools $POOLS \
+      --replicas_per_pool $REPLICAS_PER_POOL \
+      --kwok_nodes $KWOK_NODES \
+      --pods_per_node $PODS_PER_NODE \
+      --controller_cpu $CONTROLLER_CPU
+  workingDirectory: modules/python
+  env:
+    CLOUD: ${{ parameters.cloud }}
+    REGION: ${{ parameters.region }}
+    WORKDIR: $(TEST_RESULTS_DIR)/agent-sandbox
+    NODE_SELECTOR: ${{ parameters.engine_input.node_selector }}
+    POOLS: ${{ parameters.engine_input.pools }}
+    REPLICAS_PER_POOL: ${{ parameters.engine_input.replicas_per_pool }}
+    KWOK_NODES: ${{ parameters.engine_input.kwok_nodes }}
+    PODS_PER_NODE: ${{ parameters.engine_input.pods_per_node }}
+    CONTROLLER_CPU: ${{ parameters.engine_input.controller_cpu }}
+  displayName: "Install Agent Sandbox and Fill the Warm Pools"
+
+- script: |
+    set -eo pipefail
+
+    python3 -m agent_sandbox.main execute \
+      --workdir "$WORKDIR" \
+      --node_selector "$NODE_SELECTOR" \
+      --run_id $RUN_ID \
+      --pools $POOLS \
+      --rates "$RATES" \
+      --duration $DURATION_SECONDS \
+      --warmup $WARMUP_SECONDS \
+      --dwell $DWELL_SECONDS
+  workingDirectory: modules/python
+  env:
+    CLOUD: ${{ parameters.cloud }}
+    REGION: ${{ parameters.region }}
+    WORKDIR: $(TEST_RESULTS_DIR)/agent-sandbox
+    NODE_SELECTOR: ${{ parameters.engine_input.node_selector }}
+    POOLS: ${{ parameters.engine_input.pools }}
+    RATES: ${{ parameters.engine_input.rates }}
+    DURATION_SECONDS: ${{ parameters.engine_input.duration_seconds }}
+    WARMUP_SECONDS: ${{ parameters.engine_input.warmup_seconds }}
+    DWELL_SECONDS: ${{ parameters.engine_input.dwell_seconds }}
+  displayName: "Run the Claim Rate Ladder"

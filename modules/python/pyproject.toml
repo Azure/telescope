@@ -28,10 +28,11 @@ Source = "https://github.com/Azure/telescope"
 Documentation = "https://github.com/Azure/telescope/tree/main/modules/python"
 
 [tool.setuptools]
-packages = ["iperf3", "clients", "utils", "clusterloader2", "kwok", "gpu", "crud", "crud.azure", "crud.aws"]
+packages = ["iperf3", "clients", "utils", "clusterloader2", "kwok", "gpu", "crud", "crud.azure", "crud.aws", "agent_sandbox"]
 
 [tool.setuptools.package-data]
 crud = ["workload_templates/*.yml"]
+agent_sandbox = ["config/*.json"]
 
 [tool.setuptools.dynamic]
 dependencies = {file = "requirements.txt"}
@@ -42,3 +43,4 @@ telescope-cl2-autoscale = "clusterloader2.autoscale.autoscale:main"
 telescope-cl2-cri = "clusterloader2.cri.cri:main"
 telescope-kwok = "kwok.kwok:main"
 telescope-crud = "crud.main:main"
+telescope-agent-sandbox = "agent_sandbox.main:main"

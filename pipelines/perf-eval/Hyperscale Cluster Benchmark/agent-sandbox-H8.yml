@@ -1,0 +1,41 @@
+trigger: none
+
+pool:
+  name: 'AKS-Telescope-Airlock'
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: agent-sandbox-H8
+
+stages:
+  - stage: azure_eastasia_H8
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastasia
+          terraform_input_file_mapping:
+            - eastasia: "scenarios/perf-eval/agent-sandbox/terraform-inputs/azure-H8.tfvars"
+          topology: hyperscale-cluster
+          engine: agent-sandbox
+          engine_input:
+            node_selector: "kubernetes.azure.com/mode=system"
+            pools: 4
+            replicas_per_pool: 750
+            kwok_nodes: 24
+            pods_per_node: 1000
+            controller_cpu: "12"
+            rates: "50,100,150,200,250,300"
+            duration_seconds: 300
+            warmup_seconds: 60
+            dwell_seconds: 2
+          matrix:
+            H8:
+              ccp_tier: "H8"
+          max_parallel: 1
+          credential_type: service_connection
+          ssh_key_enabled: false
+          timeout_in_minutes: 240
+          retry_attempt_count: 0
