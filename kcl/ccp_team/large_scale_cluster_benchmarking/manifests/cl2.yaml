@@ -74,7 +74,12 @@ spec:
         - mountPath: /logs
           name: cl2-logs
       nodeSelector:
-        kubernetes.azure.com/mode: system
+        kubernetes.azure.com/agentpool: cl2
+      tolerations:
+      - key: cl2
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
       restartPolicy: Never
       serviceAccountName: cl2
       volumes:

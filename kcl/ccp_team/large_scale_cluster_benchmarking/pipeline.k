@@ -31,8 +31,8 @@ CREATE_ARGS=(
   --tags SkipAKSCluster=true
   --control-plane-scaling-size H2
   --nodepool-name system
-  --node-count 3
-  --node-vm-size Standard_D48ds_v5
+  --node-count 2
+  --node-vm-size Standard_D16ds_v5
   --max-pods 60
   --os-sku Ubuntu
   # AKS nodes enable THP by default, but the test VMs have limited memory.
@@ -152,7 +152,7 @@ output = ap.Pipeline {
             steps = [
                 steps.Bash {
                     # Azure CNI Overlay assigns a /24 per node, so the 10.0.0.0/8 pod CIDR fits 65536
-                    # nodes. Reserve 3 for the system pool and one user pool's worth for upgrade surge.
+                    # nodes. Reserve 3 for the system and CL2 pools and one user pool's worth for upgrade surge.
                     bash = """
 set -eo pipefail
 total_nodes="\${{ parameters.user_total_nodes }}"
@@ -245,7 +245,7 @@ fi
                     RESOURCE_GROUP,
                     JUMPBOX_NAME,
                     VNET_NAME,
-                    vmSize = "Standard_D32ds_v5"
+                    vmSize = "Standard_D4ds_v5"
                 ),
                 azure.AzCli(
                     SERVICE_CONNECTION,
@@ -257,6 +257,22 @@ fi
                     SERVICE_CONNECTION,
                     "Create AKS cluster",
                     createClusterScript
+                ),
+                # Dedicated tainted pool so the CL2 runner does not share nodes with system add-ons
+                # or benchmark workloads.
+                azure.CreateNodePool(
+                    SERVICE_CONNECTION,
+                    CLUSTER_NAME,
+                    RESOURCE_GROUP,
+                    SUBSCRIPTION_ID,
+                    azure.NodePool {
+                        name = "cl2"
+                        sku = "Standard_D48ds_v5"
+                        count = 1
+                        taintPrefix = "cl2"
+                        vnetSubnetId = "$(createSubnet_nodes.NODES_SUBNET_ID)"
+                        osSKU = "Ubuntu"
+                    }
                 ),
                 azure.CreateNodePoolsFromPipelineParameter(
                     SERVICE_CONNECTION,
