@@ -334,7 +334,7 @@ jobs:
           --resource-group "$(RUN_ID)" \
           --name "large-scale-jumpbox" \
           --image Ubuntu2204 \
-          --size Standard_D32ds_v5 \
+          --size Standard_D4ds_v5 \
           --vnet-name "large-scale-net" \
           --subnet "jumpbox" \
           --public-ip-address "large-scale-jumpbox-pip" \
@@ -408,8 +408,8 @@ jobs:
           --tags SkipAKSCluster=true
           --control-plane-scaling-size H2
           --nodepool-name system
-          --node-count 3
-          --node-vm-size Standard_D48ds_v5
+          --node-count 2
+          --node-vm-size Standard_D16ds_v5
           --max-pods 60
           --os-sku Ubuntu
           # AKS nodes enable THP by default, but the test VMs have limited memory.
@@ -445,6 +445,56 @@ jobs:
 
         az aks create "${CREATE_ARGS[@]}"
     displayName: Create AKS cluster
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(AZURE_SERVICE_CONNECTION)
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        create_node_pool() {
+          local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
+          deadline=$(($(date +%s) + 600))
+          while :; do
+            attempt=$((attempt + 1))
+            if output=$(az aks nodepool add "$@" 2>&1); then
+              rc=0
+            else
+              rc=$?
+            fi
+            echo "$output"
+            if [ "$rc" -eq 0 ]; then
+              return 0
+            fi
+            if echo "$output" | grep -qiE "OperationNotAllowed"; then
+              now=$(date +%s)
+              if [ "$now" -ge "$deadline" ]; then
+                echo "Retriable error persisted past 600s retry window ($attempt attempts); giving up."
+                return "$rc"
+              fi
+              remaining_retry_seconds=$((deadline - now))
+              echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining_retry_seconds seconds remain in retry window)."
+              sleep "$sleep_between"
+            else
+              echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+              return "$rc"
+            fi
+          done
+        }
+
+
+        create_node_pool \
+          --cluster-name "large-scale" \
+          --resource-group "$(RUN_ID)" \
+          --subscription "${{ parameters.subscription_id }}" \
+          --name "cl2" \
+          --node-count 1 \
+          --node-vm-size "Standard_D48ds_v5" \
+          --mode User \
+          --node-taints cl2=true:NoSchedule \
+          --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
+          --os-sku Ubuntu
+    displayName: Create node pool cl2
   - task: AzureCLI@2
     inputs:
       azureSubscription: $(AZURE_SERVICE_CONNECTION)
