@@ -45,8 +45,12 @@ DEFAULT_AKS_JUMPBOX_ROLES = [
 # CreateJumpbox provisions a Linux jumpbox VM in an existing VNet/subnet, enables a system-assigned
 # managed identity, and (optionally) assigns roles to that identity.
 #
+# The VM has no public IP. Outbound access (cloud-init, az CLI) goes through a NAT Gateway attached
+# to the jumpbox subnet, which allows no inbound connections from the internet. The NAT Gateway is
+# attached before the VM is created because cloud-init needs outbound access at first boot.
+#
 # Remote access is expected to use `az vm run-command invoke` (ARM -> VM Guest Agent), so no inbound
-# SSH port is opened. `--generate-ssh-keys` is kept only to satisfy `az vm create`'s Linux auth
+# NSG rule is created. `--generate-ssh-keys` is kept only to satisfy `az vm create`'s Linux auth
 # requirement; the generated key on the agent is unused.
 CreateJumpbox = lambda \
     serviceConnection: str, \
@@ -75,6 +79,26 @@ CreateJumpbox = lambda \
 cat > /tmp/cloud-init.yaml << 'CLOUDINIT'
 ${cloudInit}CLOUDINIT
 
+az network public-ip create \\
+  --resource-group "${resourceGroup}" \\
+  --name "${name}-nat-pip" \\
+  --sku Standard \\
+  --allocation-method Static \\
+  --subscription "${subscription}"
+
+az network nat gateway create \\
+  --resource-group "${resourceGroup}" \\
+  --name "${name}-nat" \\
+  --public-ip-addresses "${name}-nat-pip" \\
+  --subscription "${subscription}"
+
+az network vnet subnet update \\
+  --resource-group "${resourceGroup}" \\
+  --vnet-name "${vnetName}" \\
+  --name "${subnetName}" \\
+  --nat-gateway "${name}-nat" \\
+  --subscription "${subscription}"
+
 az vm create \\
   --resource-group "${resourceGroup}" \\
   --name "${name}" \\
@@ -82,7 +106,8 @@ az vm create \\
   --size ${vmSize} \\
   --vnet-name "${vnetName}" \\
   --subnet "${subnetName}" \\
-  --public-ip-address "${name}-pip" \\
+  --public-ip-address "" \\
+  --nsg-rule NONE \\
   --admin-username "${adminUsername}" \\
   --generate-ssh-keys \\
   --custom-data /tmp/cloud-init.yaml \\
