@@ -518,7 +518,8 @@ jobs:
             --node-vm-size "${{ parameters.user_pool_vm_size }}" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-              --os-sku Ubuntu
+              --os-sku Ubuntu \
+              --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
 
           remaining=$((remaining - node_count))
           pool_index=$((pool_index + 1))
