@@ -368,8 +368,8 @@ jobs:
       inlineScript: |
         set -exo pipefail
         KEY_ID="${{ parameters.kms_key_id }}"
-        if ! [[ "$KEY_ID" =~ ^https://([^/]+)/keys/[^/]+/[^/]+$ ]]; then
-          echo "kms_key_id must be a versioned Key Vault key URI, or 'none' to disable KMS."
+        if ! [[ "$KEY_ID" =~ ^https://[^/]+/keys/[^/]+/[^/]+$ ]]; then
+          echo "Key ID must be a versioned Key Vault key URI; got '$KEY_ID'."
           exit 1
         fi
         HOST="${KEY_ID#https://}"
@@ -386,7 +386,7 @@ jobs:
           --assignee-principal-type ServicePrincipal \
           --scope "$KEY_VAULT_RESOURCE_ID"
     condition: ne('${{ parameters.kms_key_id }}', 'none')
-    displayName: Grant KMS access to cluster identity
+    displayName: Grant Key Vault Crypto User for KMS
   - task: AzureCLI@2
     inputs:
       azureSubscription: $(AZURE_SERVICE_CONNECTION)
@@ -943,6 +943,32 @@ jobs:
         fi
         echo "$run_command_output"
     displayName: Collect ClusterLoader2 results and check success
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(AZURE_SERVICE_CONNECTION)
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        KEY_ID="${{ parameters.kms_key_id }}"
+        if ! [[ "$KEY_ID" =~ ^https://[^/]+/keys/[^/]+/[^/]+$ ]]; then
+          echo "Key ID must be a versioned Key Vault key URI; got '$KEY_ID'."
+          exit 1
+        fi
+        HOST="${KEY_ID#https://}"
+        VAULT_NAME="${HOST%%.*}"
+
+        KEY_VAULT_RESOURCE_ID=$(az keyvault show \
+          --subscription "${{ parameters.subscription_id }}" \
+          --name "$VAULT_NAME" \
+          --query id -o tsv)
+
+        az role assignment delete \
+          --role "Key Vault Crypto User" \
+          --assignee-object-id "$(createManagedIdentity.IDENTITY_PRINCIPAL_ID)" \
+          --scope "$KEY_VAULT_RESOURCE_ID"
+    condition: and(always(), ne('${{ parameters.kms_key_id }}', 'none'))
+    displayName: Revoke Key Vault Crypto User for KMS
   - task: AzureCLI@2
     inputs:
       azureSubscription: $(AZURE_SERVICE_CONNECTION)

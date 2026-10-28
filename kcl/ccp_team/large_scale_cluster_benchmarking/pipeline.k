@@ -69,27 +69,6 @@ fi
 az aks create "\${CREATE_ARGS[@]}"
 """
 
-grantKmsAccessScript = """
-KEY_ID="\${{ parameters.kms_key_id }}"
-if ! [[ "$KEY_ID" =~ ^https://([^/]+)/keys/[^/]+/[^/]+$ ]]; then
-  echo "kms_key_id must be a versioned Key Vault key URI, or 'none' to disable KMS."
-  exit 1
-fi
-HOST="\${KEY_ID#https://}"
-VAULT_NAME="\${HOST%%.*}"
-
-KEY_VAULT_RESOURCE_ID=$(az keyvault show \\
-  --subscription "${SUBSCRIPTION_ID}" \\
-  --name "$VAULT_NAME" \\
-  --query id -o tsv)
-
-az role assignment create \\
-  --role "Key Vault Crypto User" \\
-  --assignee-object-id "$(createManagedIdentity.IDENTITY_PRINCIPAL_ID)" \\
-  --assignee-principal-type ServicePrincipal \\
-  --scope "$KEY_VAULT_RESOURCE_ID"
-"""
-
 output = ap.Pipeline {
     name = "Large Scale Cluster Creation"
 
@@ -247,10 +226,11 @@ fi
                     VNET_NAME,
                     vmSize = "Standard_D4ds_v5"
                 ),
-                azure.AzCli(
+                azure.GrantKeyVaultCryptoUser(
                     SERVICE_CONNECTION,
-                    "Grant KMS access to cluster identity",
-                    grantKmsAccessScript,
+                    SUBSCRIPTION_ID,
+                    "\${{ parameters.kms_key_id }}",
+                    "$(createManagedIdentity.IDENTITY_PRINCIPAL_ID)",
                     condition = "ne('\${{ parameters.kms_key_id }}', 'none')"
                 ),
                 azure.AzCli(
@@ -348,6 +328,13 @@ for pod in $pods; do
   fi
 done
 """
+                ),
+                azure.RevokeKeyVaultCryptoUser(
+                    SERVICE_CONNECTION,
+                    SUBSCRIPTION_ID,
+                    "\${{ parameters.kms_key_id }}",
+                    "$(createManagedIdentity.IDENTITY_PRINCIPAL_ID)",
+                    condition = "and(always(), ne('\${{ parameters.kms_key_id }}', 'none'))"
                 ),
                 azure.DeleteResourceGroup(
                     SERVICE_CONNECTION,
