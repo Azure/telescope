@@ -1,9 +1,6 @@
 name: Update ClusterLoader2 package
 
 on:
-  push:
-    branches: [automation/weekly-clusterloader2-package]
-    paths: [.github/workflows/clusterloader2.yml]
   schedule:
     # Track upstream weekly without rebuilding unchanged source.
     - cron: "23 3 * * 1"
@@ -20,7 +17,7 @@ env:
 
 jobs:
   publish:
-    if: github.repository == 'Azure/telescope' && ((github.event_name == 'schedule' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)) || (github.event_name == 'push' && github.ref == 'refs/heads/automation/weekly-clusterloader2-package'))
+    if: github.repository == 'Azure/telescope' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
