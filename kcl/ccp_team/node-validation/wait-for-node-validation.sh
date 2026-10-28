@@ -16,49 +16,61 @@ parse_expected_pools() {
 }
 
 fetch_nodes() {
-    local kubeconfig=$1 nodes_file=$2 request_timeout=$3
-    timeout "${request_timeout}s" kubectl --kubeconfig "$kubeconfig" \
-        --request-timeout="${request_timeout}s" get nodes -o json > "$nodes_file"
+    local kubeconfig=$1 nodes_file=$2 request_timeout=$3 expected_pools=$4
+    local statuses
+    if timeout "${request_timeout}s" kubectl --kubeconfig "$kubeconfig" \
+        --request-timeout="${request_timeout}s" get nodes -o json \
+        | jq -cse --argjson expected "$expected_pools" '
+            def node_array:
+                if length == 1 then .[0]
+                else error("Expected one node-list response") end
+                | if (.items | type) == "array" then .items
+                  else error("Expected a node array") end;
+
+            def pool_name:
+                .metadata.labels
+                | if . == null or type == "object" then .
+                  else error("Node labels must be an object") end
+                | (.agentpool // .["kubernetes.azure.com/agentpool"])
+                | if . == null or type == "string" then .
+                  else error("Node pool label must be a string") end;
+
+            def node_taints:
+                if (.spec | type) == "object" then .
+                else error("Selected node spec must be an object") end
+                | if (.spec.taints == null or (.spec.taints | type) == "array") and
+                     all(.spec.taints[]?;
+                         (.key | type) == "string" and
+                         (.effect == "NoSchedule" or .effect == "PreferNoSchedule" or .effect == "NoExecute"))
+                  then (.spec.taints // [])
+                  else error("Malformed selected-node taints") end;
+
+            node_array
+            | [.[]
+                | pool_name as $pool
+                | select($pool != null)
+                | select($expected | has($pool))
+                | {pool: $pool, taints: node_taints}]
+        ' > "$nodes_file"; then
+        return 0
+    else
+        statuses=("${PIPESTATUS[@]}")
+    fi
+    # A projection failure can also cause kubectl to exit with SIGPIPE (141).
+    # Other fetch failures take precedence over the parser seeing incomplete input.
+    if (( statuses[0] != 0 && statuses[0] != 141 )); then
+        return 1
+    fi
+    if (( statuses[1] != 0 )); then
+        echo "##[error]Could not validate or project node-list response" >&2
+        return 2
+    fi
+    return 1
 }
 
 summarize_nodes() {
     local nodes_file=$1 expected_pools=$2
-    jq -cse --argjson expected "$expected_pools" '
-        def node_pool:
-            .metadata.labels.agentpool // .metadata.labels["kubernetes.azure.com/agentpool"];
-
-        def validate_node_list:
-            if length == 1 then .[0] else error("Expected one node-list response") end
-            | if (
-                (.kind == "NodeList" or .kind == "List") and
-                (.items | type == "array") and
-                all(.items[];
-                    .kind == "Node" and
-                    (.metadata.name | type == "string") and
-                    (.metadata.labels == null or (.metadata.labels | type == "object")) and
-                    (node_pool == null or (node_pool | type == "string")))
-            ) then . else error("Malformed node-list response") end;
-
-        def select_expected_nodes:
-            [.items[]
-                | node_pool as $pool
-                | select($pool != null)
-                | select($expected | has($pool))];
-
-        def validate_selected_nodes:
-            if all(.[];
-                    (.spec.taints == null or (.spec.taints | type == "array")) and
-                    all(.spec.taints[]?;
-                        (.key | type == "string") and
-                        (.effect == "NoSchedule" or .effect == "PreferNoSchedule" or .effect == "NoExecute")))
-            then . else error("Malformed selected-node response") end;
-
-        def normalize_nodes:
-            [.[] | {
-                pool: node_pool,
-                taints: (.spec.taints // [])
-            }];
-
+    jq -ce --argjson expected "$expected_pools" '
         def summarize_pool($nodes; $expected):
             . as $pool
             | [$nodes[] | select(.pool == $pool)] as $members
@@ -78,10 +90,7 @@ summarize_nodes() {
                     }))
             };
 
-        validate_node_list
-        | select_expected_nodes
-        | validate_selected_nodes
-        | normalize_nodes as $nodes
+        . as $nodes
         | ($expected | keys)
         | map(summarize_pool($nodes; $expected))
         | {
@@ -129,7 +138,7 @@ while (( SECONDS < deadline )); do
         break
     fi
     request_timeout=$((remaining < 30 ? remaining : 30))
-    if fetch_nodes "$kubeconfig" "$nodes_file" "$request_timeout"; then
+    if fetch_nodes "$kubeconfig" "$nodes_file" "$request_timeout" "$expected_pools"; then
         if ! summary=$(summarize_nodes "$nodes_file" "$expected_pools"); then
             echo "##[error]Could not validate or summarize node-list response" >&2
             exit 1
@@ -141,6 +150,9 @@ while (( SECONDS < deadline )); do
             exit 0
         fi
     else
+        if (( $? == 2 )); then
+            exit 1
+        fi
         echo "##[warning]Node-list request failed; retrying within the verification deadline" >&2
         jq -nc --arg time "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             '{time: $time, error: "Node-list request failed"}'
