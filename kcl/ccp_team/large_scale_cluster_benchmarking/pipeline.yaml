@@ -30,14 +30,6 @@ parameters:
   displayName: KMS key ID (versioned Key Vault key URI; 'none' to disable)
   type: string
   default: none
-variables:
-  subscription_id: ${{ parameters.subscription_id }}
-  location: ${{ parameters.location }}
-  user_pool_vm_size: ${{ parameters.user_pool_vm_size }}
-  user_total_nodes: ${{ parameters.user_total_nodes }}
-  network_dataplane: ${{ parameters.network_dataplane }}
-  enable_apiserver_vnet_integration: ${{ parameters.enable_apiserver_vnet_integration }}
-  kms_key_id: ${{ parameters.kms_key_id }}
 jobs:
 - job: create_cluster
   displayName: Create Large Scale Cluster
@@ -46,10 +38,10 @@ jobs:
   steps:
   - bash: |
       set -eo pipefail
-      total_nodes="$(user_total_nodes)"
-      max_total_nodes=15576
+      total_nodes="${{ parameters.user_total_nodes }}"
+      max_total_nodes=64733
       if [ "$total_nodes" -gt "$max_total_nodes" ]; then
-        echo "user_total_nodes=$total_nodes exceeds the nodes subnet capacity of $max_total_nodes."
+        echo "user_total_nodes=$total_nodes exceeds the pod CIDR capacity of $max_total_nodes nodes."
         exit 1
       fi
     displayName: Validate total user nodes
@@ -60,8 +52,8 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
-        az account set --subscription "$(subscription_id)"
-        az config set defaults.location="$(location)"
+        az account set --subscription "${{ parameters.subscription_id }}"
+        az config set defaults.location="${{ parameters.location }}"
         az account show
     displayName: Login to Azure
   - bash: |
@@ -82,10 +74,10 @@ jobs:
         set -exo pipefail
         az group create \
           --name "$(RUN_ID)" \
-          --location "$(location)" \
-          --subscription "$(subscription_id)" \
+          --location "${{ parameters.location }}" \
+          --subscription "${{ parameters.subscription_id }}" \
         --tags SkipAKSCluster=true
-    displayName: Create resource group in $(location) ($(subscription_id))
+    displayName: Create resource group in ${{ parameters.location }} (${{ parameters.subscription_id }})
   - task: AzureCLI@2
     inputs:
       azureSubscription: $(AZURE_SERVICE_CONNECTION)
@@ -96,12 +88,12 @@ jobs:
         az identity create \
           --resource-group "$(RUN_ID)" \
           --name "large-scale-identity" \
-          --subscription "$(subscription_id)"
+          --subscription "${{ parameters.subscription_id }}"
 
         IDENTITY=$(az identity show \
           --resource-group "$(RUN_ID)" \
           --name "large-scale-identity" \
-          --subscription "$(subscription_id)")
+          --subscription "${{ parameters.subscription_id }}")
         echo "##vso[task.setvariable variable=IDENTITY_PRINCIPAL_ID;isOutput=true]$(echo "$IDENTITY" | jq -r '.principalId')"
         echo "##vso[task.setvariable variable=IDENTITY_ID;isOutput=true]$(echo "$IDENTITY" | jq -r '.id')"
     displayName: Create managed identity large-scale-identity
@@ -116,12 +108,12 @@ jobs:
         az network vnet create \
           --resource-group "$(RUN_ID)" \
           --name "large-scale-net" \
-          --address-prefixes 10.0.0.0/8 \
-          --subscription "$(subscription_id)"
+          --address-prefixes 172.16.0.0/12 \
+          --subscription "${{ parameters.subscription_id }}"
         VNET_ID=$(az network vnet show \
           --resource-group "$(RUN_ID)" \
           --name "large-scale-net" \
-          --subscription "$(subscription_id)" \
+          --subscription "${{ parameters.subscription_id }}" \
           --query id -o tsv)
 
         az role assignment create \
@@ -129,7 +121,7 @@ jobs:
           --role "Network Contributor" \
           --assignee-object-id "$(createManagedIdentity.IDENTITY_PRINCIPAL_ID)" \
           --assignee-principal-type ServicePrincipal \
-          --subscription "$(subscription_id)"
+          --subscription "${{ parameters.subscription_id }}"
     displayName: Create VNet large-scale-net
   - task: AzureCLI@2
     inputs:
@@ -142,14 +134,14 @@ jobs:
           --resource-group "$(RUN_ID)" \
           --vnet-name "large-scale-net" \
           --name "nodes" \
-          --address-prefixes 10.1.0.0/18 \
-          --subscription "$(subscription_id)"
+          --address-prefixes 172.16.0.0/14 \
+          --subscription "${{ parameters.subscription_id }}"
 
         SUBNET_ID=$(az network vnet subnet show \
           --resource-group "$(RUN_ID)" \
           --vnet-name "large-scale-net" \
           --name "nodes" \
-          --subscription "$(subscription_id)" \
+          --subscription "${{ parameters.subscription_id }}" \
           --query id -o tsv)
         echo "##vso[task.setvariable variable=NODES_SUBNET_ID;isOutput=true]$SUBNET_ID"
     displayName: Create subnet nodes
@@ -165,14 +157,14 @@ jobs:
           --resource-group "$(RUN_ID)" \
           --vnet-name "large-scale-net" \
           --name "apiserver" \
-          --address-prefixes 10.240.0.0/28 \
-          --subscription "$(subscription_id)"
+          --address-prefixes 172.20.0.0/28 \
+          --subscription "${{ parameters.subscription_id }}"
 
         SUBNET_ID=$(az network vnet subnet show \
           --resource-group "$(RUN_ID)" \
           --vnet-name "large-scale-net" \
           --name "apiserver" \
-          --subscription "$(subscription_id)" \
+          --subscription "${{ parameters.subscription_id }}" \
           --query id -o tsv)
         echo "##vso[task.setvariable variable=APISERVER_SUBNET_ID;isOutput=true]$SUBNET_ID"
     displayName: Create subnet apiserver
@@ -188,14 +180,14 @@ jobs:
           --resource-group "$(RUN_ID)" \
           --vnet-name "large-scale-net" \
           --name "AzureFirewallSubnet" \
-          --address-prefixes 10.2.0.0/16 \
-          --subscription "$(subscription_id)"
+          --address-prefixes 172.21.0.0/16 \
+          --subscription "${{ parameters.subscription_id }}"
 
         SUBNET_ID=$(az network vnet subnet show \
           --resource-group "$(RUN_ID)" \
           --vnet-name "large-scale-net" \
           --name "AzureFirewallSubnet" \
-          --subscription "$(subscription_id)" \
+          --subscription "${{ parameters.subscription_id }}" \
           --query id -o tsv)
         echo "##vso[task.setvariable variable=AZUREFIREWALLSUBNET_SUBNET_ID;isOutput=true]$SUBNET_ID"
     displayName: Create subnet AzureFirewallSubnet
@@ -211,14 +203,14 @@ jobs:
           --resource-group "$(RUN_ID)" \
           --vnet-name "large-scale-net" \
           --name "jumpbox" \
-          --address-prefixes 10.3.0.0/16 \
-          --subscription "$(subscription_id)"
+          --address-prefixes 172.22.0.0/16 \
+          --subscription "${{ parameters.subscription_id }}"
 
         SUBNET_ID=$(az network vnet subnet show \
           --resource-group "$(RUN_ID)" \
           --vnet-name "large-scale-net" \
           --name "jumpbox" \
-          --subscription "$(subscription_id)" \
+          --subscription "${{ parameters.subscription_id }}" \
           --query id -o tsv)
         echo "##vso[task.setvariable variable=JUMPBOX_SUBNET_ID;isOutput=true]$SUBNET_ID"
     displayName: Create subnet jumpbox
@@ -236,17 +228,17 @@ jobs:
           --resource-group "$(RUN_ID)" \
           --name "large-scale-firewall-pip" \
           --sku Standard \
-          --location "$(location)" \
-          --subscription "$(subscription_id)"
+          --location "${{ parameters.location }}" \
+          --subscription "${{ parameters.subscription_id }}"
 
         az network firewall create \
           --resource-group "$(RUN_ID)" \
           --name "large-scale-firewall" \
-          --location "$(location)" \
+          --location "${{ parameters.location }}" \
           --enable-dns-proxy true \
           --min-capacity 45 \
           --max-capacity 45 \
-          --subscription "$(subscription_id)"
+          --subscription "${{ parameters.subscription_id }}"
 
         az network firewall ip-config create \
           --resource-group "$(RUN_ID)" \
@@ -254,19 +246,19 @@ jobs:
           --name "large-scale-firewall-ipconfig" \
           --public-ip-address "large-scale-firewall-pip" \
           --vnet-name "large-scale-net" \
-          --subscription "$(subscription_id)"
+          --subscription "${{ parameters.subscription_id }}"
 
         FIREWALL_PRIVATE_IP=$(az network firewall show \
           --resource-group "$(RUN_ID)" \
           --name "large-scale-firewall" \
-          --subscription "$(subscription_id)" \
+          --subscription "${{ parameters.subscription_id }}" \
           --query "ipConfigurations[0].privateIPAddress" -o tsv)
 
         az network route-table create \
           --resource-group "$(RUN_ID)" \
           --name "large-scale-firewall-rt" \
-          --location "$(location)" \
-          --subscription "$(subscription_id)"
+          --location "${{ parameters.location }}" \
+          --subscription "${{ parameters.subscription_id }}"
 
         az network route-table route create \
           --resource-group "$(RUN_ID)" \
@@ -275,14 +267,14 @@ jobs:
           --address-prefix 0.0.0.0/0 \
           --next-hop-type VirtualAppliance \
           --next-hop-ip-address "$FIREWALL_PRIVATE_IP" \
-          --subscription "$(subscription_id)"
+          --subscription "${{ parameters.subscription_id }}"
 
         az network vnet subnet update \
           --resource-group "$(RUN_ID)" \
           --vnet-name "large-scale-net" \
           --name "nodes" \
           --route-table "large-scale-firewall-rt" \
-          --subscription "$(subscription_id)"
+          --subscription "${{ parameters.subscription_id }}"
 
         # Merge rule collections from the policy file into the current firewall and PUT it back in one call.
         # This handles large rule sets faster than incremental CLI commands (az network firewall policy rule-collection-group)
@@ -292,7 +284,7 @@ jobs:
           FW_MERGED=$(mktemp)
           az rest \
             --method get \
-            --uri "https://management.azure.com/subscriptions/$(subscription_id)/resourceGroups/$(RUN_ID)/providers/Microsoft.Network/azureFirewalls/large-scale-firewall?api-version=2025-05-01" \
+            --uri "https://management.azure.com/subscriptions/${{ parameters.subscription_id }}/resourceGroups/$(RUN_ID)/providers/Microsoft.Network/azureFirewalls/large-scale-firewall?api-version=2025-05-01" \
             > "$FW_CURRENT"
           jq -s '
             .[0] as $fw | .[1] as $rules |
@@ -303,7 +295,7 @@ jobs:
           ' "$FW_CURRENT" "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/firewall-policy.json" > "$FW_MERGED"
           az rest \
             --method put \
-            --uri "https://management.azure.com/subscriptions/$(subscription_id)/resourceGroups/$(RUN_ID)/providers/Microsoft.Network/azureFirewalls/large-scale-firewall?api-version=2025-05-01" \
+            --uri "https://management.azure.com/subscriptions/${{ parameters.subscription_id }}/resourceGroups/$(RUN_ID)/providers/Microsoft.Network/azureFirewalls/large-scale-firewall?api-version=2025-05-01" \
             --headers "Content-Type=application/json" \
             --body "@$FW_MERGED"
           rm -f "$FW_CURRENT" "$FW_MERGED"
@@ -349,24 +341,24 @@ jobs:
           --admin-username "azureuser" \
           --generate-ssh-keys \
           --custom-data /tmp/cloud-init.yaml \
-          --subscription "$(subscription_id)"
+          --subscription "${{ parameters.subscription_id }}"
 
         JUMPBOX_PRINCIPAL_ID=$(az vm identity assign \
           --resource-group "$(RUN_ID)" \
           --name "large-scale-jumpbox" \
-          --subscription "$(subscription_id)" \
+          --subscription "${{ parameters.subscription_id }}" \
           --query systemAssignedIdentity -o tsv)
         az role assignment create \
           --assignee "$JUMPBOX_PRINCIPAL_ID" \
           --role "Azure Kubernetes Service Cluster Admin Role" \
-          --scope "$(az group show --name "$(RUN_ID)" --subscription "$(subscription_id)" --query id -o tsv)" \
-          --subscription "$(subscription_id)"
+          --scope "$(az group show --name "$(RUN_ID)" --subscription "${{ parameters.subscription_id }}" --query id -o tsv)" \
+          --subscription "${{ parameters.subscription_id }}"
 
         az role assignment create \
           --assignee "$JUMPBOX_PRINCIPAL_ID" \
           --role "Azure Kubernetes Service Contributor Role" \
-          --scope "$(az group show --name "$(RUN_ID)" --subscription "$(subscription_id)" --query id -o tsv)" \
-          --subscription "$(subscription_id)"
+          --scope "$(az group show --name "$(RUN_ID)" --subscription "${{ parameters.subscription_id }}" --query id -o tsv)" \
+          --subscription "${{ parameters.subscription_id }}"
     displayName: Create jumpbox large-scale-jumpbox
   - task: AzureCLI@2
     inputs:
@@ -375,7 +367,7 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
-        KEY_ID="$(kms_key_id)"
+        KEY_ID="${{ parameters.kms_key_id }}"
         if ! [[ "$KEY_ID" =~ ^https://([^/]+)/keys/[^/]+/[^/]+$ ]]; then
           echo "kms_key_id must be a versioned Key Vault key URI, or 'none' to disable KMS."
           exit 1
@@ -384,7 +376,7 @@ jobs:
         VAULT_NAME="${HOST%%.*}"
 
         KEY_VAULT_RESOURCE_ID=$(az keyvault show \
-          --subscription "$(subscription_id)" \
+          --subscription "${{ parameters.subscription_id }}" \
           --name "$VAULT_NAME" \
           --query id -o tsv)
 
@@ -393,7 +385,7 @@ jobs:
           --assignee-object-id "$(createManagedIdentity.IDENTITY_PRINCIPAL_ID)" \
           --assignee-principal-type ServicePrincipal \
           --scope "$KEY_VAULT_RESOURCE_ID"
-    condition: ne(variables['kms_key_id'], 'none')
+    condition: ne('${{ parameters.kms_key_id }}', 'none')
     displayName: Grant KMS access to cluster identity
   - task: AzureCLI@2
     inputs:
@@ -405,10 +397,10 @@ jobs:
         az extension add --name aks-preview --allow-preview true --upgrade --yes
 
         CREATE_ARGS=(
-          --subscription "$(subscription_id)"
+          --subscription "${{ parameters.subscription_id }}"
           --resource-group "$(RUN_ID)"
           --name "large-scale"
-          --location "$(location)"
+          --location "${{ parameters.location }}"
           --kubernetes-version "1.37"
           --dns-name-prefix "large-scale-dns"
           --tier standard
@@ -420,10 +412,15 @@ jobs:
           --node-vm-size Standard_D48ds_v5
           --max-pods 60
           --os-sku Ubuntu
+          # AKS nodes enable THP by default, but the test VMs have limited memory.
+          # Disable THP to avoid excessive node memory usage affecting benchmark results.
+          --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
           --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)"
           --network-plugin azure
           --network-plugin-mode overlay
-          --pod-cidr 10.64.0.0/10
+          --pod-cidr 10.0.0.0/8
+          --service-cidr 192.168.0.0/16
+          --dns-service-ip 192.168.0.10
           --outbound-type userDefinedRouting
           --enable-private-cluster
           --auto-upgrade-channel none
@@ -431,12 +428,12 @@ jobs:
           --generate-ssh-keys
           --yes
         )
-        [[ "$(network_dataplane)" != "none" ]] && CREATE_ARGS+=(--network-dataplane "$(network_dataplane)")
+        [[ "${{ parameters.network_dataplane }}" != "none" ]] && CREATE_ARGS+=(--network-dataplane "${{ parameters.network_dataplane }}")
 
-        # Azure Pipelines exposes boolean parameters as string variables, so accept either True or true.
-        [[ "$(enable_apiserver_vnet_integration)" == [Tt][Rr][Uu][Ee] ]] && CREATE_ARGS+=(--enable-apiserver-vnet-integration --apiserver-subnet-id "$(createSubnet_apiserver.APISERVER_SUBNET_ID)")
+        # Azure Pipelines renders boolean parameters as True or False, so compare case-insensitively.
+        [[ "${{ parameters.enable_apiserver_vnet_integration }}" == [Tt][Rr][Uu][Ee] ]] && CREATE_ARGS+=(--enable-apiserver-vnet-integration --apiserver-subnet-id "$(createSubnet_apiserver.APISERVER_SUBNET_ID)")
 
-        KEY_ID="$(kms_key_id)"
+        KEY_ID="${{ parameters.kms_key_id }}"
         # Infrastructure encryption enables KMS v2 Plus.
         if [ "$KEY_ID" != "none" ]; then
           CREATE_ARGS+=(
@@ -448,33 +445,6 @@ jobs:
 
         az aks create "${CREATE_ARGS[@]}"
     displayName: Create AKS cluster
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: $(AZURE_SERVICE_CONNECTION)
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
-        while true; do
-          STATE=$(az aks show \
-            --name "large-scale" \
-            --resource-group "$(RUN_ID)" \
-            --subscription "$(subscription_id)" \
-            --query "provisioningState" \
-            --output tsv)
-          echo "Cluster provisioning state: $STATE"
-          if [ "$STATE" = "Succeeded" ]; then
-            echo "Cluster is ready."
-            break
-          elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
-            echo "Cluster failed with state: $STATE."
-            exit 1
-          else
-            echo "Provisioning state: $STATE. Retry in 30 seconds"
-          fi
-          sleep 30
-        done
-    displayName: Wait for cluster to succeed
   - task: AzureCLI@2
     inputs:
       azureSubscription: $(AZURE_SERVICE_CONNECTION)
@@ -542,10 +512,10 @@ jobs:
           create_node_pool \
             --cluster-name "large-scale" \
             --resource-group "$(RUN_ID)" \
-            --subscription "$(subscription_id)" \
+            --subscription "${{ parameters.subscription_id }}" \
             --name "$pool_name" \
             --node-count "$node_count" \
-            --node-vm-size "$(user_pool_vm_size)" \
+            --node-vm-size "${{ parameters.user_pool_vm_size }}" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
               --os-sku Ubuntu
@@ -595,18 +565,18 @@ jobs:
 
 
         if ! run_command_output=$(run_script_on_jumpbox \
-          "$(subscription_id)" \
+          "${{ parameters.subscription_id }}" \
           "$(RUN_ID)" \
           "large-scale-jumpbox" <<'REMOTE_SCRIPT'
         az login --identity --output none
-        az account set --subscription "$(subscription_id)"
+        az account set --subscription "${{ parameters.subscription_id }}"
         az aks get-credentials \
           --admin \
           --overwrite-existing \
           --file /var/tmp/telescope-kubeconfig \
           --resource-group "$(RUN_ID)" \
           --name "large-scale" \
-          --subscription "$(subscription_id)"
+          --subscription "${{ parameters.subscription_id }}"
         chmod 600 /var/tmp/telescope-kubeconfig
         test -s /var/tmp/telescope-kubeconfig
 
@@ -618,140 +588,6 @@ jobs:
         fi
         echo "$run_command_output"
     displayName: Configure kubeconfig on jumpbox large-scale-jumpbox
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: $(AZURE_SERVICE_CONNECTION)
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
-        run_script_on_jumpbox() {
-          local script_file run_command_output run_command_rc
-          script_file=$(mktemp)
-          printf 'set -eu\n' > "$script_file"
-          cat >> "$script_file"
-          printf '\necho "__JUMPBOX_SCRIPT_SUCCEEDED__"\n' >> "$script_file"
-
-          if run_command_output=$(az vm run-command invoke \
-            --resource-group "$2" \
-            --name "$3" \
-            --subscription "$1" \
-            --command-id RunShellScript \
-            --scripts @"$script_file" \
-            --query 'value[0].message' \
-            --output tsv); then
-            run_command_rc=0
-          else
-            run_command_rc=$?
-          fi
-          rm -f "$script_file"
-
-          if [ "$run_command_rc" -ne 0 ]; then
-            printf '%s\n' "$run_command_output"
-            return "$run_command_rc"
-          fi
-          if ! grep -q '__JUMPBOX_SCRIPT_SUCCEEDED__' <<< "$run_command_output"; then
-            printf '%s\n' "$run_command_output"
-            return 1
-          fi
-          printf '%s\n' "$run_command_output" | sed '/__JUMPBOX_SCRIPT_SUCCEEDED__/d'
-        }
-
-
-        local_file="$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/disable-thp.yaml"
-        if [ ! -f "$local_file" ]; then
-          echo "File not found: $local_file"
-          exit 1
-        fi
-        if grep -qx '__TELESCOPE_FILE_CONTENT__' "$local_file"; then
-          echo "File contains the reserved upload delimiter: __TELESCOPE_FILE_CONTENT__"
-          exit 1
-        fi
-
-        if ! run_command_output=$(
-          {
-        cat <<'REMOTE_SCRIPT'
-        remote_file="/var/tmp/telescope/$(Build.BuildId)/manifest.yaml"
-        mkdir -p "$(dirname "$remote_file")"
-        cat > "$remote_file" <<'__TELESCOPE_FILE_CONTENT__'
-        REMOTE_SCRIPT
-
-        cat "$local_file"
-        printf '
-        '
-
-        cat <<'REMOTE_SCRIPT'
-        __TELESCOPE_FILE_CONTENT__
-        test -s "$remote_file"
-        REMOTE_SCRIPT
-          } | run_script_on_jumpbox \
-            "$(subscription_id)" \
-            "$(RUN_ID)" \
-            "large-scale-jumpbox"
-        ); then
-          echo "$run_command_output"
-          echo "Failed to upload kcl/ccp_team/large_scale_cluster_benchmarking/manifests/disable-thp.yaml to /var/tmp/telescope/$(Build.BuildId)/manifest.yaml on jumpbox."
-          exit 1
-        fi
-        echo "$run_command_output"
-    displayName: Upload kcl/ccp_team/large_scale_cluster_benchmarking/manifests/disable-thp.yaml to jumpbox
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: $(AZURE_SERVICE_CONNECTION)
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
-        run_script_on_jumpbox() {
-          local script_file run_command_output run_command_rc
-          script_file=$(mktemp)
-          printf 'set -eu\n' > "$script_file"
-          cat >> "$script_file"
-          printf '\necho "__JUMPBOX_SCRIPT_SUCCEEDED__"\n' >> "$script_file"
-
-          if run_command_output=$(az vm run-command invoke \
-            --resource-group "$2" \
-            --name "$3" \
-            --subscription "$1" \
-            --command-id RunShellScript \
-            --scripts @"$script_file" \
-            --query 'value[0].message' \
-            --output tsv); then
-            run_command_rc=0
-          else
-            run_command_rc=$?
-          fi
-          rm -f "$script_file"
-
-          if [ "$run_command_rc" -ne 0 ]; then
-            printf '%s\n' "$run_command_output"
-            return "$run_command_rc"
-          fi
-          if ! grep -q '__JUMPBOX_SCRIPT_SUCCEEDED__' <<< "$run_command_output"; then
-            printf '%s\n' "$run_command_output"
-            return 1
-          fi
-          printf '%s\n' "$run_command_output" | sed '/__JUMPBOX_SCRIPT_SUCCEEDED__/d'
-        }
-
-
-        if ! run_command_output=$(run_script_on_jumpbox \
-          "$(subscription_id)" \
-          "$(RUN_ID)" \
-          "large-scale-jumpbox" <<'REMOTE_SCRIPT'
-        export KUBECONFIG=/var/tmp/telescope-kubeconfig
-        test -s "$KUBECONFIG"
-        trap 'rm -f "/var/tmp/telescope/$(Build.BuildId)/manifest.yaml"' EXIT
-        kubectl apply -f "/var/tmp/telescope/$(Build.BuildId)/manifest.yaml"
-
-        REMOTE_SCRIPT
-        ); then
-          echo "$run_command_output"
-          echo "Failed to run script on jumpbox."
-          exit 1
-        fi
-        echo "$run_command_output"
-    displayName: Apply kcl/ccp_team/large_scale_cluster_benchmarking/manifests/disable-thp.yaml from jumpbox
   - task: AzureCLI@2
     inputs:
       azureSubscription: $(AZURE_SERVICE_CONNECTION)
@@ -819,7 +655,7 @@ jobs:
         test -s "$remote_file"
         REMOTE_SCRIPT
           } | run_script_on_jumpbox \
-            "$(subscription_id)" \
+            "${{ parameters.subscription_id }}" \
             "$(RUN_ID)" \
             "large-scale-jumpbox"
         ); then
@@ -870,7 +706,7 @@ jobs:
 
 
         if ! run_command_output=$(run_script_on_jumpbox \
-          "$(subscription_id)" \
+          "${{ parameters.subscription_id }}" \
           "$(RUN_ID)" \
           "large-scale-jumpbox" <<'REMOTE_SCRIPT'
         export KUBECONFIG=/var/tmp/telescope-kubeconfig
@@ -934,7 +770,7 @@ jobs:
         # Run each status query through the shared run_script_on_jumpbox helper.
         while true; do
           if status_message=$(run_script_on_jumpbox \
-            "$(subscription_id)" \
+            "${{ parameters.subscription_id }}" \
             "$(RUN_ID)" \
             "large-scale-jumpbox" <<'REMOTE_SCRIPT'
         export KUBECONFIG=/var/tmp/telescope-kubeconfig
@@ -1019,7 +855,7 @@ jobs:
 
 
         if ! run_command_output=$(run_script_on_jumpbox \
-          "$(subscription_id)" \
+          "${{ parameters.subscription_id }}" \
           "$(RUN_ID)" \
           "large-scale-jumpbox" <<'REMOTE_SCRIPT'
         export KUBECONFIG=/var/tmp/telescope-kubeconfig
@@ -1063,6 +899,6 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
-        az group delete --name "$(RUN_ID)" --subscription "$(subscription_id)" --yes
+        az group delete --name "$(RUN_ID)" --subscription "${{ parameters.subscription_id }}" --yes
     condition: always()
-    displayName: Delete resource group ($(subscription_id))
+    displayName: Delete resource group (${{ parameters.subscription_id }})

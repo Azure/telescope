@@ -42,7 +42,7 @@ spec:
           }
           trap 'print_results; exit 0' TERM INT
           while true; do sleep 5; done
-        image: mcr.microsoft.com/cbl-mariner/busybox:1.35
+        image: mcr.microsoft.com/azurelinux/busybox:1.36
         name: cl2-results
         restartPolicy: Always
         volumeMounts:
