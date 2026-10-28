@@ -5,9 +5,9 @@ import lib.const
 import lib.steps.azure
 import lib.steps.common
 
-SUBSCRIPTION_ID = "\${{ parameters.subscription_id }}"
+SUBSCRIPTION_ID = "$(subscription_id)"
 RESOURCE_GROUP = "$(RUN_ID)"
-LOCATION = "\${{ parameters.location }}"
+LOCATION = "$(location)"
 CLUSTER_NAME = "large-scale"
 SERVICE_CONNECTION = "$(AZURE_SERVICE_CONNECTION)"
 VNET_NAME = "${CLUSTER_NAME}-net"
@@ -15,6 +15,15 @@ JUMPBOX_NAME = "${CLUSTER_NAME}-jumpbox"
 
 # Keep each pool at 800 nodes to leave capacity for max-surge nodes during upgrades.
 MAX_NODES_PER_POOL = 800
+
+# Preset for the "15k-node cluster" option of the config parameter. Values are kept here in git so
+# the settings of runs that use a preset are tracked in code.
+CONFIG_15K_NODES = {
+    subscription_id = "854c9ddb-fe9e-4aea-8d58-99ed88282881"
+    location = "canadacentral"
+    user_pool_vm_size = "Standard_D4ds_v4"
+    user_total_nodes = "14997"
+}
 
 createClusterScript = """
 az extension add --name aks-preview --allow-preview true --upgrade --yes
@@ -77,26 +86,33 @@ output = ap.Pipeline {
 
     parameters = [
         ap.Parameter {
-            name = "subscription_id"
-            displayName = "Subscription ID"
+            name = "config"
+            displayName = "Configuration (subscription, region, VM size and node count are overridden unless 'custom' is selected)"
             type = "string"
-            default = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+            default = "15k-node cluster"
+            values = ["15k-node cluster", "custom"]
+        }
+        ap.Parameter {
+            name = "subscription_id"
+            displayName = "Subscription ID (custom only)"
+            type = "string"
+            default = "854c9ddb-fe9e-4aea-8d58-99ed88282881"
         }
         ap.Parameter {
             name = "location"
-            displayName = "Azure region"
+            displayName = "Azure region (custom only)"
             type = "string"
-            default = "eastasia"
+            default = "canadacentral"
         }
         ap.Parameter {
             name = "user_pool_vm_size"
-            displayName = "User node pool VM size"
+            displayName = "User node pool VM size (custom only)"
             type = "string"
-            default = "Standard_D4s_v3"
+            default = "Standard_D4ds_v4"
         }
         ap.Parameter {
             name = "user_total_nodes"
-            displayName = "Total user nodes"
+            displayName = "Total user nodes (custom only)"
             type = "number"
             default = 14997
         }
@@ -120,6 +136,15 @@ output = ap.Pipeline {
         }
     ]
 
+    # KCL runs before Azure DevOps, so it cannot see which config is selected. Instead, each variable is
+    # a runtime expression that ADO evaluates when the run starts: the preset value when
+    # "15k-node cluster" is selected, otherwise the matching parameter ("custom").
+    # Steps read the resolved values as $(subscription_id), $(location), etc.
+    variables = {
+        k: "$[iif(eq('\${{ parameters.config }}', '15k-node cluster'), '${CONFIG_15K_NODES[k]}', '$" + "{{ parameters.${k} }}')]"
+        for k in CONFIG_15K_NODES
+    }
+
     jobs = [
         job.Job {
             job = "create_cluster"
@@ -134,7 +159,7 @@ output = ap.Pipeline {
                     # nodes. Reserve 3 for the system and CL2 pools and one user pool's worth for upgrade surge.
                     bash = """
 set -eo pipefail
-total_nodes="\${{ parameters.user_total_nodes }}"
+total_nodes="$(user_total_nodes)"
 max_total_nodes=${65536 - 3 - MAX_NODES_PER_POOL}
 if [ "$total_nodes" -gt "$max_total_nodes" ]; then
   echo "user_total_nodes=$total_nodes exceeds the pod CIDR capacity of $max_total_nodes nodes."
@@ -259,8 +284,8 @@ fi
                     CLUSTER_NAME,
                     RESOURCE_GROUP,
                     SUBSCRIPTION_ID,
-                    "\${{ parameters.user_pool_vm_size }}",
-                    "\${{ parameters.user_total_nodes }}",
+                    "$(user_pool_vm_size)",
+                    "$(user_total_nodes)",
                     MAX_NODES_PER_POOL,
                     vnetSubnetId = "$(createSubnet_nodes.NODES_SUBNET_ID)",
                     osSKU = "Ubuntu",
