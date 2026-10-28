@@ -15,8 +15,8 @@ parse_expected_pools() {
     ' -- "$@"
 }
 
-fetch_nodes() {
-    local kubeconfig=$1 nodes_file=$2 request_timeout=$3 expected_pools=$4
+fetch_node_summary() {
+    local kubeconfig=$1 request_timeout=$2 expected_pools=$3
     local statuses
     if timeout "${request_timeout}s" kubectl --kubeconfig "$kubeconfig" \
         --request-timeout="${request_timeout}s" get nodes -o json \
@@ -45,69 +45,58 @@ fetch_nodes() {
                   then (.spec.taints // [])
                   else error("Malformed selected-node taints") end;
 
+            def summarize_pool($nodes):
+                . as $pool
+                | [$nodes[] | select(.pool == $pool)] as $members
+                | {
+                    pool: $pool,
+                    expected: $expected[$pool],
+                    total: ($members | length),
+                    noSchedule: ([$members[] |
+                        select(.noScheduleTaints | length > 0)] | length),
+                    taints: ([$members[].noScheduleTaints[]]
+                        | group_by(.key)
+                        | map({
+                            key: .[0].key,
+                            count: length
+                        }))
+                };
+
             node_array
             | [.[]
                 | pool_name as $pool
                 | select($pool != null)
                 | select($expected | has($pool))
-                | {pool: $pool, taints: node_taints}]
-        ' > "$nodes_file"; then
+                | {
+                    pool: $pool,
+                    noScheduleTaints: (node_taints | map(select(.effect == "NoSchedule")))
+                }] as $nodes
+            | ($expected | keys)
+            | map(summarize_pool($nodes))
+            | {
+                pools: .,
+                passed: all(.[];
+                    .total == .expected and .noSchedule == 0)
+            }
+        '; then
         return 0
     else
         statuses=("${PIPESTATUS[@]}")
     fi
-    # A projection failure can also cause kubectl to exit with SIGPIPE (141).
-    # Other fetch failures take precedence over the parser seeing incomplete input.
+    # Prioritize fetch errors, except SIGPIPE (141), which jq failure can cause.
     if (( statuses[0] != 0 && statuses[0] != 141 )); then
         return 1
     fi
     if (( statuses[1] != 0 )); then
-        echo "##[error]Could not validate or project node-list response" >&2
+        echo "##[error]Could not validate or summarize node-list response" >&2
         return 2
     fi
     return 1
 }
 
-summarize_nodes() {
-    local nodes_file=$1 expected_pools=$2
-    jq -ce --argjson expected "$expected_pools" '
-        def summarize_pool($nodes; $expected):
-            . as $pool
-            | [$nodes[] | select(.pool == $pool)] as $members
-            | {
-                pool: $pool,
-                expected: $expected[$pool],
-                total: ($members | length),
-                noSchedule: ([$members[] |
-                    select(any(.taints[]; .effect == "NoSchedule"))] | length),
-                taints: ([$members[].taints[]]
-                    | group_by([.key, .value, .effect])
-                    | map({
-                        key: .[0].key,
-                        value: (.[0].value // ""),
-                        effect: .[0].effect,
-                        count: length
-                    }))
-            };
-
-        . as $nodes
-        | ($expected | keys)
-        | map(summarize_pool($nodes; $expected))
-        | {
-            pools: .,
-            passed: all(.[];
-                .expected > 0 and .total == .expected and
-                .noSchedule == 0)
-        }
-    ' "$nodes_file"
-}
-
 finish_validation() {
     local exit_code=$?
     trap - EXIT
-    if ! rm -f "$nodes_file"; then
-        echo "##[warning]Could not remove temporary node file: $nodes_file" >&2
-    fi
     echo "NODE_VALIDATION_END $(date -u +%Y-%m-%dT%H:%M:%SZ) exit_code=$exit_code"
     exit "$exit_code"
 }
@@ -131,7 +120,6 @@ poll_interval_seconds=60
 request_timeout=30
 final_check_window_seconds=5
 deadline=$((SECONDS + timeout_seconds))
-nodes_file=$(mktemp)
 trap finish_validation EXIT
 trap 'echo "##[error]Node validation interrupted" >&2; exit 130' INT
 trap 'echo "##[error]Node validation terminated" >&2; exit 143' TERM
@@ -139,11 +127,7 @@ echo "NODE_VALIDATION_START $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 while (( SECONDS < deadline )); do
     final_check=$((deadline - SECONDS <= final_check_window_seconds))
-    if fetch_nodes "$kubeconfig" "$nodes_file" "$request_timeout" "$expected_pools"; then
-        if ! summary=$(summarize_nodes "$nodes_file" "$expected_pools"); then
-            echo "##[error]Could not validate or summarize node-list response" >&2
-            exit 1
-        fi
+    if summary=$(fetch_node_summary "$kubeconfig" "$request_timeout" "$expected_pools"); then
         jq -nc --arg time "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson summary "$summary" \
             '{time: $time, summary: $summary}'
         if jq -e '.passed == true' <<< "$summary" >/dev/null; then
