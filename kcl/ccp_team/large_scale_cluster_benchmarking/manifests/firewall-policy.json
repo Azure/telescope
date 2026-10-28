@@ -15,7 +15,7 @@
                                 "Any"
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "destinationAddresses": [
                                 "169.254.169.254"
@@ -47,7 +47,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -64,7 +64,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -81,7 +81,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -98,7 +98,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -115,7 +115,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -132,7 +132,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -149,7 +149,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -166,7 +166,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -183,7 +183,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -200,7 +200,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -217,7 +217,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -234,7 +234,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -251,7 +251,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -268,7 +268,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -285,7 +285,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -302,7 +302,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -319,7 +319,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -336,7 +336,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -353,7 +353,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -370,7 +370,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -387,7 +387,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -404,7 +404,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -421,7 +421,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -438,7 +438,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -455,7 +455,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -472,7 +472,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -489,7 +489,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -506,7 +506,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -523,7 +523,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -540,7 +540,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -557,7 +557,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -574,7 +574,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -591,7 +591,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -608,7 +608,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -636,7 +636,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -653,7 +653,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -670,7 +670,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -687,7 +687,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -704,7 +704,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -721,7 +721,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -738,7 +738,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -755,7 +755,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -772,7 +772,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -789,7 +789,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -806,7 +806,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -823,7 +823,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -840,7 +840,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -857,7 +857,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -874,7 +874,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [
@@ -902,7 +902,7 @@
                                 }
                             ],
                             "sourceAddresses": [
-                                "10.0.0.0/8"
+                                "172.16.0.0/12"
                             ],
                             "sourceIpGroups": [],
                             "targetFqdns": [

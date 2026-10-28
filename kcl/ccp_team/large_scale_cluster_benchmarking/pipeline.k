@@ -5,9 +5,9 @@ import lib.const
 import lib.steps.azure
 import lib.steps.common
 
-SUBSCRIPTION_ID = "$(subscription_id)"
+SUBSCRIPTION_ID = "\${{ parameters.subscription_id }}"
 RESOURCE_GROUP = "$(RUN_ID)"
-LOCATION = "$(location)"
+LOCATION = "\${{ parameters.location }}"
 CLUSTER_NAME = "large-scale"
 SERVICE_CONNECTION = "$(AZURE_SERVICE_CONNECTION)"
 VNET_NAME = "${CLUSTER_NAME}-net"
@@ -35,10 +35,15 @@ CREATE_ARGS=(
   --node-vm-size Standard_D48ds_v5
   --max-pods 60
   --os-sku Ubuntu
+  # AKS nodes enable THP by default, but the test VMs have limited memory.
+  # Disable THP to avoid excessive node memory usage affecting benchmark results.
+  --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
   --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)"
   --network-plugin azure
   --network-plugin-mode overlay
-  --pod-cidr 10.64.0.0/10
+  --pod-cidr 10.0.0.0/8
+  --service-cidr 192.168.0.0/16
+  --dns-service-ip 192.168.0.10
   --outbound-type userDefinedRouting
   --enable-private-cluster
   --auto-upgrade-channel none
@@ -46,12 +51,12 @@ CREATE_ARGS=(
   --generate-ssh-keys
   --yes
 )
-[[ "$(network_dataplane)" != "none" ]] && CREATE_ARGS+=(--network-dataplane "$(network_dataplane)")
+[[ "\${{ parameters.network_dataplane }}" != "none" ]] && CREATE_ARGS+=(--network-dataplane "\${{ parameters.network_dataplane }}")
 
-# Azure Pipelines exposes boolean parameters as string variables, so accept either True or true.
-[[ "$(enable_apiserver_vnet_integration)" == [Tt][Rr][Uu][Ee] ]] && CREATE_ARGS+=(--enable-apiserver-vnet-integration --apiserver-subnet-id "$(createSubnet_apiserver.APISERVER_SUBNET_ID)")
+# Azure Pipelines renders boolean parameters as True or False, so compare case-insensitively.
+[[ "\${{ parameters.enable_apiserver_vnet_integration }}" == [Tt][Rr][Uu][Ee] ]] && CREATE_ARGS+=(--enable-apiserver-vnet-integration --apiserver-subnet-id "$(createSubnet_apiserver.APISERVER_SUBNET_ID)")
 
-KEY_ID="$(kms_key_id)"
+KEY_ID="\${{ parameters.kms_key_id }}"
 # Infrastructure encryption enables KMS v2 Plus.
 if [ "$KEY_ID" != "none" ]; then
   CREATE_ARGS+=(
@@ -65,7 +70,7 @@ az aks create "\${CREATE_ARGS[@]}"
 """
 
 grantKmsAccessScript = """
-KEY_ID="$(kms_key_id)"
+KEY_ID="\${{ parameters.kms_key_id }}"
 if ! [[ "$KEY_ID" =~ ^https://([^/]+)/keys/[^/]+/[^/]+$ ]]; then
   echo "kms_key_id must be a versioned Key Vault key URI, or 'none' to disable KMS."
   exit 1
@@ -136,16 +141,6 @@ output = ap.Pipeline {
         }
     ]
 
-    variables = {
-        subscription_id = "\${{ parameters.subscription_id }}"
-        location = "\${{ parameters.location }}"
-        user_pool_vm_size = "\${{ parameters.user_pool_vm_size }}"
-        user_total_nodes = "\${{ parameters.user_total_nodes }}"
-        network_dataplane = "\${{ parameters.network_dataplane }}"
-        enable_apiserver_vnet_integration = "\${{ parameters.enable_apiserver_vnet_integration }}"
-        kms_key_id = "\${{ parameters.kms_key_id }}"
-    }
-
     jobs = [
         job.Job {
             job = "create_cluster"
@@ -156,14 +151,14 @@ output = ap.Pipeline {
 
             steps = [
                 steps.Bash {
-                    # The nodes subnet 10.1.0.0/18 has 16379 usable IPs. Reserve 3 for the system
-                    # pool and one user pool's worth of IPs as upgrade surge headroom.
+                    # Azure CNI Overlay assigns a /24 per node, so the 10.0.0.0/8 pod CIDR fits 65536
+                    # nodes. Reserve 3 for the system pool and one user pool's worth for upgrade surge.
                     bash = """
 set -eo pipefail
-total_nodes="$(user_total_nodes)"
-max_total_nodes=${16379 - 3 - MAX_NODES_PER_POOL}
+total_nodes="\${{ parameters.user_total_nodes }}"
+max_total_nodes=${65536 - 3 - MAX_NODES_PER_POOL}
 if [ "$total_nodes" -gt "$max_total_nodes" ]; then
-  echo "user_total_nodes=$total_nodes exceeds the nodes subnet capacity of $max_total_nodes."
+  echo "user_total_nodes=$total_nodes exceeds the pod CIDR capacity of $max_total_nodes nodes."
   exit 1
 fi
 """
@@ -192,7 +187,7 @@ fi
                     SERVICE_CONNECTION,
                     RESOURCE_GROUP,
                     VNET_NAME,
-                    "10.0.0.0/8",
+                    "172.16.0.0/12",
                     SUBSCRIPTION_ID,
                     "$(createManagedIdentity.IDENTITY_PRINCIPAL_ID)"
                 ),
@@ -202,7 +197,7 @@ fi
                     RESOURCE_GROUP,
                     VNET_NAME,
                     "nodes",
-                    "10.1.0.0/18",
+                    "172.16.0.0/14",
                     SUBSCRIPTION_ID
                 ),
                 # Generated step name: createSubnet_apiserver
@@ -211,7 +206,7 @@ fi
                     RESOURCE_GROUP,
                     VNET_NAME,
                     "apiserver",
-                    "10.240.0.0/28",
+                    "172.20.0.0/28",
                     SUBSCRIPTION_ID
                 ),
                 # Generated step name: createSubnet_AzureFirewallSubnet
@@ -220,7 +215,7 @@ fi
                     RESOURCE_GROUP,
                     VNET_NAME,
                     "AzureFirewallSubnet",
-                    "10.2.0.0/16",
+                    "172.21.0.0/16",
                     SUBSCRIPTION_ID
                 ),
                 # Generated step name: createSubnet_jumpbox
@@ -229,7 +224,7 @@ fi
                     RESOURCE_GROUP,
                     VNET_NAME,
                     "jumpbox",
-                    "10.3.0.0/16",
+                    "172.22.0.0/16",
                     SUBSCRIPTION_ID
                 ),
                 azure.SetupFirewallForSubnet(
@@ -256,25 +251,19 @@ fi
                     SERVICE_CONNECTION,
                     "Grant KMS access to cluster identity",
                     grantKmsAccessScript,
-                    condition = "ne(variables['kms_key_id'], 'none')"
+                    condition = "ne('\${{ parameters.kms_key_id }}', 'none')"
                 ),
                 azure.AzCli(
                     SERVICE_CONNECTION,
                     "Create AKS cluster",
                     createClusterScript
                 ),
-                azure.WaitForClusterSucceeded(
-                    SERVICE_CONNECTION,
-                    CLUSTER_NAME,
-                    RESOURCE_GROUP,
-                    SUBSCRIPTION_ID
-                ),
                 azure.CreateNodePoolsFromPipelineParameter(
                     SERVICE_CONNECTION,
                     CLUSTER_NAME,
                     RESOURCE_GROUP,
                     SUBSCRIPTION_ID,
-                    "$(user_pool_vm_size)",
+                    "\${{ parameters.user_pool_vm_size }}",
                     "\${{ parameters.user_total_nodes }}",
                     MAX_NODES_PER_POOL,
                     vnetSubnetId = "$(createSubnet_nodes.NODES_SUBNET_ID)",
@@ -299,16 +288,6 @@ az aks get-credentials \\
 chmod 600 /var/tmp/telescope-kubeconfig
 test -s /var/tmp/telescope-kubeconfig
 """
-                ),
-                # AKS node VMs have THP enabled by default, but the VMs available for testing
-                # have limited memory. Disable THP to avoid excessive node memory usage
-                # affecting benchmark results.
-                *azure.ApplyManifestOnJumpbox(
-                    SERVICE_CONNECTION,
-                    SUBSCRIPTION_ID,
-                    RESOURCE_GROUP,
-                    JUMPBOX_NAME,
-                    "kcl/ccp_team/large_scale_cluster_benchmarking/manifests/disable-thp.yaml"
                 ),
                 *azure.RunClusterLoader2OnJumpbox(
                     SERVICE_CONNECTION,
