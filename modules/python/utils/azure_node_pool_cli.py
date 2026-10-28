@@ -74,27 +74,30 @@ def run_node_pool_cli(
     retry_wait=30,
     timeout=1800,
 ):
-    """Run an az node-pool command with bounded retries for AKS conflicts."""
+    """Run an az command; return (successful attempt start, retry_occurred)."""
     retry_occurred = False
     for attempt in range(retries):
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=timeout,
-        )
+        request_started_at = time.time()
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=timeout,
+            )
+        except (OSError, subprocess.TimeoutExpired) as error:
+            error.request_started_at = request_started_at
+            raise
         if result.returncode == 0:
-            return retry_occurred
+            return request_started_at, retry_occurred
         detail = " | ".join(
             line
             for line in (result.stdout + result.stderr).splitlines()
             if line.strip()
         )
-        if (
-            any(code in detail for code in ("OperationNotAllowed", "EtagMismatch"))
-            and attempt < retries - 1
-        ):
+        in_progress = any(code in detail for code in ("OperationNotAllowed", "EtagMismatch"))
+        if in_progress and attempt < retries - 1:
             retry_occurred = True
             logger.warning(
                 "Cluster has an in-progress operation, retrying %s for %s in %ss "
@@ -107,17 +110,19 @@ def run_node_pool_cli(
             )
             time.sleep(retry_wait)
             continue
-        raise RuntimeError(
+        error = RuntimeError(
             f"az aks nodepool {action} failed for {node_pool_name} "
             f"(rc={result.returncode}): {detail}"
         )
-    return retry_occurred
+        error.request_started_at = time.time() if in_progress else request_started_at
+        raise error
+    raise RuntimeError(f"Node pool {node_pool_name} exhausted {retries} {action} retries")
 
 
 def create_virtual_machines_node_pool(
     resource_group, cluster_name, node_pool_name, node_count, vm_size
 ):
-    """Create a VirtualMachines node pool and return whether a retry occurred."""
+    """Create a pool and return its successful attempt timestamp and retry flag."""
     command = build_add_virtual_machines_command(
         resource_group, cluster_name, node_pool_name, node_count, vm_size
     )
@@ -127,7 +132,7 @@ def create_virtual_machines_node_pool(
 def scale_virtual_machines_node_pool(
     resource_group, cluster_name, node_pool_name, node_count
 ):
-    """Scale a VirtualMachines node pool and return whether a retry occurred."""
+    """Scale a pool and return its successful attempt timestamp and retry flag."""
     command = build_scale_virtual_machines_command(
         resource_group, cluster_name, node_pool_name, node_count
     )

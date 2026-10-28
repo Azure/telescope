@@ -2,6 +2,7 @@
 
 import unittest
 from unittest import mock
+import subprocess
 
 from azure.mgmt.containerservice.models import (
     ManualScaleProfile,
@@ -16,11 +17,71 @@ from utils.azure_node_pool_cli import (
     get_node_pool_scale_state,
     prepare_create_operation,
     prepare_scale_operation,
+    run_node_pool_cli,
 )
 
 
 class TestAzureNodePoolCLI(unittest.TestCase):
     """Validate VirtualMachines readback and command contracts."""
+
+    @mock.patch("utils.azure_node_pool_cli.time")
+    @mock.patch("utils.azure_node_pool_cli.subprocess.run")
+    def test_cli_returns_attempt_start_and_retry_status(self, mock_run, mock_time):
+        """CLI and SDK operations return the same provisioning timing contract."""
+        mock_time.time.return_value = 100.0
+        mock_run.return_value = mock.Mock(returncode=0, stdout="", stderr="")
+
+        self.assertEqual(run_node_pool_cli(["az"], "pool", "add"), (100.0, False))
+
+    @mock.patch("utils.azure_node_pool_cli.time")
+    @mock.patch("utils.azure_node_pool_cli.subprocess.run")
+    def test_cli_retry_timestamp_excludes_rejected_attempt(self, mock_run, mock_time):
+        """The accepted attempt timestamp excludes conflict/retry wait time."""
+        mock_time.time.side_effect = [100.0, 130.0]
+        mock_run.side_effect = [
+            mock.Mock(returncode=1, stdout="", stderr="OperationNotAllowed"),
+            mock.Mock(returncode=0, stdout="", stderr=""),
+        ]
+
+        self.assertEqual(run_node_pool_cli(["az"], "pool", "scale"), (130.0, True))
+        mock_time.sleep.assert_called_once_with(30)
+
+    @mock.patch("utils.azure_node_pool_cli.time")
+    @mock.patch("utils.azure_node_pool_cli.subprocess.run")
+    def test_cli_failure_retains_attempt_timestamp(self, mock_run, mock_time):
+        """Failure timestamps allow the instrumentation to exclude retry wait."""
+        mock_time.time.side_effect = [100.0, 130.0]
+        mock_run.side_effect = [
+            mock.Mock(returncode=1, stdout="", stderr="EtagMismatch"),
+            mock.Mock(returncode=1, stdout="", stderr="ProvisioningFailed"),
+        ]
+
+        with self.assertRaisesRegex(RuntimeError, "ProvisioningFailed") as raised:
+            run_node_pool_cli(["az"], "pool", "add")
+        self.assertEqual(raised.exception.request_started_at, 130.0)
+
+    @mock.patch("utils.azure_node_pool_cli.time")
+    @mock.patch("utils.azure_node_pool_cli.subprocess.run")
+    def test_cli_timeout_retains_attempt_timestamp(self, mock_run, mock_time):
+        """A subprocess timeout remains visible with its request start time."""
+        mock_time.time.return_value = 100.0
+        mock_run.side_effect = subprocess.TimeoutExpired(["az"], 1800)
+
+        with self.assertRaises(subprocess.TimeoutExpired) as raised:
+            run_node_pool_cli(["az"], "pool", "scale")
+        self.assertEqual(raised.exception.request_started_at, 100.0)
+
+    @mock.patch("utils.azure_node_pool_cli.time")
+    @mock.patch("utils.azure_node_pool_cli.subprocess.run")
+    def test_cli_exhausted_conflict_excludes_all_rejected_time(self, mock_run, mock_time):
+        """A never-accepted operation excludes the entire rejected attempt."""
+        mock_time.time.side_effect = [100.0, 110.0]
+        mock_run.return_value = mock.Mock(returncode=1, stdout="", stderr="EtagMismatch")
+
+        with self.assertRaisesRegex(RuntimeError, "EtagMismatch") as raised:
+            run_node_pool_cli(["az"], "pool", "add", retries=1)
+        self.assertEqual(raised.exception.request_started_at, 110.0)
+        mock_time.sleep.assert_not_called()
 
     def test_get_scale_state_rejects_multiple_manual_profiles(self):
         node_pool = mock.MagicMock()

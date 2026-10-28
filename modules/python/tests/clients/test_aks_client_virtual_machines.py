@@ -42,9 +42,8 @@ class TestAKSClientVirtualMachines(unittest.TestCase):
         self.kubernetes_client_patcher.stop()
 
     @mock.patch("utils.azure_node_pool_cli.subprocess.run")
-    @mock.patch.object(AKSClient, "_instrument_nodepool_provisioning")
     def test_create_virtual_machines_node_pool(
-        self, mock_instrument, mock_subprocess_run
+        self, mock_subprocess_run
     ):
         mock_created_node_pool = mock.MagicMock()
         mock_created_node_pool.as_dict.return_value = {"name": "test-pool"}
@@ -55,11 +54,7 @@ class TestAKSClientVirtualMachines(unittest.TestCase):
             returncode=0, stdout="", stderr=""
         )
 
-        def run_arm_callable(*_args, **kwargs):
-            kwargs["arm_callable"]()
-            return []
-
-        mock_instrument.side_effect = run_arm_callable
+        self.aks_client.k8s_client.wait_for_nodes_ready.return_value = []
 
         result = self.aks_client.create_node_pool(
             node_pool_name="test-pool",
@@ -74,12 +69,13 @@ class TestAKSClientVirtualMachines(unittest.TestCase):
         self.assertIn("VirtualMachines", command)
         self.assertIn("--vm-sizes", command)
         self.assertIn("Standard_D2s_v3", command)
+        operation = self.mock_operation_context.return_value.__enter__.return_value
+        operation.add_metadata.assert_any_call("retry_occurred", False)
 
     @mock.patch("utils.azure_node_pool_cli.subprocess.run")
     @mock.patch("clients.aks_client.time")
-    @mock.patch.object(AKSClient, "_instrument_nodepool_provisioning")
     def test_progressive_scale_virtual_machines_node_pool(
-        self, mock_instrument, mock_time, mock_subprocess_run
+        self, mock_time, mock_subprocess_run
     ):
         mock_time.sleep = mock.MagicMock()
         mock_subprocess_run.return_value = mock.MagicMock(
@@ -96,11 +92,7 @@ class TestAKSClientVirtualMachines(unittest.TestCase):
         }
         self.aks_client.get_node_pool = mock.MagicMock(return_value=mock_node_pool)
 
-        def run_arm_callable(*_args, **kwargs):
-            kwargs["arm_callable"]()
-            return []
-
-        mock_instrument.side_effect = run_arm_callable
+        self.aks_client.k8s_client.wait_for_nodes_ready.return_value = []
 
         result = self.aks_client.scale_node_pool(
             node_pool_name="test-pool",
@@ -115,6 +107,42 @@ class TestAKSClientVirtualMachines(unittest.TestCase):
             [call.args[0][-1] for call in mock_subprocess_run.call_args_list],
             ["2", "3"],
         )
+
+    @mock.patch("utils.azure_node_pool_cli.subprocess.run")
+    def test_direct_scale_virtual_machines_uses_real_instrumentation(self, mock_run):
+        """Scale up and down must satisfy the shared timing result contract."""
+        mock_run.return_value = mock.Mock(returncode=0, stdout="", stderr="")
+        node_pool = mock.MagicMock()
+        node_pool.virtual_machines_profile = {
+            "scale": {"manual": [{"size": "Standard_D2s_v3", "count": 1}]}
+        }
+        self.aks_client.get_node_pool = mock.Mock(return_value=node_pool)
+        self.aks_client.k8s_client.wait_for_nodes_ready.return_value = []
+
+        for target in (2, 0):
+            with self.subTest(target=target):
+                self.assertTrue(self.aks_client.scale_node_pool(
+                    node_pool_name="test-pool",
+                    node_count=target,
+                    node_pool_type="VirtualMachines",
+                ))
+                self.assertEqual(mock_run.call_args.args[0][-1], str(target))
+
+    @mock.patch("utils.azure_node_pool_cli.subprocess.run")
+    def test_create_preserves_readiness_failure(self, mock_run):
+        """A successful CLI must not hide a Kubernetes readiness failure."""
+        mock_run.return_value = mock.Mock(returncode=0, stdout="", stderr="")
+        self.aks_client.k8s_client.wait_for_nodes_ready.side_effect = RuntimeError(
+            "readiness timed out"
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "readiness timed out"):
+            self.aks_client.create_node_pool(
+                node_pool_name="test-pool",
+                vm_size="Standard_D2s_v3",
+                node_count=2,
+                node_pool_type="VirtualMachines",
+            )
 
 
 if __name__ == "__main__":
