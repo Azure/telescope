@@ -13,7 +13,7 @@ stages:
   dependsOn: []
   jobs:
   - job: nodes1000
-    displayName: Two 1000-node pools in eastasia
+    displayName: One 1000-node worker pool in eastasia
     condition: succeeded()
     timeoutInMinutes: 240
     cancelTimeoutInMinutes: 60
@@ -127,54 +127,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-          create_node_pool() {
-            local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
-            deadline=$(($(date +%s) + 600))
-            while :; do
-              attempt=$((attempt + 1))
-              if output=$(az aks nodepool add "$@" 2>&1); then
-                rc=0
-              else
-                rc=$?
-              fi
-              echo "$output"
-              if [ "$rc" -eq 0 ]; then
-                return 0
-              fi
-              if echo "$output" | grep -qiE "OperationNotAllowed"; then
-                now=$(date +%s)
-                if [ "$now" -ge "$deadline" ]; then
-                  echo "Retriable error persisted past 600s retry window ($attempt attempts); giving up."
-                  return "$rc"
-                fi
-                remaining_retry_seconds=$((deadline - now))
-                echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining_retry_seconds seconds remain in retry window)."
-                sleep "$sleep_between"
-              else
-                echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
-                return "$rc"
-              fi
-            done
-          }
-
-
-          create_node_pool \
-            --cluster-name "nodevalidation-$(Build.BuildId)-eastasia-nodes1000-$(System.JobAttempt)" \
-            --resource-group "nodevalidation-$(Build.BuildId)-eastasia-nodes1000-$(System.JobAttempt)" \
-            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-            --name "workerpool1" \
-            --node-count 1000 \
-            --node-vm-size "Standard_D2s_v3" \
-            --mode User \
-            --max-pods 250
-      displayName: Create node pool workerpool1
-    - task: AzureCLI@2
-      inputs:
-        azureSubscription: Azure-for-Telescope-internal
-        scriptType: bash
-        scriptLocation: inlineScript
-        inlineScript: |
-          set -exo pipefail
           az aks get-credentials \
             --name "nodevalidation-$(Build.BuildId)-eastasia-nodes1000-$(System.JobAttempt)" \
             --resource-group "nodevalidation-$(Build.BuildId)-eastasia-nodes1000-$(System.JobAttempt)" \
@@ -184,7 +136,7 @@ stages:
       displayName: Get credentials for nodevalidation-$(Build.BuildId)-eastasia-nodes1000-$(System.JobAttempt)
     - bash: |
         bash "$(Build.SourcesDirectory)/kcl/ccp_team/node-validation/wait-for-node-validation.sh" \
-          "$(Agent.TempDirectory)/$(System.JobId)-kubeconfig" "workerpool0:1000" "workerpool1:1000"
+          "$(Agent.TempDirectory)/$(System.JobId)-kubeconfig" "workerpool0:1000"
       displayName: Check worker counts and NoSchedule taints (5-minute polling window)
     - task: AzureCLI@2
       inputs:
@@ -201,7 +153,7 @@ stages:
   dependsOn: []
   jobs:
   - job: nodes1000
-    displayName: Two 1000-node pools in westus2
+    displayName: One 1000-node worker pool in westus2
     condition: succeeded()
     timeoutInMinutes: 240
     cancelTimeoutInMinutes: 60
@@ -315,54 +267,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-          create_node_pool() {
-            local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
-            deadline=$(($(date +%s) + 600))
-            while :; do
-              attempt=$((attempt + 1))
-              if output=$(az aks nodepool add "$@" 2>&1); then
-                rc=0
-              else
-                rc=$?
-              fi
-              echo "$output"
-              if [ "$rc" -eq 0 ]; then
-                return 0
-              fi
-              if echo "$output" | grep -qiE "OperationNotAllowed"; then
-                now=$(date +%s)
-                if [ "$now" -ge "$deadline" ]; then
-                  echo "Retriable error persisted past 600s retry window ($attempt attempts); giving up."
-                  return "$rc"
-                fi
-                remaining_retry_seconds=$((deadline - now))
-                echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining_retry_seconds seconds remain in retry window)."
-                sleep "$sleep_between"
-              else
-                echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
-                return "$rc"
-              fi
-            done
-          }
-
-
-          create_node_pool \
-            --cluster-name "nodevalidation-$(Build.BuildId)-westus2-nodes1000-$(System.JobAttempt)" \
-            --resource-group "nodevalidation-$(Build.BuildId)-westus2-nodes1000-$(System.JobAttempt)" \
-            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-            --name "workerpool1" \
-            --node-count 1000 \
-            --node-vm-size "Standard_D2s_v3" \
-            --mode User \
-            --max-pods 250
-      displayName: Create node pool workerpool1
-    - task: AzureCLI@2
-      inputs:
-        azureSubscription: Azure-for-Telescope-internal
-        scriptType: bash
-        scriptLocation: inlineScript
-        inlineScript: |
-          set -exo pipefail
           az aks get-credentials \
             --name "nodevalidation-$(Build.BuildId)-westus2-nodes1000-$(System.JobAttempt)" \
             --resource-group "nodevalidation-$(Build.BuildId)-westus2-nodes1000-$(System.JobAttempt)" \
@@ -372,7 +276,7 @@ stages:
       displayName: Get credentials for nodevalidation-$(Build.BuildId)-westus2-nodes1000-$(System.JobAttempt)
     - bash: |
         bash "$(Build.SourcesDirectory)/kcl/ccp_team/node-validation/wait-for-node-validation.sh" \
-          "$(Agent.TempDirectory)/$(System.JobId)-kubeconfig" "workerpool0:1000" "workerpool1:1000"
+          "$(Agent.TempDirectory)/$(System.JobId)-kubeconfig" "workerpool0:1000"
       displayName: Check worker counts and NoSchedule taints (5-minute polling window)
     - task: AzureCLI@2
       inputs:

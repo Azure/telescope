@@ -10,14 +10,15 @@ KUBECONFIG = "$(Agent.TempDirectory)/$(System.JobId)-kubeconfig"
 
 benchmarkJob = lambda region: str -> job.Job {
     cluster = "nodevalidation-$(Build.BuildId)-${region}-nodes${NODES_PER_POOL}-$(System.JobAttempt)"
-    workerPools = azure.PlanNodePools(
-        {(NODE_SKU): 2 * NODES_PER_POOL}
-        maxNodesPerPool=NODES_PER_POOL
-    )
-    expectedPools = " ".join(["\"${pool.name}:${pool.count}\"" for pool in workerPools])
+    workerPool = azure.NodePool {
+        name = "workerpool0"
+        sku = NODE_SKU
+        count = NODES_PER_POOL
+        maxPods = 250
+    }
     job.Job {
         job = "nodes${NODES_PER_POOL}"
-        displayName = "Two ${NODES_PER_POOL}-node pools in ${region}"
+        displayName = "One ${NODES_PER_POOL}-node worker pool in ${region}"
         condition = "succeeded()"
         timeoutInMinutes = 240
         cancelTimeoutInMinutes = 60
@@ -61,16 +62,13 @@ az aks create \\
   --yes
 """
             )
-            *[
-                azure.CreateNodePool(
-                    const.DEFAULT_SERVICE_CONNECTION
-                    cluster
-                    cluster
-                    const.DEFAULT_SUBSCRIPTION_ID
-                    pool | {maxPods = 250}
-                )
-                for pool in workerPools
-            ]
+            azure.CreateNodePool(
+                const.DEFAULT_SERVICE_CONNECTION
+                cluster
+                cluster
+                const.DEFAULT_SUBSCRIPTION_ID
+                workerPool
+            )
             azure.GetCredentials(
                 const.DEFAULT_SERVICE_CONNECTION
                 cluster
@@ -82,7 +80,7 @@ az aks create \\
                 displayName = "Check worker counts and NoSchedule taints (5-minute polling window)"
                 bash = """
 bash "$(Build.SourcesDirectory)/kcl/ccp_team/node-validation/wait-for-node-validation.sh" \\
-  "${KUBECONFIG}" ${expectedPools}
+  "${KUBECONFIG}" "${workerPool.name}:${workerPool.count}"
 """
             }
             azure.DeleteResourceGroup(
