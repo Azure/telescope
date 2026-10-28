@@ -38,7 +38,7 @@ CREATE_ARGS=(
   --tier standard
   --assign-identity "$(createManagedIdentity.IDENTITY_ID)"
   --tags SkipAKSCluster=true
-  --control-plane-scaling-size H2
+  --control-plane-scaling-size H8
   --nodepool-name system
   --node-count 2
   --node-vm-size Standard_D16ds_v5
