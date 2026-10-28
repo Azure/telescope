@@ -10,7 +10,6 @@ stages:
 - stage: eastasia
   displayName: East Asia
   dependsOn: []
-  condition: succeeded()
   jobs:
   - job: nodes1000
     displayName: Two 1000-node pools in eastasia
@@ -200,7 +199,6 @@ stages:
 - stage: westus2
   displayName: West US 2
   dependsOn: []
-  condition: succeeded()
   jobs:
   - job: nodes500
     displayName: Two 500-node pools in westus2

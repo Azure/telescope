@@ -12,7 +12,7 @@ schema JobConfig:
     region: str
     nodeSku: str
 
-benchmarkJob = lambda config: JobConfig, predecessor: [str] -> job.Job {
+benchmarkJob = lambda config: JobConfig, predecessors: [str] -> job.Job {
     cluster = "nodevalidation-$(Build.BuildId)-${config.region}-nodes${config.nodesPerPool}-$(System.JobAttempt)"
     workerPools = azure.PlanNodePools(
         {(config.nodeSku): 2 * config.nodesPerPool}
@@ -22,14 +22,26 @@ benchmarkJob = lambda config: JobConfig, predecessor: [str] -> job.Job {
     job.Job {
         job = "nodes${config.nodesPerPool}"
         displayName = "Two ${config.nodesPerPool}-node pools in ${config.region}"
-        dependsOn = predecessor
+        dependsOn = predecessors
         condition = "succeeded()"
         timeoutInMinutes = 240
         cancelTimeoutInMinutes = 60
         steps = [
-            azure.Login(const.DEFAULT_SERVICE_CONNECTION, const.DEFAULT_SUBSCRIPTION_ID, config.region)
-            azure.CreateResourceGroup(const.DEFAULT_SERVICE_CONNECTION, cluster, config.region, const.DEFAULT_SUBSCRIPTION_ID)
-            azure.AzCli(const.DEFAULT_SERVICE_CONNECTION, "Create Standard-tier cluster", """
+            azure.Login(
+                const.DEFAULT_SERVICE_CONNECTION
+                const.DEFAULT_SUBSCRIPTION_ID
+                config.region
+            )
+            azure.CreateResourceGroup(
+                const.DEFAULT_SERVICE_CONNECTION
+                cluster
+                config.region
+                const.DEFAULT_SUBSCRIPTION_ID
+            )
+            azure.AzCli(
+                const.DEFAULT_SERVICE_CONNECTION
+                "Create Standard-tier cluster"
+                """
 az aks create \\
   --subscription "${const.DEFAULT_SUBSCRIPTION_ID}" \\
   --resource-group "${cluster}" \\
@@ -52,7 +64,8 @@ az aks create \\
   --enable-managed-identity \\
   --generate-ssh-keys \\
   --yes
-""")
+"""
+            )
             *[
                 azure.CreateNodePool(
                     const.DEFAULT_SERVICE_CONNECTION
@@ -63,7 +76,13 @@ az aks create \\
                 )
                 for pool in workerPools
             ]
-            azure.GetCredentials(const.DEFAULT_SERVICE_CONNECTION, cluster, cluster, const.DEFAULT_SUBSCRIPTION_ID, file=KUBECONFIG)
+            azure.GetCredentials(
+                const.DEFAULT_SERVICE_CONNECTION
+                cluster
+                cluster
+                const.DEFAULT_SUBSCRIPTION_ID
+                file=KUBECONFIG
+            )
             steps.Bash {
                 displayName = "Check worker counts and NoSchedule taints (5-minute polling window)"
                 bash = """
@@ -98,31 +117,38 @@ output = ap.Pipeline {
             stage = "eastasia"
             displayName = "East Asia"
             dependsOn = []
-            condition = "succeeded()"
             jobs = [
-                benchmarkJob(JobConfig {
-                    nodesPerPool = 1000
-                    region = "eastasia"
-                    nodeSku = NODE_SKU
-                }, [])
+                benchmarkJob(
+                    JobConfig {
+                        nodesPerPool = 1000
+                        region = "eastasia"
+                        nodeSku = NODE_SKU
+                    }
+                    []
+                )
             ]
         }
         ap.Stage {
             stage = "westus2"
             displayName = "West US 2"
             dependsOn = []
-            condition = "succeeded()"
             jobs = [
-                benchmarkJob(JobConfig {
-                    nodesPerPool = 500
-                    region = "westus2"
-                    nodeSku = NODE_SKU
-                }, [])
-                benchmarkJob(JobConfig {
-                    nodesPerPool = 1000
-                    region = "westus2"
-                    nodeSku = NODE_SKU
-                }, ["nodes500"])
+                benchmarkJob(
+                    JobConfig {
+                        nodesPerPool = 500
+                        region = "westus2"
+                        nodeSku = NODE_SKU
+                    }
+                    []
+                )
+                benchmarkJob(
+                    JobConfig {
+                        nodesPerPool = 1000
+                        region = "westus2"
+                        nodeSku = NODE_SKU
+                    }
+                    ["nodes500"]
+                )
             ]
         }
     ]

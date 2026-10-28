@@ -102,6 +102,16 @@ summarize_nodes() {
     ' "$nodes_file"
 }
 
+finish_validation() {
+    local exit_code=$?
+    trap - EXIT
+    if ! rm -f "$nodes_file"; then
+        echo "##[warning]Could not remove temporary node file: $nodes_file" >&2
+    fi
+    echo "NODE_VALIDATION_END $(date -u +%Y-%m-%dT%H:%M:%SZ) exit_code=$exit_code"
+    exit "$exit_code"
+}
+
 if [[ $# -lt 2 ]]; then
     echo "##[error]Usage: $0 <kubeconfig> <pool_name:expected_count> [pool_name:expected_count ...]" >&2
     exit 2
@@ -122,9 +132,10 @@ request_timeout=30
 final_check_window_seconds=5
 deadline=$((SECONDS + timeout_seconds))
 nodes_file=$(mktemp)
-trap 'rm -f "$nodes_file"' EXIT
+trap finish_validation EXIT
 trap 'echo "##[error]Node validation interrupted" >&2; exit 130' INT
 trap 'echo "##[error]Node validation terminated" >&2; exit 143' TERM
+echo "NODE_VALIDATION_START $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 while (( SECONDS < deadline )); do
     final_check=$((deadline - SECONDS <= final_check_window_seconds))
