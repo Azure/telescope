@@ -6,6 +6,7 @@ parameters:
   displayName: Keep the cluster when job fails (manual cleanup required)
   type: boolean
   default: false
+pr: none
 stages:
 - stage: eastasia
   displayName: East Asia

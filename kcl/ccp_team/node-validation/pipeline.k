@@ -98,6 +98,7 @@ bash "$(Build.SourcesDirectory)/kcl/ccp_team/node-validation/wait-for-node-valid
 output = ap.Pipeline {
     name = "node-validation"
     trigger = "none"
+    pr = "none"
     pool = const.DEFAULT_POOL
     parameters = [
         ap.Parameter {
