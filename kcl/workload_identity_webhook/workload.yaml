@@ -1,0 +1,107 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: "__RUN_NAMESPACE__"
+  labels:
+    benchmark-run: "__RUN_ID__"
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: "__RUNNER_NAMESPACE__"
+  labels:
+    benchmark-run: "__RUN_ID__"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pod-benchmark
+  namespace: "__RUN_NAMESPACE__"
+  annotations:
+    azure.workload.identity/client-id: "__CLIENT_ID__"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: generator
+  namespace: "__RUNNER_NAMESPACE__"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pod-create
+  namespace: "__RUN_NAMESPACE__"
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: generator
+  namespace: "__RUN_NAMESPACE__"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: pod-create
+subjects:
+  - kind: ServiceAccount
+    name: generator
+    namespace: "__RUNNER_NAMESPACE__"
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "__JOB_NAME__"
+  namespace: "__RUNNER_NAMESPACE__"
+  labels:
+    benchmark-run: "__RUN_ID__"
+spec:
+  backoffLimit: 0
+  # Outer bound includes scheduling/image pull, the 600-second profile, and drain.
+  activeDeadlineSeconds: 900
+  template:
+    metadata:
+      labels:
+        benchmark-run: "__RUN_ID__"
+    spec:
+      serviceAccountName: generator
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.azure.com/agentpool: workerpool
+      containers:
+        - name: kperf
+          image: "__RUNNER_IMAGE__"
+          imagePullPolicy: IfNotPresent
+          resources:
+            # Leave headroom on an 8-vCPU, 32-GiB worker; do not share system nodes.
+            requests:
+              cpu: "4"
+              memory: 4Gi
+            limits:
+              cpu: "6"
+              memory: 8Gi
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -uo pipefail
+              /kperf runner run \
+                --kubeconfig="" \
+                --config /etc/kperf/load-profile.yaml \
+                --result /tmp/result.json
+              status=$?
+              if [ -s /tmp/result.json ]; then
+                printf '\nKPERF_RESULT_BEGIN\n'
+                cat /tmp/result.json
+                printf '\nKPERF_RESULT_END\n'
+              fi
+              exit "$status"
+          volumeMounts:
+            - name: profile
+              mountPath: /etc/kperf
+              readOnly: true
+      volumes:
+        - name: profile
+          configMap:
+            name: "__JOB_NAME__"
