@@ -64,6 +64,11 @@ jobs:
       inlineScript: |
         set -exo pipefail
         echo "##vso[task.setvariable variable=RESOURCE_GROUP_CREATED]true"
+        az extension add \
+          --name aks-preview \
+          --version 20.0.0b6 \
+          --allow-preview true \
+          --yes
         az aks create \
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --resource-group "$(RUN_ID)" \

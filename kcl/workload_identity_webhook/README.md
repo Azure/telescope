@@ -37,6 +37,10 @@ image with an upstream release when available.
 
 ## Execution and results
 
+The cluster-creation task installs `aks-preview` version `20.0.0b6` immediately
+before `az aks create`. The extension provides `--control-plane-scaling-size H2`,
+which the agent's base Azure CLI does not support.
+
 The job creates the cluster and worker pool, installs the pinned binaries,
 fetches credentials into a temporary kubeconfig, creates the identity,
 namespace and ServiceAccount, and renders run identifiers into a temporary
