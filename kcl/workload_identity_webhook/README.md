@@ -1,137 +1,118 @@
 # Workload Identity webhook benchmark
 
-A manual, exploratory benchmark on a dedicated AKS Standard H2 cluster in
-`westus2`, subscription `b8ceb4e5-f05b-4562-a9f5-14acb1f24219`.
+One manual ADO job provisions a dedicated AKS Standard H2 cluster, prepares
+workload identity, and runs kperf **once, directly on the ADO agent**.
 
-The cluster has three `Standard_D2_v4` system nodes and three
-`Standard_D8s_v5` worker nodes. One generator Job runs on the worker pool.
-Benchmark Pods remain unscheduled and do not need worker Pod slots.
-Webhook replicas and resources are not tuned by this pipeline.
+## Configuration
 
-## Custom load profile
+- Subscription: `b8ceb4e5-f05b-4562-a9f5-14acb1f24219`; region: `westus2`.
+- System pool: three `Standard_D2_v4` nodes.
+- Worker pool: three `Standard_D2s_v5` nodes, retained as requested but not used
+  to host the traffic driver.
+- OIDC and workload identity enabled; webhook resources/replicas are not tuned.
+- User-assigned managed identity and an annotated benchmark ServiceAccount.
+  No federated credential or Azure role assignment is needed for admission-only
+  testing; the workload does not perform token exchange.
 
-[load-profile.yaml](./load-profile.yaml) is the source of truth:
+[load-profile.yaml](./load-profile.yaml) is the traffic configuration:
 
 - 600 Pod CREATEs/sec ceiling, 600-second generation window.
 - `total: 0`, `deleteRatio: 0`, `maxRetries: 0`.
-- 600 synchronous request workers and 20 transports, not 600/sec per worker.
-- WI opt-in, a dedicated annotated ServiceAccount, run/phase labels, and
-  `schedulerName: kperf-admission-only`.
-- `payloadSize: 3650` pads an environment variable; it is **not** submitted
-  JSON size. Metadata, defaulting, and WI mutation change object size.
+- 600 request workers, 20 transports; the rate is shared across workers.
+- WI opt-in, run labels, and `schedulerName: kperf-admission-only`.
+- `payloadSize: 3650` pads an environment variable, not the complete submitted
+  JSON. The resulting single-container Pod is approximately 4 KiB before
+  server-side mutation/defaulting.
 
-The pipeline renders run identifiers, mounts the profile through a ConfigMap,
-and invokes `/kperf runner run --config /etc/kperf/load-profile.yaml` without
-CLI traffic overrides. Separate smoke and warm-up profiles reuse the same
-Pod configuration without changing the measurement profile.
-
-The pinned custom image is:
+The existing installer extracts kperf from this pinned custom image:
 
 ```text
 ghcr.io/liyu-ma/kperf@sha256:67e4924b23d2aea35526479721dd83f9afe707685a6efafd60916423017479d4
 ```
 
-This is the public Linux amd64 image published as `sha-8e8e961`, corresponding
-to [Azure/kperf#260](https://github.com/Azure/kperf/pull/260) source commit
-`8e8e9617073fa7f0a9a51789923afa96d4d90121`. It is an intentional custom-image
-exception; replace it with an upstream release when available.
+This is tag `sha-8e8e961`, source commit
+`8e8e9617073fa7f0a9a51789923afa96d4d90121` from
+[Azure/kperf#260](https://github.com/Azure/kperf/pull/260). Replace the custom
+image with an upstream release when available.
 
-## Workflow and safety
+## Execution and results
 
-1. Check Kubernetes 1.36 availability, SKU eligibility and regional/family
-   vCPU quota. Provision the H2 cluster, worker pool, and user-assigned identity.
-2. **Manual storage preflight:** before any load, inspect current H2 telemetry.
-   Record the telemetry source, observation time, available storage, and
-   approved safety margin in the ADO validation comments. Reject if unavailable.
-   Confirm no installed scheduler handles `kperf-admission-only`.
-3. Check six Ready nodes and expected SKUs. Create isolated runner credentials
-   with namespace-scoped Pod-create permission. No administrator kubeconfig is
-   mounted into the runner. The benchmark identity needs neither Azure role
-   assignments nor a federated credential because no token exchange is tested.
-4. Smoke-test three Pods; verify WI environment/projected token mutation,
-   ownership, and unscheduled state. Warm up at 5/sec for 30 seconds.
-5. Execute one measurement Job. `backoffLimit: 0` prevents retries, and a
-   900-second outer deadline bounds startup, generation, and drain.
-6. Collect results and diagnostics, then finalize according to `keep_cluster`.
+The job creates the cluster and worker pool, installs the pinned binaries,
+fetches credentials into a temporary kubeconfig, creates the identity,
+namespace and ServiceAccount, and renders run identifiers into a temporary
+profile. It invokes:
 
-There is **no ResourceQuota** and no claimed 400,000-Pod H2 limit. At the target,
-measurement alone retains approximately 360,000 Pods: about 1.37 GiB of
-submitted JSON at 4 KiB each, before mutation, history, events, and storage
-overhead. Warm-up and outstanding requests add more. Available vCPU quota is
-not proof of physical regional capacity or control-plane storage headroom.
+```sh
+kperf runner run --kubeconfig "$kubeconfig" --config "$profile" --result "$result"
+```
 
-The storage preflight is an agentless ADO manual-validation job, with timeout
-set to reject. It is not an automated storage-byte monitor. This first version
-has bounded execution, not the original design's full continuous telemetry
-and safety-stop implementation. Managed webhook configuration and storage
-signals may require ASI/control-plane access beyond `kubectl`; do not infer
-their values from worker nodes or substitute defaults.
+Execution uses the shared
+[`kperf.RunKperfRunner`](../lib/steps/kperf/kperf_runner.k) step:
 
-### Retention
+```kcl
+kperf.RunKperfRunner(
+    profilePath="$(KPERF_PROFILE)",
+    kubeconfig="$(KUBECONFIG)",
+    resultPath="$(KPERF_RESULT)")
+```
 
-`keep_cluster` defaults to **false**:
+The helper accepts an optional `timeoutSeconds` (default 900), supports native
+single- and multi-spec reports, and leaves input/result file ownership to the
+caller. It does not install kperf or provision workload resources.
 
-- **false:** collect/publish artifacts, then delete only the resource group
-  whose run and pipeline-definition ownership tags match.
-- **true:** retain the cluster, managed identity, namespaces, completed Jobs,
-  and benchmark Pods for inspection. Attempt to suspend unfinished generators;
-  Job deadlines remain the fallback if the agent/API is unavailable.
+There are no CLI traffic overrides, Kubernetes generator Jobs, smoke/warm-up
+phases, manual-validation jobs, diagnostic collectors, or artifact uploads.
+The profile and native result JSON appear in normal ADO logs. Files live in
+[`Agent.TempDirectory`](https://learn.microsoft.com/en-us/azure/devops/pipelines/build/variables?view=azure-devops#agent-variables-devops-services),
+which ADO cleans after each job; the shared runner does not delete caller inputs.
 
-Retained resources incur charges. The finalization artifact prints their IDs
-and an explicit `az group delete` command. Failed or canceled runs attempt
-collection/finalization using `always()`; a hard agent interruption can still
-prevent these steps. Check the pipeline and Azure before assuming cleanup
-completed. A setup failure before resource-group creation needs no deletion;
-ownership-check failures deliberately block deletion.
+A 900-second outer process timeout bounds generation and drain, with forced
+termination after a further 30 seconds if needed. Driver failures, missing or
+malformed reports, and reported request errors fail the step; no run is retried.
 
-## Results and limitations
+The pinned runner's `total` is the configured request total, **not an observed
+success count**; it remains zero for this duration-based run. Native duration
+includes drain. Per-interval dispatch rates, actual WI invocation rates, and
+inflight backlog are unavailable. This is exploratory traffic generation,
+not proof that the webhook sustained 600/sec. Agent-to-API-server networking
+also differs from an in-cluster driver.
 
-ADO publishes setup, benchmark, and finalization artifacts containing:
+## Prerequisites and cleanup
 
-- Resolved profiles, pinned image, identity client ID (not credentials), cluster
-  configuration, and before/after platform and admission configuration.
-- Per-phase orchestration timestamps, Job status, logs, original kperf JSON,
-  latency percentiles in seconds, and request error counts.
-- Post-run retained-Pod counts and a small set of admitted Pod samples/sizes.
-  Enumeration is paginated outside measurement; full 360,000-Pod bodies are
-  neither accumulated in memory nor uploaded.
-- Collection failures, retention decisions, and deletion verification.
+Operators ensure version/SKU availability, quota, and control-plane storage
+headroom before queueing. Confirm no scheduler handles `kperf-admission-only`;
+the benchmark Pods should remain unscheduled.
 
-The pinned runner's `aggregated.total` and per-spec `total` mirror the configured
-total; duration-based runs report **0** there. They are **not successful-request
-counts**. Preserve them as `runner_reported_total`; separately report observed
-retained Pods. A timeout/error response can still have created a Pod, so these
-counts are not interchangeable.
+At the target, approximately 360,000 Pods could accumulate: about 1.37 GiB of
+submitted JSON at 4 KiB each, before WI/defaulting, revision history, and other
+storage overhead. There is no ResourceQuota, continuous storage monitor, or
+manual storage gate. The timeout is not a storage-capacity guarantee.
 
-The runner reports duration including drain. It does not expose per-10-second
-dispatch rates, inflight backlog, actual WI invocation rates, exact generation/
-drain boundaries, or submitted-body sizes. Successful exploratory execution
-does **not** prove sustained offered load of 600/sec. Reported request errors,
-missing/invalid results, smoke failures, and deadlines fail the pipeline rather
-than being retried or silently accepted.
+`keep_cluster` defaults to **false**. The last step deletes the run's resource
+group, including the cluster and identity, even after a benchmark failure where
+ADO permits cleanup. Deletion is gated on successful resource-group creation
+in this job; an existing-group collision never authorizes deletion.
 
-## Development and registration
+With **true**, retain the cluster, identity, and benchmark Pods for inspection.
+Retained resources incur charges. Use the run's resource-group name from the
+ADO logs for manual deletion when finished. There are no separate finalization
+reports or deletion-verification steps. A hard agent interruption can prevent
+cleanup; check Azure before assuming deletion completed.
 
-The scenario's Python scripts use the repository's existing PyYAML dependency.
-Run focused checks after regenerating:
+## Development
 
 ```sh
 kcl run kcl/workload_identity_webhook/pipeline.k -S output \
   -o kcl/workload_identity_webhook/pipeline.yaml
-PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
-  -s kcl/workload_identity_webhook -p 'test_*.py' -v
+(cd kcl && kcl test lib/steps/kperf)
 ```
 
-Registration target:
+The shared runner has KCL tests. The pipeline does not install a Python
+dependency bundle or use a custom Python orchestrator.
 
-- Organization/project: `https://dev.azure.com/akstelescope` / `telescope`.
-- Folder: `\AKS\Telescope\v2`.
-- Definition name: `Workload Identitiy Webhook Benchmark` (requested spelling).
-- Source: `Azure/telescope`, branch `wi-web-bench`.
-- YAML: [pipeline.yaml](./pipeline.yaml).
-- Existing GitHub connection: `telescope (1)`.
-- Azure connection: `Azure-for-Telescope-internal`.
-- Agent pool: `AKS-Telescope-Airlock`.
-
-Keep CI/PR triggers disabled and register with `--skip-first-run true`.
-Registration does not queue a benchmark or create Azure resources.
+[ADO pipeline 94](https://dev.azure.com/akstelescope/telescope/_build?definitionId=94)
+is registered as `Workload Identitiy Webhook Benchmark` under
+`\AKS\Telescope\v2`, using `Azure/telescope:wi-web-bench` and
+[pipeline.yaml](./pipeline.yaml). CI/PR triggers remain disabled.
+Local changes do not affect that definition until pushed; do not queue a run
+as part of local validation.
