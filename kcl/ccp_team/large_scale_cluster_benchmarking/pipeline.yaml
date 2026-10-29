@@ -297,6 +297,26 @@ stages:
             - rm kubectl
           CLOUDINIT
 
+          az network public-ip create \
+            --resource-group "$(RUN_ID)" \
+            --name "large-scale-jumpbox-nat-pip" \
+            --sku Standard \
+            --allocation-method Static \
+            --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
+
+          az network nat gateway create \
+            --resource-group "$(RUN_ID)" \
+            --name "large-scale-jumpbox-nat" \
+            --public-ip-addresses "large-scale-jumpbox-nat-pip" \
+            --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
+
+          az network vnet subnet update \
+            --resource-group "$(RUN_ID)" \
+            --vnet-name "large-scale-net" \
+            --name "jumpbox" \
+            --nat-gateway "large-scale-jumpbox-nat" \
+            --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
+
           az vm create \
             --resource-group "$(RUN_ID)" \
             --name "large-scale-jumpbox" \
@@ -304,7 +324,8 @@ stages:
             --size Standard_D4ds_v5 \
             --vnet-name "large-scale-net" \
             --subnet "jumpbox" \
-            --public-ip-address "large-scale-jumpbox-pip" \
+            --public-ip-address "" \
+            --nsg-rule NONE \
             --admin-username "azureuser" \
             --generate-ssh-keys \
             --custom-data /tmp/cloud-init.yaml \
@@ -2008,6 +2029,26 @@ stages:
             - rm kubectl
           CLOUDINIT
 
+          az network public-ip create \
+            --resource-group "$(RUN_ID)" \
+            --name "large-scale-jumpbox-nat-pip" \
+            --sku Standard \
+            --allocation-method Static \
+            --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
+
+          az network nat gateway create \
+            --resource-group "$(RUN_ID)" \
+            --name "large-scale-jumpbox-nat" \
+            --public-ip-addresses "large-scale-jumpbox-nat-pip" \
+            --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
+
+          az network vnet subnet update \
+            --resource-group "$(RUN_ID)" \
+            --vnet-name "large-scale-net" \
+            --name "jumpbox" \
+            --nat-gateway "large-scale-jumpbox-nat" \
+            --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
+
           az vm create \
             --resource-group "$(RUN_ID)" \
             --name "large-scale-jumpbox" \
@@ -2015,7 +2056,8 @@ stages:
             --size Standard_D4ds_v5 \
             --vnet-name "large-scale-net" \
             --subnet "jumpbox" \
-            --public-ip-address "large-scale-jumpbox-pip" \
+            --public-ip-address "" \
+            --nsg-rule NONE \
             --admin-username "azureuser" \
             --generate-ssh-keys \
             --custom-data /tmp/cloud-init.yaml \
@@ -3808,6 +3850,26 @@ stages:
             - rm kubectl
           CLOUDINIT
 
+          az network public-ip create \
+            --resource-group "$(RUN_ID)" \
+            --name "large-scale-jumpbox-nat-pip" \
+            --sku Standard \
+            --allocation-method Static \
+            --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
+
+          az network nat gateway create \
+            --resource-group "$(RUN_ID)" \
+            --name "large-scale-jumpbox-nat" \
+            --public-ip-addresses "large-scale-jumpbox-nat-pip" \
+            --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
+
+          az network vnet subnet update \
+            --resource-group "$(RUN_ID)" \
+            --vnet-name "large-scale-net" \
+            --name "jumpbox" \
+            --nat-gateway "large-scale-jumpbox-nat" \
+            --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
+
           az vm create \
             --resource-group "$(RUN_ID)" \
             --name "large-scale-jumpbox" \
@@ -3815,7 +3877,8 @@ stages:
             --size Standard_D4ds_v5 \
             --vnet-name "large-scale-net" \
             --subnet "jumpbox" \
-            --public-ip-address "large-scale-jumpbox-pip" \
+            --public-ip-address "" \
+            --nsg-rule NONE \
             --admin-username "azureuser" \
             --generate-ssh-keys \
             --custom-data /tmp/cloud-init.yaml \
@@ -5556,6 +5619,26 @@ stages:
             - rm kubectl
           CLOUDINIT
 
+          az network public-ip create \
+            --resource-group "$(RUN_ID)" \
+            --name "large-scale-jumpbox-nat-pip" \
+            --sku Standard \
+            --allocation-method Static \
+            --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
+
+          az network nat gateway create \
+            --resource-group "$(RUN_ID)" \
+            --name "large-scale-jumpbox-nat" \
+            --public-ip-addresses "large-scale-jumpbox-nat-pip" \
+            --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
+
+          az network vnet subnet update \
+            --resource-group "$(RUN_ID)" \
+            --vnet-name "large-scale-net" \
+            --name "jumpbox" \
+            --nat-gateway "large-scale-jumpbox-nat" \
+            --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
+
           az vm create \
             --resource-group "$(RUN_ID)" \
             --name "large-scale-jumpbox" \
@@ -5563,7 +5646,8 @@ stages:
             --size Standard_D4ds_v5 \
             --vnet-name "large-scale-net" \
             --subnet "jumpbox" \
-            --public-ip-address "large-scale-jumpbox-pip" \
+            --public-ip-address "" \
+            --nsg-rule NONE \
             --admin-username "azureuser" \
             --generate-ssh-keys \
             --custom-data /tmp/cloud-init.yaml \
@@ -7357,6 +7441,26 @@ stages:
             - rm kubectl
           CLOUDINIT
 
+          az network public-ip create \
+            --resource-group "$(RUN_ID)" \
+            --name "large-scale-jumpbox-nat-pip" \
+            --sku Standard \
+            --allocation-method Static \
+            --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
+
+          az network nat gateway create \
+            --resource-group "$(RUN_ID)" \
+            --name "large-scale-jumpbox-nat" \
+            --public-ip-addresses "large-scale-jumpbox-nat-pip" \
+            --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
+
+          az network vnet subnet update \
+            --resource-group "$(RUN_ID)" \
+            --vnet-name "large-scale-net" \
+            --name "jumpbox" \
+            --nat-gateway "large-scale-jumpbox-nat" \
+            --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
+
           az vm create \
             --resource-group "$(RUN_ID)" \
             --name "large-scale-jumpbox" \
@@ -7364,7 +7468,8 @@ stages:
             --size Standard_D4ds_v5 \
             --vnet-name "large-scale-net" \
             --subnet "jumpbox" \
-            --public-ip-address "large-scale-jumpbox-pip" \
+            --public-ip-address "" \
+            --nsg-rule NONE \
             --admin-username "azureuser" \
             --generate-ssh-keys \
             --custom-data /tmp/cloud-init.yaml \
@@ -9105,6 +9210,26 @@ stages:
             - rm kubectl
           CLOUDINIT
 
+          az network public-ip create \
+            --resource-group "$(RUN_ID)" \
+            --name "large-scale-jumpbox-nat-pip" \
+            --sku Standard \
+            --allocation-method Static \
+            --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
+
+          az network nat gateway create \
+            --resource-group "$(RUN_ID)" \
+            --name "large-scale-jumpbox-nat" \
+            --public-ip-addresses "large-scale-jumpbox-nat-pip" \
+            --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
+
+          az network vnet subnet update \
+            --resource-group "$(RUN_ID)" \
+            --vnet-name "large-scale-net" \
+            --name "jumpbox" \
+            --nat-gateway "large-scale-jumpbox-nat" \
+            --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
+
           az vm create \
             --resource-group "$(RUN_ID)" \
             --name "large-scale-jumpbox" \
@@ -9112,7 +9237,8 @@ stages:
             --size Standard_D4ds_v5 \
             --vnet-name "large-scale-net" \
             --subnet "jumpbox" \
-            --public-ip-address "large-scale-jumpbox-pip" \
+            --public-ip-address "" \
+            --nsg-rule NONE \
             --admin-username "azureuser" \
             --generate-ssh-keys \
             --custom-data /tmp/cloud-init.yaml \
@@ -10906,6 +11032,26 @@ stages:
             - rm kubectl
           CLOUDINIT
 
+          az network public-ip create \
+            --resource-group "$(RUN_ID)" \
+            --name "large-scale-jumpbox-nat-pip" \
+            --sku Standard \
+            --allocation-method Static \
+            --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
+
+          az network nat gateway create \
+            --resource-group "$(RUN_ID)" \
+            --name "large-scale-jumpbox-nat" \
+            --public-ip-addresses "large-scale-jumpbox-nat-pip" \
+            --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
+
+          az network vnet subnet update \
+            --resource-group "$(RUN_ID)" \
+            --vnet-name "large-scale-net" \
+            --name "jumpbox" \
+            --nat-gateway "large-scale-jumpbox-nat" \
+            --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
+
           az vm create \
             --resource-group "$(RUN_ID)" \
             --name "large-scale-jumpbox" \
@@ -10913,7 +11059,8 @@ stages:
             --size Standard_D4ds_v5 \
             --vnet-name "large-scale-net" \
             --subnet "jumpbox" \
-            --public-ip-address "large-scale-jumpbox-pip" \
+            --public-ip-address "" \
+            --nsg-rule NONE \
             --admin-username "azureuser" \
             --generate-ssh-keys \
             --custom-data /tmp/cloud-init.yaml \
@@ -12655,6 +12802,26 @@ stages:
             - rm kubectl
           CLOUDINIT
 
+          az network public-ip create \
+            --resource-group "$(RUN_ID)" \
+            --name "large-scale-jumpbox-nat-pip" \
+            --sku Standard \
+            --allocation-method Static \
+            --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
+
+          az network nat gateway create \
+            --resource-group "$(RUN_ID)" \
+            --name "large-scale-jumpbox-nat" \
+            --public-ip-addresses "large-scale-jumpbox-nat-pip" \
+            --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
+
+          az network vnet subnet update \
+            --resource-group "$(RUN_ID)" \
+            --vnet-name "large-scale-net" \
+            --name "jumpbox" \
+            --nat-gateway "large-scale-jumpbox-nat" \
+            --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
+
           az vm create \
             --resource-group "$(RUN_ID)" \
             --name "large-scale-jumpbox" \
@@ -12662,7 +12829,8 @@ stages:
             --size Standard_D4ds_v5 \
             --vnet-name "large-scale-net" \
             --subnet "jumpbox" \
-            --public-ip-address "large-scale-jumpbox-pip" \
+            --public-ip-address "" \
+            --nsg-rule NONE \
             --admin-username "azureuser" \
             --generate-ssh-keys \
             --custom-data /tmp/cloud-init.yaml \
