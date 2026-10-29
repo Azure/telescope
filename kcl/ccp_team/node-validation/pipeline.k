@@ -77,9 +77,9 @@ az aks create \\
                 file=KUBECONFIG
             )
             steps.Bash {
-                displayName = "Check worker counts and NoSchedule taints (5-minute polling window)"
+                displayName = "Wait for NoSchedule taint clearance"
                 bash = """
-bash "$(Build.SourcesDirectory)/kcl/ccp_team/node-validation/wait-for-node-validation.sh" \\
+bash "$(Build.SourcesDirectory)/kcl/ccp_team/node-validation/wait-for-taint-clearance.sh" \\
   "${KUBECONFIG}" "${workerPool.name}:${workerPool.count}"
 """
             }

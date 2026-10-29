@@ -135,9 +135,9 @@ stages:
             -f $(Agent.TempDirectory)/$(System.JobId)-kubeconfig
       displayName: Get credentials for nodevalidation-$(Build.BuildId)-eastasia-nodes1000-$(System.JobAttempt)
     - bash: |
-        bash "$(Build.SourcesDirectory)/kcl/ccp_team/node-validation/wait-for-node-validation.sh" \
+        bash "$(Build.SourcesDirectory)/kcl/ccp_team/node-validation/wait-for-taint-clearance.sh" \
           "$(Agent.TempDirectory)/$(System.JobId)-kubeconfig" "workerpool0:1000"
-      displayName: Check worker counts and NoSchedule taints (5-minute polling window)
+      displayName: Wait for NoSchedule taint clearance
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -275,9 +275,9 @@ stages:
             -f $(Agent.TempDirectory)/$(System.JobId)-kubeconfig
       displayName: Get credentials for nodevalidation-$(Build.BuildId)-westus2-nodes1000-$(System.JobAttempt)
     - bash: |
-        bash "$(Build.SourcesDirectory)/kcl/ccp_team/node-validation/wait-for-node-validation.sh" \
+        bash "$(Build.SourcesDirectory)/kcl/ccp_team/node-validation/wait-for-taint-clearance.sh" \
           "$(Agent.TempDirectory)/$(System.JobId)-kubeconfig" "workerpool0:1000"
-      displayName: Check worker counts and NoSchedule taints (5-minute polling window)
+      displayName: Wait for NoSchedule taint clearance
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal

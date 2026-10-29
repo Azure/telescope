@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-wait_for_node_validation() {
+wait_for_taint_clearance() {
     local kubeconfig=$1 pool=${2%:*} expected=${2##*:}
     local deadline=$((SECONDS + 300)) nodes
     while (( SECONDS < deadline )); do
-        if nodes=$(timeout 30s kubectl --kubeconfig "$kubeconfig" --request-timeout=30s get nodes -o json); then
+        if nodes=$(kubectl --kubeconfig "$kubeconfig" --request-timeout=30s get nodes -o json); then
             if jq -e --arg pool "$pool" --argjson expected "$expected" '
                 .items
                 | map(
@@ -28,4 +28,4 @@ wait_for_node_validation() {
 
 trap 'echo "NODE_VALIDATION_END $(date -u +%Y-%m-%dT%H:%M:%SZ)"' EXIT
 echo "NODE_VALIDATION_START $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-wait_for_node_validation "$@"
+wait_for_taint_clearance "$@"
