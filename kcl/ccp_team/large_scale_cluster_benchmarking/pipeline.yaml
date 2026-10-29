@@ -2045,7 +2045,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-          KEY_ID=""
+          KEY_ID="https://xinwei-15k-key-vault.vault.azure.net/keys/15k-test/38ca388db5e74ffab7b8ac920acf2a5b"
           if ! [[ "$KEY_ID" =~ ^https://[^/]+/keys/[^/]+/[^/]+$ ]]; then
             echo "Key ID must be a versioned Key Vault key URI; got '$KEY_ID'."
             exit 1
@@ -2104,7 +2104,7 @@ stages:
             --node-os-upgrade-channel None
             --generate-ssh-keys
             --yes
-            --enable-azure-keyvault-kms --azure-keyvault-kms-key-id "" --kms-infrastructure-encryption Enabled
+            --enable-azure-keyvault-kms --azure-keyvault-kms-key-id "https://xinwei-15k-key-vault.vault.azure.net/keys/15k-test/38ca388db5e74ffab7b8ac920acf2a5b" --kms-infrastructure-encryption Enabled
           )
           az aks create "${CREATE_ARGS[@]}"
       displayName: Create AKS cluster
@@ -3483,7 +3483,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-          KEY_ID=""
+          KEY_ID="https://xinwei-15k-key-vault.vault.azure.net/keys/15k-test/38ca388db5e74ffab7b8ac920acf2a5b"
           if ! [[ "$KEY_ID" =~ ^https://[^/]+/keys/[^/]+/[^/]+$ ]]; then
             echo "Key ID must be a versioned Key Vault key URI; got '$KEY_ID'."
             exit 1
@@ -5593,7 +5593,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-          KEY_ID=""
+          KEY_ID="https://xinwei-15k-key-vault.vault.azure.net/keys/15k-test/38ca388db5e74ffab7b8ac920acf2a5b"
           if ! [[ "$KEY_ID" =~ ^https://[^/]+/keys/[^/]+/[^/]+$ ]]; then
             echo "Key ID must be a versioned Key Vault key URI; got '$KEY_ID'."
             exit 1
@@ -5653,7 +5653,7 @@ stages:
             --generate-ssh-keys
             --yes
             --enable-apiserver-vnet-integration --apiserver-subnet-id "$(createSubnet_apiserver.APISERVER_SUBNET_ID)"
-            --enable-azure-keyvault-kms --azure-keyvault-kms-key-id "" --kms-infrastructure-encryption Enabled
+            --enable-azure-keyvault-kms --azure-keyvault-kms-key-id "https://xinwei-15k-key-vault.vault.azure.net/keys/15k-test/38ca388db5e74ffab7b8ac920acf2a5b" --kms-infrastructure-encryption Enabled
           )
           az aks create "${CREATE_ARGS[@]}"
       displayName: Create AKS cluster
@@ -7032,7 +7032,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-          KEY_ID=""
+          KEY_ID="https://xinwei-15k-key-vault.vault.azure.net/keys/15k-test/38ca388db5e74ffab7b8ac920acf2a5b"
           if ! [[ "$KEY_ID" =~ ^https://[^/]+/keys/[^/]+/[^/]+$ ]]; then
             echo "Key ID must be a versioned Key Vault key URI; got '$KEY_ID'."
             exit 1
@@ -9142,7 +9142,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-          KEY_ID=""
+          KEY_ID="https://xinwei-15k-key-vault.vault.azure.net/keys/15k-test/38ca388db5e74ffab7b8ac920acf2a5b"
           if ! [[ "$KEY_ID" =~ ^https://[^/]+/keys/[^/]+/[^/]+$ ]]; then
             echo "Key ID must be a versioned Key Vault key URI; got '$KEY_ID'."
             exit 1
@@ -9202,7 +9202,7 @@ stages:
             --generate-ssh-keys
             --yes
             --network-dataplane cilium
-            --enable-azure-keyvault-kms --azure-keyvault-kms-key-id "" --kms-infrastructure-encryption Enabled
+            --enable-azure-keyvault-kms --azure-keyvault-kms-key-id "https://xinwei-15k-key-vault.vault.azure.net/keys/15k-test/38ca388db5e74ffab7b8ac920acf2a5b" --kms-infrastructure-encryption Enabled
           )
           az aks create "${CREATE_ARGS[@]}"
       displayName: Create AKS cluster
@@ -10581,7 +10581,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-          KEY_ID=""
+          KEY_ID="https://xinwei-15k-key-vault.vault.azure.net/keys/15k-test/38ca388db5e74ffab7b8ac920acf2a5b"
           if ! [[ "$KEY_ID" =~ ^https://[^/]+/keys/[^/]+/[^/]+$ ]]; then
             echo "Key ID must be a versioned Key Vault key URI; got '$KEY_ID'."
             exit 1
@@ -12692,7 +12692,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-          KEY_ID=""
+          KEY_ID="https://xinwei-15k-key-vault.vault.azure.net/keys/15k-test/38ca388db5e74ffab7b8ac920acf2a5b"
           if ! [[ "$KEY_ID" =~ ^https://[^/]+/keys/[^/]+/[^/]+$ ]]; then
             echo "Key ID must be a versioned Key Vault key URI; got '$KEY_ID'."
             exit 1
@@ -12753,7 +12753,7 @@ stages:
             --yes
             --network-dataplane cilium
             --enable-apiserver-vnet-integration --apiserver-subnet-id "$(createSubnet_apiserver.APISERVER_SUBNET_ID)"
-            --enable-azure-keyvault-kms --azure-keyvault-kms-key-id "" --kms-infrastructure-encryption Enabled
+            --enable-azure-keyvault-kms --azure-keyvault-kms-key-id "https://xinwei-15k-key-vault.vault.azure.net/keys/15k-test/38ca388db5e74ffab7b8ac920acf2a5b" --kms-infrastructure-encryption Enabled
           )
           az aks create "${CREATE_ARGS[@]}"
       displayName: Create AKS cluster
@@ -14132,7 +14132,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-          KEY_ID=""
+          KEY_ID="https://xinwei-15k-key-vault.vault.azure.net/keys/15k-test/38ca388db5e74ffab7b8ac920acf2a5b"
           if ! [[ "$KEY_ID" =~ ^https://[^/]+/keys/[^/]+/[^/]+$ ]]; then
             echo "Key ID must be a versioned Key Vault key URI; got '$KEY_ID'."
             exit 1

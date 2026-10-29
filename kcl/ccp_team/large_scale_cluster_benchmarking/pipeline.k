@@ -20,7 +20,7 @@ LOCATION = "canadacentral"
 USER_POOL_VM_SIZE = "Standard_D4ds_v4"
 USER_TOTAL_NODES = 14997
 # Versioned Key Vault key URI used by the stages that enable KMS.
-KMS_KEY_ID = ""
+KMS_KEY_ID = "https://xinwei-15k-key-vault.vault.azure.net/keys/15k-test/38ca388db5e74ffab7b8ac920acf2a5b"
 
 # Features toggled across stages. Every combination gets its own stage, so each run's
 # configuration is defined in code.
