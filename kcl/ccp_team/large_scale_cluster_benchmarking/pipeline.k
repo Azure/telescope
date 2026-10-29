@@ -192,7 +192,6 @@ makeJob = lambda features: Features -> job.Job {
                     count = 1
                     taintPrefix = "cl2"
                     vnetSubnetId = "$(createSubnet_nodes.NODES_SUBNET_ID)"
-                    osSKU = "Ubuntu"
                 }
             ),
             # AKS nodes enable THP by default, but the test VMs have limited memory.
@@ -207,7 +206,6 @@ makeJob = lambda features: Features -> job.Job {
                     sku = pool.sku
                     count = pool.count
                     vnetSubnetId = "$(createSubnet_nodes.NODES_SUBNET_ID)"
-                    osSKU = "Ubuntu"
                     linuxOsConfig = "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
                 }
             ) for pool in azure.PlanNodePools({"${USER_POOL_VM_SIZE}" = USER_TOTAL_NODES}, MAX_NODES_PER_POOL)],
