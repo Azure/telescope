@@ -19,13 +19,11 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az account set --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
           az config set defaults.location="canadacentral"
           az account show
       displayName: Login to Azure
-    - bash: |2
-
+    - bash: |
         set -eo pipefail
 
         job_id="$(System.JobId)"
@@ -41,7 +39,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az group create \
             --name "$(RUN_ID)" \
             --location "canadacentral" \
@@ -55,7 +52,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az identity create \
             --resource-group "$(RUN_ID)" \
             --name "large-scale-identity" \
@@ -76,13 +72,11 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet create \
             --resource-group "$(RUN_ID)" \
             --name "large-scale-net" \
             --address-prefixes 172.16.0.0/12 \
             --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
-
           VNET_ID=$(az network vnet show \
             --resource-group "$(RUN_ID)" \
             --name "large-scale-net" \
@@ -103,7 +97,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet subnet create \
             --resource-group "$(RUN_ID)" \
             --vnet-name "large-scale-net" \
@@ -127,7 +120,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet subnet create \
             --resource-group "$(RUN_ID)" \
             --vnet-name "large-scale-net" \
@@ -151,7 +143,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet subnet create \
             --resource-group "$(RUN_ID)" \
             --vnet-name "large-scale-net" \
@@ -175,7 +166,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet subnet create \
             --resource-group "$(RUN_ID)" \
             --vnet-name "large-scale-net" \
@@ -199,7 +189,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az extension add --name azure-firewall
 
           az network public-ip create \
@@ -286,7 +275,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           cat > /tmp/cloud-init.yaml << 'CLOUDINIT'
           #cloud-config
           package_update: true
@@ -365,7 +353,7 @@ stages:
         azureSubscription: $(AZURE_SERVICE_CONNECTION)
         scriptType: bash
         scriptLocation: inlineScript
-        inlineScript: "set -exo pipefail\n\naz extension add --name aks-preview --allow-preview true --upgrade --yes\n\nCREATE_ARGS=(\n  --subscription \"854c9ddb-fe9e-4aea-8d58-99ed88282881\"\n  --resource-group \"$(RUN_ID)\"\n  --name \"large-scale\"\n  --location \"canadacentral\"\n  --kubernetes-version \"1.37\"\n  --dns-name-prefix \"large-scale-dns\"\n  --tier standard\n  --assign-identity \"$(createManagedIdentity.IDENTITY_ID)\"\n  --tags SkipAKSCluster=true\n  --control-plane-scaling-size H8\n  --nodepool-name system\n  --node-count 2\n  --node-vm-size Standard_D16ds_v5\n  --max-pods 60\n  --os-sku Ubuntu\n  # AKS nodes enable THP by default, but the test VMs have limited memory.\n  # Disable THP to avoid excessive node memory usage affecting benchmark results.\n  --linux-os-config \"$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json\"\n  --vnet-subnet-id \"$(createSubnet_nodes.NODES_SUBNET_ID)\"\n  --network-plugin azure\n  --network-plugin-mode overlay\n  --pod-cidr 10.0.0.0/8\n  --service-cidr 192.168.0.0/16\n  --dns-service-ip 192.168.0.10\n  --outbound-type userDefinedRouting\n  --enable-private-cluster\n  --auto-upgrade-channel none\n  --node-os-upgrade-channel None\n  --generate-ssh-keys\n  --yes\n  \n)\naz aks create \"${CREATE_ARGS[@]}\"\n"
+        inlineScript: "set -exo pipefail\naz extension add --name aks-preview --allow-preview true --upgrade --yes\n\nCREATE_ARGS=(\n  --subscription \"854c9ddb-fe9e-4aea-8d58-99ed88282881\"\n  --resource-group \"$(RUN_ID)\"\n  --name \"large-scale\"\n  --location \"canadacentral\"\n  --kubernetes-version \"1.37\"\n  --dns-name-prefix \"large-scale-dns\"\n  --tier standard\n  --assign-identity \"$(createManagedIdentity.IDENTITY_ID)\"\n  --tags SkipAKSCluster=true\n  --control-plane-scaling-size H8\n  --nodepool-name system\n  --node-count 2\n  --node-vm-size Standard_D16ds_v5\n  --max-pods 60\n  --os-sku Ubuntu\n  # AKS nodes enable THP by default, but the test VMs have limited memory.\n  # Disable THP to avoid excessive node memory usage affecting benchmark results.\n  --linux-os-config \"$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json\"\n  --vnet-subnet-id \"$(createSubnet_nodes.NODES_SUBNET_ID)\"\n  --network-plugin azure\n  --network-plugin-mode overlay\n  --pod-cidr 10.0.0.0/8\n  --service-cidr 192.168.0.0/16\n  --dns-service-ip 192.168.0.10\n  --outbound-type userDefinedRouting\n  --enable-private-cluster\n  --auto-upgrade-channel none\n  --node-os-upgrade-channel None\n  --generate-ssh-keys\n  --yes\n  \n)\naz aks create \"${CREATE_ARGS[@]}\"\n"
       displayName: Create AKS cluster
     - task: AzureCLI@2
       inputs:
@@ -374,8 +362,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -425,8 +411,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -476,8 +460,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -527,8 +509,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -578,8 +558,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -629,8 +607,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -680,8 +656,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -731,8 +705,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -782,8 +754,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -833,8 +803,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -884,8 +852,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -935,8 +901,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -986,8 +950,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -1037,8 +999,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -1088,8 +1048,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -1139,8 +1097,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -1190,8 +1146,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -1241,8 +1195,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -1292,8 +1244,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -1343,8 +1293,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -1394,8 +1342,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -1433,7 +1379,6 @@ stages:
             "854c9ddb-fe9e-4aea-8d58-99ed88282881" \
             "$(RUN_ID)" \
             "large-scale-jumpbox" <<'REMOTE_SCRIPT'
-
           az login --identity --output none
           az account set --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
           az aks get-credentials \
@@ -1461,8 +1406,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -1540,8 +1483,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -1579,7 +1520,6 @@ stages:
             "854c9ddb-fe9e-4aea-8d58-99ed88282881" \
             "$(RUN_ID)" \
             "large-scale-jumpbox" <<'REMOTE_SCRIPT'
-
           export KUBECONFIG=/var/tmp/telescope-kubeconfig
           test -s "$KUBECONFIG"
           test -s "/var/tmp/telescope/$(Build.BuildId)/cl2.yaml"
@@ -1602,8 +1542,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -1694,8 +1632,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -1733,7 +1669,6 @@ stages:
             "854c9ddb-fe9e-4aea-8d58-99ed88282881" \
             "$(RUN_ID)" \
             "large-scale-jumpbox" <<'REMOTE_SCRIPT'
-
           export KUBECONFIG=/var/tmp/telescope-kubeconfig
           pods=$(kubectl get pods \
             --namespace="clusterloader2" \
@@ -1775,7 +1710,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az group delete --name "$(RUN_ID)" --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881" --yes
       condition: always()
       displayName: Delete resource group (854c9ddb-fe9e-4aea-8d58-99ed88282881)
@@ -1797,13 +1731,11 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az account set --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
           az config set defaults.location="canadacentral"
           az account show
       displayName: Login to Azure
-    - bash: |2
-
+    - bash: |
         set -eo pipefail
 
         job_id="$(System.JobId)"
@@ -1819,7 +1751,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az group create \
             --name "$(RUN_ID)" \
             --location "canadacentral" \
@@ -1833,7 +1764,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az identity create \
             --resource-group "$(RUN_ID)" \
             --name "large-scale-identity" \
@@ -1854,13 +1784,11 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet create \
             --resource-group "$(RUN_ID)" \
             --name "large-scale-net" \
             --address-prefixes 172.16.0.0/12 \
             --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
-
           VNET_ID=$(az network vnet show \
             --resource-group "$(RUN_ID)" \
             --name "large-scale-net" \
@@ -1881,7 +1809,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet subnet create \
             --resource-group "$(RUN_ID)" \
             --vnet-name "large-scale-net" \
@@ -1905,7 +1832,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet subnet create \
             --resource-group "$(RUN_ID)" \
             --vnet-name "large-scale-net" \
@@ -1929,7 +1855,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet subnet create \
             --resource-group "$(RUN_ID)" \
             --vnet-name "large-scale-net" \
@@ -1953,7 +1878,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet subnet create \
             --resource-group "$(RUN_ID)" \
             --vnet-name "large-scale-net" \
@@ -1977,7 +1901,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az extension add --name azure-firewall
 
           az network public-ip create \
@@ -2064,7 +1987,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           cat > /tmp/cloud-init.yaml << 'CLOUDINIT'
           #cloud-config
           package_update: true
@@ -2145,8 +2067,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           KEY_ID="https://xinwei-15k-key-vault.vault.azure.net/keys/15k-test/38ca388db5e74ffab7b8ac920acf2a5b"
           if ! [[ "$KEY_ID" =~ ^https://[^/]+/keys/[^/]+/[^/]+$ ]]; then
             echo "Key ID must be a versioned Key Vault key URI; got '$KEY_ID'."
@@ -2173,7 +2093,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az extension add --name aks-preview --allow-preview true --upgrade --yes
 
           CREATE_ARGS=(
@@ -2218,8 +2137,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -2269,8 +2186,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -2320,8 +2235,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -2371,8 +2284,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -2422,8 +2333,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -2473,8 +2382,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -2524,8 +2431,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -2575,8 +2480,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -2626,8 +2529,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -2677,8 +2578,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -2728,8 +2627,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -2779,8 +2676,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -2830,8 +2725,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -2881,8 +2774,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -2932,8 +2823,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -2983,8 +2872,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -3034,8 +2921,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -3085,8 +2970,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -3136,8 +3019,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -3187,8 +3068,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -3238,8 +3117,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -3277,7 +3154,6 @@ stages:
             "854c9ddb-fe9e-4aea-8d58-99ed88282881" \
             "$(RUN_ID)" \
             "large-scale-jumpbox" <<'REMOTE_SCRIPT'
-
           az login --identity --output none
           az account set --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
           az aks get-credentials \
@@ -3305,8 +3181,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -3384,8 +3258,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -3423,7 +3295,6 @@ stages:
             "854c9ddb-fe9e-4aea-8d58-99ed88282881" \
             "$(RUN_ID)" \
             "large-scale-jumpbox" <<'REMOTE_SCRIPT'
-
           export KUBECONFIG=/var/tmp/telescope-kubeconfig
           test -s "$KUBECONFIG"
           test -s "/var/tmp/telescope/$(Build.BuildId)/cl2.yaml"
@@ -3446,8 +3317,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -3538,8 +3407,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -3577,7 +3444,6 @@ stages:
             "854c9ddb-fe9e-4aea-8d58-99ed88282881" \
             "$(RUN_ID)" \
             "large-scale-jumpbox" <<'REMOTE_SCRIPT'
-
           export KUBECONFIG=/var/tmp/telescope-kubeconfig
           pods=$(kubectl get pods \
             --namespace="clusterloader2" \
@@ -3619,8 +3485,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           KEY_ID="https://xinwei-15k-key-vault.vault.azure.net/keys/15k-test/38ca388db5e74ffab7b8ac920acf2a5b"
           if ! [[ "$KEY_ID" =~ ^https://[^/]+/keys/[^/]+/[^/]+$ ]]; then
             echo "Key ID must be a versioned Key Vault key URI; got '$KEY_ID'."
@@ -3647,7 +3511,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az group delete --name "$(RUN_ID)" --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881" --yes
       condition: always()
       displayName: Delete resource group (854c9ddb-fe9e-4aea-8d58-99ed88282881)
@@ -3669,13 +3532,11 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az account set --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
           az config set defaults.location="canadacentral"
           az account show
       displayName: Login to Azure
-    - bash: |2
-
+    - bash: |
         set -eo pipefail
 
         job_id="$(System.JobId)"
@@ -3691,7 +3552,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az group create \
             --name "$(RUN_ID)" \
             --location "canadacentral" \
@@ -3705,7 +3565,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az identity create \
             --resource-group "$(RUN_ID)" \
             --name "large-scale-identity" \
@@ -3726,13 +3585,11 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet create \
             --resource-group "$(RUN_ID)" \
             --name "large-scale-net" \
             --address-prefixes 172.16.0.0/12 \
             --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
-
           VNET_ID=$(az network vnet show \
             --resource-group "$(RUN_ID)" \
             --name "large-scale-net" \
@@ -3753,7 +3610,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet subnet create \
             --resource-group "$(RUN_ID)" \
             --vnet-name "large-scale-net" \
@@ -3777,7 +3633,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet subnet create \
             --resource-group "$(RUN_ID)" \
             --vnet-name "large-scale-net" \
@@ -3801,7 +3656,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet subnet create \
             --resource-group "$(RUN_ID)" \
             --vnet-name "large-scale-net" \
@@ -3825,7 +3679,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet subnet create \
             --resource-group "$(RUN_ID)" \
             --vnet-name "large-scale-net" \
@@ -3849,7 +3702,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az extension add --name azure-firewall
 
           az network public-ip create \
@@ -3936,7 +3788,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           cat > /tmp/cloud-init.yaml << 'CLOUDINIT'
           #cloud-config
           package_update: true
@@ -4017,7 +3868,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az extension add --name aks-preview --allow-preview true --upgrade --yes
 
           CREATE_ARGS=(
@@ -4062,8 +3912,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -4113,8 +3961,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -4164,8 +4010,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -4215,8 +4059,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -4266,8 +4108,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -4317,8 +4157,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -4368,8 +4206,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -4419,8 +4255,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -4470,8 +4304,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -4521,8 +4353,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -4572,8 +4402,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -4623,8 +4451,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -4674,8 +4500,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -4725,8 +4549,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -4776,8 +4598,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -4827,8 +4647,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -4878,8 +4696,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -4929,8 +4745,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -4980,8 +4794,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -5031,8 +4843,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -5082,8 +4892,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -5121,7 +4929,6 @@ stages:
             "854c9ddb-fe9e-4aea-8d58-99ed88282881" \
             "$(RUN_ID)" \
             "large-scale-jumpbox" <<'REMOTE_SCRIPT'
-
           az login --identity --output none
           az account set --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
           az aks get-credentials \
@@ -5149,8 +4956,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -5228,8 +5033,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -5267,7 +5070,6 @@ stages:
             "854c9ddb-fe9e-4aea-8d58-99ed88282881" \
             "$(RUN_ID)" \
             "large-scale-jumpbox" <<'REMOTE_SCRIPT'
-
           export KUBECONFIG=/var/tmp/telescope-kubeconfig
           test -s "$KUBECONFIG"
           test -s "/var/tmp/telescope/$(Build.BuildId)/cl2.yaml"
@@ -5290,8 +5092,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -5382,8 +5182,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -5421,7 +5219,6 @@ stages:
             "854c9ddb-fe9e-4aea-8d58-99ed88282881" \
             "$(RUN_ID)" \
             "large-scale-jumpbox" <<'REMOTE_SCRIPT'
-
           export KUBECONFIG=/var/tmp/telescope-kubeconfig
           pods=$(kubectl get pods \
             --namespace="clusterloader2" \
@@ -5463,7 +5260,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az group delete --name "$(RUN_ID)" --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881" --yes
       condition: always()
       displayName: Delete resource group (854c9ddb-fe9e-4aea-8d58-99ed88282881)
@@ -5485,13 +5281,11 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az account set --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
           az config set defaults.location="canadacentral"
           az account show
       displayName: Login to Azure
-    - bash: |2
-
+    - bash: |
         set -eo pipefail
 
         job_id="$(System.JobId)"
@@ -5507,7 +5301,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az group create \
             --name "$(RUN_ID)" \
             --location "canadacentral" \
@@ -5521,7 +5314,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az identity create \
             --resource-group "$(RUN_ID)" \
             --name "large-scale-identity" \
@@ -5542,13 +5334,11 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet create \
             --resource-group "$(RUN_ID)" \
             --name "large-scale-net" \
             --address-prefixes 172.16.0.0/12 \
             --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
-
           VNET_ID=$(az network vnet show \
             --resource-group "$(RUN_ID)" \
             --name "large-scale-net" \
@@ -5569,7 +5359,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet subnet create \
             --resource-group "$(RUN_ID)" \
             --vnet-name "large-scale-net" \
@@ -5593,7 +5382,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet subnet create \
             --resource-group "$(RUN_ID)" \
             --vnet-name "large-scale-net" \
@@ -5617,7 +5405,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet subnet create \
             --resource-group "$(RUN_ID)" \
             --vnet-name "large-scale-net" \
@@ -5641,7 +5428,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet subnet create \
             --resource-group "$(RUN_ID)" \
             --vnet-name "large-scale-net" \
@@ -5665,7 +5451,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az extension add --name azure-firewall
 
           az network public-ip create \
@@ -5752,7 +5537,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           cat > /tmp/cloud-init.yaml << 'CLOUDINIT'
           #cloud-config
           package_update: true
@@ -5833,8 +5617,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           KEY_ID="https://xinwei-15k-key-vault.vault.azure.net/keys/15k-test/38ca388db5e74ffab7b8ac920acf2a5b"
           if ! [[ "$KEY_ID" =~ ^https://[^/]+/keys/[^/]+/[^/]+$ ]]; then
             echo "Key ID must be a versioned Key Vault key URI; got '$KEY_ID'."
@@ -5861,7 +5643,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az extension add --name aks-preview --allow-preview true --upgrade --yes
 
           CREATE_ARGS=(
@@ -5907,8 +5688,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -5958,8 +5737,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -6009,8 +5786,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -6060,8 +5835,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -6111,8 +5884,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -6162,8 +5933,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -6213,8 +5982,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -6264,8 +6031,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -6315,8 +6080,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -6366,8 +6129,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -6417,8 +6178,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -6468,8 +6227,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -6519,8 +6276,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -6570,8 +6325,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -6621,8 +6374,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -6672,8 +6423,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -6723,8 +6472,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -6774,8 +6521,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -6825,8 +6570,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -6876,8 +6619,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -6927,8 +6668,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -6966,7 +6705,6 @@ stages:
             "854c9ddb-fe9e-4aea-8d58-99ed88282881" \
             "$(RUN_ID)" \
             "large-scale-jumpbox" <<'REMOTE_SCRIPT'
-
           az login --identity --output none
           az account set --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
           az aks get-credentials \
@@ -6994,8 +6732,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -7073,8 +6809,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -7112,7 +6846,6 @@ stages:
             "854c9ddb-fe9e-4aea-8d58-99ed88282881" \
             "$(RUN_ID)" \
             "large-scale-jumpbox" <<'REMOTE_SCRIPT'
-
           export KUBECONFIG=/var/tmp/telescope-kubeconfig
           test -s "$KUBECONFIG"
           test -s "/var/tmp/telescope/$(Build.BuildId)/cl2.yaml"
@@ -7135,8 +6868,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -7227,8 +6958,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -7266,7 +6995,6 @@ stages:
             "854c9ddb-fe9e-4aea-8d58-99ed88282881" \
             "$(RUN_ID)" \
             "large-scale-jumpbox" <<'REMOTE_SCRIPT'
-
           export KUBECONFIG=/var/tmp/telescope-kubeconfig
           pods=$(kubectl get pods \
             --namespace="clusterloader2" \
@@ -7308,8 +7036,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           KEY_ID="https://xinwei-15k-key-vault.vault.azure.net/keys/15k-test/38ca388db5e74ffab7b8ac920acf2a5b"
           if ! [[ "$KEY_ID" =~ ^https://[^/]+/keys/[^/]+/[^/]+$ ]]; then
             echo "Key ID must be a versioned Key Vault key URI; got '$KEY_ID'."
@@ -7336,7 +7062,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az group delete --name "$(RUN_ID)" --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881" --yes
       condition: always()
       displayName: Delete resource group (854c9ddb-fe9e-4aea-8d58-99ed88282881)
@@ -7358,13 +7083,11 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az account set --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
           az config set defaults.location="canadacentral"
           az account show
       displayName: Login to Azure
-    - bash: |2
-
+    - bash: |
         set -eo pipefail
 
         job_id="$(System.JobId)"
@@ -7380,7 +7103,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az group create \
             --name "$(RUN_ID)" \
             --location "canadacentral" \
@@ -7394,7 +7116,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az identity create \
             --resource-group "$(RUN_ID)" \
             --name "large-scale-identity" \
@@ -7415,13 +7136,11 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet create \
             --resource-group "$(RUN_ID)" \
             --name "large-scale-net" \
             --address-prefixes 172.16.0.0/12 \
             --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
-
           VNET_ID=$(az network vnet show \
             --resource-group "$(RUN_ID)" \
             --name "large-scale-net" \
@@ -7442,7 +7161,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet subnet create \
             --resource-group "$(RUN_ID)" \
             --vnet-name "large-scale-net" \
@@ -7466,7 +7184,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet subnet create \
             --resource-group "$(RUN_ID)" \
             --vnet-name "large-scale-net" \
@@ -7490,7 +7207,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet subnet create \
             --resource-group "$(RUN_ID)" \
             --vnet-name "large-scale-net" \
@@ -7514,7 +7230,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet subnet create \
             --resource-group "$(RUN_ID)" \
             --vnet-name "large-scale-net" \
@@ -7538,7 +7253,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az extension add --name azure-firewall
 
           az network public-ip create \
@@ -7625,7 +7339,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           cat > /tmp/cloud-init.yaml << 'CLOUDINIT'
           #cloud-config
           package_update: true
@@ -7706,7 +7419,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az extension add --name aks-preview --allow-preview true --upgrade --yes
 
           CREATE_ARGS=(
@@ -7751,8 +7463,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -7802,8 +7512,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -7853,8 +7561,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -7904,8 +7610,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -7955,8 +7659,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -8006,8 +7708,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -8057,8 +7757,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -8108,8 +7806,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -8159,8 +7855,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -8210,8 +7904,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -8261,8 +7953,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -8312,8 +8002,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -8363,8 +8051,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -8414,8 +8100,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -8465,8 +8149,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -8516,8 +8198,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -8567,8 +8247,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -8618,8 +8296,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -8669,8 +8345,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -8720,8 +8394,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -8771,8 +8443,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -8810,7 +8480,6 @@ stages:
             "854c9ddb-fe9e-4aea-8d58-99ed88282881" \
             "$(RUN_ID)" \
             "large-scale-jumpbox" <<'REMOTE_SCRIPT'
-
           az login --identity --output none
           az account set --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
           az aks get-credentials \
@@ -8838,8 +8507,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -8917,8 +8584,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -8956,7 +8621,6 @@ stages:
             "854c9ddb-fe9e-4aea-8d58-99ed88282881" \
             "$(RUN_ID)" \
             "large-scale-jumpbox" <<'REMOTE_SCRIPT'
-
           export KUBECONFIG=/var/tmp/telescope-kubeconfig
           test -s "$KUBECONFIG"
           test -s "/var/tmp/telescope/$(Build.BuildId)/cl2.yaml"
@@ -8979,8 +8643,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -9071,8 +8733,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -9110,7 +8770,6 @@ stages:
             "854c9ddb-fe9e-4aea-8d58-99ed88282881" \
             "$(RUN_ID)" \
             "large-scale-jumpbox" <<'REMOTE_SCRIPT'
-
           export KUBECONFIG=/var/tmp/telescope-kubeconfig
           pods=$(kubectl get pods \
             --namespace="clusterloader2" \
@@ -9152,7 +8811,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az group delete --name "$(RUN_ID)" --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881" --yes
       condition: always()
       displayName: Delete resource group (854c9ddb-fe9e-4aea-8d58-99ed88282881)
@@ -9174,13 +8832,11 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az account set --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
           az config set defaults.location="canadacentral"
           az account show
       displayName: Login to Azure
-    - bash: |2
-
+    - bash: |
         set -eo pipefail
 
         job_id="$(System.JobId)"
@@ -9196,7 +8852,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az group create \
             --name "$(RUN_ID)" \
             --location "canadacentral" \
@@ -9210,7 +8865,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az identity create \
             --resource-group "$(RUN_ID)" \
             --name "large-scale-identity" \
@@ -9231,13 +8885,11 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet create \
             --resource-group "$(RUN_ID)" \
             --name "large-scale-net" \
             --address-prefixes 172.16.0.0/12 \
             --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
-
           VNET_ID=$(az network vnet show \
             --resource-group "$(RUN_ID)" \
             --name "large-scale-net" \
@@ -9258,7 +8910,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet subnet create \
             --resource-group "$(RUN_ID)" \
             --vnet-name "large-scale-net" \
@@ -9282,7 +8933,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet subnet create \
             --resource-group "$(RUN_ID)" \
             --vnet-name "large-scale-net" \
@@ -9306,7 +8956,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet subnet create \
             --resource-group "$(RUN_ID)" \
             --vnet-name "large-scale-net" \
@@ -9330,7 +8979,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet subnet create \
             --resource-group "$(RUN_ID)" \
             --vnet-name "large-scale-net" \
@@ -9354,7 +9002,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az extension add --name azure-firewall
 
           az network public-ip create \
@@ -9441,7 +9088,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           cat > /tmp/cloud-init.yaml << 'CLOUDINIT'
           #cloud-config
           package_update: true
@@ -9522,8 +9168,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           KEY_ID="https://xinwei-15k-key-vault.vault.azure.net/keys/15k-test/38ca388db5e74ffab7b8ac920acf2a5b"
           if ! [[ "$KEY_ID" =~ ^https://[^/]+/keys/[^/]+/[^/]+$ ]]; then
             echo "Key ID must be a versioned Key Vault key URI; got '$KEY_ID'."
@@ -9550,7 +9194,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az extension add --name aks-preview --allow-preview true --upgrade --yes
 
           CREATE_ARGS=(
@@ -9596,8 +9239,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -9647,8 +9288,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -9698,8 +9337,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -9749,8 +9386,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -9800,8 +9435,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -9851,8 +9484,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -9902,8 +9533,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -9953,8 +9582,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -10004,8 +9631,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -10055,8 +9680,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -10106,8 +9729,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -10157,8 +9778,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -10208,8 +9827,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -10259,8 +9876,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -10310,8 +9925,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -10361,8 +9974,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -10412,8 +10023,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -10463,8 +10072,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -10514,8 +10121,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -10565,8 +10170,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -10616,8 +10219,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -10655,7 +10256,6 @@ stages:
             "854c9ddb-fe9e-4aea-8d58-99ed88282881" \
             "$(RUN_ID)" \
             "large-scale-jumpbox" <<'REMOTE_SCRIPT'
-
           az login --identity --output none
           az account set --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
           az aks get-credentials \
@@ -10683,8 +10283,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -10762,8 +10360,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -10801,7 +10397,6 @@ stages:
             "854c9ddb-fe9e-4aea-8d58-99ed88282881" \
             "$(RUN_ID)" \
             "large-scale-jumpbox" <<'REMOTE_SCRIPT'
-
           export KUBECONFIG=/var/tmp/telescope-kubeconfig
           test -s "$KUBECONFIG"
           test -s "/var/tmp/telescope/$(Build.BuildId)/cl2.yaml"
@@ -10824,8 +10419,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -10916,8 +10509,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -10955,7 +10546,6 @@ stages:
             "854c9ddb-fe9e-4aea-8d58-99ed88282881" \
             "$(RUN_ID)" \
             "large-scale-jumpbox" <<'REMOTE_SCRIPT'
-
           export KUBECONFIG=/var/tmp/telescope-kubeconfig
           pods=$(kubectl get pods \
             --namespace="clusterloader2" \
@@ -10997,8 +10587,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           KEY_ID="https://xinwei-15k-key-vault.vault.azure.net/keys/15k-test/38ca388db5e74ffab7b8ac920acf2a5b"
           if ! [[ "$KEY_ID" =~ ^https://[^/]+/keys/[^/]+/[^/]+$ ]]; then
             echo "Key ID must be a versioned Key Vault key URI; got '$KEY_ID'."
@@ -11025,7 +10613,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az group delete --name "$(RUN_ID)" --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881" --yes
       condition: always()
       displayName: Delete resource group (854c9ddb-fe9e-4aea-8d58-99ed88282881)
@@ -11047,13 +10634,11 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az account set --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
           az config set defaults.location="canadacentral"
           az account show
       displayName: Login to Azure
-    - bash: |2
-
+    - bash: |
         set -eo pipefail
 
         job_id="$(System.JobId)"
@@ -11069,7 +10654,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az group create \
             --name "$(RUN_ID)" \
             --location "canadacentral" \
@@ -11083,7 +10667,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az identity create \
             --resource-group "$(RUN_ID)" \
             --name "large-scale-identity" \
@@ -11104,13 +10687,11 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet create \
             --resource-group "$(RUN_ID)" \
             --name "large-scale-net" \
             --address-prefixes 172.16.0.0/12 \
             --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
-
           VNET_ID=$(az network vnet show \
             --resource-group "$(RUN_ID)" \
             --name "large-scale-net" \
@@ -11131,7 +10712,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet subnet create \
             --resource-group "$(RUN_ID)" \
             --vnet-name "large-scale-net" \
@@ -11155,7 +10735,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet subnet create \
             --resource-group "$(RUN_ID)" \
             --vnet-name "large-scale-net" \
@@ -11179,7 +10758,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet subnet create \
             --resource-group "$(RUN_ID)" \
             --vnet-name "large-scale-net" \
@@ -11203,7 +10781,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet subnet create \
             --resource-group "$(RUN_ID)" \
             --vnet-name "large-scale-net" \
@@ -11227,7 +10804,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az extension add --name azure-firewall
 
           az network public-ip create \
@@ -11314,7 +10890,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           cat > /tmp/cloud-init.yaml << 'CLOUDINIT'
           #cloud-config
           package_update: true
@@ -11395,7 +10970,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az extension add --name aks-preview --allow-preview true --upgrade --yes
 
           CREATE_ARGS=(
@@ -11441,8 +11015,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -11492,8 +11064,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -11543,8 +11113,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -11594,8 +11162,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -11645,8 +11211,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -11696,8 +11260,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -11747,8 +11309,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -11798,8 +11358,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -11849,8 +11407,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -11900,8 +11456,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -11951,8 +11505,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -12002,8 +11554,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -12053,8 +11603,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -12104,8 +11652,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -12155,8 +11701,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -12206,8 +11750,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -12257,8 +11799,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -12308,8 +11848,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -12359,8 +11897,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -12410,8 +11946,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -12461,8 +11995,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -12500,7 +12032,6 @@ stages:
             "854c9ddb-fe9e-4aea-8d58-99ed88282881" \
             "$(RUN_ID)" \
             "large-scale-jumpbox" <<'REMOTE_SCRIPT'
-
           az login --identity --output none
           az account set --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
           az aks get-credentials \
@@ -12528,8 +12059,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -12607,8 +12136,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -12646,7 +12173,6 @@ stages:
             "854c9ddb-fe9e-4aea-8d58-99ed88282881" \
             "$(RUN_ID)" \
             "large-scale-jumpbox" <<'REMOTE_SCRIPT'
-
           export KUBECONFIG=/var/tmp/telescope-kubeconfig
           test -s "$KUBECONFIG"
           test -s "/var/tmp/telescope/$(Build.BuildId)/cl2.yaml"
@@ -12669,8 +12195,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -12761,8 +12285,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -12800,7 +12322,6 @@ stages:
             "854c9ddb-fe9e-4aea-8d58-99ed88282881" \
             "$(RUN_ID)" \
             "large-scale-jumpbox" <<'REMOTE_SCRIPT'
-
           export KUBECONFIG=/var/tmp/telescope-kubeconfig
           pods=$(kubectl get pods \
             --namespace="clusterloader2" \
@@ -12842,7 +12363,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az group delete --name "$(RUN_ID)" --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881" --yes
       condition: always()
       displayName: Delete resource group (854c9ddb-fe9e-4aea-8d58-99ed88282881)
@@ -12864,13 +12384,11 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az account set --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
           az config set defaults.location="canadacentral"
           az account show
       displayName: Login to Azure
-    - bash: |2
-
+    - bash: |
         set -eo pipefail
 
         job_id="$(System.JobId)"
@@ -12886,7 +12404,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az group create \
             --name "$(RUN_ID)" \
             --location "canadacentral" \
@@ -12900,7 +12417,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az identity create \
             --resource-group "$(RUN_ID)" \
             --name "large-scale-identity" \
@@ -12921,13 +12437,11 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet create \
             --resource-group "$(RUN_ID)" \
             --name "large-scale-net" \
             --address-prefixes 172.16.0.0/12 \
             --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
-
           VNET_ID=$(az network vnet show \
             --resource-group "$(RUN_ID)" \
             --name "large-scale-net" \
@@ -12948,7 +12462,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet subnet create \
             --resource-group "$(RUN_ID)" \
             --vnet-name "large-scale-net" \
@@ -12972,7 +12485,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet subnet create \
             --resource-group "$(RUN_ID)" \
             --vnet-name "large-scale-net" \
@@ -12996,7 +12508,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet subnet create \
             --resource-group "$(RUN_ID)" \
             --vnet-name "large-scale-net" \
@@ -13020,7 +12531,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az network vnet subnet create \
             --resource-group "$(RUN_ID)" \
             --vnet-name "large-scale-net" \
@@ -13044,7 +12554,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az extension add --name azure-firewall
 
           az network public-ip create \
@@ -13131,7 +12640,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           cat > /tmp/cloud-init.yaml << 'CLOUDINIT'
           #cloud-config
           package_update: true
@@ -13212,8 +12720,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           KEY_ID="https://xinwei-15k-key-vault.vault.azure.net/keys/15k-test/38ca388db5e74ffab7b8ac920acf2a5b"
           if ! [[ "$KEY_ID" =~ ^https://[^/]+/keys/[^/]+/[^/]+$ ]]; then
             echo "Key ID must be a versioned Key Vault key URI; got '$KEY_ID'."
@@ -13240,7 +12746,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az extension add --name aks-preview --allow-preview true --upgrade --yes
 
           CREATE_ARGS=(
@@ -13287,8 +12792,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -13338,8 +12841,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -13389,8 +12890,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -13440,8 +12939,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -13491,8 +12988,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -13542,8 +13037,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -13593,8 +13086,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -13644,8 +13135,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -13695,8 +13184,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -13746,8 +13233,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -13797,8 +13282,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -13848,8 +13331,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -13899,8 +13380,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -13950,8 +13429,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -14001,8 +13478,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -14052,8 +13527,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -14103,8 +13576,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -14154,8 +13625,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -14205,8 +13674,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -14256,8 +13723,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -14307,8 +13772,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -14346,7 +13809,6 @@ stages:
             "854c9ddb-fe9e-4aea-8d58-99ed88282881" \
             "$(RUN_ID)" \
             "large-scale-jumpbox" <<'REMOTE_SCRIPT'
-
           az login --identity --output none
           az account set --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881"
           az aks get-credentials \
@@ -14374,8 +13836,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -14453,8 +13913,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -14492,7 +13950,6 @@ stages:
             "854c9ddb-fe9e-4aea-8d58-99ed88282881" \
             "$(RUN_ID)" \
             "large-scale-jumpbox" <<'REMOTE_SCRIPT'
-
           export KUBECONFIG=/var/tmp/telescope-kubeconfig
           test -s "$KUBECONFIG"
           test -s "/var/tmp/telescope/$(Build.BuildId)/cl2.yaml"
@@ -14515,8 +13972,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -14607,8 +14062,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           run_script_on_jumpbox() {
             local script_file run_command_output run_command_rc
             script_file=$(mktemp)
@@ -14646,7 +14099,6 @@ stages:
             "854c9ddb-fe9e-4aea-8d58-99ed88282881" \
             "$(RUN_ID)" \
             "large-scale-jumpbox" <<'REMOTE_SCRIPT'
-
           export KUBECONFIG=/var/tmp/telescope-kubeconfig
           pods=$(kubectl get pods \
             --namespace="clusterloader2" \
@@ -14688,8 +14140,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
-
           KEY_ID="https://xinwei-15k-key-vault.vault.azure.net/keys/15k-test/38ca388db5e74ffab7b8ac920acf2a5b"
           if ! [[ "$KEY_ID" =~ ^https://[^/]+/keys/[^/]+/[^/]+$ ]]; then
             echo "Key ID must be a versioned Key Vault key URI; got '$KEY_ID'."
@@ -14716,7 +14166,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-
           az group delete --name "$(RUN_ID)" --subscription "854c9ddb-fe9e-4aea-8d58-99ed88282881" --yes
       condition: always()
       displayName: Delete resource group (854c9ddb-fe9e-4aea-8d58-99ed88282881)
