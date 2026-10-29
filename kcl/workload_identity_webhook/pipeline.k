@@ -60,6 +60,11 @@ fi
                     "Create H2 cluster with OIDC and workload identity",
                     """
 echo "##vso[task.setvariable variable=RESOURCE_GROUP_CREATED]true"
+az extension add \\
+  --name aks-preview \\
+  --version 20.0.0b6 \\
+  --allow-preview true \\
+  --yes
 az aks create \\
   --subscription "${SUBSCRIPTION_ID}" \\
   --resource-group "$(RUN_ID)" \\
