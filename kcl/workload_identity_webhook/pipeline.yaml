@@ -1,0 +1,456 @@
+name: Workload Identity Webhook Benchmark
+pool: AKS-Telescope-Airlock
+trigger: none
+parameters:
+- name: keep_cluster
+  displayName: Keep cluster and benchmark Pods after benchmark
+  type: boolean
+  default: false
+pr: none
+jobs:
+- job: setup
+  displayName: Provision H2 cluster and worker pool
+  timeoutInMinutes: 180
+  cancelTimeoutInMinutes: 10
+  steps:
+  - bash: |2
+
+      set -euo pipefail
+      mkdir -p "$(Build.ArtifactStagingDirectory)/wi-webhook"
+      echo "##vso[task.setvariable variable=RUN_ID;isOutput=true]wi-$(Build.BuildId)-$(System.JobAttempt)"
+    displayName: Resolve run-owned resource group
+    name: resolve
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+        az config set defaults.location="westus2"
+        az account show
+    displayName: Login to Azure
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az extension add --name aks-preview --version 20.0.0b6 --allow-preview true --yes
+        az aks get-versions \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --location "westus2" \
+          --output json > "$(Build.ArtifactStagingDirectory)/wi-webhook/kubernetes-versions.json"
+        jq -e '.values | any(.version | startswith("1.36."))' \
+          "$(Build.ArtifactStagingDirectory)/wi-webhook/kubernetes-versions.json"
+        az vm list-skus \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --location "westus2" \
+          --resource-type virtualMachines \
+          --all \
+          --output json > "$(Build.ArtifactStagingDirectory)/wi-webhook/vm-skus.json"
+        az vm list-usage \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --location "westus2" \
+          --output json > "$(Build.ArtifactStagingDirectory)/wi-webhook/vm-usage.json"
+        python3 "$(Build.SourcesDirectory)/kcl/workload_identity_webhook/preflight.py" "$(Build.ArtifactStagingDirectory)/wi-webhook"
+        exists=$(az group exists --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --name "$(resolve.RUN_ID)")
+        if [ "$exists" != "false" ]; then
+          echo "Refusing to reuse an existing or unverified resource group: $(resolve.RUN_ID)" >&2
+          exit 1
+        fi
+    displayName: Check AKS version, VM eligibility, and quota
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az group create \
+          --name "$(resolve.RUN_ID)" \
+          --location "westus2" \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+        --tags benchmark=wi-webhook run_id=$(resolve.RUN_ID) definition_id=$(System.DefinitionId)
+    displayName: Create resource group in westus2 (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az aks create \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --resource-group "$(resolve.RUN_ID)" \
+          --name "wi-webhook" \
+          --location "westus2" \
+          --kubernetes-version "1.36" \
+          --dns-name-prefix "$(resolve.RUN_ID)" \
+          --tier standard \
+          --control-plane-scaling-size H2 \
+          --enable-managed-identity \
+          --enable-oidc-issuer \
+          --enable-workload-identity \
+          --generate-ssh-keys \
+          --nodepool-name systempool \
+          --node-count 3 \
+          --node-vm-size Standard_D2_v4 \
+          --max-pods 50 \
+          --network-plugin azure \
+          --network-plugin-mode overlay \
+          --pod-cidr 10.64.0.0/10 \
+          --service-cidr 10.0.0.0/16 \
+          --dns-service-ip 10.0.0.10 \
+          --outbound-type managedNATGateway \
+          --nat-gateway-managed-outbound-ip-count 10 \
+          --tags SkipAKSCluster=true \
+          --yes
+    displayName: Create H2 cluster with OIDC and workload identity
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        while true; do
+          STATE=$(az aks show \
+            --name "wi-webhook" \
+            --resource-group "$(resolve.RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --query "provisioningState" \
+            --output tsv)
+          echo "Cluster provisioning state: $STATE"
+          if [ "$STATE" = "Succeeded" ]; then
+            echo "Cluster is ready."
+            break
+          elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
+            echo "Cluster failed with state: $STATE."
+            exit 1
+          else
+            echo "Provisioning state: $STATE. Retry in 30 seconds"
+          fi
+          sleep 30
+        done
+    displayName: Wait for cluster to succeed
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+
+        create_node_pool() {
+          local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
+          deadline=$(($(date +%s) + 600))
+          while :; do
+            attempt=$((attempt + 1))
+            if output=$(az aks nodepool add "$@" 2>&1); then
+              rc=0
+            else
+              rc=$?
+            fi
+            echo "$output"
+            if [ "$rc" -eq 0 ]; then
+              return 0
+            fi
+            if echo "$output" | grep -qiE "OperationNotAllowed"; then
+              now=$(date +%s)
+              if [ "$now" -ge "$deadline" ]; then
+                echo "Retriable error persisted past 600s retry window ($attempt attempts); giving up."
+                return "$rc"
+              fi
+              remaining_retry_seconds=$((deadline - now))
+              echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining_retry_seconds seconds remain in retry window)."
+              sleep "$sleep_between"
+            else
+              echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+              return "$rc"
+            fi
+          done
+        }
+
+
+        create_node_pool \
+          --cluster-name "wi-webhook" \
+          --resource-group "$(resolve.RUN_ID)" \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --name "workerpool" \
+          --node-count 3 \
+          --node-vm-size "Standard_D8s_v5" \
+          --mode User \
+          --max-pods 50
+    displayName: Create node pool workerpool
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        while true; do
+          STATE=$(az aks nodepool show \
+            --cluster-name "wi-webhook" \
+            --resource-group "$(resolve.RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --name "workerpool" \
+            --query "provisioningState" \
+            --output tsv)
+          echo "Node pool workerpool provisioning state: $STATE"
+          if [ "$STATE" = "Succeeded" ]; then
+            echo "Node pool workerpool is ready."
+            break
+          elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
+            echo "Node pool workerpool failed with state: $STATE."
+            exit 1
+          else
+            echo "Node pool workerpool provisioning state: $STATE. Retry in 30 seconds"
+          fi
+          sleep 30
+        done
+    displayName: Wait for node pool workerpool to succeed
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az aks show \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --resource-group "$(resolve.RUN_ID)" \
+          --name wi-webhook \
+          --output json > "$(Build.ArtifactStagingDirectory)/wi-webhook/cluster-before.json"
+        jq -e '
+          .location == "westus2" and .sku.tier == "Standard"
+          and .controlPlaneScalingProfile.scalingSize == "H2"
+          and .oidcIssuerProfile.enabled == true
+          and .securityProfile.workloadIdentity.enabled == true
+          and (.agentPoolProfiles | length == 2)
+          and (.agentPoolProfiles | any(.name == "systempool" and .count == 3 and .vmSize == "Standard_D2_v4"))
+          and (.agentPoolProfiles | any(.name == "workerpool" and .count == 3 and .vmSize == "Standard_D8s_v5"))
+        ' "$(Build.ArtifactStagingDirectory)/wi-webhook/cluster-before.json"
+        az identity create \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --resource-group "$(resolve.RUN_ID)" \
+          --location "westus2" \
+          --name wi-benchmark \
+          --output json > "$(Build.ArtifactStagingDirectory)/wi-webhook/identity.json"
+        client_id=$(jq -er '.clientId | select(type == "string" and length > 0)' "$(Build.ArtifactStagingDirectory)/wi-webhook/identity.json")
+        echo "##vso[task.setvariable variable=CLIENT_ID;isOutput=true]$client_id"
+    displayName: Capture cluster configuration and create benchmark identity
+    name: identity
+  - task: PublishPipelineArtifact@1
+    inputs:
+      targetPath: $(Build.ArtifactStagingDirectory)/wi-webhook
+      artifact: wi-setup-$(System.JobAttempt)
+    condition: always()
+    displayName: Publish setup evidence
+- job: storage_preflight
+  displayName: Approve current H2 storage headroom before load
+  dependsOn: setup
+  timeoutInMinutes: 65
+  variables:
+    RUN_ID: $[ dependencies.setup.outputs['resolve.RUN_ID'] ]
+  pool: server
+  steps:
+  - task: ManualValidation@0
+    inputs:
+      notifyUsers: $(Build.RequestedForEmail)
+      instructions: |2
+
+        Before resuming, inspect current H2 control-plane/storage telemetry for:
+        subscription b8ceb4e5-f05b-4562-a9f5-14acb1f24219, region westus2,
+        resource group $(RUN_ID), cluster wi-webhook.
+        Record the telemetry source, observation time, available storage, and approved
+        safety margin in the approval comments. Allow for 360,000 retained Pods plus
+        warm-up and drain. Submitted JSON alone is about 1.37 GiB; WI/defaulting,
+        revision history, events, and storage overhead require additional headroom.
+        Confirm no scheduler handles kperf-admission-only and capture the actual
+        managed WI webhook resource/replica baseline if available.
+        Reject if storage visibility or an approved margin is missing. This is NOT a
+        claim that a fixed number of Pods is safe for H2. No load has started yet.
+      onTimeout: reject
+    timeoutInMinutes: 60
+- job: benchmark
+  displayName: Smoke, warm up, and run custom 600/sec profile
+  dependsOn:
+  - setup
+  - storage_preflight
+  timeoutInMinutes: 60
+  cancelTimeoutInMinutes: 10
+  variables:
+    RUN_ID: $[ dependencies.setup.outputs['resolve.RUN_ID'] ]
+    CLIENT_ID: $[ dependencies.setup.outputs['identity.CLIENT_ID'] ]
+    KUBECONFIG: $(Agent.TempDirectory)/$(RUN_ID).kubeconfig
+  steps:
+  - bash: mkdir -p "$(Build.ArtifactStagingDirectory)/wi-webhook"
+    displayName: Create artifact directory
+  - bash: |-
+      set -exo pipefail
+      pip3 install --upgrade "pip<24"
+      pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
+    displayName: Install Python dependencies
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az aks get-credentials \
+          --name "wi-webhook" \
+          --resource-group "$(RUN_ID)" \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --overwrite-existing \
+          -f $(KUBECONFIG)
+    displayName: Get credentials for wi-webhook
+  - bash: |2
+
+      set -euo pipefail
+      kubectl wait nodes --all --for=condition=Ready --timeout=300s
+      kubectl get mutatingwebhookconfigurations -o json > "$(Build.ArtifactStagingDirectory)/wi-webhook/admission-webhooks-before.json"
+      python3 "$(Build.SourcesDirectory)/kcl/workload_identity_webhook/benchmark.py" prepare \
+        --run-id "$(RUN_ID)" \
+        --client-id "$(CLIENT_ID)" \
+        --image "ghcr.io/liyu-ma/kperf@sha256:67e4924b23d2aea35526479721dd83f9afe707685a6efafd60916423017479d4" \
+        --artifacts "$(Build.ArtifactStagingDirectory)/wi-webhook"
+    displayName: Prepare isolated runner and custom load profiles
+  - bash: |2
+
+      set -euo pipefail
+      python3 "$(Build.SourcesDirectory)/kcl/workload_identity_webhook/benchmark.py" run \
+        --phase "smoke" \
+        --run-id "$(RUN_ID)" \
+        --client-id "$(CLIENT_ID)" \
+        --artifacts "$(Build.ArtifactStagingDirectory)/wi-webhook"
+    displayName: Run smoke profile
+  - bash: |2
+
+      set -euo pipefail
+      python3 "$(Build.SourcesDirectory)/kcl/workload_identity_webhook/benchmark.py" run \
+        --phase "warmup" \
+        --run-id "$(RUN_ID)" \
+        --client-id "$(CLIENT_ID)" \
+        --artifacts "$(Build.ArtifactStagingDirectory)/wi-webhook"
+    displayName: Run warmup profile
+  - bash: |2
+
+      set -euo pipefail
+      python3 "$(Build.SourcesDirectory)/kcl/workload_identity_webhook/benchmark.py" run \
+        --phase "measure" \
+        --run-id "$(RUN_ID)" \
+        --client-id "$(CLIENT_ID)" \
+        --artifacts "$(Build.ArtifactStagingDirectory)/wi-webhook"
+    displayName: Run measure profile
+  - bash: |2
+
+      set -euo pipefail
+      python3 "$(Build.SourcesDirectory)/kcl/workload_identity_webhook/benchmark.py" collect \
+        --run-id "$(RUN_ID)" \
+        --artifacts "$(Build.ArtifactStagingDirectory)/wi-webhook"
+    condition: always()
+    displayName: Collect diagnostics and stop any active runner
+  - task: PublishPipelineArtifact@1
+    inputs:
+      targetPath: $(Build.ArtifactStagingDirectory)/wi-webhook
+      artifact: wi-benchmark-$(System.JobAttempt)
+    condition: always()
+    displayName: Publish benchmark results and diagnostics
+  - bash: rm -f -- "$(KUBECONFIG)"
+    condition: always()
+    displayName: Remove run-specific agent kubeconfig
+- job: finalize
+  displayName: Retain or delete run-owned resources
+  dependsOn:
+  - setup
+  - storage_preflight
+  - benchmark
+  condition: always()
+  timeoutInMinutes: 90
+  cancelTimeoutInMinutes: 10
+  variables:
+    RUN_ID: $[ dependencies.setup.outputs['resolve.RUN_ID'] ]
+  steps:
+  - bash: mkdir -p "$(Build.ArtifactStagingDirectory)/wi-webhook"
+    condition: always()
+    displayName: Create finalization artifact directory
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        run_id="$(RUN_ID)"
+        if ! [[ "$run_id" =~ ^wi-[0-9]+-[0-9]+$ ]]; then
+          echo "Missing or invalid setup output; no resources will be deleted." >&2
+          exit 1
+        fi
+        exists=$(az group exists --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --name "$run_id")
+        if [ "$exists" = "false" ]; then
+          echo "Run resource group does not exist; no cleanup needed." | tee "$(Build.ArtifactStagingDirectory)/wi-webhook/cleanup.txt"
+          exit 0
+        fi
+        az group show \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --name "$run_id" \
+          --output json > "$(Build.ArtifactStagingDirectory)/wi-webhook/resource-group.json"
+        jq -e --arg run "$run_id" --arg definition "$(System.DefinitionId)" \
+          '.tags.benchmark == "wi-webhook" and .tags.run_id == $run and .tags.definition_id == $definition' \
+          "$(Build.ArtifactStagingDirectory)/wi-webhook/resource-group.json"
+        echo "##vso[task.setvariable variable=OWNED_RESOURCE_GROUP]true"
+        az aks list \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --resource-group "$run_id" \
+          --output json > "$(Build.ArtifactStagingDirectory)/wi-webhook/clusters-final.json"
+        echo "keep_cluster=${{ parameters.keep_cluster }}; resource_group=$run_id; cluster=wi-webhook" \
+          | tee "$(Build.ArtifactStagingDirectory)/wi-webhook/retention.txt"
+        echo "Manual cleanup: az group delete --subscription b8ceb4e5-f05b-4562-a9f5-14acb1f24219 --name $run_id --yes" \
+          | tee -a "$(Build.ArtifactStagingDirectory)/wi-webhook/retention.txt"
+    condition: always()
+    displayName: Verify resource ownership and record retention decision
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
+    condition: and(always(), eq(variables['OWNED_RESOURCE_GROUP'], 'true'), not(${{ parameters.keep_cluster }}))
+    displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        exists=$(az group exists --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --name "$(RUN_ID)")
+        echo "resource_group_exists=$exists" | tee "$(Build.ArtifactStagingDirectory)/wi-webhook/cleanup.txt"
+        test "$exists" = "false"
+    condition: and(always(), eq(variables['OWNED_RESOURCE_GROUP'], 'true'), not(${{ parameters.keep_cluster }}))
+    displayName: Verify deletion completed
+  - task: PublishPipelineArtifact@1
+    inputs:
+      targetPath: $(Build.ArtifactStagingDirectory)/wi-webhook
+      artifact: wi-finalize-$(System.JobAttempt)
+    condition: always()
+    displayName: Publish retention and cleanup outcome
