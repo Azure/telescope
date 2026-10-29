@@ -1,0 +1,120 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cl2-override
+  namespace: clusterloader2
+data:
+  override.yaml: |
+    # Keep creation and deletion rates modest; large-scale tests do not need rapid churn.
+    CL2_LOAD_TEST_THROUGHPUT: 20
+    CL2_DELETE_TEST_THROUGHPUT: 25
+    # Add approximately 5 KB of payload to each Pod.
+    CL2_STATEFULSET_POD_PAYLOAD_SIZE: 5000
+    CL2_DEPLOYMENT_POD_PAYLOAD_SIZE: 5000
+    CL2_DAEMONSET_POD_PAYLOAD_SIZE: 5000
+    CL2_JOB_POD_PAYLOAD_SIZE: 5000
+    CL2_ENABLE_CLUSTER_OOMS_TRACKER: false
+    CL2_RATE_LIMIT_POD_CREATION: false
+    CL2_ENABLE_PVS: false
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cl2
+  namespace: clusterloader2
+spec:
+  completions: 1
+  parallelism: 1
+  backoffLimit: 0
+  template:
+    spec:
+      terminationGracePeriodSeconds: 60
+      initContainers:
+      - command:
+        - /bin/sh
+        - -c
+        - |
+          print_results() {
+            find /results -type f -name '*.json' -print | while IFS= read -r file; do
+              echo "----- $file -----"
+              cat "$file"
+            done
+          }
+          trap 'print_results; exit 0' TERM INT
+          while true; do sleep 5; done
+        image: mcr.microsoft.com/azurelinux/busybox:1.36
+        name: cl2-results
+        restartPolicy: Always
+        volumeMounts:
+        - mountPath: /results
+          name: cl2-results
+      containers:
+      - args:
+        - '--provider=aks'
+        - '--run-from-cluster=true'
+        - '--v=2'
+        - '--testoverrides=/override/override.yaml'
+        - '--testconfig=testing/load/config.yaml'
+        - '--k8s-clients-number=500'
+        - '--report-dir=/results'
+        - '--log_dir=/logs'
+        - '--logtostderr=false'
+        - '--alsologtostderr=true'
+        image: ghcr.io/azure/clusterloader2:v20260220
+        name: cl2
+        resources:
+          requests:
+            cpu: '6'
+            memory: '24Gi'
+        volumeMounts:
+        - mountPath: /override
+          name: cl2-override
+        - mountPath: /results
+          name: cl2-results
+        - mountPath: /logs
+          name: cl2-logs
+      nodeSelector:
+        kubernetes.azure.com/agentpool: cl2
+      tolerations:
+      - key: cl2
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+      restartPolicy: Never
+      serviceAccountName: cl2
+      volumes:
+      - configMap:
+          name: cl2-override
+        name: cl2-override
+      - emptyDir: {}
+        name: cl2-results
+      - emptyDir: {}
+        name: cl2-logs
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cl2
+  namespace: clusterloader2
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cl2
+rules:
+- apiGroups: ["*"]
+  resources: ["*"]
+  verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cl2
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cl2
+subjects:
+- kind: ServiceAccount
+  name: cl2
+  namespace: clusterloader2
