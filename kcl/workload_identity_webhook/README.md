@@ -1,15 +1,50 @@
 # Workload Identity webhook benchmark
 
-One manual ADO job provisions a dedicated AKS Standard H2 cluster, prepares
-workload identity, and runs kperf **once, directly on the ADO agent**.
+One manual ADO job provisions a dedicated AKS Standard H2 cluster or reuses an
+existing cluster, and runs kperf **once, directly on the ADO agent**.
 
-## Configuration
+## Cluster selection
+
+| Parameter | Default | Behavior |
+|---|---|---|
+| `existing_resource_group` | `none` | Existing resource group, also used as the benchmark namespace |
+| `existing_cluster` | `none` | Existing AKS cluster name; must be supplied with the resource group |
+| `keep_cluster` | `false` | Retain a newly created cluster; existing clusters are always retained |
+
+Leave both existing-cluster parameters as `none` (or empty) to create a new cluster.
+Supplying only one fails before provisioning or traffic.
+
+For example, reuse the retained benchmark cluster with
+`existing_resource_group=wi-84842-1` and `existing_cluster=wi-webhook`.
+The cluster must be in subscription `b8ceb4e5-f05b-4562-a9f5-14acb1f24219`.
+Its resource-group name must also be a valid Kubernetes namespace name:
+a lowercase DNS label of at most 63 characters.
+
+Reuse skips resource-group/cluster/node-pool creation, aks-preview installation,
+and monitoring enablement. Operators must provide an existing WI-enabled cluster.
+In both modes, WI preparation idempotently applies the benchmark namespace and
+ServiceAccount `pod-benchmark`, then sets `azure.workload.identity/client-id` to
+the dummy UUID with `--overwrite`. Any previous client-ID annotation on this
+benchmark ServiceAccount is replaced. Use a namespace dedicated to this benchmark.
+Other reused cluster settings, including monitoring, remain unchanged.
+
+Both modes fetch credentials, prepare WI resources, render the load profile, install kperf on the agent,
+and run traffic. Temporary filenames still use the current run ID. In reuse mode,
+the profile uses the existing resource-group name as its namespace. Repeated runs
+retain prior Pods, increasing storage use and potentially affecting comparisons.
+
+## New-cluster configuration
 
 - Subscription: `b8ceb4e5-f05b-4562-a9f5-14acb1f24219`; region: `westus2`.
 - System pool: three `Standard_D4_v4` nodes.
 - Worker pool: three `Standard_D2s_v5` nodes, retained as requested but not used
   to host the traffic driver.
 - OIDC and workload identity enabled; webhook resources/replicas are not tuned.
+- Managed Prometheus enabled during cluster creation, using the existing
+  `wi-benchmark-prometheus` Azure Monitor workspace in `wi-benchmark-monitoring`
+  in the same subscription. Metrics survive deletion of the benchmark resource
+  group. The pipeline identity needs permission to onboard the cluster to this
+  workspace. This enables metrics, not container stdout/stderr logging.
 - A benchmark ServiceAccount annotated with dummy client ID
   `00000000-0000-4000-8000-000000000001`. This preserves `AZURE_CLIENT_ID`
   injection without provisioning a workload managed identity. No federated
@@ -29,24 +64,25 @@ workload identity, and runs kperf **once, directly on the ADO agent**.
 The existing installer extracts kperf from this pinned custom image:
 
 ```text
-ghcr.io/liyu-ma/kperf@sha256:67e4924b23d2aea35526479721dd83f9afe707685a6efafd60916423017479d4
+ghcr.io/liyu-ma/kperf@sha256:36f8e1cdbb6a4bd2fde4b29bf0cb5e4e014484ae9ddca9136f43449897ffb647
 ```
 
-This is tag `sha-8e8e961`, source commit
-`8e8e9617073fa7f0a9a51789923afa96d4d90121` from
+This is tag `sha-38567a6`, source commit
+`38567a6b70337e7efa3d287988ab36cfe47f9d04` from
 [Azure/kperf#260](https://github.com/Azure/kperf/pull/260). Replace the custom
 image with an upstream release when available.
 
 ## Execution and results
 
-The cluster-creation task installs `aks-preview` version `20.0.0b6` immediately
+For new clusters, the cluster-creation task installs `aks-preview` version `20.0.0b6` immediately
 before `az aks create`. The extension provides `--control-plane-scaling-size H2`,
 which the agent's base Azure CLI does not support.
 
-The job creates the cluster and worker pool, installs the pinned binaries,
-fetches credentials into a temporary kubeconfig, creates the namespace and
-annotated ServiceAccount, and renders the run namespace into a temporary
-profile. It invokes:
+The new-cluster path creates the cluster and worker pool. Both paths fetch
+credentials into a temporary kubeconfig, prepare the namespace and annotated
+ServiceAccount idempotently, render the selected namespace into a temporary
+profile, and install the pinned binaries.
+The driver invokes:
 
 ```sh
 kperf runner run --config "$profile" --kubeconfig "$kubeconfig"
@@ -103,10 +139,12 @@ submitted JSON at 4 KiB each, before WI/defaulting, revision history, and other
 storage overhead. There is no ResourceQuota, continuous storage monitor, or
 manual storage gate. The timeout is not a storage-capacity guarantee.
 
-`keep_cluster` defaults to **false**. The last step deletes the run's resource
+`keep_cluster` defaults to **false**. For new clusters, the last step deletes the run's resource
 group, including the cluster, even after a benchmark failure where
 ADO permits cleanup. Deletion is gated on successful resource-group creation
-in this job; an existing-group collision never authorizes deletion.
+in this job and explicitly resolved new-cluster mode; an existing-group collision
+never authorizes deletion. Reused resource groups are **never deleted**, even when
+`keep_cluster` is false or the benchmark fails.
 
 With **true**, retain the cluster and benchmark Pods for inspection.
 Retained resources incur charges. Use the run's resource-group name from the
