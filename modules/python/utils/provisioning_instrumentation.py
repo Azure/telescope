@@ -116,7 +116,7 @@ def begin_create_or_update_with_retry(
 ):
     """
     Call begin_create_or_update, retrying IN_PROGRESS_CODES (a *previous* op still
-    in progress) up to     MAX_RETRIES; poll until done, TimeoutError after timeout seconds
+    in progress) up to MAX_RETRIES; poll until done, TimeoutError after timeout seconds
     (TIMEOUT_SECONDS by default).
 
     Returns (request_started_at, retry_occurred): request_started_at is when the

@@ -40,11 +40,13 @@ mkdir -p $RESULT_DIR
 ```
 
 For Azure node-pool create and scale using shared provisioning instrumentation,
-`--step-timeout` controls both the ARM timeout (SDK polling or the VirtualMachines CLI) and Kubernetes
-node readiness. Progressive scaling applies this timeout to each scale step.
-For example, `--step-timeout 2400` allows a 40-minute operation on either pool type.
-The low-level provisioning helpers retain their 30-minute default when called
-without a timeout override.
+`--step-timeout` controls Kubernetes node readiness as before. ARM provisioning
+(SDK polling or the VirtualMachines CLI) retains its historical 30-minute
+allowance, or uses `--step-timeout` when it is longer. Thus the default
+`--step-timeout 600` still allows 10 minutes for readiness and 30 minutes for ARM;
+`--step-timeout 2400` allows 40 minutes for both. Progressive scaling applies
+these limits to each scale step. The low-level provisioning helpers retain their
+30-minute default when called without a timeout override.
 
 ### Azure Variables
 

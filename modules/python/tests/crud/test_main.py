@@ -877,6 +877,22 @@ class TestCollectBenchmarkResults(unittest.TestCase):
             )
             self.assertEqual(json.loads(row["operation_info"]), original)
 
+    @mock.patch("crud.main.glob.glob")
+    def test_collect_benchmark_results_preserves_default_source_order(self, mock_glob):
+        """Default collection retains the original file-enumeration order."""
+        self._set_env()
+        mock_glob.return_value = [
+            self._write_operation("scale_up", filename="z-scale.json"),
+            self._write_operation("create_pods", filename="a-workload.json"),
+        ]
+
+        self.assertEqual(collect_benchmark_results(), 0)
+
+        self.assertEqual(
+            [json.loads(row["operation_info"])["name"] for row in self._read_rows()],
+            ["scale_up", "create_pods"],
+        )
+
     def test_collect_benchmark_results_is_idempotent(self):
         """Collecting the same operation files twice does not duplicate rows."""
         self._set_env()

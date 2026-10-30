@@ -33,6 +33,7 @@ from utils.azure_node_pool_cli import (
     prepare_scale_operation,
 )
 from utils.provisioning_instrumentation import (
+    TIMEOUT_SECONDS,
     instrument_nodepool_provisioning,
 )
 from .kubernetes_client import KubernetesClient
@@ -451,7 +452,7 @@ class AKSClient:
                     node_count,
                     vm_size,
                     self.aks_client,
-                    timeout=self.operation_timeout_minutes * 60,
+                    timeout=max(TIMEOUT_SECONDS, self.operation_timeout_minutes * 60),
                 )
 
                 logger.info(
@@ -644,7 +645,7 @@ class AKSClient:
                     node_pool_name,
                     node_count,
                     self.aks_client,
-                    timeout=self.operation_timeout_minutes * 60,
+                    timeout=max(TIMEOUT_SECONDS, self.operation_timeout_minutes * 60),
                 )
 
                 logger.info(f"Scaling node pool {node_pool_name} to {node_count} nodes")
@@ -887,7 +888,7 @@ class AKSClient:
                         step,
                         self.aks_client,
                         label=f"step {step} ",
-                        timeout=self.operation_timeout_minutes * 60,
+                        timeout=max(TIMEOUT_SECONDS, self.operation_timeout_minutes * 60),
                     )
 
                     # Run ARM and K8s readiness concurrently to capture both timings

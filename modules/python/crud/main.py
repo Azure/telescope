@@ -155,7 +155,10 @@ def collect_benchmark_results(args=None):
     cloud_info = context["cloud_info"]
     rows = []
 
-    for filepath in sorted(glob.glob(f"{result_dir}/*.json")):
+    filepaths = glob.glob(f"{result_dir}/*.json")
+    if legacy_output:
+        filepaths.sort()
+    for filepath in filepaths:
         if os.path.basename(filepath) == "results.json" or os.path.abspath(filepath) == os.path.abspath(result_file):
             continue
         logger.info("Processing file: `%s`", filepath)
