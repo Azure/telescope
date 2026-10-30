@@ -5,7 +5,7 @@ wait_for_taint_clearance() {
     local kubeconfig=$1 pool=${2%:*} expected=${2##*:}
     local deadline=$((SECONDS + 300)) nodes
     while (( SECONDS < deadline )); do
-        if nodes=$(kubectl --kubeconfig "$kubeconfig" --request-timeout=30s get nodes -o json); then
+        if nodes=$(kubectl --kubeconfig "$kubeconfig" get nodes -o json); then
             if jq -e --arg pool "$pool" --argjson expected "$expected" '
                 .items
                 | map(
