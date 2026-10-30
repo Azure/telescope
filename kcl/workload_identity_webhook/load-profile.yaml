@@ -1,7 +1,7 @@
 version: 1
-description: WI Pod CREATE exploratory benchmark - 600 creates/sec for 10 minutes
+description: WI Pod CREATE exploratory benchmark - 400 creates/sec for 10 minutes
 specs:
-  - rate: 600
+  - rate: 400
     duration: 600
     total: 0
     client: 600
@@ -21,7 +21,5 @@ specs:
           pod:
             labels:
               azure.workload.identity/use: "true"
-              benchmark: workload-identity-webhook
-              benchmark-run: "__RUN_ID__"
             serviceAccountName: pod-benchmark
             schedulerName: kperf-admission-only

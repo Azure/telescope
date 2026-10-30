@@ -1,5 +1,26 @@
 import azure_pipelines.ap.steps
 
+# Runs a custom profile in pipeline; kperf owns output formatting and exit status.
+RunKperfRunner = lambda profilePath: str, kubeconfig: str = "", resultPath: str = "" -> steps.Script {
+    assert profilePath != "", "profilePath must not be empty"
+    args = [
+        '--config "${profilePath}"',
+        '--kubeconfig "${kubeconfig}"' if kubeconfig else "",
+        '--result "${resultPath}"' if resultPath else "",
+    ]
+    flags = " \\\n  ".join([arg for arg in args if arg])
+    steps.Script {
+        script = """
+set -euo pipefail
+set -x
+
+kperf runner run \\
+  ${flags}
+"""
+        displayName = "Run kperf runner"
+    }
+}
+
 # RunKperfBenchmark runs runkperf bench with the given subcommand and flow control settings.
 # Results are written to resultPath (default /tmp/tmp_results.json) for collection by CollectKperfResult.
 RunKperfBenchmark = lambda benchmarkSubcmd: str, benchmarkSubcmdArgs: str, flowcontrol: str, kubeconfig: str, runnerImage: str, target: str = None, resultPath: str = "/tmp/tmp_results.json" -> steps.Step {
