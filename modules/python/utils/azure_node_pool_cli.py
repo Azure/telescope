@@ -6,7 +6,7 @@ from functools import partial
 
 from utils.constants import AzureNodePoolTypeConstants
 from utils.logger_config import get_logger
-from utils.provisioning_instrumentation import begin_create_or_update_with_retry
+from utils.provisioning_instrumentation import TIMEOUT_SECONDS, begin_create_or_update_with_retry
 
 logger = get_logger(__name__)
 
@@ -72,29 +72,32 @@ def run_node_pool_cli(
     action,
     retries=10,
     retry_wait=30,
-    timeout=1800,
+    timeout=TIMEOUT_SECONDS,
 ):
-    """Run an az node-pool command with bounded retries for AKS conflicts."""
+    """Run an az command; return (successful attempt start, retry_occurred)."""
     retry_occurred = False
     for attempt in range(retries):
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=timeout,
-        )
+        request_started_at = time.time()
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=timeout,
+            )
+        except (OSError, subprocess.TimeoutExpired) as error:
+            error.request_started_at = request_started_at
+            raise
         if result.returncode == 0:
-            return retry_occurred
+            return request_started_at, retry_occurred
         detail = " | ".join(
             line
             for line in (result.stdout + result.stderr).splitlines()
             if line.strip()
         )
-        if (
-            any(code in detail for code in ("OperationNotAllowed", "EtagMismatch"))
-            and attempt < retries - 1
-        ):
+        in_progress = any(code in detail for code in ("OperationNotAllowed", "EtagMismatch"))
+        if in_progress and attempt < retries - 1:
             retry_occurred = True
             logger.warning(
                 "Cluster has an in-progress operation, retrying %s for %s in %ss "
@@ -107,31 +110,35 @@ def run_node_pool_cli(
             )
             time.sleep(retry_wait)
             continue
-        raise RuntimeError(
+        error = RuntimeError(
             f"az aks nodepool {action} failed for {node_pool_name} "
             f"(rc={result.returncode}): {detail}"
         )
-    return retry_occurred
+        error.request_started_at = time.time() if in_progress else request_started_at
+        raise error
+    raise RuntimeError(f"Node pool {node_pool_name} exhausted {retries} {action} retries")
 
 
 def create_virtual_machines_node_pool(
-    resource_group, cluster_name, node_pool_name, node_count, vm_size
+    resource_group, cluster_name, node_pool_name, node_count, vm_size,
+    timeout=TIMEOUT_SECONDS,
 ):
-    """Create a VirtualMachines node pool and return whether a retry occurred."""
+    """Create a pool and return its successful attempt timestamp and retry flag."""
     command = build_add_virtual_machines_command(
         resource_group, cluster_name, node_pool_name, node_count, vm_size
     )
-    return run_node_pool_cli(command, node_pool_name, "add")
+    return run_node_pool_cli(command, node_pool_name, "add", timeout=timeout)
 
 
 def scale_virtual_machines_node_pool(
-    resource_group, cluster_name, node_pool_name, node_count
+    resource_group, cluster_name, node_pool_name, node_count,
+    timeout=TIMEOUT_SECONDS,
 ):
-    """Scale a VirtualMachines node pool and return whether a retry occurred."""
+    """Scale a pool and return its successful attempt timestamp and retry flag."""
     command = build_scale_virtual_machines_command(
         resource_group, cluster_name, node_pool_name, node_count
     )
-    return run_node_pool_cli(command, node_pool_name, "scale")
+    return run_node_pool_cli(command, node_pool_name, "scale", timeout=timeout)
 
 
 def prepare_create_operation(
@@ -145,6 +152,7 @@ def prepare_create_operation(
     vm_size,
     aks_sdk_client,
     label="",
+    timeout=TIMEOUT_SECONDS,
 ):
     """Return a node-pool create callable for the requested pool type."""
     if node_pool_type != AzureNodePoolTypeConstants.VIRTUAL_MACHINES:
@@ -161,6 +169,7 @@ def prepare_create_operation(
             node_pool_name,
             sdk_parameters,
             label=label,
+            timeout=timeout,
         )
     if gpu_node_pool:
         raise ValueError("GPU node pools with type VirtualMachines are not supported")
@@ -171,6 +180,7 @@ def prepare_create_operation(
         node_pool_name,
         node_count,
         vm_size,
+        timeout=timeout,
     )
 
 
@@ -183,6 +193,7 @@ def prepare_scale_operation(
     node_count,
     aks_sdk_client,
     label="",
+    timeout=TIMEOUT_SECONDS,
 ):
     """Return a node-pool scale callable for the requested pool type."""
     if node_pool_type != AzureNodePoolTypeConstants.VIRTUAL_MACHINES:
@@ -195,6 +206,7 @@ def prepare_scale_operation(
             node_pool_name,
             node_pool,
             label=label,
+            timeout=timeout,
         )
     return partial(
         scale_virtual_machines_node_pool,
@@ -202,6 +214,7 @@ def prepare_scale_operation(
         cluster_name,
         node_pool_name,
         node_count,
+        timeout=timeout,
     )
 
 

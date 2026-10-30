@@ -112,11 +112,12 @@ def begin_create_or_update_with_retry(
     node_pool_name,
     parameters,
     label="",
+    timeout=TIMEOUT_SECONDS,
 ):
     """
     Call begin_create_or_update, retrying IN_PROGRESS_CODES (a *previous* op still
-    in progress) up to MAX_RETRIES; poll until done, TimeoutError after
-    TIMEOUT_SECONDS.
+    in progress) up to MAX_RETRIES; poll until done, TimeoutError after timeout seconds
+    (TIMEOUT_SECONDS by default).
 
     Returns (request_started_at, retry_occurred): request_started_at is when the
     accepted (2xx) attempt's PUT was issued, so callers count the accepted
@@ -153,9 +154,9 @@ def begin_create_or_update_with_retry(
             while not poller.done():
                 time.sleep(POLL_INTERVAL_SECONDS)
                 elapsed += POLL_INTERVAL_SECONDS
-                if elapsed >= TIMEOUT_SECONDS:
+                if elapsed >= timeout:
                     raise TimeoutError(
-                        f"Node pool {node_pool_name} {label}timed out after {TIMEOUT_SECONDS}s"
+                        f"Node pool {node_pool_name} {label}timed out after {timeout}s"
                     )
                 logger.info(
                     f"Waiting for node pool {node_pool_name} {label}to complete "
