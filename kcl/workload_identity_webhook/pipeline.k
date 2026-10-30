@@ -33,7 +33,6 @@ output = ap.Pipeline {
                 RESOURCE_GROUP_CREATED = "false"
                 KUBECONFIG = "$(Agent.TempDirectory)/$(RUN_ID).kubeconfig"
                 KPERF_PROFILE = "$(Agent.TempDirectory)/$(RUN_ID)-load-profile.yaml"
-                KPERF_RESULT = "$(Agent.TempDirectory)/$(RUN_ID)-result.json"
             }
             steps = [
                 azure.Login(
@@ -135,7 +134,6 @@ kubectl annotate serviceaccount pod-benchmark \\
 
 sed \\
   -e 's/__RUN_NAMESPACE__/$(RUN_ID)/g' \\
-  -e 's/__RUN_ID__/$(RUN_ID)/g' \\
   "$(Build.SourcesDirectory)/kcl/workload_identity_webhook/load-profile.yaml" > "$profile"
 if grep -q '__[A-Z_]*__' "$profile"; then
   echo "Unresolved load-profile placeholders" >&2
@@ -144,8 +142,7 @@ fi
 """),
                 kperf.RunKperfRunner(
                     profilePath="$(KPERF_PROFILE)",
-                    kubeconfig="$(KUBECONFIG)",
-                    resultPath="$(KPERF_RESULT)"),
+                    kubeconfig="$(KUBECONFIG)") | {timeoutInMinutes = 15},
                 azure.DeleteResourceGroup(
                     const.DEFAULT_SERVICE_CONNECTION,
                     "$(RUN_ID)",

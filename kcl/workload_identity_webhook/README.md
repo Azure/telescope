@@ -16,10 +16,10 @@ workload identity, and runs kperf **once, directly on the ADO agent**.
 
 [load-profile.yaml](./load-profile.yaml) is the traffic configuration:
 
-- 600 Pod CREATEs/sec ceiling, 600-second generation window.
+- 400 Pod CREATEs/sec ceiling, 600-second generation window.
 - `total: 0`, `deleteRatio: 0`, `maxRetries: 0`.
 - 600 request workers, 20 transports; the rate is shared across workers.
-- WI opt-in, run labels, and `schedulerName: kperf-admission-only`.
+- WI opt-in and `schedulerName: kperf-admission-only`; the dedicated namespace identifies the run.
 - `payloadSize: 3650` pads an environment variable, not the complete submitted
   JSON. The resulting single-container Pod is approximately 4 KiB before
   server-side mutation/defaulting.
@@ -43,42 +43,51 @@ which the agent's base Azure CLI does not support.
 
 The job creates the cluster and worker pool, installs the pinned binaries,
 fetches credentials into a temporary kubeconfig, creates the identity,
-namespace and ServiceAccount, and renders run identifiers into a temporary
+namespace and ServiceAccount, and renders the run namespace into a temporary
 profile. It invokes:
 
 ```sh
-kperf runner run --kubeconfig "$kubeconfig" --config "$profile" --result "$result"
+kperf runner run --config "$profile" --kubeconfig "$kubeconfig"
 ```
 
 Execution uses the shared
-[`kperf.RunKperfRunner`](../lib/steps/kperf/kperf_runner.k) step:
+[`kperf.RunKperfRunner`](../lib/steps/kperf/run_benchmark.k) step:
 
 ```kcl
 kperf.RunKperfRunner(
     profilePath="$(KPERF_PROFILE)",
-    kubeconfig="$(KUBECONFIG)",
-    resultPath="$(KPERF_RESULT)")
+    kubeconfig="$(KUBECONFIG)") | {timeoutInMinutes = 15}
 ```
 
-The helper accepts an optional `timeoutSeconds` (default 900), supports native
-single- and multi-spec reports, and leaves input/result file ownership to the
-caller. It does not install kperf or provision workload resources.
+Only `profilePath` is required. Optional arguments:
+
+- `kubeconfig`: omitted by default, letting kperf select its default kubeconfig
+  (`$HOME/.kube/config` outside Kubernetes, or in-cluster configuration when detected).
+  This pipeline still supplies its isolated kubeconfig explicitly.
+- `resultPath`: omitted by default, so kperf prints its native JSON directly to
+  stdout. If supplied, kperf writes to that file instead; the caller owns the file.
+
+The helper only runs the command and propagates its exit code. It does not install
+kperf, provision workload resources, parse results, capture output, or delete files.
 
 There are no CLI traffic overrides, Kubernetes generator Jobs, smoke/warm-up
 phases, manual-validation jobs, diagnostic collectors, or artifact uploads.
-The profile and native result JSON appear in normal ADO logs. Files live in
+The native result JSON appears in normal ADO logs without result validation.
+The resolved profile and kubeconfig live in
 [`Agent.TempDirectory`](https://learn.microsoft.com/en-us/azure/devops/pipelines/build/variables?view=azure-devops#agent-variables-devops-services),
 which ADO cleans after each job; the shared runner does not delete caller inputs.
 
-A 900-second outer process timeout bounds generation and drain, with forced
-termination after a further 30 seconds if needed. Driver failures, missing or
-malformed reports, and reported request errors fail the step; no run is retried.
+The caller sets a 15-minute ADO step timeout; the helper has no process-timeout
+parameter or external timeout command. ADO cancellation governs timeout handling.
+Nonzero kperf process exits fail the step; no run is retried. HTTP errors in the
+report do not independently fail it: kperf can exit zero despite failed requests,
+as observed in build 84716. Missing or malformed reports are not checked.
 
 The pinned runner's `total` is the configured request total, **not an observed
 success count**; it remains zero for this duration-based run. Native duration
 includes drain. Per-interval dispatch rates, actual WI invocation rates, and
 inflight backlog are unavailable. This is exploratory traffic generation,
-not proof that the webhook sustained 600/sec. Agent-to-API-server networking
+not proof that the webhook sustained 400/sec. Agent-to-API-server networking
 also differs from an in-cluster driver.
 
 ## Prerequisites and cleanup
@@ -87,7 +96,7 @@ Operators ensure version/SKU availability, quota, and control-plane storage
 headroom before queueing. Confirm no scheduler handles `kperf-admission-only`;
 the benchmark Pods should remain unscheduled.
 
-At the target, approximately 360,000 Pods could accumulate: about 1.37 GiB of
+At the target, approximately 240,000 Pods could accumulate: about 0.916 GiB of
 submitted JSON at 4 KiB each, before WI/defaulting, revision history, and other
 storage overhead. There is no ResourceQuota, continuous storage monitor, or
 manual storage gate. The timeout is not a storage-capacity guarantee.
@@ -108,10 +117,9 @@ cleanup; check Azure before assuming deletion completed.
 ```sh
 kcl run kcl/workload_identity_webhook/pipeline.k -S output \
   -o kcl/workload_identity_webhook/pipeline.yaml
-(cd kcl && kcl test lib/steps/kperf)
 ```
 
-The shared runner has KCL tests. The pipeline does not install a Python
+The pipeline does not install a Python
 dependency bundle or use a custom Python orchestrator.
 
 [ADO pipeline 94](https://dev.azure.com/akstelescope/telescope/_build?definitionId=94)

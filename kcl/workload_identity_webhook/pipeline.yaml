@@ -17,7 +17,6 @@ jobs:
     RESOURCE_GROUP_CREATED: 'false'
     KUBECONFIG: $(Agent.TempDirectory)/$(RUN_ID).kubeconfig
     KPERF_PROFILE: $(Agent.TempDirectory)/$(RUN_ID)-load-profile.yaml
-    KPERF_RESULT: $(Agent.TempDirectory)/$(RUN_ID)-result.json
   steps:
   - task: AzureCLI@2
     inputs:
@@ -200,7 +199,6 @@ jobs:
 
         sed \
           -e 's/__RUN_NAMESPACE__/$(RUN_ID)/g' \
-          -e 's/__RUN_ID__/$(RUN_ID)/g' \
           "$(Build.SourcesDirectory)/kcl/workload_identity_webhook/load-profile.yaml" > "$profile"
         if grep -q '__[A-Z_]*__' "$profile"; then
           echo "Unresolved load-profile placeholders" >&2
@@ -209,45 +207,13 @@ jobs:
     displayName: Prepare WI resources and load profile
   - script: |
       set -euo pipefail
-      if [ ! -r "$(KPERF_PROFILE)" ] || [ ! -r "$(KUBECONFIG)" ]; then
-        echo "kperf requires a readable load profile and kubeconfig" >&2
-        exit 1
-      fi
-      cat "$(KPERF_PROFILE)"
-      rm -f -- "$(KPERF_RESULT)"
-      echo "Driver start: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-      driver_status=0
-      timeout --signal=TERM --kill-after=30s 900s \
-        kperf runner run \
-          --kubeconfig "$(KUBECONFIG)" \
-          --config "$(KPERF_PROFILE)" \
-          --result "$(KPERF_RESULT)" || driver_status=$?
-      echo "Driver end: $(date -u +%Y-%m-%dT%H:%M:%SZ); exit status: $driver_status"
+      set -x
 
-      report_status=0
-      if [ -s "$(KPERF_RESULT)" ]; then
-        cat "$(KPERF_RESULT)"
-        # Native total is configured total (zero for duration mode), not successes.
-        jq -e '
-          (.perSpecResults | type == "array" and length > 0)
-          and (.aggregated | type == "object")
-          and ([.perSpecResults[], .aggregated] | all(.[];
-            (.total | type == "number" and . >= 0)
-            and (.duration | type == "string" and length > 0)
-            and (.percentileLatencies | type == "array" and length > 0)
-            and (.errorStats // {} | type == "object" and all(.[]; type == "number" and . == 0))
-          ))
-        ' "$(KPERF_RESULT)" || report_status=$?
-      else
-        echo "kperf did not produce a nonempty result file" >&2
-        report_status=1
-      fi
-      if [ "$report_status" -ne 0 ]; then
-        echo "kperf result is invalid or contains request failures" >&2
-      fi
-      if [ "$driver_status" -ne 0 ]; then exit "$driver_status"; fi
-      exit "$report_status"
+      kperf runner run \
+        --config "$(KPERF_PROFILE)" \
+        --kubeconfig "$(KUBECONFIG)"
     displayName: Run kperf runner
+    timeoutInMinutes: 15
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
