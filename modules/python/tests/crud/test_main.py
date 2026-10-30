@@ -741,6 +741,19 @@ class TestCollectBenchmarkResults(unittest.TestCase):
         ) as results_file:
             return [json.loads(line) for line in results_file]
 
+    def _assert_failed_collection_preserves_output(self, args):
+        results_path = os.path.join(self.test_dir, "results.json")
+        with open(results_path, "w", encoding="utf-8") as results_file:
+            results_file.write("previous-valid-output\n")
+        original_files = sorted(os.listdir(self.test_dir))
+
+        with self.assertLogs("crud.main", level="ERROR"):
+            self.assertEqual(collect_benchmark_results(args), 1)
+
+        with open(results_path, encoding="utf-8") as results_file:
+            self.assertEqual(results_file.read(), "previous-valid-output\n")
+        self.assertEqual(sorted(os.listdir(self.test_dir)), original_files)
+
     @mock.patch("crud.main.glob.glob")
     @mock.patch("crud.main.datetime")
     def test_collect_benchmark_results_success(self, mock_datetime, mock_glob):
@@ -894,13 +907,19 @@ class TestCollectBenchmarkResults(unittest.TestCase):
         )
 
     def test_collect_benchmark_results_is_idempotent(self):
-        """Collecting the same operation files twice does not duplicate rows."""
+        """Legacy reruns replace output and exclude default or custom output files."""
         self._set_env()
         self._write_operation("create_pods", duration=10.0)
 
-        self.assertEqual(collect_benchmark_results(self.legacy_args), 0)
-        self.assertEqual(collect_benchmark_results(self.legacy_args), 0)
-        self.assertEqual(len(self._read_rows()), 1)
+        for filename in ("results.json", "final.json"):
+            with self.subTest(filename=filename):
+                result_file = os.path.join(self.test_dir, filename)
+                args = argparse.Namespace(result_file=result_file, legacy_output=True)
+                self.assertEqual(collect_benchmark_results(args), 0)
+                self.assertEqual(collect_benchmark_results(args), 0)
+                with open(result_file, encoding="utf-8") as results_file:
+                    self.assertEqual(len([json.loads(line) for line in results_file]), 1)
+                os.remove(result_file)
 
     def test_collect_benchmark_results_publishes_failed_operation(self):
         """A failed scale operation remains a failed legacy result after publishing."""
@@ -967,93 +986,93 @@ class TestCollectBenchmarkResults(unittest.TestCase):
 
         self.assertFalse(os.path.exists(os.path.join(self.test_dir, "results.json")))
 
-    def test_collect_benchmark_results_custom_output_in_source_directory(self):
-        """A custom output is skipped on subsequent collections."""
-        self._set_env()
-        self._write_operation("create_pods", duration=10.0)
-        result_file = os.path.join(self.test_dir, "final.json")
-        args = argparse.Namespace(result_file=result_file, legacy_output=True)
-
-        self.assertEqual(collect_benchmark_results(args), 0)
-        self.assertEqual(collect_benchmark_results(args), 0)
-
-        with open(result_file, encoding="utf-8") as results_file:
-            self.assertEqual(len([json.loads(line) for line in results_file]), 1)
-
-    @mock.patch("crud.main.glob.glob")
-    def test_collect_benchmark_results_reports_unreadable_source(self, mock_glob):
+    def test_collect_benchmark_results_reports_unreadable_source(self):
         """A missing source is logged rather than producing partial output."""
         self._set_env()
-        mock_glob.return_value = [os.path.join(self.test_dir, "missing.json")]
+        self._write_operation("create_pods")
 
-        with self.assertLogs("crud.main", level="ERROR"):
-            self.assertEqual(collect_benchmark_results(self.legacy_args), 1)
+        with mock.patch("crud.main.open", side_effect=FileNotFoundError("source removed")):
+            with self.assertLogs("crud.main", level="ERROR"):
+                self.assertEqual(collect_benchmark_results(self.legacy_args), 1)
         self.assertFalse(os.path.exists(os.path.join(self.test_dir, "results.json")))
+
+    def test_legacy_collection_rejects_invalid_source_directory(self):
+        """Missing or non-directory sources cannot erase published results."""
+        self._set_env()
+        source_file = self._write_operation("create_pods")
+        for source in (os.path.join(self.test_dir, "missing"), source_file):
+            with self.subTest(source=source):
+                args = argparse.Namespace(
+                    legacy_output=True, result_dir=source,
+                    result_file=os.path.join(self.test_dir, "results.json"),
+                )
+                self._assert_failed_collection_preserves_output(args)
+
+    @mock.patch("crud.main.os.scandir", side_effect=PermissionError("access denied"))
+    def test_legacy_collection_rejects_unreadable_directory(self, _scandir):
+        """Directory enumeration failures are logged without replacing output."""
+        self._set_env()
+        self._assert_failed_collection_preserves_output(self.legacy_args)
+
+    def test_default_collection_preserves_missing_directory_behavior(self):
+        """Default collection remains a successful no-op for a missing source."""
+        self._set_env(RESULT_DIR=os.path.join(self.test_dir, "missing"))
+        self.assertEqual(collect_benchmark_results(), 0)
+        self.assertFalse(os.path.exists(self.env_vars["RESULT_DIR"]))
+
+    def test_legacy_collection_preserves_source_filter_and_order(self):
+        """Legacy enumeration sorts visible JSON sources and skips hidden ones."""
+        self._set_env()
+        self._write_operation("scale_up", filename="z-scale.json")
+        self._write_operation("create_pods", filename="a-workload.json")
+        self._write_operation("hidden", filename=".ignored.json")
+        self.assertEqual(collect_benchmark_results(self.legacy_args), 0)
+        self.assertEqual(
+            [json.loads(row["operation_info"])["canonical_name"] for row in self._read_rows()],
+            ["create_pods", "scale_up"],
+        )
 
     def test_collect_benchmark_results_rejects_invalid_operation_shapes(self):
         """Invalid source data is logged without replacing valid published rows."""
         self._set_env()
-        invalid_contents = [
-            [],
-            None,
-            {},
-            {"operation_info": []},
-            {"operation_info": "invalid"},
-            {"operation_info": {"name": [], "success": True}},
-            {"operation_info": {"name": " ", "success": True}},
-            {"operation_info": {"name": "create_pods"}},
-            {"operation_info": {"name": "create_pods", "success": "false"}},
-            {"operation_info": {"name": "create_pods", "success": True, "metadata": []}},
-        ]
-        results_path = os.path.join(self.test_dir, "results.json")
+        invalid_contents = {
+            "list root": [],
+            "null root": None,
+            "missing operation": {},
+            "list operation": {"operation_info": []},
+            "string operation": {"operation_info": "invalid"},
+            "list name": {"operation_info": {"name": [], "success": True}},
+            "blank name": {"operation_info": {"name": " ", "success": True}},
+            "missing success": {"operation_info": {"name": "create_pods"}},
+            "string success": {"operation_info": {"name": "create_pods", "success": "false"}},
+            "list metadata": {
+                "operation_info": {"name": "create_pods", "success": True, "metadata": []}
+            },
+        }
         self._write_operation("create_pods", filename="a-valid.json")
-        for content in invalid_contents:
-            with self.subTest(content=content):
-                with open(results_path, "w", encoding="utf-8") as results_file:
-                    results_file.write("previous-valid-output\n")
+        for case, content in invalid_contents.items():
+            with self.subTest(case=case):
                 with open(
                     os.path.join(self.test_dir, "invalid.json"), "w", encoding="utf-8"
                 ) as invalid_file:
                     json.dump(content, invalid_file)
-
-                with self.assertLogs("crud.main", level="ERROR"):
-                    self.assertEqual(collect_benchmark_results(self.legacy_args), 1)
-
-                with open(results_path, encoding="utf-8") as results_file:
-                    self.assertEqual(results_file.read(), "previous-valid-output\n")
+                self._assert_failed_collection_preserves_output(self.legacy_args)
 
     @mock.patch("crud.main.os.replace", side_effect=OSError("publish failed"))
     def test_collect_benchmark_results_preserves_output_on_publish_failure(self, _replace):
         """An output failure leaves the previous file intact and cleans staging."""
         self._set_env()
         self._write_operation("create_pods", duration=10.0)
-        results_path = os.path.join(self.test_dir, "results.json")
-        with open(results_path, "w", encoding="utf-8") as results_file:
-            results_file.write("previous-valid-output\n")
-        original_files = sorted(os.listdir(self.test_dir))
-
-        with self.assertLogs("crud.main", level="ERROR"):
-            self.assertEqual(collect_benchmark_results(self.legacy_args), 1)
-
-        with open(results_path, encoding="utf-8") as results_file:
-            self.assertEqual(results_file.read(), "previous-valid-output\n")
-        self.assertEqual(sorted(os.listdir(self.test_dir)), original_files)
+        self._assert_failed_collection_preserves_output(self.legacy_args)
 
     def test_collect_benchmark_results_rejects_malformed_json(self):
         """Malformed operation files fail collection before output is replaced."""
         self._set_env()
-        results_path = os.path.join(self.test_dir, "results.json")
-        with open(results_path, "w", encoding="utf-8") as results_file:
-            results_file.write("previous-valid-output\n")
         with open(
             os.path.join(self.test_dir, "malformed.json"), "w", encoding="utf-8"
         ) as malformed_file:
             malformed_file.write("{")
-
-        self.assertEqual(collect_benchmark_results(), 1)
-
-        with open(results_path, "r", encoding="utf-8") as results_file:
-            self.assertEqual(results_file.read(), "previous-valid-output\n")
+        self._assert_failed_collection_preserves_output(None)
 
 
 class TestHandleNodePoolAll(unittest.TestCase):

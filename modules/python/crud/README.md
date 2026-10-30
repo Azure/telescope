@@ -225,12 +225,10 @@ defaults to `{}` when omitted. Other context fields are optional and used only
 with `--legacy-output`. Node counts and batch size are published as integers;
 the node-pool number retains the legacy string representation.
 
-With `--legacy-output`, the published `operation_info` retains canonical fields such as `success`,
-`duration`, timestamps, errors, and `metadata`. At the publishing boundary it
-also includes the established ADX names and fields (`succeeded`, `time`, node
-timings, and legacy node-pool operation names). Keeping this compatibility
-adapter in the collector protects existing alerts and dashboards without
-coupling CRUD execution logic to the legacy schema.
+With `--legacy-output`, `operation_info` retains canonical fields such as
+`success`, `duration`, timestamps, errors, and `metadata`, and adds legacy
+consumer aliases (`succeeded`, `time`, and node timings). The adapter lives in
+the collector, not CRUD execution logic.
 
 The original operation name is retained as `canonical_name`; the published
 `name` maps `create_node_pool`, `scale_up`, `scale_down`, and `delete_node_pool`
@@ -242,6 +240,8 @@ or the workload metadata. Source files are never modified.
 Legacy collection requires each source to contain an `operation_info` object with a
 non-empty string `name`, boolean `success`, and object `metadata` if present.
 Invalid inputs or publishing failures are logged and return a nonzero exit
-code without replacing the previous output. In legacy mode, validated rows are
+code without replacing the previous output. This includes missing or unreadable
+source directories in legacy mode; default collection retains its existing
+no-op behavior when no source files are found. In legacy mode, validated rows are
 published by atomically replacing the output file, so rerunning collection does
 not duplicate rows. Default collection retains its existing append behavior.

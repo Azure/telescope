@@ -283,34 +283,21 @@ class TestAzureNodePoolCLI(unittest.TestCase):
                 with self.subTest(pool_type=pool_type, timeout=timeout):
                     sdk_client = mock.MagicMock()
                     sdk_client.agent_pools.begin_create_or_update.return_value.done.return_value = True
-                    if timeout is None:
-                        operations = [
-                            prepare_create_operation(
-                                {}, pool_type, False, "rg", "cluster", "pool",
-                                2, "Standard_D2s_v3", sdk_client
-                            ),
-                            prepare_scale_operation(
-                                mock.MagicMock(), pool_type, "rg", "cluster",
-                                "pool", 3, sdk_client
-                            ),
-                        ]
-                    else:
-                        operations = [
-                            prepare_create_operation(
-                                {}, pool_type, False, "rg", "cluster", "pool",
-                                2, "Standard_D2s_v3", sdk_client, timeout=timeout
-                            ),
-                            prepare_scale_operation(
-                                mock.MagicMock(), pool_type, "rg", "cluster",
-                                "pool", 3, sdk_client, timeout=timeout
-                            ),
-                        ]
+                    timeout_kwargs = {} if timeout is None else {"timeout": timeout}
+                    operations = [
+                        prepare_create_operation(
+                            {}, pool_type, False, "rg", "cluster", "pool",
+                            2, "Standard_D2s_v3", sdk_client, **timeout_kwargs
+                        ),
+                        prepare_scale_operation(
+                            mock.MagicMock(), pool_type, "rg", "cluster",
+                            "pool", 3, sdk_client, **timeout_kwargs
+                        ),
+                    ]
+                    arm = mock_run if pool_type == "VirtualMachines" else mock_sdk
                     for operation in operations:
                         operation()
-                        if pool_type == "VirtualMachines":
-                            self.assertEqual(mock_run.call_args.kwargs["timeout"], expected)
-                        else:
-                            self.assertEqual(mock_sdk.call_args.kwargs["timeout"], expected)
+                        self.assertEqual(arm.call_args.kwargs["timeout"], expected)
 
 
 if __name__ == "__main__":

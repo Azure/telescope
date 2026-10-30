@@ -155,9 +155,18 @@ def collect_benchmark_results(args=None):
     cloud_info = context["cloud_info"]
     rows = []
 
-    filepaths = glob.glob(f"{result_dir}/*.json")
     if legacy_output:
-        filepaths.sort()
+        try:
+            with os.scandir(result_dir) as entries:
+                filepaths = sorted(
+                    entry.path for entry in entries
+                    if entry.name.endswith(".json") and not entry.name.startswith(".")
+                )
+        except OSError as error:
+            logger.error("Failed to read result directory `%s`: %s", result_dir, error)
+            return 1
+    else:
+        filepaths = glob.glob(f"{result_dir}/*.json")
     for filepath in filepaths:
         if os.path.basename(filepath) == "results.json" or os.path.abspath(filepath) == os.path.abspath(result_file):
             continue

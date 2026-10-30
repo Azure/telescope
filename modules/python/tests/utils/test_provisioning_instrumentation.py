@@ -271,15 +271,11 @@ class TestBeginCreateOrUpdateWithRetry(unittest.TestCase):
                 poller.done.return_value = False
                 sdk_client = mock.MagicMock()
                 sdk_client.agent_pools.begin_create_or_update.return_value = poller
+                timeout_kwargs = {} if timeout is None else {"timeout": timeout}
                 with self.assertRaisesRegex(TimeoutError, f"after {expected}s") as raised:
-                    if timeout is None:
-                        begin_create_or_update_with_retry(
-                            sdk_client, "rg", "cluster1", "pool1", {}
-                        )
-                    else:
-                        begin_create_or_update_with_retry(
-                            sdk_client, "rg", "cluster1", "pool1", {}, timeout=timeout
-                        )
+                    begin_create_or_update_with_retry(
+                        sdk_client, "rg", "cluster1", "pool1", {}, **timeout_kwargs
+                    )
 
                 self.assertEqual(mock_time.sleep.call_count, expected // 30)
                 self.assertEqual(raised.exception.request_started_at, 500)
