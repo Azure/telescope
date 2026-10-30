@@ -73,13 +73,12 @@ az aks create \\
   --dns-name-prefix "$(RUN_ID)" \\
   --tier standard \\
   --control-plane-scaling-size H2 \\
-  --enable-managed-identity \\
   --enable-oidc-issuer \\
   --enable-workload-identity \\
   --generate-ssh-keys \\
   --nodepool-name systempool \\
   --node-count 3 \\
-  --node-vm-size Standard_D2_v4 \\
+  --node-vm-size Standard_D4_v4 \\
   --max-pods 50 \\
   --network-plugin azure \\
   --network-plugin-mode overlay \\
@@ -115,22 +114,12 @@ az aks create \\
                     """
 set -u
 profile="$(KPERF_PROFILE)"
-client_id=$(az identity create \\
-  --subscription "${SUBSCRIPTION_ID}" \\
-  --resource-group "$(RUN_ID)" \\
-  --location "${LOCATION}" \\
-  --name wi-benchmark \\
-  --query clientId \\
-  --output tsv)
-if ! [[ "$client_id" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
-  echo "Managed identity returned an invalid client ID" >&2
-  exit 1
-fi
 kubectl create namespace "$(RUN_ID)"
 kubectl create serviceaccount pod-benchmark --namespace "$(RUN_ID)"
+# Use a fake client ID because benchmark Pods do not access Azure resources.
 kubectl annotate serviceaccount pod-benchmark \\
   --namespace "$(RUN_ID)" \\
-  "azure.workload.identity/client-id=$client_id"
+  "azure.workload.identity/client-id=00000000-0000-4000-8000-000000000001"
 
 sed \\
   -e 's/__RUN_NAMESPACE__/$(RUN_ID)/g' \\
