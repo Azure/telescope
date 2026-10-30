@@ -6,13 +6,15 @@ workload identity, and runs kperf **once, directly on the ADO agent**.
 ## Configuration
 
 - Subscription: `b8ceb4e5-f05b-4562-a9f5-14acb1f24219`; region: `westus2`.
-- System pool: three `Standard_D2_v4` nodes.
+- System pool: three `Standard_D4_v4` nodes.
 - Worker pool: three `Standard_D2s_v5` nodes, retained as requested but not used
   to host the traffic driver.
 - OIDC and workload identity enabled; webhook resources/replicas are not tuned.
-- User-assigned managed identity and an annotated benchmark ServiceAccount.
-  No federated credential or Azure role assignment is needed for admission-only
-  testing; the workload does not perform token exchange.
+- A benchmark ServiceAccount annotated with dummy client ID
+  `00000000-0000-4000-8000-000000000001`. This preserves `AZURE_CLIENT_ID`
+  injection without provisioning a workload managed identity. No federated
+  credential or Azure role assignment is needed: this admission-only workload
+  does not perform token exchange. Use a real identity for token-exchange tests.
 
 [load-profile.yaml](./load-profile.yaml) is the traffic configuration:
 
@@ -42,8 +44,8 @@ before `az aks create`. The extension provides `--control-plane-scaling-size H2`
 which the agent's base Azure CLI does not support.
 
 The job creates the cluster and worker pool, installs the pinned binaries,
-fetches credentials into a temporary kubeconfig, creates the identity,
-namespace and ServiceAccount, and renders the run namespace into a temporary
+fetches credentials into a temporary kubeconfig, creates the namespace and
+annotated ServiceAccount, and renders the run namespace into a temporary
 profile. It invokes:
 
 ```sh
@@ -102,11 +104,11 @@ storage overhead. There is no ResourceQuota, continuous storage monitor, or
 manual storage gate. The timeout is not a storage-capacity guarantee.
 
 `keep_cluster` defaults to **false**. The last step deletes the run's resource
-group, including the cluster and identity, even after a benchmark failure where
+group, including the cluster, even after a benchmark failure where
 ADO permits cleanup. Deletion is gated on successful resource-group creation
 in this job; an existing-group collision never authorizes deletion.
 
-With **true**, retain the cluster, identity, and benchmark Pods for inspection.
+With **true**, retain the cluster and benchmark Pods for inspection.
 Retained resources incur charges. Use the run's resource-group name from the
 ADO logs for manual deletion when finished. There are no separate finalization
 reports or deletion-verification steps. A hard agent interruption can prevent
