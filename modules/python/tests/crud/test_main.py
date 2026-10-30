@@ -886,6 +886,25 @@ class TestCollectBenchmarkResults(unittest.TestCase):
         self.assertEqual(collect_benchmark_results(self.legacy_args), 0)
         self.assertEqual(len(self._read_rows()), 1)
 
+    def test_collect_benchmark_results_publishes_failed_operation(self):
+        """A failed scale operation remains a failed legacy result after publishing."""
+        self._set_env()
+        self._write_operation(
+            "scale_up", success=False, duration=600,
+            error_message="readiness timed out",
+        )
+
+        self.assertEqual(collect_benchmark_results(self.legacy_args), 0)
+        rows = self._read_rows()
+        self.assertEqual(len(rows), 1)
+        operation = json.loads(rows[0]["operation_info"])
+        self.assertEqual(operation["name"], "scale_agent_pool")
+        self.assertEqual(operation["canonical_name"], "scale_up")
+        self.assertFalse(operation["success"])
+        self.assertFalse(operation["succeeded"])
+        self.assertEqual(operation["time"], 600)
+        self.assertEqual(operation["error_message"], "readiness timed out")
+
     def test_collect_benchmark_results_cli_overrides_environment(self):
         """Explicit arguments win while omitted arguments use the environment."""
         self._set_env(VM_SIZE="Standard_D4s_v5")

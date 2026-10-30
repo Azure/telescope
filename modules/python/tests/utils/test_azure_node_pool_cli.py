@@ -19,6 +19,7 @@ from utils.azure_node_pool_cli import (
     prepare_scale_operation,
     run_node_pool_cli,
 )
+from utils.provisioning_instrumentation import begin_create_or_update_with_retry
 
 
 class TestAzureNodePoolCLI(unittest.TestCase):
@@ -266,6 +267,50 @@ class TestAzureNodePoolCLI(unittest.TestCase):
         )
 
         self.assertTrue(callable(operation))
+
+    @mock.patch(
+        "utils.azure_node_pool_cli.begin_create_or_update_with_retry",
+        wraps=begin_create_or_update_with_retry,
+    )
+    @mock.patch("utils.azure_node_pool_cli.subprocess.run")
+    def test_prepared_operations_preserve_default_and_forward_custom_timeout(
+        self, mock_run, mock_sdk
+    ):
+        """Create and scale use the same timeout contract for both pool types."""
+        mock_run.return_value = mock.Mock(returncode=0, stdout="", stderr="")
+        for pool_type in ("VirtualMachines", "VirtualMachineScaleSets"):
+            for timeout, expected in ((None, 1800), (2400, 2400)):
+                with self.subTest(pool_type=pool_type, timeout=timeout):
+                    sdk_client = mock.MagicMock()
+                    sdk_client.agent_pools.begin_create_or_update.return_value.done.return_value = True
+                    if timeout is None:
+                        operations = [
+                            prepare_create_operation(
+                                {}, pool_type, False, "rg", "cluster", "pool",
+                                2, "Standard_D2s_v3", sdk_client
+                            ),
+                            prepare_scale_operation(
+                                mock.MagicMock(), pool_type, "rg", "cluster",
+                                "pool", 3, sdk_client
+                            ),
+                        ]
+                    else:
+                        operations = [
+                            prepare_create_operation(
+                                {}, pool_type, False, "rg", "cluster", "pool",
+                                2, "Standard_D2s_v3", sdk_client, timeout=timeout
+                            ),
+                            prepare_scale_operation(
+                                mock.MagicMock(), pool_type, "rg", "cluster",
+                                "pool", 3, sdk_client, timeout=timeout
+                            ),
+                        ]
+                    for operation in operations:
+                        operation()
+                        if pool_type == "VirtualMachines":
+                            self.assertEqual(mock_run.call_args.kwargs["timeout"], expected)
+                        else:
+                            self.assertEqual(mock_sdk.call_args.kwargs["timeout"], expected)
 
 
 if __name__ == "__main__":

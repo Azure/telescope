@@ -39,6 +39,13 @@ export SCENARIO_NAME=$SCENARIO_NAME
 mkdir -p $RESULT_DIR
 ```
 
+For Azure node-pool create and scale using shared provisioning instrumentation,
+`--step-timeout` controls both the ARM timeout (SDK polling or the VirtualMachines CLI) and Kubernetes
+node readiness. Progressive scaling applies this timeout to each scale step.
+For example, `--step-timeout 2400` allows a 40-minute operation on either pool type.
+The low-level provisioning helpers retain their 30-minute default when called
+without a timeout override.
+
 ### Azure Variables
 
 ```bash

@@ -221,10 +221,9 @@ class TestBeginCreateOrUpdateWithRetry(unittest.TestCase):
         # anchor is attached, so the caller excludes nothing.
         self.assertIsNone(getattr(ctx.exception, "request_started_at", None))
 
-    @mock.patch("utils.provisioning_instrumentation.TIMEOUT_SECONDS", 0)
     @mock.patch("utils.provisioning_instrumentation.time")
     def test_timeout_raises(self, mock_time):
-        """TimeoutError raised when poller exceeds TIMEOUT_SECONDS"""
+        """TimeoutError raised when poller exceeds the requested timeout."""
         mock_time.sleep = mock.MagicMock()
 
         mock_poller = mock.MagicMock()
@@ -241,7 +240,50 @@ class TestBeginCreateOrUpdateWithRetry(unittest.TestCase):
                 cluster_name="cluster1",
                 node_pool_name="pool1",
                 parameters={},
+                timeout=0,
             )
+
+    @mock.patch("utils.provisioning_instrumentation.time")
+    def test_configured_timeout_allows_operations_longer_than_default(self, mock_time):
+        """A 40-minute allowance must not fail at the old 30-minute limit."""
+        poller = mock.MagicMock()
+        poller.done.side_effect = [False] * 61 + [True]
+        sdk_client = mock.MagicMock()
+        sdk_client.agent_pools.begin_create_or_update.return_value = poller
+        mock_time.time.return_value = 500
+
+        result = begin_create_or_update_with_retry(
+            sdk_client, "rg", "cluster1", "pool1", {}, timeout=2400
+        )
+
+        self.assertEqual(result, (500, False))
+        self.assertEqual(mock_time.sleep.call_count, 61)
+        poller.result.assert_called_once()
+
+    @mock.patch("utils.provisioning_instrumentation.time")
+    def test_polling_enforces_configured_and_default_timeout(self, mock_time):
+        """Explicit limits and the unchanged default determine polling duration."""
+        for timeout, expected in ((None, 1800), (600, 600), (2400, 2400)):
+            with self.subTest(timeout=timeout):
+                mock_time.reset_mock()
+                mock_time.time.return_value = 500
+                poller = mock.MagicMock()
+                poller.done.return_value = False
+                sdk_client = mock.MagicMock()
+                sdk_client.agent_pools.begin_create_or_update.return_value = poller
+                with self.assertRaisesRegex(TimeoutError, f"after {expected}s") as raised:
+                    if timeout is None:
+                        begin_create_or_update_with_retry(
+                            sdk_client, "rg", "cluster1", "pool1", {}
+                        )
+                    else:
+                        begin_create_or_update_with_retry(
+                            sdk_client, "rg", "cluster1", "pool1", {}, timeout=timeout
+                        )
+
+                self.assertEqual(mock_time.sleep.call_count, expected // 30)
+                self.assertEqual(raised.exception.request_started_at, 500)
+                poller.result.assert_not_called()
 
     @mock.patch("utils.provisioning_instrumentation.time")
     def test_post_accept_failure_attaches_request_started_at(self, mock_time):

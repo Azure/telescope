@@ -19,7 +19,7 @@ class TestAKSClientVirtualMachines(unittest.TestCase):
         self.operation_context_patcher = mock.patch("crud.operation.OperationContext")
 
         mock_container_client = self.container_client_patcher.start()
-        self.kubernetes_client_patcher.start()
+        self.mock_kubernetes_client = self.kubernetes_client_patcher.start()
         self.mock_operation_context = self.operation_context_patcher.start()
         self.mock_credential = mock.MagicMock()
 
@@ -45,6 +45,7 @@ class TestAKSClientVirtualMachines(unittest.TestCase):
     def test_create_virtual_machines_node_pool(
         self, mock_subprocess_run
     ):
+        self.aks_client.operation_timeout_minutes = 40
         mock_created_node_pool = mock.MagicMock()
         mock_created_node_pool.as_dict.return_value = {"name": "test-pool"}
         self.aks_client.get_node_pool = mock.MagicMock(
@@ -69,6 +70,12 @@ class TestAKSClientVirtualMachines(unittest.TestCase):
         self.assertIn("VirtualMachines", command)
         self.assertIn("--vm-sizes", command)
         self.assertIn("Standard_D2s_v3", command)
+        self.assertEqual(mock_subprocess_run.call_args.kwargs["timeout"], 2400)
+        self.mock_kubernetes_client.return_value.wait_for_nodes_ready.assert_called_once_with(
+            node_count=2,
+            operation_timeout_in_minutes=40,
+            label_selector="agentpool=test-pool",
+        )
         operation = self.mock_operation_context.return_value.__enter__.return_value
         operation.add_metadata.assert_any_call("retry_occurred", False)
 
@@ -77,6 +84,7 @@ class TestAKSClientVirtualMachines(unittest.TestCase):
     def test_progressive_scale_virtual_machines_node_pool(
         self, mock_time, mock_subprocess_run
     ):
+        self.aks_client.operation_timeout_minutes = 40
         mock_time.sleep = mock.MagicMock()
         mock_subprocess_run.return_value = mock.MagicMock(
             returncode=0, stdout="", stderr=""
@@ -107,10 +115,14 @@ class TestAKSClientVirtualMachines(unittest.TestCase):
             [call.args[0][-1] for call in mock_subprocess_run.call_args_list],
             ["2", "3"],
         )
+        self.assertTrue(all(
+            call.kwargs["timeout"] == 2400 for call in mock_subprocess_run.call_args_list
+        ))
 
     @mock.patch("utils.azure_node_pool_cli.subprocess.run")
     def test_direct_scale_virtual_machines_uses_real_instrumentation(self, mock_run):
         """Scale up and down must satisfy the shared timing result contract."""
+        self.aks_client.operation_timeout_minutes = 40
         mock_run.return_value = mock.Mock(returncode=0, stdout="", stderr="")
         node_pool = mock.MagicMock()
         node_pool.virtual_machines_profile = {
@@ -127,6 +139,7 @@ class TestAKSClientVirtualMachines(unittest.TestCase):
                     node_pool_type="VirtualMachines",
                 ))
                 self.assertEqual(mock_run.call_args.args[0][-1], str(target))
+                self.assertEqual(mock_run.call_args.kwargs["timeout"], 2400)
 
     @mock.patch("utils.azure_node_pool_cli.subprocess.run")
     def test_create_preserves_readiness_failure(self, mock_run):

@@ -6,7 +6,7 @@ from functools import partial
 
 from utils.constants import AzureNodePoolTypeConstants
 from utils.logger_config import get_logger
-from utils.provisioning_instrumentation import begin_create_or_update_with_retry
+from utils.provisioning_instrumentation import TIMEOUT_SECONDS, begin_create_or_update_with_retry
 
 logger = get_logger(__name__)
 
@@ -72,7 +72,7 @@ def run_node_pool_cli(
     action,
     retries=10,
     retry_wait=30,
-    timeout=1800,
+    timeout=TIMEOUT_SECONDS,
 ):
     """Run an az command; return (successful attempt start, retry_occurred)."""
     retry_occurred = False
@@ -120,23 +120,25 @@ def run_node_pool_cli(
 
 
 def create_virtual_machines_node_pool(
-    resource_group, cluster_name, node_pool_name, node_count, vm_size
+    resource_group, cluster_name, node_pool_name, node_count, vm_size,
+    timeout=TIMEOUT_SECONDS,
 ):
     """Create a pool and return its successful attempt timestamp and retry flag."""
     command = build_add_virtual_machines_command(
         resource_group, cluster_name, node_pool_name, node_count, vm_size
     )
-    return run_node_pool_cli(command, node_pool_name, "add")
+    return run_node_pool_cli(command, node_pool_name, "add", timeout=timeout)
 
 
 def scale_virtual_machines_node_pool(
-    resource_group, cluster_name, node_pool_name, node_count
+    resource_group, cluster_name, node_pool_name, node_count,
+    timeout=TIMEOUT_SECONDS,
 ):
     """Scale a pool and return its successful attempt timestamp and retry flag."""
     command = build_scale_virtual_machines_command(
         resource_group, cluster_name, node_pool_name, node_count
     )
-    return run_node_pool_cli(command, node_pool_name, "scale")
+    return run_node_pool_cli(command, node_pool_name, "scale", timeout=timeout)
 
 
 def prepare_create_operation(
@@ -150,6 +152,7 @@ def prepare_create_operation(
     vm_size,
     aks_sdk_client,
     label="",
+    timeout=TIMEOUT_SECONDS,
 ):
     """Return a node-pool create callable for the requested pool type."""
     if node_pool_type != AzureNodePoolTypeConstants.VIRTUAL_MACHINES:
@@ -166,6 +169,7 @@ def prepare_create_operation(
             node_pool_name,
             sdk_parameters,
             label=label,
+            timeout=timeout,
         )
     if gpu_node_pool:
         raise ValueError("GPU node pools with type VirtualMachines are not supported")
@@ -176,6 +180,7 @@ def prepare_create_operation(
         node_pool_name,
         node_count,
         vm_size,
+        timeout=timeout,
     )
 
 
@@ -188,6 +193,7 @@ def prepare_scale_operation(
     node_count,
     aks_sdk_client,
     label="",
+    timeout=TIMEOUT_SECONDS,
 ):
     """Return a node-pool scale callable for the requested pool type."""
     if node_pool_type != AzureNodePoolTypeConstants.VIRTUAL_MACHINES:
@@ -200,6 +206,7 @@ def prepare_scale_operation(
             node_pool_name,
             node_pool,
             label=label,
+            timeout=timeout,
         )
     return partial(
         scale_virtual_machines_node_pool,
@@ -207,6 +214,7 @@ def prepare_scale_operation(
         cluster_name,
         node_pool_name,
         node_count,
+        timeout=timeout,
     )
 
 
