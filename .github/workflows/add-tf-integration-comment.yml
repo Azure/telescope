@@ -3,6 +3,13 @@ name: Add Terraform Integration Comment
 on:
   pull_request_target:
     types: [opened, synchronize, reopened]
+    branches:
+      - main
+    paths:
+      - '**.tf'
+      - '**.json'
+      - '**.tfvars'
+      - 'modules/terraform/**'
 
 permissions:
   pull-requests: write
