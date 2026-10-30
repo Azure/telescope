@@ -402,8 +402,7 @@ stages:
             --node-vm-size "Standard_D48ds_v5" \
             --mode User \
             --node-taints cl2=true:NoSchedule \
-            --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu
+            --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)"
       displayName: Create node pool cl2
     - task: AzureCLI@2
       inputs:
@@ -452,7 +451,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool0
     - task: AzureCLI@2
@@ -502,7 +500,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool1
     - task: AzureCLI@2
@@ -552,7 +549,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool2
     - task: AzureCLI@2
@@ -602,7 +598,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool3
     - task: AzureCLI@2
@@ -652,7 +647,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool4
     - task: AzureCLI@2
@@ -702,7 +696,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool5
     - task: AzureCLI@2
@@ -752,7 +745,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool6
     - task: AzureCLI@2
@@ -802,7 +794,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool7
     - task: AzureCLI@2
@@ -852,7 +843,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool8
     - task: AzureCLI@2
@@ -902,7 +892,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool9
     - task: AzureCLI@2
@@ -952,7 +941,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool10
     - task: AzureCLI@2
@@ -1002,7 +990,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool11
     - task: AzureCLI@2
@@ -1052,7 +1039,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool12
     - task: AzureCLI@2
@@ -1102,7 +1088,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool13
     - task: AzureCLI@2
@@ -1152,7 +1137,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool14
     - task: AzureCLI@2
@@ -1202,7 +1186,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool15
     - task: AzureCLI@2
@@ -1252,7 +1235,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool16
     - task: AzureCLI@2
@@ -1302,7 +1284,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool17
     - task: AzureCLI@2
@@ -1352,7 +1333,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool18
     - task: AzureCLI@2
@@ -2197,8 +2177,7 @@ stages:
             --node-vm-size "Standard_D48ds_v5" \
             --mode User \
             --node-taints cl2=true:NoSchedule \
-            --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu
+            --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)"
       displayName: Create node pool cl2
     - task: AzureCLI@2
       inputs:
@@ -2247,7 +2226,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool0
     - task: AzureCLI@2
@@ -2297,7 +2275,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool1
     - task: AzureCLI@2
@@ -2347,7 +2324,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool2
     - task: AzureCLI@2
@@ -2397,7 +2373,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool3
     - task: AzureCLI@2
@@ -2447,7 +2422,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool4
     - task: AzureCLI@2
@@ -2497,7 +2471,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool5
     - task: AzureCLI@2
@@ -2547,7 +2520,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool6
     - task: AzureCLI@2
@@ -2597,7 +2569,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool7
     - task: AzureCLI@2
@@ -2647,7 +2618,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool8
     - task: AzureCLI@2
@@ -2697,7 +2667,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool9
     - task: AzureCLI@2
@@ -2747,7 +2716,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool10
     - task: AzureCLI@2
@@ -2797,7 +2765,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool11
     - task: AzureCLI@2
@@ -2847,7 +2814,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool12
     - task: AzureCLI@2
@@ -2897,7 +2863,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool13
     - task: AzureCLI@2
@@ -2947,7 +2912,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool14
     - task: AzureCLI@2
@@ -2997,7 +2961,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool15
     - task: AzureCLI@2
@@ -3047,7 +3010,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool16
     - task: AzureCLI@2
@@ -3097,7 +3059,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool17
     - task: AzureCLI@2
@@ -3147,7 +3108,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool18
     - task: AzureCLI@2
@@ -3992,8 +3952,7 @@ stages:
             --node-vm-size "Standard_D48ds_v5" \
             --mode User \
             --node-taints cl2=true:NoSchedule \
-            --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu
+            --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)"
       displayName: Create node pool cl2
     - task: AzureCLI@2
       inputs:
@@ -4042,7 +4001,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool0
     - task: AzureCLI@2
@@ -4092,7 +4050,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool1
     - task: AzureCLI@2
@@ -4142,7 +4099,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool2
     - task: AzureCLI@2
@@ -4192,7 +4148,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool3
     - task: AzureCLI@2
@@ -4242,7 +4197,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool4
     - task: AzureCLI@2
@@ -4292,7 +4246,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool5
     - task: AzureCLI@2
@@ -4342,7 +4295,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool6
     - task: AzureCLI@2
@@ -4392,7 +4344,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool7
     - task: AzureCLI@2
@@ -4442,7 +4393,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool8
     - task: AzureCLI@2
@@ -4492,7 +4442,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool9
     - task: AzureCLI@2
@@ -4542,7 +4491,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool10
     - task: AzureCLI@2
@@ -4592,7 +4540,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool11
     - task: AzureCLI@2
@@ -4642,7 +4589,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool12
     - task: AzureCLI@2
@@ -4692,7 +4638,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool13
     - task: AzureCLI@2
@@ -4742,7 +4687,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool14
     - task: AzureCLI@2
@@ -4792,7 +4736,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool15
     - task: AzureCLI@2
@@ -4842,7 +4785,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool16
     - task: AzureCLI@2
@@ -4892,7 +4834,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool17
     - task: AzureCLI@2
@@ -4942,7 +4883,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool18
     - task: AzureCLI@2
@@ -5788,8 +5728,7 @@ stages:
             --node-vm-size "Standard_D48ds_v5" \
             --mode User \
             --node-taints cl2=true:NoSchedule \
-            --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu
+            --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)"
       displayName: Create node pool cl2
     - task: AzureCLI@2
       inputs:
@@ -5838,7 +5777,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool0
     - task: AzureCLI@2
@@ -5888,7 +5826,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool1
     - task: AzureCLI@2
@@ -5938,7 +5875,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool2
     - task: AzureCLI@2
@@ -5988,7 +5924,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool3
     - task: AzureCLI@2
@@ -6038,7 +5973,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool4
     - task: AzureCLI@2
@@ -6088,7 +6022,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool5
     - task: AzureCLI@2
@@ -6138,7 +6071,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool6
     - task: AzureCLI@2
@@ -6188,7 +6120,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool7
     - task: AzureCLI@2
@@ -6238,7 +6169,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool8
     - task: AzureCLI@2
@@ -6288,7 +6218,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool9
     - task: AzureCLI@2
@@ -6338,7 +6267,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool10
     - task: AzureCLI@2
@@ -6388,7 +6316,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool11
     - task: AzureCLI@2
@@ -6438,7 +6365,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool12
     - task: AzureCLI@2
@@ -6488,7 +6414,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool13
     - task: AzureCLI@2
@@ -6538,7 +6463,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool14
     - task: AzureCLI@2
@@ -6588,7 +6512,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool15
     - task: AzureCLI@2
@@ -6638,7 +6561,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool16
     - task: AzureCLI@2
@@ -6688,7 +6610,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool17
     - task: AzureCLI@2
@@ -6738,7 +6659,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool18
     - task: AzureCLI@2
@@ -7583,8 +7503,7 @@ stages:
             --node-vm-size "Standard_D48ds_v5" \
             --mode User \
             --node-taints cl2=true:NoSchedule \
-            --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu
+            --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)"
       displayName: Create node pool cl2
     - task: AzureCLI@2
       inputs:
@@ -7633,7 +7552,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool0
     - task: AzureCLI@2
@@ -7683,7 +7601,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool1
     - task: AzureCLI@2
@@ -7733,7 +7650,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool2
     - task: AzureCLI@2
@@ -7783,7 +7699,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool3
     - task: AzureCLI@2
@@ -7833,7 +7748,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool4
     - task: AzureCLI@2
@@ -7883,7 +7797,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool5
     - task: AzureCLI@2
@@ -7933,7 +7846,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool6
     - task: AzureCLI@2
@@ -7983,7 +7895,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool7
     - task: AzureCLI@2
@@ -8033,7 +7944,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool8
     - task: AzureCLI@2
@@ -8083,7 +7993,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool9
     - task: AzureCLI@2
@@ -8133,7 +8042,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool10
     - task: AzureCLI@2
@@ -8183,7 +8091,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool11
     - task: AzureCLI@2
@@ -8233,7 +8140,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool12
     - task: AzureCLI@2
@@ -8283,7 +8189,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool13
     - task: AzureCLI@2
@@ -8333,7 +8238,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool14
     - task: AzureCLI@2
@@ -8383,7 +8287,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool15
     - task: AzureCLI@2
@@ -8433,7 +8336,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool16
     - task: AzureCLI@2
@@ -8483,7 +8385,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool17
     - task: AzureCLI@2
@@ -8533,7 +8434,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool18
     - task: AzureCLI@2
@@ -9379,8 +9279,7 @@ stages:
             --node-vm-size "Standard_D48ds_v5" \
             --mode User \
             --node-taints cl2=true:NoSchedule \
-            --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu
+            --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)"
       displayName: Create node pool cl2
     - task: AzureCLI@2
       inputs:
@@ -9429,7 +9328,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool0
     - task: AzureCLI@2
@@ -9479,7 +9377,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool1
     - task: AzureCLI@2
@@ -9529,7 +9426,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool2
     - task: AzureCLI@2
@@ -9579,7 +9475,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool3
     - task: AzureCLI@2
@@ -9629,7 +9524,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool4
     - task: AzureCLI@2
@@ -9679,7 +9573,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool5
     - task: AzureCLI@2
@@ -9729,7 +9622,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool6
     - task: AzureCLI@2
@@ -9779,7 +9671,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool7
     - task: AzureCLI@2
@@ -9829,7 +9720,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool8
     - task: AzureCLI@2
@@ -9879,7 +9769,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool9
     - task: AzureCLI@2
@@ -9929,7 +9818,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool10
     - task: AzureCLI@2
@@ -9979,7 +9867,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool11
     - task: AzureCLI@2
@@ -10029,7 +9916,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool12
     - task: AzureCLI@2
@@ -10079,7 +9965,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool13
     - task: AzureCLI@2
@@ -10129,7 +10014,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool14
     - task: AzureCLI@2
@@ -10179,7 +10063,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool15
     - task: AzureCLI@2
@@ -10229,7 +10112,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool16
     - task: AzureCLI@2
@@ -10279,7 +10161,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool17
     - task: AzureCLI@2
@@ -10329,7 +10210,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool18
     - task: AzureCLI@2
@@ -11175,8 +11055,7 @@ stages:
             --node-vm-size "Standard_D48ds_v5" \
             --mode User \
             --node-taints cl2=true:NoSchedule \
-            --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu
+            --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)"
       displayName: Create node pool cl2
     - task: AzureCLI@2
       inputs:
@@ -11225,7 +11104,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool0
     - task: AzureCLI@2
@@ -11275,7 +11153,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool1
     - task: AzureCLI@2
@@ -11325,7 +11202,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool2
     - task: AzureCLI@2
@@ -11375,7 +11251,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool3
     - task: AzureCLI@2
@@ -11425,7 +11300,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool4
     - task: AzureCLI@2
@@ -11475,7 +11349,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool5
     - task: AzureCLI@2
@@ -11525,7 +11398,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool6
     - task: AzureCLI@2
@@ -11575,7 +11447,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool7
     - task: AzureCLI@2
@@ -11625,7 +11496,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool8
     - task: AzureCLI@2
@@ -11675,7 +11545,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool9
     - task: AzureCLI@2
@@ -11725,7 +11594,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool10
     - task: AzureCLI@2
@@ -11775,7 +11643,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool11
     - task: AzureCLI@2
@@ -11825,7 +11692,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool12
     - task: AzureCLI@2
@@ -11875,7 +11741,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool13
     - task: AzureCLI@2
@@ -11925,7 +11790,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool14
     - task: AzureCLI@2
@@ -11975,7 +11839,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool15
     - task: AzureCLI@2
@@ -12025,7 +11888,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool16
     - task: AzureCLI@2
@@ -12075,7 +11937,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool17
     - task: AzureCLI@2
@@ -12125,7 +11986,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool18
     - task: AzureCLI@2
@@ -12972,8 +12832,7 @@ stages:
             --node-vm-size "Standard_D48ds_v5" \
             --mode User \
             --node-taints cl2=true:NoSchedule \
-            --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu
+            --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)"
       displayName: Create node pool cl2
     - task: AzureCLI@2
       inputs:
@@ -13022,7 +12881,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool0
     - task: AzureCLI@2
@@ -13072,7 +12930,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool1
     - task: AzureCLI@2
@@ -13122,7 +12979,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool2
     - task: AzureCLI@2
@@ -13172,7 +13028,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool3
     - task: AzureCLI@2
@@ -13222,7 +13077,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool4
     - task: AzureCLI@2
@@ -13272,7 +13126,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool5
     - task: AzureCLI@2
@@ -13322,7 +13175,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool6
     - task: AzureCLI@2
@@ -13372,7 +13224,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool7
     - task: AzureCLI@2
@@ -13422,7 +13273,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool8
     - task: AzureCLI@2
@@ -13472,7 +13322,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool9
     - task: AzureCLI@2
@@ -13522,7 +13371,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool10
     - task: AzureCLI@2
@@ -13572,7 +13420,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool11
     - task: AzureCLI@2
@@ -13622,7 +13469,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool12
     - task: AzureCLI@2
@@ -13672,7 +13518,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool13
     - task: AzureCLI@2
@@ -13722,7 +13567,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool14
     - task: AzureCLI@2
@@ -13772,7 +13616,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool15
     - task: AzureCLI@2
@@ -13822,7 +13665,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool16
     - task: AzureCLI@2
@@ -13872,7 +13714,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool17
     - task: AzureCLI@2
@@ -13922,7 +13763,6 @@ stages:
             --node-vm-size "Standard_D4ds_v4" \
             --mode User \
             --vnet-subnet-id "$(createSubnet_nodes.NODES_SUBNET_ID)" \
-            --os-sku Ubuntu \
             --linux-os-config "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
       displayName: Create node pool workerpool18
     - task: AzureCLI@2
