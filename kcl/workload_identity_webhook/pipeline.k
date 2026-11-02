@@ -117,9 +117,20 @@ fi
                     condition=CREATE_NEW_CLUSTER),
                 azure.AzCli(
                     const.DEFAULT_SERVICE_CONNECTION,
-                    "Create H2 cluster with OIDC and workload identity",
+                    "Create benchmark Prometheus workspace",
                     """
 echo "##vso[task.setvariable variable=RESOURCE_GROUP_CREATED]true"
+az monitor account create \\
+  --subscription "${SUBSCRIPTION_ID}" \\
+  --resource-group "$(RESOURCE_GROUP)" \\
+  --name wi-benchmark-prometheus \\
+  --location "${LOCATION}"
+""",
+                    condition=CREATE_NEW_CLUSTER),
+                azure.AzCli(
+                    const.DEFAULT_SERVICE_CONNECTION,
+                    "Create H2 cluster with OIDC and workload identity",
+                    """
 az extension add \\
   --name aks-preview \\
   --version 20.0.0b6 \\
@@ -137,7 +148,7 @@ az aks create \\
   --enable-oidc-issuer \\
   --enable-workload-identity \\
   --enable-azure-monitor-metrics \\
-  --azure-monitor-workspace-resource-id "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/wi-benchmark-monitoring/providers/Microsoft.Monitor/accounts/wi-benchmark-prometheus" \\
+  --azure-monitor-workspace-resource-id "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/$(RESOURCE_GROUP)/providers/Microsoft.Monitor/accounts/wi-benchmark-prometheus" \\
   --generate-ssh-keys \\
   --nodepool-name systempool \\
   --node-count 3 \\

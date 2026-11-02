@@ -11,7 +11,7 @@ its Pods and pause for five minutes, including after the final run.
 |---|---|---|
 | `existing_resource_group` | `none` | Existing resource group, also used as the benchmark namespace |
 | `existing_cluster` | `none` | Existing AKS cluster name; must be supplied with the resource group |
-| `keep_cluster` | `false` | Retain a newly created cluster; existing clusters are always retained |
+| `keep_cluster` | `false` | Retain a newly created cluster and its Prometheus workspace; existing resource groups are always retained |
 
 Leave both existing-cluster parameters as `none` (or empty) to create a new cluster.
 Supplying only one fails before provisioning or traffic.
@@ -22,8 +22,8 @@ The cluster must be in subscription `b8ceb4e5-f05b-4562-a9f5-14acb1f24219`.
 Its resource-group name must also be a valid Kubernetes namespace name:
 a lowercase DNS label of at most 63 characters.
 
-Reuse skips resource-group/cluster/node-pool creation, aks-preview installation,
-and monitoring enablement. Operators must provide an existing WI-enabled cluster.
+Reuse skips resource-group/cluster/node-pool and Prometheus workspace creation,
+aks-preview installation, and monitoring enablement. Operators must provide an existing WI-enabled cluster.
 In both modes, WI preparation idempotently applies the benchmark namespace and
 ServiceAccount `pod-benchmark`, then sets `azure.workload.identity/client-id` to
 the dummy UUID with `--overwrite`. Any previous client-ID annotation on this
@@ -42,11 +42,12 @@ namespace. Phase cleanup leaves any pre-existing Pods untouched.
 - Worker pool: three `Standard_D2s_v5` nodes, retained as requested but not used
   to host the traffic driver.
 - OIDC and workload identity enabled; webhook resources/replicas are not tuned.
-- Managed Prometheus enabled during cluster creation, using the existing
-  `wi-benchmark-prometheus` Azure Monitor workspace in `wi-benchmark-monitoring`
-  in the same subscription. Metrics survive deletion of the benchmark resource
-  group. The pipeline identity needs permission to onboard the cluster to this
-  workspace. This enables metrics, not container stdout/stderr logging.
+- The pipeline creates `wi-benchmark-prometheus`, an Azure Monitor workspace,
+  in the cluster's resource group before enabling managed Prometheus during
+  cluster creation. No separate `wi-benchmark-monitoring` group is required.
+  The pipeline identity needs permission to create the workspace and onboard
+  the cluster. This enables metrics, not container stdout/stderr logging;
+  no Log Analytics workspace is provisioned.
 - A benchmark ServiceAccount annotated with dummy client ID
   `00000000-0000-4000-8000-000000000001`. This preserves `AZURE_CLIENT_ID`
   injection without provisioning a workload managed identity. No federated
@@ -167,13 +168,17 @@ etcd revisions, caches, controller state, and pre-existing objects remain.
 Recovery and equivalent fresh-cluster baselines are not guaranteed.
 
 `keep_cluster` defaults to **false**. For new clusters, the last step deletes the run's resource
-group, including the cluster, even after a benchmark failure where
+group, including the cluster and its Prometheus workspace, even after a benchmark failure where
 ADO permits cleanup. Deletion is gated on successful resource-group creation
 in this job and explicitly resolved new-cluster mode; an existing-group collision
 never authorizes deletion. Reused resource groups are **never deleted**, even when
 `keep_cluster` is false or the benchmark fails.
 
-With **true**, retain the cluster, benchmark namespace, and ServiceAccount.
+With **true**, retain the cluster, Prometheus workspace, benchmark namespace,
+and ServiceAccount. With **false**, deleting the group also deletes the workspace
+and its stored metrics; export required results beforehand if historical
+analysis is needed after cleanup. Existing-cluster reuse never deletes or
+reconfigures its monitoring workspace.
 This execution's phase Pods are still deleted after each run, regardless of
 `keep_cluster`. Failed or interrupted cleanup may leave some Pods behind.
 Retained resources incur charges. Use the run's resource-group name from the

@@ -114,6 +114,20 @@ jobs:
       inlineScript: |
         set -exo pipefail
         echo "##vso[task.setvariable variable=RESOURCE_GROUP_CREATED]true"
+        az monitor account create \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --resource-group "$(RESOURCE_GROUP)" \
+          --name wi-benchmark-prometheus \
+          --location "westus2"
+    condition: and(succeeded(), eq(variables['USE_EXISTING_CLUSTER'], 'false'))
+    displayName: Create benchmark Prometheus workspace
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
         az extension add \
           --name aks-preview \
           --version 20.0.0b6 \
@@ -131,7 +145,7 @@ jobs:
           --enable-oidc-issuer \
           --enable-workload-identity \
           --enable-azure-monitor-metrics \
-          --azure-monitor-workspace-resource-id "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/wi-benchmark-monitoring/providers/Microsoft.Monitor/accounts/wi-benchmark-prometheus" \
+          --azure-monitor-workspace-resource-id "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/$(RESOURCE_GROUP)/providers/Microsoft.Monitor/accounts/wi-benchmark-prometheus" \
           --generate-ssh-keys \
           --nodepool-name systempool \
           --node-count 3 \
