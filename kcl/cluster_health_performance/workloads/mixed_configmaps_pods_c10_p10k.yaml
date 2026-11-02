@@ -1,0 +1,54 @@
+# count: number of runner pods = actual concurrent client count for the test.
+count: 10
+loadProfile:
+  version: 1
+  description: "clients=10 / writes=10KB — mixed 60% read + 30% POST/PUT + 10% DELETE, 100 req/s per runner for 600s"
+  # Setup assumption (NOT enforced by this profile):
+  #   Reads target 1KB ConfigMaps; writes use 10KB payloads:
+  #     runkperf data cm add --namespace default --size 1024 --total 1000 mixed
+  #     -> objects named runkperf-cm-mixed-0 ... runkperf-cm-mixed-999
+  #   POST/DELETE use fake pods (kperf only supports create/delete on pods today).
+  # Cleanup:
+  #   kubectl -n default delete pod -l app=fake-pod
+  #   runkperf data cm delete mixed
+  specs:
+    - rate: 100
+      duration: 300
+      conns: 10
+      client: 10
+      contentType: json
+      disableHTTP2: false
+      maxRetries: 0
+      requests:
+        # 30% GET
+        - staleGet:
+            version: v1
+            resource: configmaps
+            namespace: kperf
+            name: runkperf-cm-mixed-0
+          shares: 30
+        # 30% LIST
+        - staleList:
+            version: v1
+            resource: configmaps
+            namespace: kperf
+          shares: 30
+        # 15% PUT with 10KB payload — this grows the ConfigMap from 1KB (setup)
+        # to ~10KB after first overwrite. quorumList/staleList results will
+        # reflect that once objects have been rewritten.
+        - put:
+            version: v1
+            resource: configmaps
+            namespace: kperf
+            name: runkperf-cm-mixed
+            keySpaceSize: 1000
+            payloadSize: 10240
+          shares: 15
+        # 25% postDel (deleteRatio=0.4) -> ~15% POST + ~10% DELETE, 10KB env.PAYLOAD
+        - postDel:
+            version: v1
+            resource: pods
+            namespace: kperf
+            deleteRatio: 0.4
+            payloadSize: 10240
+          shares: 25

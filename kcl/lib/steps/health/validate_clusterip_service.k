@@ -8,7 +8,7 @@ import lib.steps.azure
 # workload itself, pair with ValidateWorkloadHealth on the workload the cluster
 # actually runs (e.g. daemonset kube-system/kube-proxy, or the cilium daemonset
 # on kube-proxy-replacement clusters).
-ValidateClusterIPService = lambda serviceConnection: str, displayName: str = "", continueOnError: bool = Undefined -> steps.Step {
+ValidateClusterIPService = lambda serviceConnection: str, displayName: str = "", continueOnError: bool = True -> steps.Step {
     title = displayName if displayName else "Validate ClusterIP service routing"
     script = """
 fail() { echo "FAILED CLUSTERIP CHECK: $*"; exit 1; }

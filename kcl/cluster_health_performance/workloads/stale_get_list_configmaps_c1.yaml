@@ -1,0 +1,35 @@
+# count: number of runner pods = actual concurrent client count for the test.
+count: 1
+loadProfile:
+  version: 1
+  description: "clients=1 — GET+LIST (equal shares), 100 req/s total for 600s, against 10000 pre-populated ~1KB ConfigMaps"
+  # Setup assumption (NOT enforced by this profile):
+  #   runkperf data cm add --namespace default --size 1024 --total 10000 get
+  #   -> objects named runkperf-cm-get-0 ... runkperf-cm-get-9999
+  # Notes:
+  #   - `rate` is the total combined QPS (GET + LIST), split 50/50 by shares.
+  #   - staleGet/staleList are served from the apiserver watch cache; swap for
+  #     quorumGet/quorumList to bypass the cache and hit etcd.
+  #   - staleList does not support pagination (limit must be 0), so each LIST
+  #     returns the full 10K ConfigMap collection.
+  specs:
+    - rate: 100
+      duration: 300
+      # Need at least 5 clients to reach 100 QPS (Little's Law); 10 for headroom.
+      conns: 10
+      client: 10
+      contentType: json
+      disableHTTP2: false
+      maxRetries: 0
+      requests:
+        - staleGet:
+            version: v1
+            resource: configmaps
+            namespace: kperf
+            name: runkperf-cm-get-0
+          shares: 1
+        - staleList:
+            version: v1
+            resource: configmaps
+            namespace: kperf
+          shares: 1

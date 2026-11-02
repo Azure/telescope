@@ -1,0 +1,27 @@
+# count: number of runner pods = actual concurrent client count for the test.
+count: 1
+loadProfile:
+  version: 1
+  description: "clients=1 — GET configmaps, 100 req/s for 300s"
+  # Setup assumption (NOT enforced by this profile):
+  #   - Pre-populate 1000 ConfigMaps of ~1KB each in namespace `default`, e.g.:
+  #       runkperf data cm add --namespace default --size 1024 --total 1000 get
+  #     This produces objects named `runkperf-cm-get-0` ... `runkperf-cm-get-999`.
+  specs:
+    - rate: 100         # 100 requests / sec per runner
+      duration: 300     # 600s test window
+      # Need at least 5 clients to reach 100 QPS (Little's Law); 10 for headroom.
+      conns: 10
+      client: 10
+      contentType: json
+      disableHTTP2: false
+      maxRetries: 0
+      requests:
+        # GET served from kube-apiserver watch cache (resourceVersion=0).
+        # Use `quorumGet` instead if you want to bypass the cache and hit etcd.
+        - staleGet:
+            version: v1
+            resource: configmaps
+            namespace: kperf
+            name: runkperf-cm-get-0
+          shares: 100

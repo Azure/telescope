@@ -5,7 +5,7 @@ import lib.steps.azure
 # every Node carries a providerID. For generic controller/pod health, pair this
 # with ValidateWorkloadHealth(kind="daemonset", name="cloud-node-manager",
 # namespace="kube-system") from k8s/validate_workload.k.
-ValidateCloudNodeManager = lambda serviceConnection: str, displayName: str = "", continueOnError: bool = Undefined -> steps.Step {
+ValidateCloudNodeManager = lambda serviceConnection: str, displayName: str = "", continueOnError: bool = True -> steps.Step {
     title = displayName if displayName else "Validate cloud-node-manager"
     script = """
 set +e

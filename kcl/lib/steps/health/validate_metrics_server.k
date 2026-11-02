@@ -4,7 +4,7 @@ import lib.steps.azure
 # metrics-server: `kubectl top nodes` returns CPU/memory metrics. For
 # pod/controller health, pair with
 # ValidateWorkloadHealth(kind="deployment", name="metrics-server", namespace="kube-system").
-ValidateMetricsServer = lambda serviceConnection: str, displayName: str = "", continueOnError: bool = Undefined -> steps.Step {
+ValidateMetricsServer = lambda serviceConnection: str, displayName: str = "", continueOnError: bool = True -> steps.Step {
     title = displayName if displayName else "Validate metrics-server"
     script = """
 set +e

@@ -24,6 +24,8 @@ az role assignment create \\
 }
 
 CreateSubnet = lambda serviceConnection: str, resourceGroup: str, vnetName: str, name: str, addressPrefixes: str, subscription: str -> steps.Step {
+    # Azure Pipelines step names only support alphanumeric characters and underscores.
+    subnetStepName = "createSubnet_${name.replace('-', '_').replace('.', '_')}"
     AzCli(serviceConnection, "Create subnet ${name}", """
 az network vnet subnet create \\
   --resource-group "${resourceGroup}" \\
@@ -38,7 +40,6 @@ SUBNET_ID=$(az network vnet subnet show \\
   --name "${name}" \\
   --subscription "${subscription}" \\
   --query id -o tsv)
-
 echo "##vso[task.setvariable variable=${name.upper()}_SUBNET_ID;isOutput=true]$SUBNET_ID"
-""", stepName="createSubnet")
+""", stepName=subnetStepName)
 }

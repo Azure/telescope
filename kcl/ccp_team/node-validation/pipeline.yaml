@@ -1,0 +1,290 @@
+name: node-validation
+pool: AKS-Telescope-Airlock
+trigger: none
+parameters:
+- name: keep_failed_cluster
+  displayName: Keep the cluster when job fails (manual cleanup required)
+  type: boolean
+  default: false
+pr: none
+stages:
+- stage: eastasia
+  displayName: East Asia
+  dependsOn: []
+  jobs:
+  - job: nodes1000
+    displayName: One 1000-node worker pool in eastasia
+    condition: succeeded()
+    timeoutInMinutes: 240
+    cancelTimeoutInMinutes: 60
+    steps:
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+          az config set defaults.location="eastasia"
+          az account show
+      displayName: Login to Azure
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |+
+          set -exo pipefail
+          az group create \
+            --name "nodevalidation-$(Build.BuildId)-eastasia-nodes1000-$(System.JobAttempt)" \
+            --location "eastasia" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+
+      displayName: Create resource group in eastasia (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az aks create \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --resource-group "nodevalidation-$(Build.BuildId)-eastasia-nodes1000-$(System.JobAttempt)" \
+            --node-resource-group "nodevalidation-$(Build.BuildId)-eastasia-nodes1000-$(System.JobAttempt)-nodes" \
+            --name "nodevalidation-$(Build.BuildId)-eastasia-nodes1000-$(System.JobAttempt)" \
+            --location "eastasia" \
+            --kubernetes-version "1.36.4" \
+            --tier standard \
+            --nodepool-name systempool \
+            --node-count 2 \
+            --node-vm-size Standard_D2s_v3 \
+            --max-pods 250 \
+            --network-plugin azure \
+            --network-plugin-mode overlay \
+            --pod-cidr 10.64.0.0/10 \
+            --service-cidr 10.0.0.0/16 \
+            --dns-service-ip 10.0.0.10 \
+            --outbound-type managedNATGateway \
+            --nat-gateway-managed-outbound-ip-count 10 \
+            --enable-managed-identity \
+            --generate-ssh-keys \
+            --yes
+      displayName: Create Standard-tier cluster
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          create_node_pool() {
+            local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
+            deadline=$(($(date +%s) + 600))
+            while :; do
+              attempt=$((attempt + 1))
+              if output=$(az aks nodepool add "$@" 2>&1); then
+                rc=0
+              else
+                rc=$?
+              fi
+              echo "$output"
+              if [ "$rc" -eq 0 ]; then
+                return 0
+              fi
+              if echo "$output" | grep -qiE "OperationNotAllowed"; then
+                now=$(date +%s)
+                if [ "$now" -ge "$deadline" ]; then
+                  echo "Retriable error persisted past 600s retry window ($attempt attempts); giving up."
+                  return "$rc"
+                fi
+                remaining_retry_seconds=$((deadline - now))
+                echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining_retry_seconds seconds remain in retry window)."
+                sleep "$sleep_between"
+              else
+                echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+                return "$rc"
+              fi
+            done
+          }
+
+
+          create_node_pool \
+            --cluster-name "nodevalidation-$(Build.BuildId)-eastasia-nodes1000-$(System.JobAttempt)" \
+            --resource-group "nodevalidation-$(Build.BuildId)-eastasia-nodes1000-$(System.JobAttempt)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --name "workerpool0" \
+            --node-count 1000 \
+            --node-vm-size "Standard_D2s_v3" \
+            --mode User \
+            --max-pods 250
+      displayName: Create node pool workerpool0
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az aks get-credentials \
+            --name "nodevalidation-$(Build.BuildId)-eastasia-nodes1000-$(System.JobAttempt)" \
+            --resource-group "nodevalidation-$(Build.BuildId)-eastasia-nodes1000-$(System.JobAttempt)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --overwrite-existing \
+            -f $(Agent.TempDirectory)/$(System.JobId)-kubeconfig
+      displayName: Get credentials for nodevalidation-$(Build.BuildId)-eastasia-nodes1000-$(System.JobAttempt)
+    - bash: |
+        bash "$(Build.SourcesDirectory)/kcl/ccp_team/node-validation/wait-for-taint-clearance.sh" \
+          "$(Agent.TempDirectory)/$(System.JobId)-kubeconfig" "workerpool0:1000"
+      displayName: Wait for NoSchedule taint clearance
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az group delete --name "nodevalidation-$(Build.BuildId)-eastasia-nodes1000-$(System.JobAttempt)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
+      condition: and(always(), not(and(${{ parameters.keep_failed_cluster }}, failed())))
+      displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+- stage: westus2
+  displayName: West US 2
+  dependsOn: []
+  jobs:
+  - job: nodes1000
+    displayName: One 1000-node worker pool in westus2
+    condition: succeeded()
+    timeoutInMinutes: 240
+    cancelTimeoutInMinutes: 60
+    steps:
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+          az config set defaults.location="westus2"
+          az account show
+      displayName: Login to Azure
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |+
+          set -exo pipefail
+          az group create \
+            --name "nodevalidation-$(Build.BuildId)-westus2-nodes1000-$(System.JobAttempt)" \
+            --location "westus2" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+
+      displayName: Create resource group in westus2 (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az aks create \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --resource-group "nodevalidation-$(Build.BuildId)-westus2-nodes1000-$(System.JobAttempt)" \
+            --node-resource-group "nodevalidation-$(Build.BuildId)-westus2-nodes1000-$(System.JobAttempt)-nodes" \
+            --name "nodevalidation-$(Build.BuildId)-westus2-nodes1000-$(System.JobAttempt)" \
+            --location "westus2" \
+            --kubernetes-version "1.36.4" \
+            --tier standard \
+            --nodepool-name systempool \
+            --node-count 2 \
+            --node-vm-size Standard_D2s_v3 \
+            --max-pods 250 \
+            --network-plugin azure \
+            --network-plugin-mode overlay \
+            --pod-cidr 10.64.0.0/10 \
+            --service-cidr 10.0.0.0/16 \
+            --dns-service-ip 10.0.0.10 \
+            --outbound-type managedNATGateway \
+            --nat-gateway-managed-outbound-ip-count 10 \
+            --enable-managed-identity \
+            --generate-ssh-keys \
+            --yes
+      displayName: Create Standard-tier cluster
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          create_node_pool() {
+            local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
+            deadline=$(($(date +%s) + 600))
+            while :; do
+              attempt=$((attempt + 1))
+              if output=$(az aks nodepool add "$@" 2>&1); then
+                rc=0
+              else
+                rc=$?
+              fi
+              echo "$output"
+              if [ "$rc" -eq 0 ]; then
+                return 0
+              fi
+              if echo "$output" | grep -qiE "OperationNotAllowed"; then
+                now=$(date +%s)
+                if [ "$now" -ge "$deadline" ]; then
+                  echo "Retriable error persisted past 600s retry window ($attempt attempts); giving up."
+                  return "$rc"
+                fi
+                remaining_retry_seconds=$((deadline - now))
+                echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining_retry_seconds seconds remain in retry window)."
+                sleep "$sleep_between"
+              else
+                echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+                return "$rc"
+              fi
+            done
+          }
+
+
+          create_node_pool \
+            --cluster-name "nodevalidation-$(Build.BuildId)-westus2-nodes1000-$(System.JobAttempt)" \
+            --resource-group "nodevalidation-$(Build.BuildId)-westus2-nodes1000-$(System.JobAttempt)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --name "workerpool0" \
+            --node-count 1000 \
+            --node-vm-size "Standard_D2s_v3" \
+            --mode User \
+            --max-pods 250
+      displayName: Create node pool workerpool0
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az aks get-credentials \
+            --name "nodevalidation-$(Build.BuildId)-westus2-nodes1000-$(System.JobAttempt)" \
+            --resource-group "nodevalidation-$(Build.BuildId)-westus2-nodes1000-$(System.JobAttempt)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --overwrite-existing \
+            -f $(Agent.TempDirectory)/$(System.JobId)-kubeconfig
+      displayName: Get credentials for nodevalidation-$(Build.BuildId)-westus2-nodes1000-$(System.JobAttempt)
+    - bash: |
+        bash "$(Build.SourcesDirectory)/kcl/ccp_team/node-validation/wait-for-taint-clearance.sh" \
+          "$(Agent.TempDirectory)/$(System.JobId)-kubeconfig" "workerpool0:1000"
+      displayName: Wait for NoSchedule taint clearance
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az group delete --name "nodevalidation-$(Build.BuildId)-westus2-nodes1000-$(System.JobAttempt)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
+      condition: and(always(), not(and(${{ parameters.keep_failed_cluster }}, failed())))
+      displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
