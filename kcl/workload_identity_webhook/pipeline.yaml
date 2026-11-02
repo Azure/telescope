@@ -11,7 +11,7 @@ parameters:
   type: string
   default: none
 - name: keep_cluster
-  displayName: Keep cluster and benchmark Pods after benchmark
+  displayName: Keep cluster after benchmark (phase Pods are deleted)
   type: boolean
   default: false
 pr: none
@@ -19,13 +19,15 @@ jobs:
 - job: benchmark
   displayName: Run WI webhook traffic on a new or existing cluster
   timeoutInMinutes: 240
-  cancelTimeoutInMinutes: 10
+  cancelTimeoutInMinutes: 25
   variables:
     RUN_ID: wi-$(Build.BuildId)-$(System.JobAttempt)
     RESOURCE_GROUP_CREATED: 'false'
     USE_EXISTING_CLUSTER: unresolved
     KUBECONFIG: $(Agent.TempDirectory)/$(RUN_ID).kubeconfig
-    KPERF_PROFILE: $(Agent.TempDirectory)/$(RUN_ID)-load-profile.yaml
+    PHASE_50_STARTED: 'false'
+    PHASE_100_STARTED: 'false'
+    PHASE_200_STARTED: 'false'
   steps:
   - bash: |
       set -euo pipefail
@@ -184,17 +186,6 @@ jobs:
           "azure.workload.identity/client-id=00000000-0000-4000-8000-000000000001" \
           --overwrite
     displayName: Prepare WI resources
-  - bash: |
-      set -euo pipefail
-      profile="$(KPERF_PROFILE)"
-      sed \
-        -e 's/__RUN_NAMESPACE__/$(BENCHMARK_NAMESPACE)/g' \
-        "$(Build.SourcesDirectory)/kcl/workload_identity_webhook/load-profile.yaml" > "$profile"
-      if grep -q '__[A-Z_]*__' "$profile"; then
-        echo "Unresolved load-profile placeholders" >&2
-        exit 1
-      fi
-    displayName: Prepare load profile
   - script: |
       set -euo pipefail
       set -x
@@ -209,15 +200,138 @@ jobs:
       rm -rf $temp_dir
       docker rmi ghcr.io/liyu-ma/kperf@sha256:36f8e1cdbb6a4bd2fde4b29bf0cb5e4e014484ae9ddca9136f43449897ffb647 2>/dev/null || true
     displayName: Install runkperf binary
+  - bash: |
+      set -euo pipefail
+      profile="$(Agent.TempDirectory)/$(RUN_ID)-r50-load-profile.yaml"
+      sed \
+        -e 's/__RUN_NAMESPACE__/$(BENCHMARK_NAMESPACE)/g' \
+        -e 's/__RATE__/50/g' \
+        -e 's/__PHASE_RUN_ID__/$(RUN_ID)-r50/g' \
+        "$(Build.SourcesDirectory)/kcl/workload_identity_webhook/load-profile.yaml" > "$profile"
+      if grep -q '__[A-Z_]*__' "$profile"; then
+        echo "Unresolved load-profile placeholders" >&2
+        exit 1
+      fi
+      echo "Starting 50 CREATEs/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ); ownership=$(RUN_ID)-r50"
+      echo "##vso[task.setvariable variable=PHASE_50_STARTED]true"
+    displayName: Prepare 50/sec load profile
   - script: |
       set -euo pipefail
       set -x
 
       kperf runner run \
-        --config "$(KPERF_PROFILE)" \
+        --config "$(Agent.TempDirectory)/$(RUN_ID)-r50-load-profile.yaml" \
         --kubeconfig "$(KUBECONFIG)"
-    displayName: Run kperf runner
+    displayName: Run kperf at 50 CREATEs/sec
     timeoutInMinutes: 15
+  - bash: |
+      set -euo pipefail
+      echo "Cleaning 50/sec phase Pods at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      kubectl --request-timeout=60s delete pods \
+        --namespace "$(BENCHMARK_NAMESPACE)" \
+        --selector "benchmark-run=$(RUN_ID)-r50" \
+        --wait=true \
+        --timeout=10m
+      echo "Finished 50/sec phase cleanup at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    condition: and(always(), eq(variables['PHASE_50_STARTED'], 'true'))
+    displayName: Delete 50/sec phase Pods
+    timeoutInMinutes: 15
+  - bash: |
+      set -euo pipefail
+      echo "Starting five-minute pause after 50/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      sleep 300
+      echo "Finished pause after 50/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    condition: and(always(), eq(variables['PHASE_50_STARTED'], 'true'))
+    displayName: Pause 5 minutes after 50/sec
+    timeoutInMinutes: 6
+  - bash: |
+      set -euo pipefail
+      profile="$(Agent.TempDirectory)/$(RUN_ID)-r100-load-profile.yaml"
+      sed \
+        -e 's/__RUN_NAMESPACE__/$(BENCHMARK_NAMESPACE)/g' \
+        -e 's/__RATE__/100/g' \
+        -e 's/__PHASE_RUN_ID__/$(RUN_ID)-r100/g' \
+        "$(Build.SourcesDirectory)/kcl/workload_identity_webhook/load-profile.yaml" > "$profile"
+      if grep -q '__[A-Z_]*__' "$profile"; then
+        echo "Unresolved load-profile placeholders" >&2
+        exit 1
+      fi
+      echo "Starting 100 CREATEs/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ); ownership=$(RUN_ID)-r100"
+      echo "##vso[task.setvariable variable=PHASE_100_STARTED]true"
+    displayName: Prepare 100/sec load profile
+  - script: |
+      set -euo pipefail
+      set -x
+
+      kperf runner run \
+        --config "$(Agent.TempDirectory)/$(RUN_ID)-r100-load-profile.yaml" \
+        --kubeconfig "$(KUBECONFIG)"
+    displayName: Run kperf at 100 CREATEs/sec
+    timeoutInMinutes: 15
+  - bash: |
+      set -euo pipefail
+      echo "Cleaning 100/sec phase Pods at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      kubectl --request-timeout=60s delete pods \
+        --namespace "$(BENCHMARK_NAMESPACE)" \
+        --selector "benchmark-run=$(RUN_ID)-r100" \
+        --wait=true \
+        --timeout=10m
+      echo "Finished 100/sec phase cleanup at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    condition: and(always(), eq(variables['PHASE_100_STARTED'], 'true'))
+    displayName: Delete 100/sec phase Pods
+    timeoutInMinutes: 15
+  - bash: |
+      set -euo pipefail
+      echo "Starting five-minute pause after 100/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      sleep 300
+      echo "Finished pause after 100/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    condition: and(always(), eq(variables['PHASE_100_STARTED'], 'true'))
+    displayName: Pause 5 minutes after 100/sec
+    timeoutInMinutes: 6
+  - bash: |
+      set -euo pipefail
+      profile="$(Agent.TempDirectory)/$(RUN_ID)-r200-load-profile.yaml"
+      sed \
+        -e 's/__RUN_NAMESPACE__/$(BENCHMARK_NAMESPACE)/g' \
+        -e 's/__RATE__/200/g' \
+        -e 's/__PHASE_RUN_ID__/$(RUN_ID)-r200/g' \
+        "$(Build.SourcesDirectory)/kcl/workload_identity_webhook/load-profile.yaml" > "$profile"
+      if grep -q '__[A-Z_]*__' "$profile"; then
+        echo "Unresolved load-profile placeholders" >&2
+        exit 1
+      fi
+      echo "Starting 200 CREATEs/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ); ownership=$(RUN_ID)-r200"
+      echo "##vso[task.setvariable variable=PHASE_200_STARTED]true"
+    displayName: Prepare 200/sec load profile
+  - script: |
+      set -euo pipefail
+      set -x
+
+      kperf runner run \
+        --config "$(Agent.TempDirectory)/$(RUN_ID)-r200-load-profile.yaml" \
+        --kubeconfig "$(KUBECONFIG)"
+    displayName: Run kperf at 200 CREATEs/sec
+    timeoutInMinutes: 15
+  - bash: |
+      set -euo pipefail
+      echo "Cleaning 200/sec phase Pods at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      kubectl --request-timeout=60s delete pods \
+        --namespace "$(BENCHMARK_NAMESPACE)" \
+        --selector "benchmark-run=$(RUN_ID)-r200" \
+        --wait=true \
+        --timeout=10m
+      echo "Finished 200/sec phase cleanup at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    condition: and(always(), eq(variables['PHASE_200_STARTED'], 'true'))
+    displayName: Delete 200/sec phase Pods
+    timeoutInMinutes: 15
+  - bash: |
+      set -euo pipefail
+      echo "Starting five-minute pause after 200/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      sleep 300
+      echo "Finished pause after 200/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    condition: and(always(), eq(variables['PHASE_200_STARTED'], 'true'))
+    displayName: Pause 5 minutes after 200/sec
+    timeoutInMinutes: 6
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal

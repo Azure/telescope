@@ -1,7 +1,9 @@
 # Workload Identity webhook benchmark
 
 One manual ADO job provisions a dedicated AKS Standard H2 cluster or reuses an
-existing cluster, and runs kperf **once, directly on the ADO agent**.
+existing cluster, and runs kperf **three times sequentially on the ADO agent**:
+50, 100, then 200 Pod CREATEs/sec, each for 10 minutes. After each run, delete
+its Pods and pause for five minutes, including after the final run.
 
 ## Cluster selection
 
@@ -28,10 +30,10 @@ the dummy UUID with `--overwrite`. Any previous client-ID annotation on this
 benchmark ServiceAccount is replaced. Use a namespace dedicated to this benchmark.
 Other reused cluster settings, including monitoring, remain unchanged.
 
-Both modes fetch credentials, prepare WI resources, render the load profile, install kperf on the agent,
-and run traffic. Temporary filenames still use the current run ID. In reuse mode,
-the profile uses the existing resource-group name as its namespace. Repeated runs
-retain prior Pods, increasing storage use and potentially affecting comparisons.
+Both modes fetch credentials, prepare WI resources, and install kperf once. Each
+phase renders a distinct profile using the run ID and rate in its temporary
+filename. In reuse mode, the profile uses the existing resource-group name as its
+namespace. Phase cleanup leaves any pre-existing Pods untouched.
 
 ## New-cluster configuration
 
@@ -51,15 +53,19 @@ retain prior Pods, increasing storage use and potentially affecting comparisons.
   credential or Azure role assignment is needed: this admission-only workload
   does not perform token exchange. Use a real identity for token-exchange tests.
 
-[load-profile.yaml](./load-profile.yaml) is the traffic configuration:
+[load-profile.yaml](./load-profile.yaml) is a template rendered before each phase:
 
-- 400 Pod CREATEs/sec ceiling, 600-second generation window.
+- `__RATE__` becomes 50, 100, or 200 Pod CREATEs/sec; 600-second generation window each.
 - `total: 0`, `deleteRatio: 0`, `maxRetries: 0`.
 - 600 request workers, 20 transports; the rate is shared across workers.
-- WI opt-in and `schedulerName: kperf-admission-only`; the dedicated namespace identifies the run.
+- WI opt-in and `schedulerName: kperf-admission-only`.
+- `__RUN_NAMESPACE__` selects the benchmark namespace; `__PHASE_RUN_ID__`
+  becomes `$(RUN_ID)-r<rate>` in the `benchmark-run` label. Cleanup uses that
+  exact namespace and label, never all Pods in a reused namespace.
 - `payloadSize: 3650` pads an environment variable, not the complete submitted
   JSON. The resulting single-container Pod is approximately 4 KiB before
-  server-side mutation/defaulting.
+  server-side mutation/defaulting. The phase ownership label adds a small amount
+  of metadata compared with the earlier unlabelled profile.
 
 The existing installer extracts kperf from this pinned custom image:
 
@@ -80,9 +86,16 @@ which the agent's base Azure CLI does not support.
 
 The new-cluster path creates the cluster and worker pool. Both paths fetch
 credentials into a temporary kubeconfig, prepare the namespace and annotated
-ServiceAccount idempotently, render the selected namespace into a temporary
-profile, and install the pinned binaries.
-The driver invokes:
+ServiceAccount idempotently and install the pinned binaries. The rate loop
+generates explicit ADO preparation, runner, cleanup, and pause steps:
+
+```text
+50/sec for 10m -> delete phase Pods -> pause 5m
+100/sec for 10m -> delete phase Pods -> pause 5m
+200/sec for 10m -> delete phase Pods -> pause 5m
+```
+
+Each driver step invokes:
 
 ```sh
 kperf runner run --config "$profile" --kubeconfig "$kubeconfig"
@@ -93,7 +106,7 @@ Execution uses the shared
 
 ```kcl
 kperf.RunKperfRunner(
-    profilePath="$(KPERF_PROFILE)",
+    profilePath="$(Agent.TempDirectory)/$(RUN_ID)-r50-load-profile.yaml",
     kubeconfig="$(KUBECONFIG)") | {timeoutInMinutes = 15}
 ```
 
@@ -115,9 +128,12 @@ The resolved profile and kubeconfig live in
 [`Agent.TempDirectory`](https://learn.microsoft.com/en-us/azure/devops/pipelines/build/variables?view=azure-devops#agent-variables-devops-services),
 which ADO cleans after each job; the shared runner does not delete caller inputs.
 
-The caller sets a 15-minute ADO step timeout; the helper has no process-timeout
+The caller sets a 15-minute ADO step timeout per run; the helper has no process-timeout
 parameter or external timeout command. ADO cancellation governs timeout handling.
-Nonzero kperf process exits fail the step; no run is retried. HTTP errors in the
+Nonzero kperf process exits fail the step; no run is retried. The started phase's
+cleanup and five-minute pause are attempted even after driver failure, but later
+rates are skipped. Cleanup failure also blocks later rates, without skipping
+the pause. HTTP errors in the
 report do not independently fail it: kperf can exit zero despite failed requests,
 as observed in build 84716. Missing or malformed reports are not checked.
 
@@ -125,7 +141,7 @@ The pinned runner's `total` is the configured request total, **not an observed
 success count**; it remains zero for this duration-based run. Native duration
 includes drain. Per-interval dispatch rates, actual WI invocation rates, and
 inflight backlog are unavailable. This is exploratory traffic generation,
-not proof that the webhook sustained 400/sec. Agent-to-API-server networking
+not proof that the webhook sustained the configured rate. Agent-to-API-server networking
 also differs from an in-cluster driver.
 
 ## Prerequisites and cleanup
@@ -134,10 +150,21 @@ Operators ensure version/SKU availability, quota, and control-plane storage
 headroom before queueing. Confirm no scheduler handles `kperf-admission-only`;
 the benchmark Pods should remain unscheduled.
 
-At the target, approximately 240,000 Pods could accumulate: about 0.916 GiB of
-submitted JSON at 4 KiB each, before WI/defaulting, revision history, and other
-storage overhead. There is no ResourceQuota, continuous storage monitor, or
-manual storage gate. The timeout is not a storage-capacity guarantee.
+Successful traffic at each target would create approximately 30,000, 60,000,
+and 120,000 Pods respectively before that phase's cleanup. The largest phase
+is about 0.458 GiB of submitted JSON at 4 KiB each, before WI/defaulting,
+revision history, and other storage overhead. There is no ResourceQuota,
+continuous storage monitor, or manual storage gate.
+
+Cleanup uses normal Pod deletion with an exact ownership selector, waits for
+completion with a 10-minute deletion budget, and has a 15-minute ADO step limit.
+Each 300-second pause has a six-minute step limit. The job allows 25 minutes
+of cancellation grace for active cleanup and recovery where ADO permits.
+Skipped phases do not perform cleanup or pause.
+
+Deleting Pods and waiting five minutes is not a full storage/cache reset:
+etcd revisions, caches, controller state, and pre-existing objects remain.
+Recovery and equivalent fresh-cluster baselines are not guaranteed.
 
 `keep_cluster` defaults to **false**. For new clusters, the last step deletes the run's resource
 group, including the cluster, even after a benchmark failure where
@@ -146,7 +173,9 @@ in this job and explicitly resolved new-cluster mode; an existing-group collisio
 never authorizes deletion. Reused resource groups are **never deleted**, even when
 `keep_cluster` is false or the benchmark fails.
 
-With **true**, retain the cluster and benchmark Pods for inspection.
+With **true**, retain the cluster, benchmark namespace, and ServiceAccount.
+This execution's phase Pods are still deleted after each run, regardless of
+`keep_cluster`. Failed or interrupted cleanup may leave some Pods behind.
 Retained resources incur charges. Use the run's resource-group name from the
 ADO logs for manual deletion when finished. There are no separate finalization
 reports or deletion-verification steps. A hard agent interruption can prevent

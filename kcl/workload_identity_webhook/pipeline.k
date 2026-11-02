@@ -10,6 +10,7 @@ LOCATION = "westus2"
 # TODO: Replace the user-selected PR image with a published upstream release.
 RUNNER_IMAGE = "ghcr.io/liyu-ma/kperf@sha256:36f8e1cdbb6a4bd2fde4b29bf0cb5e4e014484ae9ddca9136f43449897ffb647"
 CREATE_NEW_CLUSTER = "and(succeeded(), eq(variables['USE_EXISTING_CLUSTER'], 'false'))"
+RATES = [50, 100, 200]
 
 output = ap.Pipeline {
     name = "Workload Identity Webhook Benchmark"
@@ -31,7 +32,7 @@ output = ap.Pipeline {
         },
         ap.Parameter {
             name = "keep_cluster"
-            displayName = "Keep cluster and benchmark Pods after benchmark"
+            displayName = "Keep cluster after benchmark (phase Pods are deleted)"
             type = "boolean"
             default = False
         },
@@ -41,13 +42,14 @@ output = ap.Pipeline {
             job = "benchmark"
             displayName = "Run WI webhook traffic on a new or existing cluster"
             timeoutInMinutes = 240
-            cancelTimeoutInMinutes = 10
+            # Allow an active phase's bounded cleanup and five-minute recovery pause.
+            cancelTimeoutInMinutes = 25
             variables = {
                 RUN_ID = "wi-$(Build.BuildId)-$(System.JobAttempt)"
                 RESOURCE_GROUP_CREATED = "false"
                 USE_EXISTING_CLUSTER = "unresolved"
                 KUBECONFIG = "$(Agent.TempDirectory)/$(RUN_ID).kubeconfig"
-                KPERF_PROFILE = "$(Agent.TempDirectory)/$(RUN_ID)-load-profile.yaml"
+                **{"PHASE_${rate}_STARTED" = "false" for rate in RATES}
             }
             steps = [
                 steps.Bash {
@@ -184,24 +186,59 @@ kubectl annotate serviceaccount pod-benchmark \\
   "azure.workload.identity/client-id=00000000-0000-4000-8000-000000000001" \\
   --overwrite
 """),
-                steps.Bash {
-                    bash = """
+                kperf.InstallRunkperf(RUNNER_IMAGE),
+                *[step for rate in RATES for step in [
+                    steps.Bash {
+                        bash = """
 set -euo pipefail
-profile="$(KPERF_PROFILE)"
+profile="$(Agent.TempDirectory)/$(RUN_ID)-r${rate}-load-profile.yaml"
 sed \\
   -e 's/__RUN_NAMESPACE__/$(BENCHMARK_NAMESPACE)/g' \\
+  -e 's/__RATE__/${rate}/g' \\
+  -e 's/__PHASE_RUN_ID__/$(RUN_ID)-r${rate}/g' \\
   "$(Build.SourcesDirectory)/kcl/workload_identity_webhook/load-profile.yaml" > "$profile"
 if grep -q '__[A-Z_]*__' "$profile"; then
   echo "Unresolved load-profile placeholders" >&2
   exit 1
 fi
+echo "Starting ${rate} CREATEs/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ); ownership=$(RUN_ID)-r${rate}"
+echo "##vso[task.setvariable variable=PHASE_${rate}_STARTED]true"
 """
-                    displayName = "Prepare load profile"
-                },
-                kperf.InstallRunkperf(RUNNER_IMAGE),
-                kperf.RunKperfRunner(
-                    profilePath="$(KPERF_PROFILE)",
-                    kubeconfig="$(KUBECONFIG)") | {timeoutInMinutes = 15},
+                        displayName = "Prepare ${rate}/sec load profile"
+                    },
+                    kperf.RunKperfRunner(
+                        profilePath="$(Agent.TempDirectory)/$(RUN_ID)-r${rate}-load-profile.yaml",
+                        kubeconfig="$(KUBECONFIG)") | {
+                            displayName = "Run kperf at ${rate} CREATEs/sec"
+                            timeoutInMinutes = 15
+                        },
+                    steps.Bash {
+                        bash = """
+set -euo pipefail
+echo "Cleaning ${rate}/sec phase Pods at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+kubectl --request-timeout=60s delete pods \\
+  --namespace "$(BENCHMARK_NAMESPACE)" \\
+  --selector "benchmark-run=$(RUN_ID)-r${rate}" \\
+  --wait=true \\
+  --timeout=10m
+echo "Finished ${rate}/sec phase cleanup at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+"""
+                        displayName = "Delete ${rate}/sec phase Pods"
+                        condition = "and(always(), eq(variables['PHASE_${rate}_STARTED'], 'true'))"
+                        timeoutInMinutes = 15
+                    },
+                    steps.Bash {
+                        bash = """
+set -euo pipefail
+echo "Starting five-minute pause after ${rate}/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+sleep 300
+echo "Finished pause after ${rate}/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+"""
+                        displayName = "Pause 5 minutes after ${rate}/sec"
+                        condition = "and(always(), eq(variables['PHASE_${rate}_STARTED'], 'true'))"
+                        timeoutInMinutes = 6
+                    },
+                ]],
                 azure.DeleteResourceGroup(
                     const.DEFAULT_SERVICE_CONNECTION,
                     "$(RESOURCE_GROUP)",
