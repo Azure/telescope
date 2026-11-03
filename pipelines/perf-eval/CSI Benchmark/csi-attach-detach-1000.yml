@@ -2,19 +2,20 @@ trigger: none
 
 pool:
   name: 'AKS-Telescope-Airlock'
-schedules:
-  - cron: "0 20 * * *"
-    displayName: "8:00 PM Every Day"
-    branches:
-      include:
-        - main
-    always: true
-  - cron: "0 20 * * 3"
-    displayName: "8:00 PM on Wednesdays"
-    branches:
-      include:
-        - main
-    always: true
+# Disable cron before the test is done.
+# schedules:
+#   - cron: "0 20 * * *"
+#     displayName: "8:00 PM Every Day"
+#     branches:
+#       include:
+#         - main
+#     always: true
+#   - cron: "0 20 * * 3"
+#     displayName: "8:00 PM on Wednesdays"
+#     branches:
+#       include:
+#         - main
+#     always: true
 
 variables:
   SCENARIO_TYPE: perf-eval
