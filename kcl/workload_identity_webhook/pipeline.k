@@ -11,7 +11,6 @@ SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
 LOCATION = "westus2"
 # TODO: Replace the user-selected PR image with a published upstream release.
 RUNNER_IMAGE = "ghcr.io/liyu-ma/kperf@sha256:36f8e1cdbb6a4bd2fde4b29bf0cb5e4e014484ae9ddca9136f43449897ffb647"
-CREATE_NEW_CLUSTER = "and(succeeded(), eq(variables['USE_EXISTING_CLUSTER'], 'false'))"
 RATES = [50, 100, 150]
 
 BenchmarkSteps = lambda rate: int -> [steps.Step] {
@@ -26,7 +25,6 @@ if [ -n "$deleting" ]; then
   exit 1
 fi
 kubectl create namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
-echo "##vso[task.setvariable variable=PHASE_${rate}_NAMESPACE_PREPARED]true"
 kubectl create serviceaccount pod-benchmark --namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
 # Use a fake client ID because benchmark Pods do not access Azure resources.
 kubectl --request-timeout=60s annotate serviceaccount pod-benchmark \\
@@ -73,7 +71,7 @@ kubectl --request-timeout=60s delete namespace "$(RUN_ID)-r${rate}" \\
 echo "Namespace deletion requested for ${rate}/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 """
             displayName = "Delete namespace from ${rate}/sec run"
-            condition = "and(always(), eq(variables['PHASE_${rate}_NAMESPACE_PREPARED'], 'true'))"
+            condition = "always()"
             timeoutInMinutes = 15
         },
         steps.Bash {
@@ -84,7 +82,7 @@ sleep 300
 echo "Finished pause after ${rate}/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 """
             displayName = "Pause 5 minutes after ${rate}/sec"
-            condition = "and(always(), eq(variables['PHASE_${rate}_NAMESPACE_PREPARED'], 'true'))"
+            condition = "always()"
             timeoutInMinutes = 6
         },
     ]
@@ -97,18 +95,6 @@ output = ap.Pipeline {
     pool = const.DEFAULT_POOL
     parameters = [
         ap.Parameter {
-            name = "existing_resource_group"
-            displayName = "Existing resource group (none creates a cluster)"
-            type = "string"
-            default = "none"
-        },
-        ap.Parameter {
-            name = "existing_cluster"
-            displayName = "Existing cluster name (provide together with resource group)"
-            type = "string"
-            default = "none"
-        },
-        ap.Parameter {
             name = "keep_cluster"
             displayName = "Keep cluster after benchmark (phase namespaces are deleted)"
             type = "boolean"
@@ -120,79 +106,24 @@ output = ap.Pipeline {
             job = "benchmark"
             displayName = "Baseline Run: 50/100/150 RPS"
             timeoutInMinutes = 240
-            # Allow an active phase's bounded cleanup and five-minute recovery pause.
+            # Allow bounded cleanup and recovery during cancellation.
             cancelTimeoutInMinutes = 25
             variables = {
                 RUN_ID = "wi-$(Build.BuildId)-$(System.JobAttempt)"
-                USE_EXISTING_CLUSTER = "unresolved"
+                RESOURCE_GROUP = "$(RUN_ID)"
+                CLUSTER = "wi-webhook"
                 KUBECONFIG = "$(Agent.TempDirectory)/$(RUN_ID).kubeconfig"
-                **{"PHASE_${rate}_NAMESPACE_PREPARED" = "false" for rate in RATES}
             }
             steps = [
-                steps.Bash {
-                    bash = """
-set -euo pipefail
-resource_group="$PARAM_EXISTING_RESOURCE_GROUP"
-cluster="$PARAM_EXISTING_CLUSTER"
-if [ "$resource_group" = "none" ]; then resource_group=""; fi
-if [ "$cluster" = "none" ]; then cluster=""; fi
-if { [ -z "$resource_group" ] && [ -n "$cluster" ]; } ||
-   { [ -n "$resource_group" ] && [ -z "$cluster" ]; }; then
-  echo "existing_resource_group and existing_cluster must be provided together." >&2
-  exit 1
-fi
-if [ -n "$cluster" ]; then
-  use_existing=true
-else
-  use_existing=false
-  resource_group="$RUN_ID"
-  cluster=wi-webhook
-fi
-if ! [[ "$resource_group" =~ ^[a-zA-Z0-9_.()-]+$ ]] ||
-   [ "\${#resource_group}" -gt 90 ] || [[ "$resource_group" = *. ]]; then
-  echo "Invalid resource group name: use at most 90 letters, digits, underscores, parentheses, hyphens, or periods; do not end with a period." >&2
-  exit 1
-fi
-if ! [[ "$cluster" =~ ^[a-zA-Z0-9][a-zA-Z0-9_-]*$ ]] ||
-   [ "\${#cluster}" -gt 63 ]; then
-  echo "Invalid existing cluster name." >&2
-  exit 1
-fi
-echo "Benchmark target: cluster=$cluster resource_group=$resource_group existing=$use_existing"
-echo "##vso[task.setvariable variable=RESOURCE_GROUP]$resource_group"
-echo "##vso[task.setvariable variable=CLUSTER]$cluster"
-if [ "$use_existing" = "true" ]; then
-  echo "##vso[task.setvariable variable=USE_EXISTING_CLUSTER]true"
-fi
-"""
-                    displayName = "Resolve benchmark cluster"
-                    env = {
-                        PARAM_EXISTING_RESOURCE_GROUP = "\${{ parameters.existing_resource_group }}"
-                        PARAM_EXISTING_CLUSTER = "\${{ parameters.existing_cluster }}"
-                    }
-                },
                 azure.Login(
                     const.DEFAULT_SERVICE_CONNECTION,
                     SUBSCRIPTION_ID,
                     LOCATION),
-                azure.AzCli(
-                    const.DEFAULT_SERVICE_CONNECTION,
-                    "Verify resource group does not already exist",
-                    """
-exists=$(az group exists --subscription "${SUBSCRIPTION_ID}" --name "$(RESOURCE_GROUP)")
-if [ "$exists" != "false" ]; then
-  echo "Refusing to reuse an existing or unverified resource group: $(RESOURCE_GROUP)" >&2
-  exit 1
-fi
-echo "##vso[task.setvariable variable=USE_EXISTING_CLUSTER]false"
-""",
-                    condition="and(succeeded(), eq(variables['USE_EXISTING_CLUSTER'], 'unresolved'))"),
                 azure.CreateResourceGroup(
                     const.DEFAULT_SERVICE_CONNECTION,
                     "$(RESOURCE_GROUP)",
                     LOCATION,
-                    SUBSCRIPTION_ID,
-                    condition=CREATE_NEW_CLUSTER),
+                    SUBSCRIPTION_ID),
                 azure.AzCli(
                     const.DEFAULT_SERVICE_CONNECTION,
                     "Create benchmark Prometheus workspace",
@@ -202,8 +133,7 @@ az monitor account create \\
   --resource-group "$(RESOURCE_GROUP)" \\
   --name wi-benchmark-prometheus \\
   --location "${LOCATION}"
-""",
-                    condition=CREATE_NEW_CLUSTER),
+"""),
                 azure.AzCli(
                     const.DEFAULT_SERVICE_CONNECTION,
                     "Create H2 cluster with OIDC and workload identity",
@@ -240,21 +170,17 @@ az aks create \\
   --nat-gateway-managed-outbound-ip-count 10 \\
   --tags SkipAKSCluster=true \\
   --yes
-""",
-                    condition=CREATE_NEW_CLUSTER),
-                steps.Task {
-                    **azure.CreateNodePool(
-                        const.DEFAULT_SERVICE_CONNECTION,
-                        "$(CLUSTER)",
-                        "$(RESOURCE_GROUP)",
-                        SUBSCRIPTION_ID,
-                        azure.NodePool {
-                            name = "workerpool"
-                            sku = "Standard_D2s_v5"
-                            count = 3
-                        })
-                    condition = CREATE_NEW_CLUSTER
-                },
+"""),
+                azure.CreateNodePool(
+                    const.DEFAULT_SERVICE_CONNECTION,
+                    "$(CLUSTER)",
+                    "$(RESOURCE_GROUP)",
+                    SUBSCRIPTION_ID,
+                    azure.NodePool {
+                        name = "workerpool"
+                        sku = "Standard_D2s_v5"
+                        count = 3
+                    }),
                 azure.GetCredentials(
                     const.DEFAULT_SERVICE_CONNECTION,
                     "$(CLUSTER)",
@@ -274,7 +200,7 @@ az aks create \\
                     const.DEFAULT_SERVICE_CONNECTION,
                     "$(RESOURCE_GROUP)",
                     SUBSCRIPTION_ID,
-                    condition="and(always(), eq(variables['USE_EXISTING_CLUSTER'], 'false'), not(\${{ parameters.keep_cluster }}))"),
+                    condition="and(always(), not(\${{ parameters.keep_cluster }}))"),
             ]
         },
     ]
