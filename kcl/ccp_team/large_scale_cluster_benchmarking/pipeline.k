@@ -68,6 +68,11 @@ KEY_ID="\${{ parameters.kms_key_id }}"
 # Infrastructure encryption enables KMS v2 Plus.
 if [ "$KEY_ID" != "none" ]; then
 ${azure.resolveKeyVaultResourceId(SUBSCRIPTION_ID, "$KEY_ID")}
+  # Infrastructure encryption requires a versionless CMK URI for automatic rotation.
+  if [[ "$KEY_ID" =~ ^https://[^/]+/keys/[^/]+/[^/]+$ ]]; then
+    KEY_ID="\${KEY_ID%/*}"
+    echo "Using versionless CMK key ID: $KEY_ID"
+  fi
   CREATE_ARGS+=(
     --enable-azure-keyvault-kms
     --azure-keyvault-kms-key-id "$KEY_ID"
@@ -131,7 +136,7 @@ output = ap.Pipeline {
         }
         ap.Parameter {
             name = "kms_key_id"
-            displayName = "KMS key ID (versioned Key Vault key URI; 'none' to disable)"
+            displayName = "CMK key URI (version is removed for infrastructure encryption; 'none' to disable)"
             type = "string"
             default = "none"
         }

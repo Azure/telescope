@@ -34,7 +34,7 @@ parameters:
   type: boolean
   default: false
 - name: kms_key_id
-  displayName: KMS key ID (versioned Key Vault key URI; 'none' to disable)
+  displayName: CMK key URI (version is removed for infrastructure encryption; 'none' to disable)
   type: string
   default: none
 variables:
@@ -371,8 +371,8 @@ jobs:
       inlineScript: |
         set -exo pipefail
         KEY_ID="${{ parameters.kms_key_id }}"
-        if ! [[ "$KEY_ID" =~ ^https://[^/]+/keys/[^/]+/[^/]+$ ]]; then
-          echo "Key ID must be a versioned Key Vault key URI; got '$KEY_ID'."
+        if ! [[ "$KEY_ID" =~ ^https://[^/]+/keys/[^/]+(/[^/]+)?$ ]]; then
+          echo "Key ID must be a Key Vault key URI (https://<vault>/keys/<key>[/<version>]); got '$KEY_ID'."
           exit 1
         fi
         HOST="${KEY_ID#https://}"
@@ -440,8 +440,8 @@ jobs:
         # Infrastructure encryption enables KMS v2 Plus.
         if [ "$KEY_ID" != "none" ]; then
         KEY_ID="$KEY_ID"
-        if ! [[ "$KEY_ID" =~ ^https://[^/]+/keys/[^/]+/[^/]+$ ]]; then
-          echo "Key ID must be a versioned Key Vault key URI; got '$KEY_ID'."
+        if ! [[ "$KEY_ID" =~ ^https://[^/]+/keys/[^/]+(/[^/]+)?$ ]]; then
+          echo "Key ID must be a Key Vault key URI (https://<vault>/keys/<key>[/<version>]); got '$KEY_ID'."
           exit 1
         fi
         HOST="${KEY_ID#https://}"
@@ -452,6 +452,11 @@ jobs:
           --name "$VAULT_NAME" \
           --query id -o tsv)
 
+          # Infrastructure encryption requires a versionless CMK URI for automatic rotation.
+          if [[ "$KEY_ID" =~ ^https://[^/]+/keys/[^/]+/[^/]+$ ]]; then
+            KEY_ID="${KEY_ID%/*}"
+            echo "Using versionless CMK key ID: $KEY_ID"
+          fi
           CREATE_ARGS+=(
             --enable-azure-keyvault-kms
             --azure-keyvault-kms-key-id "$KEY_ID"

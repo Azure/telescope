@@ -2,13 +2,13 @@ import azure_pipelines.ap.steps
 
 # resolveKeyVaultResourceId returns a script that validates keyId and sets
 # KEY_VAULT_RESOURCE_ID to the resource ID of the vault that holds the key.
-# keyId must be a versioned key URI, e.g. https://<vault>.vault.azure.net/keys/<key>/<version>.
+# keyId must be a Key Vault key URI with an optional version.
 # It may be a pipeline expression such as "\${{ parameters.kms_key_id }}", so it is validated at runtime.
 resolveKeyVaultResourceId = lambda subscription: str, keyId: str -> str {
     """
 KEY_ID="${keyId}"
-if ! [[ "$KEY_ID" =~ ^https://[^/]+/keys/[^/]+/[^/]+$ ]]; then
-  echo "Key ID must be a versioned Key Vault key URI; got '$KEY_ID'."
+if ! [[ "$KEY_ID" =~ ^https://[^/]+/keys/[^/]+(/[^/]+)?$ ]]; then
+  echo "Key ID must be a Key Vault key URI (https://<vault>/keys/<key>[/<version>]); got '$KEY_ID'."
   exit 1
 fi
 HOST="\${KEY_ID#https://}"
