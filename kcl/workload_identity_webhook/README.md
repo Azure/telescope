@@ -2,7 +2,7 @@
 
 One manual ADO job provisions a dedicated AKS Standard H2 cluster or reuses an
 existing cluster, and runs kperf **three times sequentially on the ADO agent**:
-50, 100, then 200 Pod CREATEs/sec, each for 10 minutes. After each run, request
+50, 100, then 150 Pod CREATEs/sec, each for 10 minutes. After each run, request
 deletion of its namespace without waiting, then pause for five minutes,
 including after the final run.
 
@@ -58,7 +58,7 @@ finalizers. Namespace cleanup leaves namespaces from previous runs untouched.
 
 [load-profile.yaml](./load-profile.yaml) is a template rendered before each phase:
 
-- `__RATE__` becomes 50, 100, or 200 Pod CREATEs/sec; 600-second generation window each.
+- `__RATE__` becomes 50, 100, or 150 Pod CREATEs/sec; 600-second generation window each.
 - `total: 0`, `deleteRatio: 0`, `maxRetries: 0`.
 - 600 request workers, 20 transports; the rate is shared across workers.
 - WI opt-in and `schedulerName: kperf-admission-only`.
@@ -96,7 +96,7 @@ then generates explicit profile, runner, namespace-deletion, and pause steps:
 ```text
 prepare r50 namespace/ServiceAccount -> 50/sec for 10m -> request namespace deletion -> pause 5m
 prepare r100 namespace/ServiceAccount -> 100/sec for 10m -> request namespace deletion -> pause 5m
-prepare r200 namespace/ServiceAccount -> 200/sec for 10m -> request namespace deletion -> pause 5m
+prepare r150 namespace/ServiceAccount -> 150/sec for 10m -> request namespace deletion -> pause 5m
 ```
 
 Each driver step invokes:
@@ -157,8 +157,8 @@ headroom before queueing. Confirm no scheduler handles `kperf-admission-only`;
 the benchmark Pods should remain unscheduled.
 
 Successful traffic at each target would create approximately 30,000, 60,000,
-and 120,000 Pods respectively before that phase's cleanup. The largest phase
-is about 0.458 GiB of submitted JSON at 4 KiB each, before WI/defaulting,
+and 90,000 Pods respectively before that phase's cleanup. The largest phase
+is about 0.343 GiB of submitted JSON at 4 KiB each, before WI/defaulting,
 revision history, and other storage overhead. There is no ResourceQuota,
 continuous storage monitor, or manual storage gate.
 

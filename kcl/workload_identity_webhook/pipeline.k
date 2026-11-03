@@ -10,7 +10,7 @@ LOCATION = "westus2"
 # TODO: Replace the user-selected PR image with a published upstream release.
 RUNNER_IMAGE = "ghcr.io/liyu-ma/kperf@sha256:36f8e1cdbb6a4bd2fde4b29bf0cb5e4e014484ae9ddca9136f43449897ffb647"
 CREATE_NEW_CLUSTER = "and(succeeded(), eq(variables['USE_EXISTING_CLUSTER'], 'false'))"
-RATES = [50, 100, 200]
+RATES = [50, 100, 150]
 
 output = ap.Pipeline {
     name = "Workload Identity Webhook Benchmark"
@@ -40,7 +40,7 @@ output = ap.Pipeline {
     jobs = [
         job.Job {
             job = "benchmark"
-            displayName = "Run WI webhook traffic on a new or existing cluster"
+            displayName = "Baseline Run: 50/100/150 RPS"
             timeoutInMinutes = 240
             # Allow an active phase's bounded cleanup and five-minute recovery pause.
             cancelTimeoutInMinutes = 25
@@ -235,7 +235,7 @@ kubectl --request-timeout=60s delete namespace "$(RUN_ID)-r${rate}" \\
   --wait=false
 echo "Namespace deletion requested for ${rate}/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 """
-                        displayName = "Request ${rate}/sec namespace deletion"
+                        displayName = "Delete namespace from ${rate}/sec run"
                         condition = "and(always(), eq(variables['PHASE_${rate}_NAMESPACE_PREPARED'], 'true'))"
                         timeoutInMinutes = 15
                     },
