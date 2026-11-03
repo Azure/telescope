@@ -189,6 +189,8 @@ python3 -m crud.main job \
 `telescope-crud collect` converts canonical operation files into final Telescope
 JSONL rows. Pipeline-owned context can be passed explicitly; the equivalent
 uppercase environment variables remain supported for existing callers.
+An explicit `--result-file` must not point to a canonical operation input,
+including through a symbolic link.
 
 By default, collection preserves the canonical `operation_info` object and
 appends rows containing `timestamp`, `region`, `operation_info`, `run_id`, and
@@ -224,7 +226,9 @@ from the environment only in legacy mode; default collection uses
 `RUN_URL`, and `REGION` (or their CLI equivalents) are required. The output
 defaults to `RESULT_DIR/results.json`. `CLOUD_INFO` / `--cloud-info` supplies a
 JSON-encoded object such as `{"cloud":"azure","aks_name":"my-cluster"}`; it
-defaults to `{}` when omitted. Other context fields are optional and used only
+defaults to `{}` when omitted. In legacy mode, supplied cloud context must be
+valid JSON containing an object; empty strings, non-object values, and non-finite
+numbers are rejected before publication. Other context fields are optional and used only
 with `--legacy-output`. Node counts and batch size are published as integers;
 the node-pool number retains the legacy string representation.
 
@@ -244,8 +248,12 @@ Legacy collection requires each source to contain an `operation_info` object wit
 non-empty string `name`, boolean `success`, and object `metadata` if present.
 Invalid inputs or publishing failures are logged and return a nonzero exit
 code without replacing the previous output. This includes missing or unreadable
-source directories in legacy mode; default collection retains its existing
-no-op behavior when no source files are found. In legacy mode, validated rows are
+source directories and directories with no operation inputs in legacy mode.
+An output path containing a canonical operation result is rejected, including
+paths through symbolic links. Previously published JSONL output remains
+replaceable, including custom output within the source directory.
+Default collection retains its existing no-op behavior when no source files
+are found. In legacy mode, validated rows are
 published by atomically replacing the output file, so rerunning collection does
 not duplicate rows. Default collection appends each row immediately and propagates
 input/output exceptions, retaining rows already appended before a later failure.
