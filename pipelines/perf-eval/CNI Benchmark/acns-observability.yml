@@ -1,0 +1,118 @@
+trigger: none
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: ${{ parameters.scenario_name }}
+  OWNER: aks
+  REF: ${{ parameters.ref }}
+  ${{ if not(contains(parameters.scenario_name,'non-acns')) }}:
+    INSTALL: false
+    OBSERVABILITY_TOOL: acns
+  ${{ if and(contains(parameters.scenario_name,'non-acns'),eq(parameters.observability_tool, 'retina-oss-standard-basic')) }}:
+    INSTALL: true
+    REPOSITORY: http://github.com/microsoft/retina.git
+    MAKEARGS: "helm-install-with-operator"
+    OBSERVABILITY_TOOL: ${{ parameters.observability_tool }}
+  ${{ if and(contains(parameters.scenario_name,'non-acns'),eq(parameters.observability_tool, 'retina-oss-standard-advanced-local-context')) }}:
+    INSTALL: true
+    REPOSITORY: http://github.com/microsoft/retina.git
+    MAKEARGS: "helm-install-advanced-local-context"
+    OBSERVABILITY_TOOL: ${{ parameters.observability_tool }}
+  ${{ if and(contains(parameters.scenario_name,'non-acns'),eq(parameters.observability_tool, 'retina-oss-standard-advanced-remote-context')) }}:
+    INSTALL: true
+    REPOSITORY: http://github.com/microsoft/retina.git
+    MAKEARGS: "helm-install-advanced-remote-context"
+    OBSERVABILITY_TOOL: ${{ parameters.observability_tool }}
+  ${{ if and(contains(parameters.scenario_name,'non-acns'),eq(parameters.observability_tool, 'retina-oss-hubble')) }}:
+    INSTALL: true
+    REPOSITORY: http://github.com/microsoft/retina.git
+    MAKEARGS: "helm-install-hubble"
+    OBSERVABILITY_TOOL: ${{ parameters.observability_tool }}
+
+parameters:
+- name: scenario_name
+  displayName: Scenario Name (cluster infra with 1000 nodes)
+  type: string
+  default: acns-azurecni-overlay
+  values:
+  - acns-azurecni-overlay
+  - acns-azurecni-overlay-cilium
+  - non-acns-azurecni-overlay
+  # - non-acns-azurecni-overlay-cilium
+- name: observability_tool
+  displayName: Observability tool to be installed [only used on non-acns scenarios]
+  type: string
+  default: acns
+  values:
+  - acns
+  - retina-oss-standard-basic
+  - retina-oss-standard-advanced-local-context
+  - retina-oss-standard-advanced-remote-context
+  - retina-oss-hubble
+  # - retina-enterprise-hubble
+- name: ref
+  displayName: Ref (branch/tag/SHA) to checkout [only used on non-acns scenarios]
+  type: string
+  default: main
+- name: traffic_deployment_count
+  displayName: Number of client/server pairs of Traffic Deployments (Total deployments = 2 * this value)
+  type: number
+  default: 10
+- name: traffic_replica_count
+  displayName: Number of Traffic Replicas (per deployment)
+  type: number
+  default: 10
+- name: network_policies_per_namespace
+  displayName: Number of Network Policies
+  type: number
+  default: 10
+- name: fortio_client_requests_per_second
+  displayName: Fortio Client Requests Per Second
+  type: number
+  default: 1500
+- name: label_traffic_pods
+  displayName: Add/Delete labels from traffic pods
+  type: boolean
+  default: false
+- name: generate_retina_network_flow_logs
+  displayName: Create Retina Network Flow Logs
+  type: boolean
+  default: false
+
+stages:
+- stage: ACNS_Infra_Test
+  dependsOn: []
+  jobs:
+  - template: /jobs/competitive-test.yml
+    parameters:
+      cloud: azure
+      regions:
+      - eastus2euap
+      engine: clusterloader2
+      engine_input:
+        image: "ghcr.io/azure/clusterloader2:v20250513"
+        repository: ${{ variables.REPOSITORY }}
+        makeargs: ${{ variables.MAKEARGS }}
+        ref: ${{ parameters.ref }}
+        install: ${{ variables.INSTALL }}
+      topology: observability
+      matrix:
+        acns:
+          traffic_deployment_count: ${{ parameters.traffic_deployment_count }}
+          traffic_replica_count: ${{ parameters.traffic_replica_count }}
+          network_policies_per_namespace: ${{ parameters.network_policies_per_namespace }}
+          cl2_config_file: config.yaml
+          # fortio parameters
+          fortio_servers_per_deployment: ${{ parameters.traffic_replica_count }}
+          fortio_clients_per_deployment: ${{ parameters.traffic_replica_count }}
+          fortio_client_queries_per_second: ${{ parameters.fortio_client_requests_per_second }}
+          fortio_client_connections: ${{ parameters.fortio_client_requests_per_second }}
+          fortio_namespaces: 1
+          fortio_deployments_per_namespace: ${{ parameters.traffic_deployment_count }}
+          generate_retina_network_flow_logs: ${{ parameters.generate_retina_network_flow_logs }}
+          label_traffic_pods: ${{ parameters.label_traffic_pods }}
+          trigger_reason: ${{ variables['Build.Reason'] }}
+      max_parallel: 1
+      timeout_in_minutes: 720
+      credential_type: service_connection
+      ssh_key_enabled: false
