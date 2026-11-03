@@ -6,14 +6,12 @@ import lib.steps.common
 import lib.steps.health
 import lib.util.asi_dashboard
 
-# Pipeline variables, set when the pipeline is registered. They are generic so other
-# Telescope test pipelines can share them. Set TELESCOPE_SUBSCRIPTION_ID to the
-# subscription the tests run in, and TELESCOPE_SERVICE_CONNECTION to a service
-# connection with Contributor on it. Because the connection is referenced through a
-# variable, authorize it for this pipeline in advance (service connection > Security >
-# Pipeline permissions).
+# Pipeline variable, set where the pipeline is registered so the subscription isn't in
+# the repo. It must have no Defender sensor and no policy that modifies default AKS
+# clusters, so nodes match a default customer cluster, and SERVICE_CONNECTION needs
+# Contributor on it.
 SUBSCRIPTION_ID = "$(TELESCOPE_SUBSCRIPTION_ID)"
-SERVICE_CONNECTION = "$(TELESCOPE_SERVICE_CONNECTION)"
+SERVICE_CONNECTION = const.DEFAULT_SERVICE_CONNECTION
 RESOURCE_GROUP = "$(RUN_ID)"
 # australiaeast matches Telescope's AKS Automatic runs. v1 used eastus2euap and
 # Standard_D8s_v3, but DSv3 is over quota there in SUBSCRIPTION_ID. The Ddsv5
@@ -44,14 +42,17 @@ LIFECYCLE_TAGS = "owner=carvela creation_time=$(date -u +%Y-%m-%dT%H:%M:%SZ) del
 
 output = ap.Pipeline {
     name = "Node Startup Latency"
-    # Manual and scheduled runs only. CI and PR triggers would need GitHub webhook
-    # admin rights on Azure/telescope when the pipeline is registered.
+    # Scheduled and manual runs only: a run creates AKS clusters, so it shouldn't run on every push.
     trigger = "none"
     pr = "none"
-    # Microsoft-hosted agent. ubuntu-22.04 ships Python 3.10, az, kubectl and jq, which
-    # the steps use, and still allows the plain `pip3 install` in InstallPythonDependencies
-    # (Ubuntu 24.04 images reject it with an externally-managed-environment error).
-    pool = {vmImage = "ubuntu-22.04"}
+    # Azure DevOps cron times are UTC: 04:00 Irish time in winter, 05:00 in summer (IST).
+    schedules = [ap.Cron {
+        cron = "0 4 * * *"
+        displayName = "Daily 4AM UTC"
+        branches = {include = ["v2"]}
+        always = True
+    }]
+    pool = const.DEFAULT_POOL
     # Manual runs can override the checked-in defaults at queue time; the values
     # used are recorded in every result (result.config).
     parameters = [
