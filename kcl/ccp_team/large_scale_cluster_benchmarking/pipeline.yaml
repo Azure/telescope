@@ -46,6 +46,7 @@ jobs:
 - job: create_cluster
   displayName: Create Large Scale Cluster
   timeoutInMinutes: 1440
+  cancelTimeoutInMinutes: 120
   steps:
   - task: AzureCLI@2
     inputs:
@@ -438,9 +439,23 @@ jobs:
         KEY_ID="${{ parameters.kms_key_id }}"
         # Infrastructure encryption enables KMS v2 Plus.
         if [ "$KEY_ID" != "none" ]; then
+        KEY_ID="$KEY_ID"
+        if ! [[ "$KEY_ID" =~ ^https://[^/]+/keys/[^/]+/[^/]+$ ]]; then
+          echo "Key ID must be a versioned Key Vault key URI; got '$KEY_ID'."
+          exit 1
+        fi
+        HOST="${KEY_ID#https://}"
+        VAULT_NAME="${HOST%%.*}"
+
+        KEY_VAULT_RESOURCE_ID=$(az keyvault show \
+          --subscription "$(subscription_id)" \
+          --name "$VAULT_NAME" \
+          --query id -o tsv)
+
           CREATE_ARGS+=(
             --enable-azure-keyvault-kms
             --azure-keyvault-kms-key-id "$KEY_ID"
+            --azure-keyvault-kms-key-vault-resource-id "$KEY_VAULT_RESOURCE_ID"
             --kms-infrastructure-encryption Enabled
           )
         fi
@@ -577,3 +592,13 @@ jobs:
           pool_index=$((pool_index + 1))
         done
     displayName: Create node pools from pipeline parameter
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(AZURE_SERVICE_CONNECTION)
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        az group delete --name "$(RUN_ID)" --subscription "$(subscription_id)" --yes
+    condition: always()
+    displayName: Delete resource group ($(subscription_id))

@@ -67,9 +67,11 @@ CREATE_ARGS=(
 KEY_ID="\${{ parameters.kms_key_id }}"
 # Infrastructure encryption enables KMS v2 Plus.
 if [ "$KEY_ID" != "none" ]; then
+${azure.resolveKeyVaultResourceId(SUBSCRIPTION_ID, "$KEY_ID")}
   CREATE_ARGS+=(
     --enable-azure-keyvault-kms
     --azure-keyvault-kms-key-id "$KEY_ID"
+    --azure-keyvault-kms-key-vault-resource-id "$KEY_VAULT_RESOURCE_ID"
     --kms-infrastructure-encryption Enabled
   )
 fi
@@ -150,7 +152,7 @@ output = ap.Pipeline {
             displayName = "Create Large Scale Cluster"
             timeoutInMinutes = 1440
             # Leave time for the always() cleanup step to delete the cluster after cancellation or timeout.
-            # cancelTimeoutInMinutes = 120
+            cancelTimeoutInMinutes = 120
 
             steps = [
                 azure.Login(
@@ -346,11 +348,11 @@ output = ap.Pipeline {
                 #     "$(createManagedIdentity.IDENTITY_PRINCIPAL_ID)",
                 #     condition = "and(always(), ne('\${{ parameters.kms_key_id }}', 'none'))"
                 # ),
-                # azure.DeleteResourceGroup(
-                #     SERVICE_CONNECTION,
-                #     RESOURCE_GROUP,
-                #     SUBSCRIPTION_ID
-                # ),
+                azure.DeleteResourceGroup(
+                    SERVICE_CONNECTION,
+                    RESOURCE_GROUP,
+                    SUBSCRIPTION_ID
+                ),
             ]
         }
     ]
