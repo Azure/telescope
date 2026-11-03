@@ -120,6 +120,21 @@ def get_machine_crud_class(cloud_provider):
     )
 
 
+def _validate_output_path(result_file):
+    """Reject destinations containing canonical operation input."""
+    if not os.path.isfile(result_file):
+        return
+    with open(result_file, encoding="utf-8") as output:
+        existing_output = output.read()
+    try:
+        content, _ = json.JSONDecoder().raw_decode(existing_output.lstrip())
+    except json.JSONDecodeError:
+        logger.debug("Existing output `%s` is not canonical operation JSON", result_file)
+        return
+    if isinstance(content, dict) and isinstance(content.get("operation_info"), dict):
+        raise ValueError(f"Output file `{result_file}` contains a canonical operation result")
+
+
 def collect_benchmark_results(args=None):
     """Main function to process Cluster Crud benchmark results."""
     legacy_output = getattr(args, "legacy_output", False)
@@ -168,6 +183,13 @@ def collect_benchmark_results(args=None):
             return 1
     rows = []
 
+    check_output_path = legacy_output or getattr(args, "result_file", None) is not None
+    if check_output_path:
+        try:
+            _validate_output_path(result_file)
+        except (OSError, ValueError) as error:
+            logger.error("Invalid output file `%s`: %s", result_file, error)
+            return 1
     if legacy_output:
         try:
             with os.scandir(result_dir) as entries:
@@ -180,8 +202,9 @@ def collect_benchmark_results(args=None):
             return 1
     else:
         filepaths = glob.glob(f"{result_dir}/*.json")
+    normalize_path = os.path.realpath if check_output_path else os.path.abspath
     for filepath in filepaths:
-        if os.path.basename(filepath) == "results.json" or os.path.abspath(filepath) == os.path.abspath(result_file):
+        if os.path.basename(filepath) == "results.json" or normalize_path(filepath) == normalize_path(result_file):
             continue
         logger.info("Processing file: `%s`", filepath)
         try:

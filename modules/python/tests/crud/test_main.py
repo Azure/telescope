@@ -1062,6 +1062,60 @@ class TestCollectBenchmarkResults(unittest.TestCase):
             {"timestamp", "region", "operation_info", "run_id", "run_url"},
         )
 
+    def test_collection_rejects_operation_output_collisions(self):
+        self._set_env()
+        source = self._write_operation("create_pods")
+        with open(source, encoding="utf-8") as operation_file:
+            original = operation_file.read()
+        alias = os.path.join(self.test_dir, "alias")
+        linked_output = os.path.join(self.test_dir, "linked.json")
+        os.symlink(self.test_dir, alias)
+        os.symlink(source, linked_output)
+        destinations = {
+            "direct": source,
+            "relative": os.path.relpath(source),
+            "directory alias": os.path.join(alias, os.path.basename(source)),
+            "file alias": linked_output,
+        }
+        for legacy in (False, True):
+            for case, destination in destinations.items():
+                with self.subTest(legacy=legacy, case=case):
+                    self._assert_failed_collection_preserves_output(
+                        argparse.Namespace(legacy_output=legacy, result_file=destination)
+                    )
+                    with open(source, encoding="utf-8") as operation_file:
+                        self.assertEqual(operation_file.read(), original)
+
+    def test_legacy_collection_reruns_custom_output_through_directory_alias(self):
+        self._set_env()
+        self._write_operation("create_pods")
+        self._write_operation("scale_up")
+        alias = os.path.join(self.test_dir, "alias")
+        os.symlink(self.test_dir, alias)
+        output_path = os.path.join(alias, "final.json")
+        args = argparse.Namespace(legacy_output=True, result_file=output_path)
+        for _ in range(2):
+            self.assertEqual(collect_benchmark_results(args), 0)
+            with open(output_path, encoding="utf-8") as output:
+                self.assertEqual(len([json.loads(line) for line in output]), 2)
+
+    def test_default_collection_appends_custom_output_through_directory_alias(self):
+        self._set_env()
+        self._write_operation("create_pods")
+        alias = os.path.join(self.test_dir, "alias")
+        os.symlink(self.test_dir, alias)
+        output_path = os.path.join(alias, "final.json")
+        args = argparse.Namespace(result_file=output_path)
+        for expected in (1, 2):
+            self.assertEqual(collect_benchmark_results(args), 0)
+            with open(output_path, encoding="utf-8") as output:
+                rows = [json.loads(line) for line in output]
+            self.assertEqual(len(rows), expected)
+            self.assertEqual(
+                set(rows[0]),
+                {"timestamp", "region", "operation_info", "run_id", "run_url"},
+            )
+
     def test_collect_benchmark_results_reports_unreadable_source(self):
         """A missing source is logged rather than producing partial output."""
         self._set_env()
