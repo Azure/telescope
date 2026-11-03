@@ -74,6 +74,21 @@ def run_node_pool_cli(
     retry_wait=30,
     timeout=TIMEOUT_SECONDS,
 ):
+    """Run an az node-pool command and return whether a retry occurred."""
+    _, retry_occurred = _run_node_pool_cli_with_timing(
+        cmd, node_pool_name, action, retries, retry_wait, timeout
+    )
+    return retry_occurred
+
+
+def _run_node_pool_cli_with_timing(
+    cmd,
+    node_pool_name,
+    action,
+    retries=10,
+    retry_wait=30,
+    timeout=TIMEOUT_SECONDS,
+):
     """Run an az command; return (successful attempt start, retry_occurred)."""
     retry_occurred = False
     for attempt in range(retries):
@@ -123,7 +138,7 @@ def create_virtual_machines_node_pool(
     resource_group, cluster_name, node_pool_name, node_count, vm_size,
     timeout=TIMEOUT_SECONDS,
 ):
-    """Create a pool and return its successful attempt timestamp and retry flag."""
+    """Create a VirtualMachines node pool and return whether a retry occurred."""
     command = build_add_virtual_machines_command(
         resource_group, cluster_name, node_pool_name, node_count, vm_size
     )
@@ -134,7 +149,7 @@ def scale_virtual_machines_node_pool(
     resource_group, cluster_name, node_pool_name, node_count,
     timeout=TIMEOUT_SECONDS,
 ):
-    """Scale a pool and return its successful attempt timestamp and retry flag."""
+    """Scale a VirtualMachines node pool and return whether a retry occurred."""
     command = build_scale_virtual_machines_command(
         resource_group, cluster_name, node_pool_name, node_count
     )
@@ -174,12 +189,12 @@ def prepare_create_operation(
     if gpu_node_pool:
         raise ValueError("GPU node pools with type VirtualMachines are not supported")
     return partial(
-        create_virtual_machines_node_pool,
-        resource_group,
-        cluster_name,
+        _run_node_pool_cli_with_timing,
+        build_add_virtual_machines_command(
+            resource_group, cluster_name, node_pool_name, node_count, vm_size
+        ),
         node_pool_name,
-        node_count,
-        vm_size,
+        "add",
         timeout=timeout,
     )
 
@@ -209,11 +224,12 @@ def prepare_scale_operation(
             timeout=timeout,
         )
     return partial(
-        scale_virtual_machines_node_pool,
-        resource_group,
-        cluster_name,
+        _run_node_pool_cli_with_timing,
+        build_scale_virtual_machines_command(
+            resource_group, cluster_name, node_pool_name, node_count
+        ),
         node_pool_name,
-        node_count,
+        "scale",
         timeout=timeout,
     )
 

@@ -890,6 +890,37 @@ class TestCollectBenchmarkResults(unittest.TestCase):
             )
             self.assertEqual(json.loads(row["operation_info"]), original)
 
+    def test_default_collection_ignores_result_file_environment(self):
+        self._set_env(RESULT_FILE=os.path.join(self.test_dir, "unrelated.json"))
+        self._write_operation("create_pods")
+        self.assertEqual(collect_benchmark_results(), 0)
+        self.assertEqual(len(self._read_rows()), 1)
+        self.assertFalse(os.path.exists(self.env_vars["RESULT_FILE"]))
+
+    @mock.patch("crud.main.glob.glob")
+    def test_default_collection_preserves_partial_append_and_json_error(self, mock_glob):
+        self._set_env()
+        valid = self._write_operation("create_pods")
+        invalid = os.path.join(self.test_dir, "invalid.json")
+        with open(invalid, "w", encoding="utf-8") as source:
+            source.write("{")
+        mock_glob.return_value = [valid, invalid]
+        with self.assertRaises(json.JSONDecodeError):
+            collect_benchmark_results()
+        self.assertEqual(len(self._read_rows()), 1)
+
+    def test_default_collection_preserves_environment_helper_import(self):
+        from crud.main import get_env_vars  # pylint: disable=import-outside-toplevel
+        from utils.common import get_env_vars as original  # pylint: disable=import-outside-toplevel
+        self.assertIs(get_env_vars, original)
+        self._set_env()
+        with mock.patch("crud.main.get_env_vars", wraps=original) as helper:
+            self.assertEqual(collect_benchmark_results(), 0)
+        self.assertEqual(
+            helper.call_args_list,
+            [mock.call(name) for name in ("RESULT_DIR", "RUN_URL", "RUN_ID", "REGION")],
+        )
+
     @mock.patch("crud.main.glob.glob")
     def test_collect_benchmark_results_preserves_default_source_order(self, mock_glob):
         """Default collection retains the original file-enumeration order."""
@@ -1072,7 +1103,7 @@ class TestCollectBenchmarkResults(unittest.TestCase):
             os.path.join(self.test_dir, "malformed.json"), "w", encoding="utf-8"
         ) as malformed_file:
             malformed_file.write("{")
-        self._assert_failed_collection_preserves_output(None)
+        self._assert_failed_collection_preserves_output(self.legacy_args)
 
 
 class TestHandleNodePoolAll(unittest.TestCase):

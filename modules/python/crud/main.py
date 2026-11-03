@@ -21,6 +21,7 @@ from crud.azure.node_pool_crud import NodePoolCRUD as AzureNodePoolCRUD
 from crud.azure.machine_crud import MachineCRUD as AzureMachineCRUD
 from crud.aws.node_pool_crud import NodePoolCRUD as AWSNodePoolCRUD
 from crud.operation import OperationContext
+from utils.common import get_env_vars
 from utils.constants import AzureNodePoolTypeConstants
 from utils.logger_config import get_logger, setup_logging
 
@@ -43,7 +44,7 @@ COLLECT_ARGS = (
     "result_dir", "result_file", "run_id", "run_url", "region", "cloud_info",
     *AKS_DATA_FIELDS,
 )
-REQUIRED_COLLECT_ARGS = ("result_dir", "run_id", "run_url", "region")
+REQUIRED_COLLECT_ARGS = ("result_dir", "run_url", "run_id", "region")
 
 
 def _build_operation_info(content):
@@ -123,6 +124,8 @@ def collect_benchmark_results(args=None):
     """Main function to process Cluster Crud benchmark results."""
     legacy_output = getattr(args, "legacy_output", False)
     context = {name: os.environ.get(name.upper()) for name in COLLECT_ARGS}
+    if not legacy_output:
+        context["result_file"] = None
     if args:
         context.update(
             (name, value)
@@ -130,8 +133,8 @@ def collect_benchmark_results(args=None):
             if (value := getattr(args, name, None)) is not None
         )
     for name in REQUIRED_COLLECT_ARGS:
-        if context[name] is None:
-            raise RuntimeError(f"Environment variable `{name.upper()}` not set")
+        if getattr(args, name, None) is None:
+            context[name] = get_env_vars(name.upper())
     result_dir = context["result_dir"]
     run_url = context["run_url"]
     run_id = context["run_id"]
@@ -178,6 +181,8 @@ def collect_benchmark_results(args=None):
                 _build_operation_info(content) if legacy_output else content.get("operation_info")
             )
         except (OSError, ValueError) as error:
+            if not legacy_output:
+                raise
             logger.error("Failed to process operation result `%s`: %s", filepath, error)
             return 1
         timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -192,18 +197,18 @@ def collect_benchmark_results(args=None):
             result["aks_data"] = json.dumps(aks_data)
             result["cloud_info"] = cloud_info or json.dumps({})
         logger.debug("Result: %s", json.dumps(result))
-        rows.append(result)
+        if legacy_output:
+            rows.append(result)
+        else:
+            with open(result_file, "a", encoding="utf-8") as file:
+                file.write(json.dumps(result) + "\n")
+            logger.info("Result written to: `%s`", result_file)
 
+    if not legacy_output:
+        return 0
     output_dir = os.path.dirname(result_file) or "."
     temporary_path = None
     try:
-        if not legacy_output:
-            if rows:
-                os.makedirs(output_dir, exist_ok=True)
-                with open(result_file, "a", encoding="utf-8") as file:
-                    for result in rows:
-                        file.write(json.dumps(result) + "\n")
-            return 0
         os.makedirs(output_dir, exist_ok=True)
         with tempfile.NamedTemporaryFile(
             mode="w", encoding="utf-8", dir=output_dir, prefix=".results-", suffix=".tmp",

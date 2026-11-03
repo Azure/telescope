@@ -11,19 +11,40 @@ from azure.mgmt.containerservice.models import (
 )
 
 from utils.azure_node_pool_cli import (
+    _run_node_pool_cli_with_timing,
     add_managed_gpu_node_pool,
     build_add_virtual_machines_command,
     build_scale_virtual_machines_command,
+    create_virtual_machines_node_pool,
     get_node_pool_scale_state,
     prepare_create_operation,
     prepare_scale_operation,
     run_node_pool_cli,
+    scale_virtual_machines_node_pool,
 )
 from utils.provisioning_instrumentation import begin_create_or_update_with_retry
 
 
 class TestAzureNodePoolCLI(unittest.TestCase):
     """Validate VirtualMachines readback and command contracts."""
+
+    @mock.patch("utils.azure_node_pool_cli.time.sleep")
+    @mock.patch("utils.azure_node_pool_cli.subprocess.run")
+    def test_public_cli_helpers_preserve_boolean_retry_result(self, mock_run, _sleep):
+        helpers = (
+            lambda: run_node_pool_cli(["az"], "pool", "add"),
+            lambda: create_virtual_machines_node_pool("rg", "cluster", "pool", 1, "size"),
+            lambda: scale_virtual_machines_node_pool("rg", "cluster", "pool", 2),
+        )
+        for index, helper in enumerate(helpers):
+            for retry in (False, True):
+                with self.subTest(helper=index, retry=retry):
+                    success = mock.Mock(returncode=0, stdout="", stderr="")
+                    mock_run.side_effect = (
+                        [mock.Mock(returncode=1, stdout="", stderr="OperationNotAllowed"), success]
+                        if retry else [success]
+                    )
+                    self.assertIs(helper(), retry)
 
     @mock.patch("utils.azure_node_pool_cli.time")
     @mock.patch("utils.azure_node_pool_cli.subprocess.run")
@@ -32,7 +53,7 @@ class TestAzureNodePoolCLI(unittest.TestCase):
         mock_time.time.return_value = 100.0
         mock_run.return_value = mock.Mock(returncode=0, stdout="", stderr="")
 
-        self.assertEqual(run_node_pool_cli(["az"], "pool", "add"), (100.0, False))
+        self.assertEqual(_run_node_pool_cli_with_timing(["az"], "pool", "add"), (100.0, False))
 
     @mock.patch("utils.azure_node_pool_cli.time")
     @mock.patch("utils.azure_node_pool_cli.subprocess.run")
@@ -44,7 +65,7 @@ class TestAzureNodePoolCLI(unittest.TestCase):
             mock.Mock(returncode=0, stdout="", stderr=""),
         ]
 
-        self.assertEqual(run_node_pool_cli(["az"], "pool", "scale"), (130.0, True))
+        self.assertEqual(_run_node_pool_cli_with_timing(["az"], "pool", "scale"), (130.0, True))
         mock_time.sleep.assert_called_once_with(30)
 
     @mock.patch("utils.azure_node_pool_cli.time")

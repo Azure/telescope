@@ -217,7 +217,10 @@ telescope-crud collect \
 
 `python3 -m crud.main collect` is also supported.
 
-Explicit arguments override their environment variables. `RESULT_DIR`, `RUN_ID`,
+Explicit arguments override their environment variables. `RESULT_FILE` is read
+from the environment only in legacy mode; default collection uses
+`RESULT_DIR/results.json` unless `--result-file` is explicitly supplied.
+`RESULT_DIR`, `RUN_ID`,
 `RUN_URL`, and `REGION` (or their CLI equivalents) are required. The output
 defaults to `RESULT_DIR/results.json`. `CLOUD_INFO` / `--cloud-info` supplies a
 JSON-encoded object such as `{"cloud":"azure","aks_name":"my-cluster"}`; it
@@ -244,4 +247,5 @@ code without replacing the previous output. This includes missing or unreadable
 source directories in legacy mode; default collection retains its existing
 no-op behavior when no source files are found. In legacy mode, validated rows are
 published by atomically replacing the output file, so rerunning collection does
-not duplicate rows. Default collection retains its existing append behavior.
+not duplicate rows. Default collection appends each row immediately and propagates
+input/output exceptions, retaining rows already appended before a later failure.
