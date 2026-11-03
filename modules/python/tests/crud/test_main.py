@@ -1062,6 +1062,23 @@ class TestCollectBenchmarkResults(unittest.TestCase):
             {"timestamp", "region", "operation_info", "run_id", "run_url"},
         )
 
+    def test_legacy_collection_rejects_empty_publication(self):
+        self._set_env()
+        with self.assertLogs("crud.main", level="ERROR"):
+            self.assertEqual(collect_benchmark_results(self.legacy_args), 1)
+        self.assertFalse(os.path.exists(os.path.join(self.test_dir, "results.json")))
+        self._assert_failed_collection_preserves_output(self.legacy_args)
+
+        custom_output = os.path.join(self.test_dir, "final.json")
+        previous = json.dumps({"operation_info": "{}"}) + "\n"
+        with open(custom_output, "w", encoding="utf-8") as output:
+            output.write(previous)
+        self._assert_failed_collection_preserves_output(
+            argparse.Namespace(legacy_output=True, result_file=custom_output)
+        )
+        with open(custom_output, encoding="utf-8") as output:
+            self.assertEqual(output.read(), previous)
+
     def test_collection_rejects_operation_output_collisions(self):
         self._set_env()
         source = self._write_operation("create_pods")

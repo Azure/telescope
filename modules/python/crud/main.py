@@ -239,6 +239,9 @@ def collect_benchmark_results(args=None):
 
     if not legacy_output:
         return 0
+    if not rows:
+        logger.error("No operation results found in `%s`; output was not replaced", result_dir)
+        return 1
     output_dir = os.path.dirname(result_file) or "."
     temporary_path = None
     try:
