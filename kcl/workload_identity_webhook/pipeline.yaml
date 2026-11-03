@@ -178,7 +178,7 @@ jobs:
       sleep 300
       echo "Finished pause after 50/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
     condition: always()
-    displayName: Pause 5 minutes after 50/sec
+    displayName: Pause 5 minutes after kperf run
     timeoutInMinutes: 6
   - bash: |
       set -euo pipefail
@@ -237,7 +237,7 @@ jobs:
       sleep 300
       echo "Finished pause after 100/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
     condition: always()
-    displayName: Pause 5 minutes after 100/sec
+    displayName: Pause 5 minutes after kperf run
     timeoutInMinutes: 6
   - bash: |
       set -euo pipefail
@@ -296,7 +296,7 @@ jobs:
       sleep 300
       echo "Finished pause after 150/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
     condition: always()
-    displayName: Pause 5 minutes after 150/sec
+    displayName: Pause 5 minutes after kperf run
     timeoutInMinutes: 6
   - task: AzureCLI@2
     inputs:

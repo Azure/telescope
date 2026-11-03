@@ -11,7 +11,7 @@ SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
 LOCATION = "westus2"
 # TODO: Replace the user-selected PR image with a published upstream release.
 RUNNER_IMAGE = "ghcr.io/liyu-ma/kperf@sha256:36f8e1cdbb6a4bd2fde4b29bf0cb5e4e014484ae9ddca9136f43449897ffb647"
-RATES = [50, 100, 150]
+POD_CREATE_RPS = [50, 100, 150]
 
 BenchmarkSteps = lambda rate: int -> [steps.Step] {
     [
@@ -85,7 +85,7 @@ echo "Starting five-minute pause after ${rate}/sec phase at $(date -u +%Y-%m-%dT
 sleep 300
 echo "Finished pause after ${rate}/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 """
-            displayName = "Pause 5 minutes after ${rate}/sec"
+            displayName = "Pause 5 minutes after kperf run"
             condition = "always()"
             timeoutInMinutes = 6
         },
@@ -181,7 +181,7 @@ az aks create \\
                     file="$(KUBECONFIG)"),
                 kperf.InstallRunkperf(RUNNER_IMAGE),
                 common.RecordCurrentTime("BENCHMARK_START_TIME"),
-                *[step for rate in RATES for step in BenchmarkSteps(rate)],
+                *[step for rate in POD_CREATE_RPS for step in BenchmarkSteps(rate)],
                 asi_dashboard.PrintAsiDashboardUrl(
                     const.DEFAULT_SERVICE_CONNECTION,
                     "$(CLUSTER)",
