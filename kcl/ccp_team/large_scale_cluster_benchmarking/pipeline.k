@@ -150,7 +150,7 @@ output = ap.Pipeline {
             displayName = "Create Large Scale Cluster"
             timeoutInMinutes = 1440
             # Leave time for the always() cleanup step to delete the cluster after cancellation or timeout.
-            cancelTimeoutInMinutes = 120
+            # cancelTimeoutInMinutes = 120
 
             steps = [
                 azure.Login(
@@ -278,79 +278,79 @@ output = ap.Pipeline {
                     # Disable THP on all node pools to avoid excessive node memory usage affecting benchmark results.
                     linuxOsConfig = "$(Pipeline.Workspace)/s/kcl/ccp_team/large_scale_cluster_benchmarking/manifests/linux-os-config.json"
                 ),
-                azure.RunScriptOnJumpbox(
-                    SERVICE_CONNECTION,
-                    SUBSCRIPTION_ID,
-                    RESOURCE_GROUP,
-                    JUMPBOX_NAME,
-                    "Configure kubeconfig on jumpbox ${JUMPBOX_NAME}",
-                    """
-az login --identity --output none
-az account set --subscription "${SUBSCRIPTION_ID}"
-az aks get-credentials \\
-  --admin \\
-  --overwrite-existing \\
-  --file /var/tmp/telescope-kubeconfig \\
-  --resource-group "${RESOURCE_GROUP}" \\
-  --name "${CLUSTER_NAME}" \\
-  --subscription "${SUBSCRIPTION_ID}"
-chmod 600 /var/tmp/telescope-kubeconfig
-test -s /var/tmp/telescope-kubeconfig
-"""
-                ),
-                *azure.RunClusterLoader2OnJumpbox(
-                    SERVICE_CONNECTION,
-                    SUBSCRIPTION_ID,
-                    RESOURCE_GROUP,
-                    JUMPBOX_NAME,
-                    "kcl/ccp_team/large_scale_cluster_benchmarking/manifests/cl2.yaml"
-                ),
-                azure.RunScriptOnJumpbox(
-                    SERVICE_CONNECTION,
-                    SUBSCRIPTION_ID,
-                    RESOURCE_GROUP,
-                    JUMPBOX_NAME,
-                    "Collect ClusterLoader2 results and check success",
-                    """
-export KUBECONFIG=/var/tmp/telescope-kubeconfig
-pods=$(kubectl get pods \\
-  --namespace="clusterloader2" \\
-  --selector job-name=cl2 \\
-  --output jsonpath='{.items[*].metadata.name}')
-test -n "$pods"
-
-for pod in $pods; do
-  echo "===== Results for pod: $pod ====="
-  kubectl logs \\
-    --namespace="clusterloader2" \\
-    "$pod" \\
-    --container=cl2-results
-done
-
-# Collect all results before failing the step for an unsuccessful benchmark.
-for pod in $pods; do
-  pod_result=$(kubectl get pod "$pod" \\
-    --namespace="clusterloader2" \\
-    --output jsonpath='{.status.phase}:{.status.containerStatuses[?(@.name=="cl2")].state.terminated.exitCode}')
-  if [ "$pod_result" != "Succeeded:0" ]; then
-    echo "ClusterLoader2 pod $pod failed: phase:exitCode=$pod_result (expected Succeeded:0)"
-    exit 1
-  fi
-done
-"""
-                ),
-                azure.RevokeKeyVaultCryptoUser(
-                    SERVICE_CONNECTION,
-                    SUBSCRIPTION_ID,
-                    "\${{ parameters.kms_key_id }}",
-                    "$(createManagedIdentity.IDENTITY_PRINCIPAL_ID)",
-                    condition = "and(always(), ne('\${{ parameters.kms_key_id }}', 'none'))"
-                ),
-                azure.DeleteResourceGroup(
-                    SERVICE_CONNECTION,
-                    RESOURCE_GROUP,
-                    SUBSCRIPTION_ID
-                ),
+                # azure.RunScriptOnJumpbox(
+                #     SERVICE_CONNECTION,
+                #     SUBSCRIPTION_ID,
+                #     RESOURCE_GROUP,
+                #     JUMPBOX_NAME,
+                #     "Configure kubeconfig on jumpbox ${JUMPBOX_NAME}",
+                #     """
+# az login --identity --output none
+# az account set --subscription "${SUBSCRIPTION_ID}"
+# az aks get-credentials \\
+#   --admin \\
+#   --overwrite-existing \\
+#   --file /var/tmp/telescope-kubeconfig \\
+#   --resource-group "${RESOURCE_GROUP}" \\
+#   --name "${CLUSTER_NAME}" \\
+#   --subscription "${SUBSCRIPTION_ID}"
+# chmod 600 /var/tmp/telescope-kubeconfig
+# test -s /var/tmp/telescope-kubeconfig
+# """
+                # ),
+                # *azure.RunClusterLoader2OnJumpbox(
+                #     SERVICE_CONNECTION,
+                #     SUBSCRIPTION_ID,
+                #     RESOURCE_GROUP,
+                #     JUMPBOX_NAME,
+                #     "kcl/ccp_team/large_scale_cluster_benchmarking/manifests/cl2.yaml"
+                # ),
+                # azure.RunScriptOnJumpbox(
+                #     SERVICE_CONNECTION,
+                #     SUBSCRIPTION_ID,
+                #     RESOURCE_GROUP,
+                #     JUMPBOX_NAME,
+                #     "Collect ClusterLoader2 results and check success",
+                #     """
+# export KUBECONFIG=/var/tmp/telescope-kubeconfig
+# pods=$(kubectl get pods \\
+#   --namespace="clusterloader2" \\
+#   --selector job-name=cl2 \\
+#   --output jsonpath='{.items[*].metadata.name}')
+# test -n "$pods"
+#
+# for pod in $pods; do
+#   echo "===== Results for pod: $pod ====="
+#   kubectl logs \\
+#     --namespace="clusterloader2" \\
+#     "$pod" \\
+#     --container=cl2-results
+# done
+#
+# # Collect all results before failing the step for an unsuccessful benchmark.
+# for pod in $pods; do
+#   pod_result=$(kubectl get pod "$pod" \\
+#     --namespace="clusterloader2" \\
+#     --output jsonpath='{.status.phase}:{.status.containerStatuses[?(@.name=="cl2")].state.terminated.exitCode}')
+#   if [ "$pod_result" != "Succeeded:0" ]; then
+#     echo "ClusterLoader2 pod $pod failed: phase:exitCode=$pod_result (expected Succeeded:0)"
+#     exit 1
+#   fi
+# done
+# """
+                # ),
+                # azure.RevokeKeyVaultCryptoUser(
+                #     SERVICE_CONNECTION,
+                #     SUBSCRIPTION_ID,
+                #     "\${{ parameters.kms_key_id }}",
+                #     "$(createManagedIdentity.IDENTITY_PRINCIPAL_ID)",
+                #     condition = "and(always(), ne('\${{ parameters.kms_key_id }}', 'none'))"
+                # ),
+                # azure.DeleteResourceGroup(
+                #     SERVICE_CONNECTION,
+                #     RESOURCE_GROUP,
+                #     SUBSCRIPTION_ID
+                # ),
             ]
         }
     ]
