@@ -243,7 +243,7 @@ output = ap.Pipeline {
                     VNET_NAME,
                     vmSize = "Standard_D4ds_v5"
                 ),
-                azure.GrantKeyVaultCryptoUser(
+                azure.GrantKeyVaultKmsAccess(
                     SERVICE_CONNECTION,
                     SUBSCRIPTION_ID,
                     "\${{ parameters.kms_key_id }}",
@@ -346,13 +346,13 @@ output = ap.Pipeline {
 # done
 # """
                 # ),
-                # azure.RevokeKeyVaultCryptoUser(
-                #     SERVICE_CONNECTION,
-                #     SUBSCRIPTION_ID,
-                #     "\${{ parameters.kms_key_id }}",
-                #     "$(createManagedIdentity.IDENTITY_PRINCIPAL_ID)",
-                #     condition = "and(always(), ne('\${{ parameters.kms_key_id }}', 'none'))"
-                # ),
+                azure.RevokeKeyVaultKmsAccess(
+                    SERVICE_CONNECTION,
+                    SUBSCRIPTION_ID,
+                    "\${{ parameters.kms_key_id }}",
+                    "$(createManagedIdentity.IDENTITY_PRINCIPAL_ID)",
+                    condition = "and(always(), ne('\${{ parameters.kms_key_id }}', 'none'), ne(variables['createManagedIdentity.IDENTITY_PRINCIPAL_ID'], ''))"
+                ),
                 azure.DeleteResourceGroup(
                     SERVICE_CONNECTION,
                     RESOURCE_GROUP,
