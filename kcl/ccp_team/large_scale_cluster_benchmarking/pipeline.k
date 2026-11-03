@@ -19,8 +19,8 @@ SUBSCRIPTION_ID = "854c9ddb-fe9e-4aea-8d58-99ed88282881"
 LOCATION = "canadacentral"
 USER_POOL_VM_SIZE = "Standard_D4ds_v4"
 USER_TOTAL_NODES = 14997
-# Versioned Key Vault key URI used by the stages that enable KMS.
-KMS_KEY_ID = "https://xinwei-15k-key-vault.vault.azure.net/keys/15k-test/38ca388db5e74ffab7b8ac920acf2a5b"
+# Versionless CMK URI used by the stages that enable KMS with infrastructure encryption.
+KMS_KEY_ID = "https://xinwei-15k-key-vault.vault.azure.net/keys/15k-test"
 
 # Features toggled across stages. Every combination gets its own stage, so each run's
 # configuration is defined in code.
@@ -34,10 +34,11 @@ createClusterScript = lambda features: Features -> str {
         "--network-dataplane cilium" if features.enableCiliumDataplane else ""
         "--enable-apiserver-vnet-integration --apiserver-subnet-id \"$(createSubnet_apiserver.APISERVER_SUBNET_ID)\"" if features.enableApiserverVnetIntegration else ""
         # Infrastructure encryption enables KMS v2 Plus.
-        "--enable-azure-keyvault-kms --azure-keyvault-kms-key-id \"${KMS_KEY_ID}\" --kms-infrastructure-encryption Enabled" if features.enableKms else ""
+        "--enable-azure-keyvault-kms --azure-keyvault-kms-key-id \"$KEY_ID\" --azure-keyvault-kms-key-vault-resource-id \"$KEY_VAULT_RESOURCE_ID\" --kms-infrastructure-encryption Enabled" if features.enableKms else ""
     ] if f])
     """
 az extension add --name aks-preview --allow-preview true --upgrade --yes
+${azure.resolveKeyVaultResourceId(SUBSCRIPTION_ID, KMS_KEY_ID) if features.enableKms else ""}
 
 CREATE_ARGS=(
   --subscription "${SUBSCRIPTION_ID}"
@@ -168,7 +169,7 @@ makeJob = lambda features: Features -> job.Job {
                 VNET_NAME,
                 vmSize = "Standard_D4ds_v5"
             ),
-            *([azure.GrantKeyVaultCryptoUser(
+            *([azure.GrantKeyVaultKmsAccess(
                 SERVICE_CONNECTION,
                 SUBSCRIPTION_ID,
                 KMS_KEY_ID,
@@ -270,12 +271,12 @@ exit 1
 done
 """
             ),
-            *([azure.RevokeKeyVaultCryptoUser(
+            *([azure.RevokeKeyVaultKmsAccess(
                 SERVICE_CONNECTION,
                 SUBSCRIPTION_ID,
                 KMS_KEY_ID,
                 "$(createManagedIdentity.IDENTITY_PRINCIPAL_ID)",
-                condition = "always()"
+                condition = "and(always(), ne(variables['createManagedIdentity.IDENTITY_PRINCIPAL_ID'], ''))"
             )] if features.enableKms else []),
             azure.DeleteResourceGroup(
                 SERVICE_CONNECTION,
