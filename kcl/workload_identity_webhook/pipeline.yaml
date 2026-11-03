@@ -49,22 +49,9 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
-        az monitor account create \
-          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-          --resource-group "$(RESOURCE_GROUP)" \
-          --name wi-benchmark-prometheus \
-          --location "westus2"
-    displayName: Create benchmark Prometheus workspace
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: Azure-for-Telescope-internal
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
         az extension add \
           --name aks-preview \
-          --version 20.0.0b6 \
+          --version 21.0.0b17 \
           --allow-preview true \
           --yes
         az aks create \
@@ -78,8 +65,6 @@ jobs:
           --control-plane-scaling-size H2 \
           --enable-oidc-issuer \
           --enable-workload-identity \
-          --enable-azure-monitor-metrics \
-          --azure-monitor-workspace-resource-id "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/$(RESOURCE_GROUP)/providers/Microsoft.Monitor/accounts/wi-benchmark-prometheus" \
           --generate-ssh-keys \
           --nodepool-name systempool \
           --node-count 3 \
@@ -176,6 +161,10 @@ jobs:
     timeoutInMinutes: 15
   - bash: |
       set -euo pipefail
+      if [ ! -s "$(KUBECONFIG)" ]; then
+        echo "Skipping namespace deletion for 50/sec: kubeconfig is missing or empty: $(KUBECONFIG)"
+        exit 0
+      fi
       kubectl --request-timeout=60s delete namespace "$(RUN_ID)-r50" \
         --ignore-not-found=true \
         --wait=false
@@ -231,6 +220,10 @@ jobs:
     timeoutInMinutes: 15
   - bash: |
       set -euo pipefail
+      if [ ! -s "$(KUBECONFIG)" ]; then
+        echo "Skipping namespace deletion for 100/sec: kubeconfig is missing or empty: $(KUBECONFIG)"
+        exit 0
+      fi
       kubectl --request-timeout=60s delete namespace "$(RUN_ID)-r100" \
         --ignore-not-found=true \
         --wait=false
@@ -286,6 +279,10 @@ jobs:
     timeoutInMinutes: 15
   - bash: |
       set -euo pipefail
+      if [ ! -s "$(KUBECONFIG)" ]; then
+        echo "Skipping namespace deletion for 150/sec: kubeconfig is missing or empty: $(KUBECONFIG)"
+        exit 0
+      fi
       kubectl --request-timeout=60s delete namespace "$(RUN_ID)-r150" \
         --ignore-not-found=true \
         --wait=false

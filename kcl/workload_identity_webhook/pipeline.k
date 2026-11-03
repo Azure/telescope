@@ -65,6 +65,10 @@ kperf runner run \\
         steps.Bash {
             bash = """
 set -euo pipefail
+if [ ! -s "$(KUBECONFIG)" ]; then
+  echo "Skipping namespace deletion for ${rate}/sec: kubeconfig is missing or empty: $(KUBECONFIG)"
+  exit 0
+fi
 kubectl --request-timeout=60s delete namespace "$(RUN_ID)-r${rate}" \\
   --ignore-not-found=true \\
   --wait=false
@@ -126,21 +130,11 @@ output = ap.Pipeline {
                     SUBSCRIPTION_ID),
                 azure.AzCli(
                     const.DEFAULT_SERVICE_CONNECTION,
-                    "Create benchmark Prometheus workspace",
-                    """
-az monitor account create \\
-  --subscription "${SUBSCRIPTION_ID}" \\
-  --resource-group "$(RESOURCE_GROUP)" \\
-  --name wi-benchmark-prometheus \\
-  --location "${LOCATION}"
-"""),
-                azure.AzCli(
-                    const.DEFAULT_SERVICE_CONNECTION,
                     "Create H2 cluster with OIDC and workload identity",
                     """
 az extension add \\
   --name aks-preview \\
-  --version 20.0.0b6 \\
+  --version 21.0.0b17 \\
   --allow-preview true \\
   --yes
 az aks create \\
@@ -154,8 +148,6 @@ az aks create \\
   --control-plane-scaling-size H2 \\
   --enable-oidc-issuer \\
   --enable-workload-identity \\
-  --enable-azure-monitor-metrics \\
-  --azure-monitor-workspace-resource-id "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/$(RESOURCE_GROUP)/providers/Microsoft.Monitor/accounts/wi-benchmark-prometheus" \\
   --generate-ssh-keys \\
   --nodepool-name systempool \\
   --node-count 3 \\
