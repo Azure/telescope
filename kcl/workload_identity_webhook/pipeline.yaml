@@ -22,7 +22,6 @@ jobs:
   cancelTimeoutInMinutes: 25
   variables:
     RUN_ID: wi-$(Build.BuildId)-$(System.JobAttempt)
-    RESOURCE_GROUP_CREATED: 'false'
     USE_EXISTING_CLUSTER: unresolved
     KUBECONFIG: $(Agent.TempDirectory)/$(RUN_ID).kubeconfig
     PHASE_50_NAMESPACE_PREPARED: 'false'
@@ -60,7 +59,10 @@ jobs:
       echo "Benchmark target: cluster=$cluster resource_group=$resource_group existing=$use_existing"
       echo "##vso[task.setvariable variable=RESOURCE_GROUP]$resource_group"
       echo "##vso[task.setvariable variable=CLUSTER]$cluster"
-      echo "##vso[task.setvariable variable=USE_EXISTING_CLUSTER]$use_existing"
+      # New-cluster mode is published only after the resource-group absence check.
+      if [ "$use_existing" = "true" ]; then
+        echo "##vso[task.setvariable variable=USE_EXISTING_CLUSTER]true"
+      fi
     displayName: Resolve benchmark cluster
     env:
       PARAM_EXISTING_RESOURCE_GROUP: ${{ parameters.existing_resource_group }}
@@ -88,7 +90,8 @@ jobs:
           echo "Refusing to reuse an existing or unverified resource group: $(RESOURCE_GROUP)" >&2
           exit 1
         fi
-    condition: and(succeeded(), eq(variables['USE_EXISTING_CLUSTER'], 'false'))
+        echo "##vso[task.setvariable variable=USE_EXISTING_CLUSTER]false"
+    condition: and(succeeded(), eq(variables['USE_EXISTING_CLUSTER'], 'unresolved'))
     displayName: Verify resource group does not already exist
   - task: AzureCLI@2
     inputs:
@@ -111,7 +114,6 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
-        echo "##vso[task.setvariable variable=RESOURCE_GROUP_CREATED]true"
         az monitor account create \
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --resource-group "$(RESOURCE_GROUP)" \
@@ -197,6 +199,12 @@ jobs:
       docker rmi ghcr.io/liyu-ma/kperf@sha256:36f8e1cdbb6a4bd2fde4b29bf0cb5e4e014484ae9ddca9136f43449897ffb647 2>/dev/null || true
     displayName: Install runkperf binary
   - bash: |
+      set -exo pipefail
+      TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+      echo "BENCHMARK_START_TIME: $TIMESTAMP"
+      echo "##vso[task.setvariable variable=BENCHMARK_START_TIME]$TIMESTAMP"
+    displayName: Record current time as BENCHMARK_START_TIME
+  - bash: |
       set -euo pipefail
       namespace="$(RUN_ID)-r50"
       deleting=$(kubectl --request-timeout=60s get namespace "$namespace" --ignore-not-found -o jsonpath='{.metadata.deletionTimestamp}')
@@ -225,7 +233,6 @@ jobs:
         echo "Unresolved load-profile placeholders" >&2
         exit 1
       fi
-      echo "Starting 50 CREATEs/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ); ownership=$(RUN_ID)-r50"
     displayName: Prepare 50/sec load profile
   - script: |
       set -euo pipefail
@@ -282,7 +289,6 @@ jobs:
         echo "Unresolved load-profile placeholders" >&2
         exit 1
       fi
-      echo "Starting 100 CREATEs/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ); ownership=$(RUN_ID)-r100"
     displayName: Prepare 100/sec load profile
   - script: |
       set -euo pipefail
@@ -339,7 +345,6 @@ jobs:
         echo "Unresolved load-profile placeholders" >&2
         exit 1
       fi
-      echo "Starting 150 CREATEs/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ); ownership=$(RUN_ID)-r150"
     displayName: Prepare 150/sec load profile
   - script: |
       set -euo pipefail
@@ -374,6 +379,42 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
+        RESOURCE_UID=$(az aks show \
+          --resource-group "$(RESOURCE_GROUP)" \
+          --name "$(CLUSTER)" \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --query "resourceUid" -o tsv)
+
+        if [ -z "$RESOURCE_UID" ]; then
+          echo "##[warning]Failed to fetch resourceUid, skipping ASI URL"
+          exit 1
+        fi
+
+        END_TIME=""
+        if [ -z "$END_TIME" ]; then
+          END_TIME=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+        fi
+
+        FROM_ENCODED=$(echo "$(BENCHMARK_START_TIME)" | sed 's/:/%3A/g')
+        TO_ENCODED=$(echo "$END_TIME" | sed 's/:/%3A/g')
+
+        echo "============================================"
+        echo "ASI Managed Cluster Dashboard URL:"
+        echo "https://asi.azure.ms/services/AKS/pages/Managed%20Cluster?clusterVersion=$RESOURCE_UID&globalFrom=$FROM_ENCODED&globalTo=$TO_ENCODED"
+        echo ""
+        echo "ASI API Server Analyzer URL:"
+        echo "https://asi.azure.ms/services/AKS/pages/API%20Server%20Analyzer?clusterVersion=$RESOURCE_UID&globalFrom=$FROM_ENCODED&globalTo=$TO_ENCODED"
+        echo "============================================"
+    condition: always()
+    continueOnError: true
+    displayName: Print ASI dashboard URL
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
         az group delete --name "$(RESOURCE_GROUP)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
-    condition: and(always(), eq(variables['USE_EXISTING_CLUSTER'], 'false'), eq(variables['RESOURCE_GROUP_CREATED'], 'true'), not(${{ parameters.keep_cluster }}))
+    condition: and(always(), eq(variables['USE_EXISTING_CLUSTER'], 'false'), not(${{ parameters.keep_cluster }}))
     displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)

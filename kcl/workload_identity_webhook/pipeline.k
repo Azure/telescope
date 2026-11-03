@@ -3,7 +3,9 @@ import azure_pipelines.ap.jobs.job
 import azure_pipelines.ap.steps
 import lib.const
 import lib.steps.azure
+import lib.steps.common
 import lib.steps.kperf
+import lib.util.asi_dashboard
 
 SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
 LOCATION = "westus2"
@@ -11,6 +13,82 @@ LOCATION = "westus2"
 RUNNER_IMAGE = "ghcr.io/liyu-ma/kperf@sha256:36f8e1cdbb6a4bd2fde4b29bf0cb5e4e014484ae9ddca9136f43449897ffb647"
 CREATE_NEW_CLUSTER = "and(succeeded(), eq(variables['USE_EXISTING_CLUSTER'], 'false'))"
 RATES = [50, 100, 150]
+
+BenchmarkSteps = lambda rate: int -> [steps.Step] {
+    [
+        steps.Bash {
+            bash = """
+set -euo pipefail
+namespace="$(RUN_ID)-r${rate}"
+deleting=$(kubectl --request-timeout=60s get namespace "$namespace" --ignore-not-found -o jsonpath='{.metadata.deletionTimestamp}')
+if [ -n "$deleting" ]; then
+  echo "Namespace $namespace is already terminating; cannot prepare this phase." >&2
+  exit 1
+fi
+kubectl create namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
+echo "##vso[task.setvariable variable=PHASE_${rate}_NAMESPACE_PREPARED]true"
+kubectl create serviceaccount pod-benchmark --namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
+# Use a fake client ID because benchmark Pods do not access Azure resources.
+kubectl --request-timeout=60s annotate serviceaccount pod-benchmark \\
+  --namespace "$namespace" \\
+  "azure.workload.identity/client-id=00000000-0000-4000-8000-000000000001" \\
+  --overwrite
+"""
+            displayName = "Prepare WI resources for ${rate}/sec"
+        },
+        steps.Bash {
+            bash = """
+set -euo pipefail
+profile="$(Agent.TempDirectory)/$(RUN_ID)-r${rate}-load-profile.yaml"
+sed \\
+  -e 's/__RUN_NAMESPACE__/$(RUN_ID)-r${rate}/g' \\
+  -e 's/__RATE__/${rate}/g' \\
+  -e 's/__PHASE_RUN_ID__/$(RUN_ID)-r${rate}/g' \\
+  "$(Build.SourcesDirectory)/kcl/workload_identity_webhook/load-profile.yaml" > "$profile"
+if grep -q '__[A-Z_]*__' "$profile"; then
+  echo "Unresolved load-profile placeholders" >&2
+  exit 1
+fi
+"""
+            displayName = "Prepare ${rate}/sec load profile"
+        },
+        steps.Script {
+            script = """
+set -euo pipefail
+set -x
+
+kperf runner run \\
+  --config "$(Agent.TempDirectory)/$(RUN_ID)-r${rate}-load-profile.yaml" \\
+  --kubeconfig "$(KUBECONFIG)"
+"""
+            displayName = "Run kperf at ${rate} CREATEs/sec"
+            timeoutInMinutes = 15
+        },
+        steps.Bash {
+            bash = """
+set -euo pipefail
+kubectl --request-timeout=60s delete namespace "$(RUN_ID)-r${rate}" \\
+  --ignore-not-found=true \\
+  --wait=false
+echo "Namespace deletion requested for ${rate}/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+"""
+            displayName = "Delete namespace from ${rate}/sec run"
+            condition = "and(always(), eq(variables['PHASE_${rate}_NAMESPACE_PREPARED'], 'true'))"
+            timeoutInMinutes = 15
+        },
+        steps.Bash {
+            bash = """
+set -euo pipefail
+echo "Starting five-minute pause after ${rate}/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+sleep 300
+echo "Finished pause after ${rate}/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+"""
+            displayName = "Pause 5 minutes after ${rate}/sec"
+            condition = "and(always(), eq(variables['PHASE_${rate}_NAMESPACE_PREPARED'], 'true'))"
+            timeoutInMinutes = 6
+        },
+    ]
+}
 
 output = ap.Pipeline {
     name = "Workload Identity Webhook Benchmark"
@@ -46,7 +124,6 @@ output = ap.Pipeline {
             cancelTimeoutInMinutes = 25
             variables = {
                 RUN_ID = "wi-$(Build.BuildId)-$(System.JobAttempt)"
-                RESOURCE_GROUP_CREATED = "false"
                 USE_EXISTING_CLUSTER = "unresolved"
                 KUBECONFIG = "$(Agent.TempDirectory)/$(RUN_ID).kubeconfig"
                 **{"PHASE_${rate}_NAMESPACE_PREPARED" = "false" for rate in RATES}
@@ -84,7 +161,9 @@ fi
 echo "Benchmark target: cluster=$cluster resource_group=$resource_group existing=$use_existing"
 echo "##vso[task.setvariable variable=RESOURCE_GROUP]$resource_group"
 echo "##vso[task.setvariable variable=CLUSTER]$cluster"
-echo "##vso[task.setvariable variable=USE_EXISTING_CLUSTER]$use_existing"
+if [ "$use_existing" = "true" ]; then
+  echo "##vso[task.setvariable variable=USE_EXISTING_CLUSTER]true"
+fi
 """
                     displayName = "Resolve benchmark cluster"
                     env = {
@@ -105,8 +184,9 @@ if [ "$exists" != "false" ]; then
   echo "Refusing to reuse an existing or unverified resource group: $(RESOURCE_GROUP)" >&2
   exit 1
 fi
+echo "##vso[task.setvariable variable=USE_EXISTING_CLUSTER]false"
 """,
-                    condition=CREATE_NEW_CLUSTER),
+                    condition="and(succeeded(), eq(variables['USE_EXISTING_CLUSTER'], 'unresolved'))"),
                 azure.CreateResourceGroup(
                     const.DEFAULT_SERVICE_CONNECTION,
                     "$(RESOURCE_GROUP)",
@@ -117,7 +197,6 @@ fi
                     const.DEFAULT_SERVICE_CONNECTION,
                     "Create benchmark Prometheus workspace",
                     """
-echo "##vso[task.setvariable variable=RESOURCE_GROUP_CREATED]true"
 az monitor account create \\
   --subscription "${SUBSCRIPTION_ID}" \\
   --resource-group "$(RESOURCE_GROUP)" \\
@@ -183,79 +262,19 @@ az aks create \\
                     SUBSCRIPTION_ID,
                     file="$(KUBECONFIG)"),
                 kperf.InstallRunkperf(RUNNER_IMAGE),
-                *[step for rate in RATES for step in [
-                    steps.Bash {
-                        bash = """
-set -euo pipefail
-namespace="$(RUN_ID)-r${rate}"
-deleting=$(kubectl --request-timeout=60s get namespace "$namespace" --ignore-not-found -o jsonpath='{.metadata.deletionTimestamp}')
-if [ -n "$deleting" ]; then
-  echo "Namespace $namespace is already terminating; cannot prepare this phase." >&2
-  exit 1
-fi
-kubectl create namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
-echo "##vso[task.setvariable variable=PHASE_${rate}_NAMESPACE_PREPARED]true"
-kubectl create serviceaccount pod-benchmark --namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
-# Use a fake client ID because benchmark Pods do not access Azure resources.
-kubectl --request-timeout=60s annotate serviceaccount pod-benchmark \\
-  --namespace "$namespace" \\
-  "azure.workload.identity/client-id=00000000-0000-4000-8000-000000000001" \\
-  --overwrite
-"""
-                        displayName = "Prepare WI resources for ${rate}/sec"
-                    },
-                    steps.Bash {
-                        bash = """
-set -euo pipefail
-profile="$(Agent.TempDirectory)/$(RUN_ID)-r${rate}-load-profile.yaml"
-sed \\
-  -e 's/__RUN_NAMESPACE__/$(RUN_ID)-r${rate}/g' \\
-  -e 's/__RATE__/${rate}/g' \\
-  -e 's/__PHASE_RUN_ID__/$(RUN_ID)-r${rate}/g' \\
-  "$(Build.SourcesDirectory)/kcl/workload_identity_webhook/load-profile.yaml" > "$profile"
-if grep -q '__[A-Z_]*__' "$profile"; then
-  echo "Unresolved load-profile placeholders" >&2
-  exit 1
-fi
-echo "Starting ${rate} CREATEs/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ); ownership=$(RUN_ID)-r${rate}"
-"""
-                        displayName = "Prepare ${rate}/sec load profile"
-                    },
-                    kperf.RunKperfRunner(
-                        profilePath="$(Agent.TempDirectory)/$(RUN_ID)-r${rate}-load-profile.yaml",
-                        kubeconfig="$(KUBECONFIG)") | {
-                            displayName = "Run kperf at ${rate} CREATEs/sec"
-                            timeoutInMinutes = 15
-                        },
-                    steps.Bash {
-                        bash = """
-set -euo pipefail
-kubectl --request-timeout=60s delete namespace "$(RUN_ID)-r${rate}" \\
-  --ignore-not-found=true \\
-  --wait=false
-echo "Namespace deletion requested for ${rate}/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-"""
-                        displayName = "Delete namespace from ${rate}/sec run"
-                        condition = "and(always(), eq(variables['PHASE_${rate}_NAMESPACE_PREPARED'], 'true'))"
-                        timeoutInMinutes = 15
-                    },
-                    steps.Bash {
-                        bash = """
-set -euo pipefail
-echo "Starting five-minute pause after ${rate}/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-sleep 300
-echo "Finished pause after ${rate}/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-"""
-                        displayName = "Pause 5 minutes after ${rate}/sec"
-                        condition = "and(always(), eq(variables['PHASE_${rate}_NAMESPACE_PREPARED'], 'true'))"
-                        timeoutInMinutes = 6
-                    },
-                ]],
+                common.RecordCurrentTime("BENCHMARK_START_TIME"),
+                *[step for rate in RATES for step in BenchmarkSteps(rate)],
+                asi_dashboard.PrintAsiDashboardUrl(
+                    const.DEFAULT_SERVICE_CONNECTION,
+                    "$(CLUSTER)",
+                    "$(RESOURCE_GROUP)",
+                    SUBSCRIPTION_ID,
+                    startTime="$(BENCHMARK_START_TIME)"),
                 azure.DeleteResourceGroup(
                     const.DEFAULT_SERVICE_CONNECTION,
                     "$(RESOURCE_GROUP)",
                     SUBSCRIPTION_ID,
-                    condition="and(always(), eq(variables['USE_EXISTING_CLUSTER'], 'false'), eq(variables['RESOURCE_GROUP_CREATED'], 'true'), not(\${{ parameters.keep_cluster }}))"),
+                    condition="and(always(), eq(variables['USE_EXISTING_CLUSTER'], 'false'), not(\${{ parameters.keep_cluster }}))"),
             ]
         },
     ]

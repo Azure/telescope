@@ -91,7 +91,7 @@ which the agent's base Azure CLI does not support.
 The new-cluster path creates the cluster and worker pool. Both paths fetch
 credentials into a temporary kubeconfig and install the pinned binaries. The
 rate loop prepares each namespace and annotated ServiceAccount idempotently,
-then generates explicit profile, runner, namespace-deletion, and pause steps:
+then generates profile, runner, namespace-deletion, and pause steps:
 
 ```text
 prepare r50 namespace/ServiceAccount -> 50/sec for 10m -> request namespace deletion -> pause 5m
@@ -99,41 +99,35 @@ prepare r100 namespace/ServiceAccount -> 100/sec for 10m -> request namespace de
 prepare r150 namespace/ServiceAccount -> 150/sec for 10m -> request namespace deletion -> pause 5m
 ```
 
-Each driver step invokes:
+Each driver step invokes kperf directly, without a shared command wrapper:
 
 ```sh
 kperf runner run --config "$profile" --kubeconfig "$kubeconfig"
 ```
 
-Execution uses the shared
-[`kperf.RunKperfRunner`](../lib/steps/kperf/run_benchmark.k) step:
+[`common.RecordCurrentTime`](../lib/steps/common/record_current_time.k) records
+one `BENCHMARK_START_TIME` after kperf installation and before the rate loop.
+There are no per-rate timestamps or separately recorded end time.
 
-```kcl
-kperf.RunKperfRunner(
-    profilePath="$(Agent.TempDirectory)/$(RUN_ID)-r50-load-profile.yaml",
-    kubeconfig="$(KUBECONFIG)") | {timeoutInMinutes = 15}
-```
-
-Only `profilePath` is required. Optional arguments:
-
-- `kubeconfig`: omitted by default, letting kperf select its default kubeconfig
-  (`$HOME/.kube/config` outside Kubernetes, or in-cluster configuration when detected).
-  This pipeline still supplies its isolated kubeconfig explicitly.
-- `resultPath`: omitted by default, so kperf prints its native JSON directly to
-  stdout. If supplied, kperf writes to that file instead; the caller owns the file.
-
-The helper only runs the command and propagates its exit code. It does not install
-kperf, provision workload resources, parse results, capture output, or delete files.
+After the loop, before resource-group deletion,
+[`asi_dashboard.PrintAsiDashboardUrl`](../lib/util/asi_dashboard.k) prints
+ASI Managed Cluster and API Server Analyzer URLs once, using
+`$(BENCHMARK_START_TIME)` and the helper's current-time default for the end.
+The links cover the overall benchmark window, including namespace preparation,
+deletion requests, and recovery pauses, rather than individual rates.
+The call uses the helper's default `always()` condition and `continueOnError`
+behavior without a custom condition. URL-generation failures are reported but
+do not fail the job; early setup failure can prevent a valid benchmark window.
 
 There are no CLI traffic overrides, Kubernetes generator Jobs, smoke/warm-up
 phases, manual-validation jobs, diagnostic collectors, or artifact uploads.
 The native result JSON appears in normal ADO logs without result validation.
 The resolved profile and kubeconfig live in
 [`Agent.TempDirectory`](https://learn.microsoft.com/en-us/azure/devops/pipelines/build/variables?view=azure-devops#agent-variables-devops-services),
-which ADO cleans after each job; the shared runner does not delete caller inputs.
+which ADO cleans after each job.
 
-The caller sets a 15-minute ADO step timeout per run; the helper has no process-timeout
-parameter or external timeout command. ADO cancellation governs timeout handling.
+Each runner step has a 15-minute ADO timeout and no external timeout command.
+ADO cancellation governs timeout handling.
 Nonzero kperf process exits fail the step; no run is retried. Once a phase namespace
 is successfully applied, deletion and the five-minute pause are attempted even
 if ServiceAccount setup, profile preparation, or the driver fails; later rates
@@ -177,10 +171,17 @@ Recovery and equivalent fresh-cluster baselines are not guaranteed.
 
 `keep_cluster` defaults to **false**. For new clusters, the last step deletes the run's resource
 group, including the cluster and its Prometheus workspace, even after a benchmark failure where
-ADO permits cleanup. Deletion is gated on successful resource-group creation
-in this job and explicitly resolved new-cluster mode; an existing-group collision
+ADO permits cleanup. Creation uses `azure.CreateResourceGroup` directly.
+Final deletion checks `USE_EXISTING_CLUSTER == 'false'` and `keep_cluster`,
+without a separate resource-group ownership output or a `succeeded()` gate.
+The mode starts as `unresolved`: reuse sets it to `true`, while new-cluster mode
+becomes `false` only after the resource-group absence check succeeds. A failed
+absence check or an existing-group collision
 never authorizes deletion. Reused resource groups are **never deleted**, even when
 `keep_cluster` is false or the benchmark fails.
+Once the absence check passes, cleanup is attempted even if creation or a later
+step fails. If creation never produced a resource group, the deletion command can
+report that the resource group was not found.
 
 With **true**, retain the cluster and Prometheus workspace, but still request
 deletion of every prepared phase namespace and its ServiceAccount. With **false**,
@@ -195,6 +196,11 @@ reports or deletion-verification steps. A hard agent interruption can prevent
 cleanup; check Azure before assuming deletion completed.
 
 ## Development
+
+`BenchmarkSteps(rate)` in [pipeline.k](./pipeline.k) returns the five per-rate
+steps: WI setup, profile rendering, kperf execution, namespace deletion, and pause.
+Cluster lifecycle, the overall start timestamp, and ASI reporting stay outside
+the function.
 
 ```sh
 kcl run kcl/workload_identity_webhook/pipeline.k -S output \
