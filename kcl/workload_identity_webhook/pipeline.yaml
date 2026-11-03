@@ -11,7 +11,7 @@ parameters:
   type: string
   default: none
 - name: keep_cluster
-  displayName: Keep cluster after benchmark (phase Pods are deleted)
+  displayName: Keep cluster after benchmark (phase namespaces are deleted)
   type: boolean
   default: false
 pr: none
@@ -25,9 +25,9 @@ jobs:
     RESOURCE_GROUP_CREATED: 'false'
     USE_EXISTING_CLUSTER: unresolved
     KUBECONFIG: $(Agent.TempDirectory)/$(RUN_ID).kubeconfig
-    PHASE_50_STARTED: 'false'
-    PHASE_100_STARTED: 'false'
-    PHASE_200_STARTED: 'false'
+    PHASE_50_NAMESPACE_PREPARED: 'false'
+    PHASE_100_NAMESPACE_PREPARED: 'false'
+    PHASE_200_NAMESPACE_PREPARED: 'false'
   steps:
   - bash: |
       set -euo pipefail
@@ -47,10 +47,9 @@ jobs:
         resource_group="$RUN_ID"
         cluster=wi-webhook
       fi
-      # Reused resource groups also name the existing Kubernetes namespace.
-      if ! [[ "$resource_group" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$ ]] ||
-         [ "${#resource_group}" -gt 63 ]; then
-        echo "The resource group must also be a valid Kubernetes namespace (lowercase DNS label, at most 63 characters)." >&2
+      if ! [[ "$resource_group" =~ ^[a-zA-Z0-9_.()-]+$ ]] ||
+         [ "${#resource_group}" -gt 90 ] || [[ "$resource_group" = *. ]]; then
+        echo "Invalid resource group name: use at most 90 letters, digits, underscores, parentheses, hyphens, or periods; do not end with a period." >&2
         exit 1
       fi
       if ! [[ "$cluster" =~ ^[a-zA-Z0-9][a-zA-Z0-9_-]*$ ]] ||
@@ -58,10 +57,9 @@ jobs:
         echo "Invalid existing cluster name." >&2
         exit 1
       fi
-      echo "Benchmark target: cluster=$cluster resource_group=$resource_group namespace=$resource_group existing=$use_existing"
+      echo "Benchmark target: cluster=$cluster resource_group=$resource_group existing=$use_existing"
       echo "##vso[task.setvariable variable=RESOURCE_GROUP]$resource_group"
       echo "##vso[task.setvariable variable=CLUSTER]$cluster"
-      echo "##vso[task.setvariable variable=BENCHMARK_NAMESPACE]$resource_group"
       echo "##vso[task.setvariable variable=USE_EXISTING_CLUSTER]$use_existing"
     displayName: Resolve benchmark cluster
     env:
@@ -184,22 +182,6 @@ jobs:
           --overwrite-existing \
           -f $(KUBECONFIG)
     displayName: Get credentials for $(CLUSTER)
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: Azure-for-Telescope-internal
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
-        set -u
-        kubectl create namespace "$(BENCHMARK_NAMESPACE)" --dry-run=client -o yaml | kubectl apply -f -
-        kubectl create serviceaccount pod-benchmark --namespace "$(BENCHMARK_NAMESPACE)" --dry-run=client -o yaml | kubectl apply -f -
-        # Use a fake client ID because benchmark Pods do not access Azure resources.
-        kubectl annotate serviceaccount pod-benchmark \
-          --namespace "$(BENCHMARK_NAMESPACE)" \
-          "azure.workload.identity/client-id=00000000-0000-4000-8000-000000000001" \
-          --overwrite
-    displayName: Prepare WI resources
   - script: |
       set -euo pipefail
       set -x
@@ -216,9 +198,26 @@ jobs:
     displayName: Install runkperf binary
   - bash: |
       set -euo pipefail
+      namespace="$(RUN_ID)-r50"
+      deleting=$(kubectl --request-timeout=60s get namespace "$namespace" --ignore-not-found -o jsonpath='{.metadata.deletionTimestamp}')
+      if [ -n "$deleting" ]; then
+        echo "Namespace $namespace is already terminating; cannot prepare this phase." >&2
+        exit 1
+      fi
+      kubectl create namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
+      echo "##vso[task.setvariable variable=PHASE_50_NAMESPACE_PREPARED]true"
+      kubectl create serviceaccount pod-benchmark --namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
+      # Use a fake client ID because benchmark Pods do not access Azure resources.
+      kubectl --request-timeout=60s annotate serviceaccount pod-benchmark \
+        --namespace "$namespace" \
+        "azure.workload.identity/client-id=00000000-0000-4000-8000-000000000001" \
+        --overwrite
+    displayName: Prepare WI resources for 50/sec
+  - bash: |
+      set -euo pipefail
       profile="$(Agent.TempDirectory)/$(RUN_ID)-r50-load-profile.yaml"
       sed \
-        -e 's/__RUN_NAMESPACE__/$(BENCHMARK_NAMESPACE)/g' \
+        -e 's/__RUN_NAMESPACE__/$(RUN_ID)-r50/g' \
         -e 's/__RATE__/50/g' \
         -e 's/__PHASE_RUN_ID__/$(RUN_ID)-r50/g' \
         "$(Build.SourcesDirectory)/kcl/workload_identity_webhook/load-profile.yaml" > "$profile"
@@ -227,7 +226,6 @@ jobs:
         exit 1
       fi
       echo "Starting 50 CREATEs/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ); ownership=$(RUN_ID)-r50"
-      echo "##vso[task.setvariable variable=PHASE_50_STARTED]true"
     displayName: Prepare 50/sec load profile
   - script: |
       set -euo pipefail
@@ -240,29 +238,43 @@ jobs:
     timeoutInMinutes: 15
   - bash: |
       set -euo pipefail
-      echo "Cleaning 50/sec phase Pods at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-      kubectl --request-timeout=60s delete pods \
-        --namespace "$(BENCHMARK_NAMESPACE)" \
-        --selector "benchmark-run=$(RUN_ID)-r50" \
-        --wait=true \
-        --timeout=10m
-      echo "Finished 50/sec phase cleanup at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    condition: and(always(), eq(variables['PHASE_50_STARTED'], 'true'))
-    displayName: Delete 50/sec phase Pods
+      kubectl --request-timeout=60s delete namespace "$(RUN_ID)-r50" \
+        --ignore-not-found=true \
+        --wait=false
+      echo "Namespace deletion requested for 50/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    condition: and(always(), eq(variables['PHASE_50_NAMESPACE_PREPARED'], 'true'))
+    displayName: Request 50/sec namespace deletion
     timeoutInMinutes: 15
   - bash: |
       set -euo pipefail
       echo "Starting five-minute pause after 50/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
       sleep 300
       echo "Finished pause after 50/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    condition: and(always(), eq(variables['PHASE_50_STARTED'], 'true'))
+    condition: and(always(), eq(variables['PHASE_50_NAMESPACE_PREPARED'], 'true'))
     displayName: Pause 5 minutes after 50/sec
     timeoutInMinutes: 6
   - bash: |
       set -euo pipefail
+      namespace="$(RUN_ID)-r100"
+      deleting=$(kubectl --request-timeout=60s get namespace "$namespace" --ignore-not-found -o jsonpath='{.metadata.deletionTimestamp}')
+      if [ -n "$deleting" ]; then
+        echo "Namespace $namespace is already terminating; cannot prepare this phase." >&2
+        exit 1
+      fi
+      kubectl create namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
+      echo "##vso[task.setvariable variable=PHASE_100_NAMESPACE_PREPARED]true"
+      kubectl create serviceaccount pod-benchmark --namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
+      # Use a fake client ID because benchmark Pods do not access Azure resources.
+      kubectl --request-timeout=60s annotate serviceaccount pod-benchmark \
+        --namespace "$namespace" \
+        "azure.workload.identity/client-id=00000000-0000-4000-8000-000000000001" \
+        --overwrite
+    displayName: Prepare WI resources for 100/sec
+  - bash: |
+      set -euo pipefail
       profile="$(Agent.TempDirectory)/$(RUN_ID)-r100-load-profile.yaml"
       sed \
-        -e 's/__RUN_NAMESPACE__/$(BENCHMARK_NAMESPACE)/g' \
+        -e 's/__RUN_NAMESPACE__/$(RUN_ID)-r100/g' \
         -e 's/__RATE__/100/g' \
         -e 's/__PHASE_RUN_ID__/$(RUN_ID)-r100/g' \
         "$(Build.SourcesDirectory)/kcl/workload_identity_webhook/load-profile.yaml" > "$profile"
@@ -271,7 +283,6 @@ jobs:
         exit 1
       fi
       echo "Starting 100 CREATEs/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ); ownership=$(RUN_ID)-r100"
-      echo "##vso[task.setvariable variable=PHASE_100_STARTED]true"
     displayName: Prepare 100/sec load profile
   - script: |
       set -euo pipefail
@@ -284,29 +295,43 @@ jobs:
     timeoutInMinutes: 15
   - bash: |
       set -euo pipefail
-      echo "Cleaning 100/sec phase Pods at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-      kubectl --request-timeout=60s delete pods \
-        --namespace "$(BENCHMARK_NAMESPACE)" \
-        --selector "benchmark-run=$(RUN_ID)-r100" \
-        --wait=true \
-        --timeout=10m
-      echo "Finished 100/sec phase cleanup at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    condition: and(always(), eq(variables['PHASE_100_STARTED'], 'true'))
-    displayName: Delete 100/sec phase Pods
+      kubectl --request-timeout=60s delete namespace "$(RUN_ID)-r100" \
+        --ignore-not-found=true \
+        --wait=false
+      echo "Namespace deletion requested for 100/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    condition: and(always(), eq(variables['PHASE_100_NAMESPACE_PREPARED'], 'true'))
+    displayName: Request 100/sec namespace deletion
     timeoutInMinutes: 15
   - bash: |
       set -euo pipefail
       echo "Starting five-minute pause after 100/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
       sleep 300
       echo "Finished pause after 100/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    condition: and(always(), eq(variables['PHASE_100_STARTED'], 'true'))
+    condition: and(always(), eq(variables['PHASE_100_NAMESPACE_PREPARED'], 'true'))
     displayName: Pause 5 minutes after 100/sec
     timeoutInMinutes: 6
   - bash: |
       set -euo pipefail
+      namespace="$(RUN_ID)-r200"
+      deleting=$(kubectl --request-timeout=60s get namespace "$namespace" --ignore-not-found -o jsonpath='{.metadata.deletionTimestamp}')
+      if [ -n "$deleting" ]; then
+        echo "Namespace $namespace is already terminating; cannot prepare this phase." >&2
+        exit 1
+      fi
+      kubectl create namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
+      echo "##vso[task.setvariable variable=PHASE_200_NAMESPACE_PREPARED]true"
+      kubectl create serviceaccount pod-benchmark --namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
+      # Use a fake client ID because benchmark Pods do not access Azure resources.
+      kubectl --request-timeout=60s annotate serviceaccount pod-benchmark \
+        --namespace "$namespace" \
+        "azure.workload.identity/client-id=00000000-0000-4000-8000-000000000001" \
+        --overwrite
+    displayName: Prepare WI resources for 200/sec
+  - bash: |
+      set -euo pipefail
       profile="$(Agent.TempDirectory)/$(RUN_ID)-r200-load-profile.yaml"
       sed \
-        -e 's/__RUN_NAMESPACE__/$(BENCHMARK_NAMESPACE)/g' \
+        -e 's/__RUN_NAMESPACE__/$(RUN_ID)-r200/g' \
         -e 's/__RATE__/200/g' \
         -e 's/__PHASE_RUN_ID__/$(RUN_ID)-r200/g' \
         "$(Build.SourcesDirectory)/kcl/workload_identity_webhook/load-profile.yaml" > "$profile"
@@ -315,7 +340,6 @@ jobs:
         exit 1
       fi
       echo "Starting 200 CREATEs/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ); ownership=$(RUN_ID)-r200"
-      echo "##vso[task.setvariable variable=PHASE_200_STARTED]true"
     displayName: Prepare 200/sec load profile
   - script: |
       set -euo pipefail
@@ -328,22 +352,19 @@ jobs:
     timeoutInMinutes: 15
   - bash: |
       set -euo pipefail
-      echo "Cleaning 200/sec phase Pods at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-      kubectl --request-timeout=60s delete pods \
-        --namespace "$(BENCHMARK_NAMESPACE)" \
-        --selector "benchmark-run=$(RUN_ID)-r200" \
-        --wait=true \
-        --timeout=10m
-      echo "Finished 200/sec phase cleanup at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    condition: and(always(), eq(variables['PHASE_200_STARTED'], 'true'))
-    displayName: Delete 200/sec phase Pods
+      kubectl --request-timeout=60s delete namespace "$(RUN_ID)-r200" \
+        --ignore-not-found=true \
+        --wait=false
+      echo "Namespace deletion requested for 200/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    condition: and(always(), eq(variables['PHASE_200_NAMESPACE_PREPARED'], 'true'))
+    displayName: Request 200/sec namespace deletion
     timeoutInMinutes: 15
   - bash: |
       set -euo pipefail
       echo "Starting five-minute pause after 200/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
       sleep 300
       echo "Finished pause after 200/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    condition: and(always(), eq(variables['PHASE_200_STARTED'], 'true'))
+    condition: and(always(), eq(variables['PHASE_200_NAMESPACE_PREPARED'], 'true'))
     displayName: Pause 5 minutes after 200/sec
     timeoutInMinutes: 6
   - task: AzureCLI@2
