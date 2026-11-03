@@ -22,7 +22,6 @@ RESOURCE_GROUP = "$(RUN_ID)"
 LOCATION = "australiaeast"
 NODE_SKU = "Standard_D4ds_v5"
 CLUSTER = "nsl-cilium"
-KUBECONFIG = "$(Pipeline.Workspace)/kubeconfig"
 TARGET_POOL = "userpool"
 DEFAULT_ITERATIONS = 5
 # v1 value: gives Cluster Autoscaler time to leave backoff between scale-ups.
@@ -33,9 +32,9 @@ USES_DEFAULT_SETTINGS = "$" + "{{ and(eq(parameters.iterations, " + str(DEFAULT_
     + "), eq(parameters.cluster_autoscaler_cooldown_seconds, " + str(DEFAULT_CLUSTER_AUTOSCALER_COOLDOWN_SECONDS) + ")) }}"
 # The measurement stops starting new iterations CLEANUP_RESERVE_MINUTES before the
 # job timeout, so everything after it still fits: an iteration started just before
-# that point can take ~27 min (10 min step timeout + up to 15 min of autoscaler
-# deadline extensions + event lookup and collection), then printing results, the
-# ASI step and the synchronous resource group delete (~10 min).
+# that point can take ~32 min (30 min of fixed probe-wait phase timeouts + event
+# lookup and collection), then printing results, the ASI step and the synchronous
+# resource group delete (~10 min).
 JOB_TIMEOUT_MINUTES = 240
 CLEANUP_RESERVE_MINUTES = 45
 # Lifecycle tags on the per-run resource group and cluster. The shell evaluates the
@@ -80,11 +79,6 @@ output = ap.Pipeline {
                 job = "node_startup_latency"
                 displayName = "Measure autoscaled node startup latency"
                 timeoutInMinutes = JOB_TIMEOUT_MINUTES
-                # Exposed to every step, so kubectl (health check) and the measurement
-                # both use this cluster's credentials.
-                variables = {
-                    KUBECONFIG = KUBECONFIG
-                }
                 steps = [
                     common.RecordCurrentTime("JOB_START_TIME"),
                     common.SetRunId(),
@@ -120,7 +114,7 @@ az aks create \\
   --node-vm-size "${NODE_SKU}" \\
   --node-osdisk-type Ephemeral \\
   --nodepool-taints "CriticalAddonsOnly=true:NoSchedule" \\
-  --tags SkipAKSCluster=true SkipASMAzSecPackAutoConfig=true SkipLinuxAzSecPack=true ${LIFECYCLE_TAGS}
+  --tags SkipAKSCluster=true ${LIFECYCLE_TAGS}
 """),
                     azure.CreateNodePool(
                         SERVICE_CONNECTION,
@@ -140,8 +134,7 @@ az aks create \\
                         SERVICE_CONNECTION,
                         CLUSTER,
                         RESOURCE_GROUP,
-                        SUBSCRIPTION_ID,
-                        KUBECONFIG),
+                        SUBSCRIPTION_ID),
                     health.ValidateWorkloadHealth(
                         SERVICE_CONNECTION,
                         "daemonset",
@@ -191,7 +184,6 @@ python3 node_startup/main.py \\
   --probe-namespace node-startup-latency \\
   --iterations \${{ parameters.iterations }} \\
   --iteration-cooldown-seconds \${{ parameters.cluster_autoscaler_cooldown_seconds }} \\
-  --step-timeout-seconds 600 \\
   --deadline-epoch-seconds "$deadline" \\
   --uses-default-settings ${USES_DEFAULT_SETTINGS} \\
   --records-file /tmp/node-startup-records.jsonl

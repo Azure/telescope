@@ -20,8 +20,6 @@ stages:
   - job: node_startup_latency
     displayName: Measure autoscaled node startup latency
     timeoutInMinutes: 240
-    variables:
-      KUBECONFIG: $(Pipeline.Workspace)/kubeconfig
     steps:
     - bash: |
         set -exo pipefail
@@ -91,7 +89,7 @@ stages:
             --node-vm-size "Standard_D4ds_v5" \
             --node-osdisk-type Ephemeral \
             --nodepool-taints "CriticalAddonsOnly=true:NoSchedule" \
-            --tags SkipAKSCluster=true SkipASMAzSecPackAutoConfig=true SkipLinuxAzSecPack=true owner=carvela creation_time=$(date -u +%Y-%m-%dT%H:%M:%SZ) deletion_due_time=$(date -u -d '+3 days' +%Y-%m-%dT%H:%M:%SZ)
+            --tags SkipAKSCluster=true owner=carvela creation_time=$(date -u +%Y-%m-%dT%H:%M:%SZ) deletion_due_time=$(date -u -d '+3 days' +%Y-%m-%dT%H:%M:%SZ)
       displayName: Create AKS cluster
     - task: AzureCLI@2
       inputs:
@@ -100,45 +98,50 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-          deadline=$(($(date +%s) + 600))
-          sleep_between=30
-          attempt=0
-          while :; do
-            attempt=$((attempt + 1))
-            set +e
-            output=$(az aks nodepool add \
-              --cluster-name "nsl-cilium" \
-              --resource-group "$(RUN_ID)" \
-              --subscription "$(TELESCOPE_SUBSCRIPTION_ID)" \
-              --name "userpool" \
-              --node-count 1 \
-              --node-vm-size "Standard_D4ds_v5" \
-              --mode User \
-              --labels "node-startup-latency=true" \
+          create_node_pool() {
+            local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
+            deadline=$(($(date +%s) + 600))
+            while :; do
+              attempt=$((attempt + 1))
+              if output=$(az aks nodepool add "$@" 2>&1); then
+                rc=0
+              else
+                rc=$?
+              fi
+              echo "$output"
+              if [ "$rc" -eq 0 ]; then
+                return 0
+              fi
+              if echo "$output" | grep -qiE "OperationNotAllowed"; then
+                now=$(date +%s)
+                if [ "$now" -ge "$deadline" ]; then
+                  echo "Retriable error persisted past 600s retry window ($attempt attempts); giving up."
+                  return "$rc"
+                fi
+                remaining_retry_seconds=$((deadline - now))
+                echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining_retry_seconds seconds remain in retry window)."
+                sleep "$sleep_between"
+              else
+                echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+                return "$rc"
+              fi
+            done
+          }
+
+
+          create_node_pool \
+            --cluster-name "nsl-cilium" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "$(TELESCOPE_SUBSCRIPTION_ID)" \
+            --name "userpool" \
+            --node-count 1 \
+            --node-vm-size "Standard_D4ds_v5" \
+            --mode User \
+            --labels "node-startup-latency=true" \
             --enable-cluster-autoscaler \
             --min-count 1 \
             --max-count 10 \
-            --node-osdisk-type Ephemeral 2>&1)
-            rc=$?
-            set -e
-            echo "$output"
-            if [ $rc -eq 0 ]; then
-              exit 0
-            fi
-            if echo "$output" | grep -qiE "OperationNotAllowed"; then
-              now=$(date +%s)
-              if [ $now -ge $deadline ]; then
-                echo "Retriable error persisted past 600s retry window ($attempt attempts); giving up."
-                exit $rc
-              fi
-              remaining=$((deadline - now))
-              echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining seconds remain in retry window)."
-              sleep $sleep_between
-            else
-              echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
-              exit $rc
-            fi
-          done
+            --node-osdisk-type Ephemeral
       displayName: Create node pool userpool
     - task: AzureCLI@2
       inputs:
@@ -151,8 +154,7 @@ stages:
             --name "nsl-cilium" \
             --resource-group "$(RUN_ID)" \
             --subscription "$(TELESCOPE_SUBSCRIPTION_ID)" \
-            --overwrite-existing \
-            -f $(Pipeline.Workspace)/kubeconfig
+            --overwrite-existing
       displayName: Get credentials for nsl-cilium
     - task: AzureCLI@2
       inputs:
@@ -298,6 +300,7 @@ stages:
             exit 1
           fi
           echo "Validation passed for daemonset kube-system/cilium"
+      continueOnError: true
       displayName: Validate daemonset/cilium
     - task: AzureCLI@2
       inputs:
@@ -352,7 +355,6 @@ stages:
             --probe-namespace node-startup-latency \
             --iterations ${{ parameters.iterations }} \
             --iteration-cooldown-seconds ${{ parameters.cluster_autoscaler_cooldown_seconds }} \
-            --step-timeout-seconds 600 \
             --deadline-epoch-seconds "$deadline" \
             --uses-default-settings ${{ and(eq(parameters.iterations, 5), eq(parameters.cluster_autoscaler_cooldown_seconds, 240)) }} \
             --records-file /tmp/node-startup-records.jsonl

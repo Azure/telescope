@@ -12,7 +12,7 @@ test_autoscaler_and_os_disk_flags = lambda {
         maxCount = 10
         osDiskType = "Ephemeral"
     })
-    assert "--node-vm-size \"Standard_D8s_v3\" \\ --mode User \\ --enable-cluster-autoscaler \\ --min-count 1 \\ --max-count 10 \\ --node-osdisk-type Ephemeral 2>&1)" in script, script
+    assert script.strip().endswith("--node-vm-size \"Standard_D8s_v3\" \\ --mode User \\ --enable-cluster-autoscaler \\ --min-count 1 \\ --max-count 10 \\ --node-osdisk-type Ephemeral"), script
 }
 
 test_no_autoscaler_or_os_disk_flags_by_default = lambda {
@@ -21,5 +21,8 @@ test_no_autoscaler_or_os_disk_flags_by_default = lambda {
         sku = "Standard_D8s_v4"
         count = 4
     })
-    assert "--node-vm-size \"Standard_D8s_v4\" \\ --mode User \\ 2>&1)" in script, script
+    assert "--node-vm-size \"Standard_D8s_v4\" \\ --mode User" in script, script
+    assert all flag in ["--enable-cluster-autoscaler", "--min-count", "--max-count", "--node-osdisk-type"] {
+        flag not in script
+    }, script
 }
