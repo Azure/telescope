@@ -346,18 +346,18 @@ output = ap.Pipeline {
 # done
 # """
                 # ),
-                azure.RevokeKeyVaultKmsAccess(
-                    SERVICE_CONNECTION,
-                    SUBSCRIPTION_ID,
-                    "\${{ parameters.kms_key_id }}",
-                    "$(createManagedIdentity.IDENTITY_PRINCIPAL_ID)",
-                    condition = "and(always(), ne('\${{ parameters.kms_key_id }}', 'none'), ne(variables['createManagedIdentity.IDENTITY_PRINCIPAL_ID'], ''))"
-                ),
-                azure.DeleteResourceGroup(
-                    SERVICE_CONNECTION,
-                    RESOURCE_GROUP,
-                    SUBSCRIPTION_ID
-                ),
+                # azure.RevokeKeyVaultKmsAccess(
+                #     SERVICE_CONNECTION,
+                #     SUBSCRIPTION_ID,
+                #     "\${{ parameters.kms_key_id }}",
+                #     "$(createManagedIdentity.IDENTITY_PRINCIPAL_ID)",
+                #     condition = "and(always(), ne('\${{ parameters.kms_key_id }}', 'none'), ne(variables['createManagedIdentity.IDENTITY_PRINCIPAL_ID'], ''))"
+                # ),
+                # azure.DeleteResourceGroup(
+                #     SERVICE_CONNECTION,
+                #     RESOURCE_GROUP,
+                #     SUBSCRIPTION_ID
+                # ),
             ]
         }
     ]
