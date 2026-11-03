@@ -156,6 +156,16 @@ def collect_benchmark_results(args=None):
             logger.error("Invalid collector argument `%s`: %s", name, error)
             return 1
     cloud_info = context["cloud_info"]
+    if legacy_output:
+        cloud_info = cloud_info if cloud_info is not None else json.dumps({})
+        try:
+            cloud_context = json.loads(cloud_info)
+            if not isinstance(cloud_context, dict):
+                raise ValueError("Expected a JSON-encoded object")
+            json.dumps(cloud_context, allow_nan=False)
+        except (TypeError, ValueError) as error:
+            logger.error("Invalid collector argument `cloud_info`: %s", error)
+            return 1
     rows = []
 
     if legacy_output:
@@ -195,7 +205,7 @@ def collect_benchmark_results(args=None):
         }
         if legacy_output:
             result["aks_data"] = json.dumps(aks_data)
-            result["cloud_info"] = cloud_info or json.dumps({})
+            result["cloud_info"] = cloud_info
         logger.debug("Result: %s", json.dumps(result))
         if legacy_output:
             rows.append(result)

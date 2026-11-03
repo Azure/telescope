@@ -1017,6 +1017,51 @@ class TestCollectBenchmarkResults(unittest.TestCase):
 
         self.assertFalse(os.path.exists(os.path.join(self.test_dir, "results.json")))
 
+    def test_legacy_collection_rejects_invalid_cloud_context(self):
+        invalid_values = {
+            "malformed": "{", "empty": "", "whitespace": " ",
+            "array": "[]", "null": "null", "string": '"azure"',
+            "boolean": "true", "number": "1",
+            "NaN": '{"value":NaN}', "infinity": '{"value":Infinity}',
+            "negative infinity": '{"value":-Infinity}',
+            "nested NaN": '{"values":[NaN]}',
+        }
+        self._write_operation("scale_up", duration=10.0)
+        for source in ("CLI", "environment"):
+            for case, value in invalid_values.items():
+                with self.subTest(source=source, case=case):
+                    self._set_env(CLOUD_INFO=value if source == "environment" else "{}")
+                    args = (
+                        argparse.Namespace(legacy_output=True, cloud_info=value)
+                        if source == "CLI" else self.legacy_args
+                    )
+                    self._assert_failed_collection_preserves_output(args)
+
+    def test_legacy_collection_preserves_valid_cloud_context(self):
+        self._write_operation("create_pods")
+        for value in (None, "{}", ' { "cloud": "azure", "context": [1, null] } '):
+            with self.subTest(value=value):
+                self._set_env()
+                os.environ.pop("CLOUD_INFO", None)
+                if value is not None:
+                    self._set_env(CLOUD_INFO="{")
+                with open(
+                    os.path.join(self.test_dir, "results.json"), "w", encoding="utf-8"
+                ) as output:
+                    output.write("previous-valid-output\n")
+                args = argparse.Namespace(legacy_output=True, cloud_info=value)
+                self.assertEqual(collect_benchmark_results(args), 0)
+                self.assertEqual(self._read_rows()[0]["cloud_info"], value or "{}")
+
+    def test_default_collection_ignores_invalid_legacy_context(self):
+        self._set_env(CLOUD_INFO="{", SCALE_NODE_COUNT="bad")
+        self._write_operation("create_pods")
+        self.assertEqual(collect_benchmark_results(), 0)
+        self.assertEqual(
+            set(self._read_rows()[0]),
+            {"timestamp", "region", "operation_info", "run_id", "run_url"},
+        )
+
     def test_collect_benchmark_results_reports_unreadable_source(self):
         """A missing source is logged rather than producing partial output."""
         self._set_env()
