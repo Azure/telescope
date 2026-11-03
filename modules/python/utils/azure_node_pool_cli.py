@@ -74,7 +74,11 @@ def run_node_pool_cli(
     retry_wait=30,
     timeout=TIMEOUT_SECONDS,
 ):
-    """Run an az node-pool command and return whether a retry occurred."""
+    """Return whether CLI retries occurred; empty budgets make no attempts."""
+    if not range(retries):
+        logger.warning("No %s attempts requested for node pool %s (retries=%s)",
+                       action, node_pool_name, retries)
+        return False
     _, retry_occurred = _run_node_pool_cli_with_timing(
         cmd, node_pool_name, action, retries, retry_wait, timeout
     )

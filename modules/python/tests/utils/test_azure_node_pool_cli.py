@@ -46,6 +46,17 @@ class TestAzureNodePoolCLI(unittest.TestCase):
                     )
                     self.assertIs(helper(), retry)
 
+    @mock.patch("utils.azure_node_pool_cli.subprocess.run")
+    def test_public_cli_preserves_empty_retry_budget(self, mock_run):
+        for retries in (0, -1):
+            with self.subTest(retries=retries):
+                with self.assertLogs("utils.azure_node_pool_cli", level="WARNING"):
+                    self.assertIs(
+                        run_node_pool_cli(["az"], "pool", "add", retries=retries),
+                        False,
+                    )
+        mock_run.assert_not_called()
+
     @mock.patch("utils.azure_node_pool_cli.time")
     @mock.patch("utils.azure_node_pool_cli.subprocess.run")
     def test_cli_returns_attempt_start_and_retry_status(self, mock_run, mock_time):
