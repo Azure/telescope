@@ -167,9 +167,11 @@ jobs:
       fi
       kubectl --request-timeout=60s delete namespace "$(RUN_ID)-r50" \
         --ignore-not-found=true \
-        --wait=false
-      echo "Namespace deletion requested for 50/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        --wait=true \
+        --timeout=10m
+      echo "Namespace cleanup completed for 50/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
     condition: always()
+    continueOnError: true
     displayName: Delete namespace from 50/sec run
     timeoutInMinutes: 15
   - bash: |
@@ -226,9 +228,11 @@ jobs:
       fi
       kubectl --request-timeout=60s delete namespace "$(RUN_ID)-r100" \
         --ignore-not-found=true \
-        --wait=false
-      echo "Namespace deletion requested for 100/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        --wait=true \
+        --timeout=10m
+      echo "Namespace cleanup completed for 100/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
     condition: always()
+    continueOnError: true
     displayName: Delete namespace from 100/sec run
     timeoutInMinutes: 15
   - bash: |
@@ -285,9 +289,11 @@ jobs:
       fi
       kubectl --request-timeout=60s delete namespace "$(RUN_ID)-r150" \
         --ignore-not-found=true \
-        --wait=false
-      echo "Namespace deletion requested for 150/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        --wait=true \
+        --timeout=10m
+      echo "Namespace cleanup completed for 150/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
     condition: always()
+    continueOnError: true
     displayName: Delete namespace from 150/sec run
     timeoutInMinutes: 15
   - bash: |

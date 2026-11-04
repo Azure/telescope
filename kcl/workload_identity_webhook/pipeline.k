@@ -71,11 +71,13 @@ if [ ! -s "$(KUBECONFIG)" ]; then
 fi
 kubectl --request-timeout=60s delete namespace "$(RUN_ID)-r${rate}" \\
   --ignore-not-found=true \\
-  --wait=false
-echo "Namespace deletion requested for ${rate}/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  --wait=true \\
+  --timeout=10m
+echo "Namespace cleanup completed for ${rate}/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 """
             displayName = "Delete namespace from ${rate}/sec run"
             condition = "always()"
+            continueOnError = True
             timeoutInMinutes = 15
         },
         steps.Bash {
