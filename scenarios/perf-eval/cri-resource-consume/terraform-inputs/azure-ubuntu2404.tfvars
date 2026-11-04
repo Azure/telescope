@@ -12,7 +12,7 @@ aks_cli_config_list = [
     default_node_pool = {
       name       = "default"
       node_count = 3
-      vm_size    = "Standard_D16s_v6"
+      vm_size    = "Standard_D4s_v6"
     }
     extra_node_pool = [
       {
