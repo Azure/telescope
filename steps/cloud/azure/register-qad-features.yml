@@ -1,0 +1,65 @@
+steps:
+- script: |
+    set -euo pipefail
+
+    ensure_feature_registered() {
+      local namespace="$1"
+      local feature="$2"
+      local state
+
+      state=$(az feature show \
+        --namespace "$namespace" \
+        --name "$feature" \
+        --query properties.state \
+        --output tsv)
+
+      if [[ "$state" != "Registered" ]]; then
+        echo "Registering $namespace/$feature (current state: $state)"
+        az feature register --namespace "$namespace" --name "$feature" --output none
+      fi
+
+      for attempt in $(seq 1 120); do
+        state=$(az feature show \
+          --namespace "$namespace" \
+          --name "$feature" \
+          --query properties.state \
+          --output tsv)
+        if [[ "$state" == "Registered" ]]; then
+          echo "$namespace/$feature is Registered."
+          return 0
+        fi
+        echo "Waiting for $namespace/$feature registration ($attempt/120, state: $state)"
+        sleep 30
+      done
+
+      echo "##vso[task.logissue type=error;]Feature $namespace/$feature was not Registered within 60 minutes."
+      return 1
+    }
+
+    ensure_provider_registered() {
+      local namespace="$1"
+      local state
+
+      az provider register --namespace "$namespace" --output none
+      for attempt in $(seq 1 60); do
+        state=$(az provider show \
+          --namespace "$namespace" \
+          --query registrationState \
+          --output tsv)
+        if [[ "$state" == "Registered" ]]; then
+          echo "$namespace provider is Registered."
+          return 0
+        fi
+        echo "Waiting for $namespace provider registration ($attempt/60, state: $state)"
+        sleep 30
+      done
+
+      echo "##vso[task.logissue type=error;]Provider $namespace was not Registered within 30 minutes."
+      return 1
+    }
+
+    ensure_feature_registered Microsoft.ContainerService EnableQuickAttachDetachPreview
+    ensure_feature_registered Microsoft.Compute QuickAttachDetach
+    ensure_provider_registered Microsoft.ContainerService
+    ensure_provider_registered Microsoft.Compute
+  displayName: "Register QAD Features"

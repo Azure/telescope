@@ -131,6 +131,11 @@ def execute_attach_detach(disk_number, storage_class, wait_time, result_dir):
     namespace_obj = KUBERNETERS_CLIENT.create_namespace(namespace)
     print(f"Created namespace {namespace_obj.metadata.name}")
 
+    namespace_file = os.environ.get("CSI_NAMESPACE_FILE")
+    if namespace_file:
+        with open(namespace_file, "w", encoding="utf-8") as file:
+            file.write(namespace)
+
     # Start the timer
     creation_start_time = datetime.now()
 
