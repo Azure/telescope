@@ -165,16 +165,6 @@ az aks create \\
   --tags SkipAKSCluster=true \\
   --yes
 """),
-                azure.CreateNodePool(
-                    const.DEFAULT_SERVICE_CONNECTION,
-                    "$(CLUSTER)",
-                    "$(RESOURCE_GROUP)",
-                    SUBSCRIPTION_ID,
-                    azure.NodePool {
-                        name = "workerpool"
-                        sku = "Standard_D2s_v5"
-                        count = 3
-                    }),
                 azure.GetCredentials(
                     const.DEFAULT_SERVICE_CONNECTION,
                     "$(CLUSTER)",

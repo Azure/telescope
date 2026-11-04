@@ -85,13 +85,6 @@ jobs:
       azureSubscription: Azure-for-Telescope-internal
       scriptType: bash
       scriptLocation: inlineScript
-      inlineScript: "set -exo pipefail\ncreate_node_pool() {\n  local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds\n  deadline=$(($(date +%s) + 600))\n  while :; do\n    attempt=$((attempt + 1))\n    if output=$(az aks nodepool add \"$@\" 2>&1); then\n      rc=0\n    else\n      rc=$?\n    fi\n    echo \"$output\"\n    if [ \"$rc\" -eq 0 ]; then\n      return 0\n    fi\n    if echo \"$output\" | grep -qiE \"OperationNotAllowed\"; then\n      now=$(date +%s)\n      if [ \"$now\" -ge \"$deadline\" ]; then\n        echo \"Retriable error persisted past 600s retry window ($attempt attempts); giving up.\"\n        return \"$rc\"\n      fi\n      remaining_retry_seconds=$((deadline - now))\n      echo \"Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining_retry_seconds seconds remain in retry window).\"\n      sleep \"$sleep_between\"\n    else\n      echo \"Non-retriable error (rc=$rc); giving up after attempt $attempt.\"\n      return \"$rc\"\n    fi\n  done\n}\n\n\ncreate_node_pool \\\n  --cluster-name \"$(CLUSTER)\" \\\n  --resource-group \"$(RESOURCE_GROUP)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"workerpool\" \\\n  --node-count 3 \\\n  --node-vm-size \"Standard_D2s_v5\" \\\n  --mode User \\\n  \n"
-    displayName: Create node pool workerpool
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: Azure-for-Telescope-internal
-      scriptType: bash
-      scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
         az aks get-credentials \
