@@ -1,4 +1,4 @@
-name: Example Pipeline
+name: Example Pipeline (generation check test)
 pool: AKS-Telescope-Airlock
 trigger:
 - v2
