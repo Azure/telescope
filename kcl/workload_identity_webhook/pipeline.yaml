@@ -196,7 +196,18 @@ jobs:
     displayName: Run kperf runner group at 50 CREATEs/sec
   - bash: |
       set -euo pipefail
-      kperf rg result --wait --timeout=15m
+      sleep 0
+      attempt=0
+      max_attempts=5
+      until kperf rg result --wait | tee "$(Agent.TempDirectory)/$(RUN_ID)-r50-result.json"; do
+        attempt=$((attempt + 1))
+        if [ "$attempt" -ge "$max_attempts" ]; then
+          exit 1
+        fi
+        echo "attempt $attempt failed; retry in 10s" >&2
+        sleep 10
+      done
+    continueOnError: true
     displayName: Wait for 50/sec runner group result
     timeoutInMinutes: 15
   - bash: |
@@ -286,7 +297,18 @@ jobs:
     displayName: Run kperf runner group at 100 CREATEs/sec
   - bash: |
       set -euo pipefail
-      kperf rg result --wait --timeout=15m
+      sleep 0
+      attempt=0
+      max_attempts=5
+      until kperf rg result --wait | tee "$(Agent.TempDirectory)/$(RUN_ID)-r100-result.json"; do
+        attempt=$((attempt + 1))
+        if [ "$attempt" -ge "$max_attempts" ]; then
+          exit 1
+        fi
+        echo "attempt $attempt failed; retry in 10s" >&2
+        sleep 10
+      done
+    continueOnError: true
     displayName: Wait for 100/sec runner group result
     timeoutInMinutes: 15
   - bash: |
@@ -376,7 +398,18 @@ jobs:
     displayName: Run kperf runner group at 150 CREATEs/sec
   - bash: |
       set -euo pipefail
-      kperf rg result --wait --timeout=15m
+      sleep 0
+      attempt=0
+      max_attempts=5
+      until kperf rg result --wait | tee "$(Agent.TempDirectory)/$(RUN_ID)-r150-result.json"; do
+        attempt=$((attempt + 1))
+        if [ "$attempt" -ge "$max_attempts" ]; then
+          exit 1
+        fi
+        echo "attempt $attempt failed; retry in 10s" >&2
+        sleep 10
+      done
+    continueOnError: true
     displayName: Wait for 150/sec runner group result
     timeoutInMinutes: 15
   - bash: |

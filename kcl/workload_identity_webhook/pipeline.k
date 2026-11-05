@@ -50,14 +50,9 @@ fi
             "file://$(Agent.TempDirectory)/$(RUN_ID)-r${rate}-runner-group.yaml",
             affinity="agentpool=runner",
             displayName="Run kperf runner group at ${rate} CREATEs/sec"),
-        steps.Bash {
-            bash = """
-set -euo pipefail
-kperf rg result --wait --timeout=15m
-"""
-            displayName = "Wait for ${rate}/sec runner group result"
-            timeoutInMinutes = 15
-        },
+        kperf.FetchKperfRunnerGroupResult(
+            resultPath="$(Agent.TempDirectory)/$(RUN_ID)-r${rate}-result.json",
+            displayName="Wait for ${rate}/sec runner group result"),
         steps.Bash {
             bash = """
 set -euo pipefail
