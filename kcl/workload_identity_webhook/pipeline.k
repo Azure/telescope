@@ -11,7 +11,7 @@ SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
 LOCATION = "australiaeast"
 # TODO: Replace the user-selected PR image with a published upstream release.
 RUNNER_IMAGE = "ghcr.io/liyu-ma/kperf@sha256:36f8e1cdbb6a4bd2fde4b29bf0cb5e4e014484ae9ddca9136f43449897ffb647"
-RATES = [50, 100, 150, 200]
+RATES = [100, 150, 200, 250]
 
 RunBenchmark = lambda rate: int -> [steps.Step] {
     [
@@ -96,7 +96,7 @@ output = ap.Pipeline {
     jobs = [
         job.Job {
             job = "benchmark"
-            displayName = "Baseline Run: 50/100/150/200 RPS"
+            displayName = "Baseline Run: 100/150/200/250 RPS"
             timeoutInMinutes = 240
             # Allow bounded cleanup and recovery during cancellation.
             cancelTimeoutInMinutes = 25
