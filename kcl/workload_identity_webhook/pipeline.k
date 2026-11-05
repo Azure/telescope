@@ -8,22 +8,17 @@ import lib.steps.kperf
 import lib.util.asi_dashboard
 
 SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
-LOCATION = "westus2"
+LOCATION = "australiaeast"
 # TODO: Replace the user-selected PR image with a published upstream release.
 RUNNER_IMAGE = "ghcr.io/liyu-ma/kperf@sha256:36f8e1cdbb6a4bd2fde4b29bf0cb5e4e014484ae9ddca9136f43449897ffb647"
-POD_CREATE_RPS = [50, 100, 150]
+RATES = [50, 100, 150]
 
-BenchmarkSteps = lambda rate: int -> [steps.Step] {
+RunBenchmark = lambda rate: int -> [steps.Step] {
     [
         steps.Bash {
             bash = """
 set -euo pipefail
 namespace="$(RUN_ID)-r${rate}"
-deleting=$(kubectl --request-timeout=60s get namespace "$namespace" --ignore-not-found -o jsonpath='{.metadata.deletionTimestamp}')
-if [ -n "$deleting" ]; then
-  echo "Namespace $namespace is already terminating; cannot prepare this phase." >&2
-  exit 1
-fi
 kubectl create namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
 kubectl create serviceaccount pod-benchmark --namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
 # Use a fake client ID because benchmark Pods do not access Azure resources.
@@ -56,8 +51,7 @@ set -euo pipefail
 set -x
 
 kperf runner run \\
-  --config "$(Agent.TempDirectory)/$(RUN_ID)-r${rate}-load-profile.yaml" \\
-  --kubeconfig "$(KUBECONFIG)"
+  --config "$(Agent.TempDirectory)/$(RUN_ID)-r${rate}-load-profile.yaml"
 """
             displayName = "Run kperf at ${rate} CREATEs/sec"
             timeoutInMinutes = 15
@@ -65,18 +59,13 @@ kperf runner run \\
         steps.Bash {
             bash = """
 set -euo pipefail
-if [ ! -s "$(KUBECONFIG)" ]; then
-  echo "Skipping namespace deletion for ${rate}/sec: kubeconfig is missing or empty: $(KUBECONFIG)"
-  exit 0
-fi
-kubectl --request-timeout=60s delete namespace "$(RUN_ID)-r${rate}" \\
+kubectl delete namespace "$(RUN_ID)-r${rate}" \\
   --ignore-not-found=true \\
-  --wait=true \\
-  --timeout=10m
+  --wait=true
 echo "Namespace cleanup completed for ${rate}/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 """
             displayName = "Delete namespace from ${rate}/sec run"
-            condition = "always()"
+            condition = "not(canceled())"
             continueOnError = True
             timeoutInMinutes = 15
         },
@@ -88,7 +77,7 @@ sleep 300
 echo "Finished pause after ${rate}/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 """
             displayName = "Pause 5 minutes after kperf run"
-            condition = "always()"
+            condition = "not(canceled())"
             timeoutInMinutes = 6
         },
     ]
@@ -115,12 +104,11 @@ output = ap.Pipeline {
             # Allow bounded cleanup and recovery during cancellation.
             cancelTimeoutInMinutes = 25
             variables = {
-                RUN_ID = "wi-$(Build.BuildId)-$(System.JobAttempt)"
                 RESOURCE_GROUP = "$(RUN_ID)"
                 CLUSTER = "wi-webhook"
-                KUBECONFIG = "$(Agent.TempDirectory)/$(RUN_ID).kubeconfig"
             }
             steps = [
+                common.SetRunId(),
                 azure.Login(
                     const.DEFAULT_SERVICE_CONNECTION,
                     SUBSCRIPTION_ID,
@@ -169,11 +157,10 @@ az aks create \\
                     const.DEFAULT_SERVICE_CONNECTION,
                     "$(CLUSTER)",
                     "$(RESOURCE_GROUP)",
-                    SUBSCRIPTION_ID,
-                    file="$(KUBECONFIG)"),
+                    SUBSCRIPTION_ID),
                 kperf.InstallRunkperf(RUNNER_IMAGE),
                 common.RecordCurrentTime("BENCHMARK_START_TIME"),
-                *[step for rate in POD_CREATE_RPS for step in BenchmarkSteps(rate)],
+                *[step for rate in RATES for step in RunBenchmark(rate)],
                 asi_dashboard.PrintAsiDashboardUrl(
                     const.DEFAULT_SERVICE_CONNECTION,
                     "$(CLUSTER)",

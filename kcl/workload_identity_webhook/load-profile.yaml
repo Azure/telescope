@@ -16,8 +16,6 @@ specs:
           resource: pods
           namespace: "__RUN_NAMESPACE__"
           deleteRatio: 0
-          # PAYLOAD environment padding, not the complete submitted JSON size.
-          payloadSize: 3650
           pod:
             labels:
               azure.workload.identity/use: "true"

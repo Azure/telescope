@@ -13,11 +13,18 @@ jobs:
   timeoutInMinutes: 240
   cancelTimeoutInMinutes: 25
   variables:
-    RUN_ID: wi-$(Build.BuildId)-$(System.JobAttempt)
     RESOURCE_GROUP: $(RUN_ID)
     CLUSTER: wi-webhook
-    KUBECONFIG: $(Agent.TempDirectory)/$(RUN_ID).kubeconfig
   steps:
+  - bash: |
+      set -eo pipefail
+
+      job_id="$(System.JobId)"
+      RUN_ID=$(Build.BuildId)-${job_id:0:8}
+      echo "Run ID: $RUN_ID"
+
+      echo "##vso[task.setvariable variable=RUN_ID]$RUN_ID"
+    displayName: Set Run ID
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
@@ -26,7 +33,7 @@ jobs:
       inlineScript: |
         set -exo pipefail
         az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
-        az config set defaults.location="westus2"
+        az config set defaults.location="australiaeast"
         az account show
     displayName: Login to Azure
   - task: AzureCLI@2
@@ -38,10 +45,10 @@ jobs:
         set -exo pipefail
         az group create \
           --name "$(RESOURCE_GROUP)" \
-          --location "westus2" \
+          --location "australiaeast" \
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
 
-    displayName: Create resource group in westus2 (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+    displayName: Create resource group in australiaeast (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
@@ -58,7 +65,7 @@ jobs:
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --resource-group "$(RESOURCE_GROUP)" \
           --name "$(CLUSTER)" \
-          --location "westus2" \
+          --location "australiaeast" \
           --kubernetes-version "1.36" \
           --dns-name-prefix "$(RUN_ID)" \
           --tier standard \
@@ -91,8 +98,7 @@ jobs:
           --name "$(CLUSTER)" \
           --resource-group "$(RESOURCE_GROUP)" \
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-          --overwrite-existing \
-          -f $(KUBECONFIG)
+          --overwrite-existing
     displayName: Get credentials for $(CLUSTER)
   - script: |
       set -euo pipefail
@@ -117,11 +123,6 @@ jobs:
   - bash: |
       set -euo pipefail
       namespace="$(RUN_ID)-r50"
-      deleting=$(kubectl --request-timeout=60s get namespace "$namespace" --ignore-not-found -o jsonpath='{.metadata.deletionTimestamp}')
-      if [ -n "$deleting" ]; then
-        echo "Namespace $namespace is already terminating; cannot prepare this phase." >&2
-        exit 1
-      fi
       kubectl create namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
       kubectl create serviceaccount pod-benchmark --namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
       # Use a fake client ID because benchmark Pods do not access Azure resources.
@@ -148,22 +149,16 @@ jobs:
       set -x
 
       kperf runner run \
-        --config "$(Agent.TempDirectory)/$(RUN_ID)-r50-load-profile.yaml" \
-        --kubeconfig "$(KUBECONFIG)"
+        --config "$(Agent.TempDirectory)/$(RUN_ID)-r50-load-profile.yaml"
     displayName: Run kperf at 50 CREATEs/sec
     timeoutInMinutes: 15
   - bash: |
       set -euo pipefail
-      if [ ! -s "$(KUBECONFIG)" ]; then
-        echo "Skipping namespace deletion for 50/sec: kubeconfig is missing or empty: $(KUBECONFIG)"
-        exit 0
-      fi
-      kubectl --request-timeout=60s delete namespace "$(RUN_ID)-r50" \
+      kubectl delete namespace "$(RUN_ID)-r50" \
         --ignore-not-found=true \
-        --wait=true \
-        --timeout=10m
+        --wait=true
       echo "Namespace cleanup completed for 50/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    condition: always()
+    condition: not(canceled())
     continueOnError: true
     displayName: Delete namespace from 50/sec run
     timeoutInMinutes: 15
@@ -172,17 +167,12 @@ jobs:
       echo "Starting five-minute pause after 50/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
       sleep 300
       echo "Finished pause after 50/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    condition: always()
+    condition: not(canceled())
     displayName: Pause 5 minutes after kperf run
     timeoutInMinutes: 6
   - bash: |
       set -euo pipefail
       namespace="$(RUN_ID)-r100"
-      deleting=$(kubectl --request-timeout=60s get namespace "$namespace" --ignore-not-found -o jsonpath='{.metadata.deletionTimestamp}')
-      if [ -n "$deleting" ]; then
-        echo "Namespace $namespace is already terminating; cannot prepare this phase." >&2
-        exit 1
-      fi
       kubectl create namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
       kubectl create serviceaccount pod-benchmark --namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
       # Use a fake client ID because benchmark Pods do not access Azure resources.
@@ -209,22 +199,16 @@ jobs:
       set -x
 
       kperf runner run \
-        --config "$(Agent.TempDirectory)/$(RUN_ID)-r100-load-profile.yaml" \
-        --kubeconfig "$(KUBECONFIG)"
+        --config "$(Agent.TempDirectory)/$(RUN_ID)-r100-load-profile.yaml"
     displayName: Run kperf at 100 CREATEs/sec
     timeoutInMinutes: 15
   - bash: |
       set -euo pipefail
-      if [ ! -s "$(KUBECONFIG)" ]; then
-        echo "Skipping namespace deletion for 100/sec: kubeconfig is missing or empty: $(KUBECONFIG)"
-        exit 0
-      fi
-      kubectl --request-timeout=60s delete namespace "$(RUN_ID)-r100" \
+      kubectl delete namespace "$(RUN_ID)-r100" \
         --ignore-not-found=true \
-        --wait=true \
-        --timeout=10m
+        --wait=true
       echo "Namespace cleanup completed for 100/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    condition: always()
+    condition: not(canceled())
     continueOnError: true
     displayName: Delete namespace from 100/sec run
     timeoutInMinutes: 15
@@ -233,17 +217,12 @@ jobs:
       echo "Starting five-minute pause after 100/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
       sleep 300
       echo "Finished pause after 100/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    condition: always()
+    condition: not(canceled())
     displayName: Pause 5 minutes after kperf run
     timeoutInMinutes: 6
   - bash: |
       set -euo pipefail
       namespace="$(RUN_ID)-r150"
-      deleting=$(kubectl --request-timeout=60s get namespace "$namespace" --ignore-not-found -o jsonpath='{.metadata.deletionTimestamp}')
-      if [ -n "$deleting" ]; then
-        echo "Namespace $namespace is already terminating; cannot prepare this phase." >&2
-        exit 1
-      fi
       kubectl create namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
       kubectl create serviceaccount pod-benchmark --namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
       # Use a fake client ID because benchmark Pods do not access Azure resources.
@@ -270,22 +249,16 @@ jobs:
       set -x
 
       kperf runner run \
-        --config "$(Agent.TempDirectory)/$(RUN_ID)-r150-load-profile.yaml" \
-        --kubeconfig "$(KUBECONFIG)"
+        --config "$(Agent.TempDirectory)/$(RUN_ID)-r150-load-profile.yaml"
     displayName: Run kperf at 150 CREATEs/sec
     timeoutInMinutes: 15
   - bash: |
       set -euo pipefail
-      if [ ! -s "$(KUBECONFIG)" ]; then
-        echo "Skipping namespace deletion for 150/sec: kubeconfig is missing or empty: $(KUBECONFIG)"
-        exit 0
-      fi
-      kubectl --request-timeout=60s delete namespace "$(RUN_ID)-r150" \
+      kubectl delete namespace "$(RUN_ID)-r150" \
         --ignore-not-found=true \
-        --wait=true \
-        --timeout=10m
+        --wait=true
       echo "Namespace cleanup completed for 150/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    condition: always()
+    condition: not(canceled())
     continueOnError: true
     displayName: Delete namespace from 150/sec run
     timeoutInMinutes: 15
@@ -294,7 +267,7 @@ jobs:
       echo "Starting five-minute pause after 150/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
       sleep 300
       echo "Finished pause after 150/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    condition: always()
+    condition: not(canceled())
     displayName: Pause 5 minutes after kperf run
     timeoutInMinutes: 6
   - task: AzureCLI@2
