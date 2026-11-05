@@ -165,25 +165,9 @@ fi
                 }
                 kperf.RunKperfDataIngest("cm", "kperf", s.name, total=s.count, qps=50, burst=50, size=s.size, groupSize=50, batchSize=s.count)
                 kperf.RunKperfRunnerGroup("ghcr.io/xinweiwei24/kperf:20260709-pause", "file://$(Pipeline.Workspace)/s/${s.manifest}", affinity="agentpool=runner")
-                # Poll `kperf rg result` after a fixed sleep to avoid the long-lived port-forward that EOFs on the ADO agent.
-                steps.Script {
-                    displayName = "Fetch kperf runner group result (${name})"
-                    continueOnError = True
-                    script = """
-set -euo pipefail
-sleep 300
-attempt=0
-max_attempts=5
-until kperf rg result | tee "/tmp/kperf-result-${name}.json"; do
-  attempt=$((attempt + 1))
-  if [ "$attempt" -ge "$max_attempts" ]; then
-    exit 1
-  fi
-  echo "attempt $attempt failed; retry in 10s" >&2
-  sleep 10
-done
-"""
-                }
+                kperf.FetchKperfRunnerGroupResult(
+                    "/tmp/kperf-result-${name}.json",
+                    displayName="Fetch kperf runner group result (${name})")
                 # Delete the namespace before the next scenario recreates it.
                 steps.Script {
                     displayName = "Cleanup scenario state (${name})"

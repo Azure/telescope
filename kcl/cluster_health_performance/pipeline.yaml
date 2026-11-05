@@ -757,14 +757,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario1_get_configmap_c1.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario1_get_configmap_c1.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -772,6 +772,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario1_get_configmap_c1)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -884,14 +885,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario2_get_list_configmap_c1.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario2_get_list_configmap_c1.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -899,6 +900,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario2_get_list_configmap_c1)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -1011,14 +1013,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario2_get_list_configmap_c5.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario2_get_list_configmap_c5.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -1026,6 +1028,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario2_get_list_configmap_c5)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -1138,14 +1141,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario2_get_list_configmap_c10.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario2_get_list_configmap_c10.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -1153,6 +1156,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario2_get_list_configmap_c10)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -1265,14 +1269,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario2_get_list_configmap_c50.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario2_get_list_configmap_c50.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -1280,6 +1284,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario2_get_list_configmap_c50)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -1392,14 +1397,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario3_post_put_c1_p1k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario3_post_put_c1_p1k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -1407,6 +1412,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c1_p1k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -1519,14 +1525,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario3_post_put_c1_p10k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario3_post_put_c1_p10k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -1534,6 +1540,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c1_p10k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -1646,14 +1653,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario3_post_put_c1_p100k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario3_post_put_c1_p100k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -1661,6 +1668,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c1_p100k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -1773,14 +1781,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario3_post_put_c10_p1k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario3_post_put_c10_p1k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -1788,6 +1796,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c10_p1k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -1900,14 +1909,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario3_post_put_c10_p10k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario3_post_put_c10_p10k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -1915,6 +1924,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c10_p10k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -2027,14 +2037,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario3_post_put_c10_p100k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario3_post_put_c10_p100k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -2042,6 +2052,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c10_p100k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -2154,14 +2165,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario3_post_put_c50_p1k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario3_post_put_c50_p1k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -2169,6 +2180,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c50_p1k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -2281,14 +2293,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario3_post_put_c50_p10k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario3_post_put_c50_p10k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -2296,6 +2308,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c50_p10k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -2408,14 +2421,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario3_post_put_c50_p100k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario3_post_put_c50_p100k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -2423,6 +2436,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c50_p100k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -2535,14 +2549,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario4_list_configmap_n100_p1k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario4_list_configmap_n100_p1k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -2550,6 +2564,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n100_p1k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -2662,14 +2677,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario4_list_configmap_n100_p10k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario4_list_configmap_n100_p10k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -2677,6 +2692,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n100_p10k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -2789,14 +2805,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario4_list_configmap_n100_p100k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario4_list_configmap_n100_p100k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -2804,6 +2820,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n100_p100k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -2916,14 +2933,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario4_list_configmap_n1000_p1k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario4_list_configmap_n1000_p1k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -2931,6 +2948,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n1000_p1k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -3043,14 +3061,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario4_list_configmap_n1000_p10k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario4_list_configmap_n1000_p10k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -3058,6 +3076,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n1000_p10k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -3170,14 +3189,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario4_list_configmap_n1000_p100k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario4_list_configmap_n1000_p100k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -3185,6 +3204,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n1000_p100k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -3297,14 +3317,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario4_list_configmap_n10000_p1k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario4_list_configmap_n10000_p1k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -3312,6 +3332,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n10000_p1k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -3424,14 +3445,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario4_list_configmap_n10000_p10k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario4_list_configmap_n10000_p10k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -3439,6 +3460,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n10000_p10k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -3551,14 +3573,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario4_list_configmap_n10000_p100k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario4_list_configmap_n10000_p100k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -3566,6 +3588,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n10000_p100k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -3678,14 +3701,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario5_mixed_c10_p1k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario5_mixed_c10_p1k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -3693,6 +3716,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario5_mixed_c10_p1k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -3805,14 +3829,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario5_mixed_c10_p10k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario5_mixed_c10_p10k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -3820,6 +3844,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario5_mixed_c10_p10k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -3932,14 +3957,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario6_getpodlog_c20.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario6_getpodlog_c20.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -3947,6 +3972,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario6_getpodlog_c20)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -4059,14 +4085,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario6_getpodlog_c25.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario6_getpodlog_c25.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -4074,6 +4100,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario6_getpodlog_c25)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -5331,14 +5358,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario1_get_configmap_c1.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario1_get_configmap_c1.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -5346,6 +5373,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario1_get_configmap_c1)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -5458,14 +5486,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario2_get_list_configmap_c1.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario2_get_list_configmap_c1.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -5473,6 +5501,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario2_get_list_configmap_c1)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -5585,14 +5614,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario2_get_list_configmap_c5.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario2_get_list_configmap_c5.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -5600,6 +5629,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario2_get_list_configmap_c5)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -5712,14 +5742,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario2_get_list_configmap_c10.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario2_get_list_configmap_c10.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -5727,6 +5757,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario2_get_list_configmap_c10)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -5839,14 +5870,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario2_get_list_configmap_c50.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario2_get_list_configmap_c50.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -5854,6 +5885,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario2_get_list_configmap_c50)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -5966,14 +5998,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario3_post_put_c1_p1k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario3_post_put_c1_p1k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -5981,6 +6013,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c1_p1k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -6093,14 +6126,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario3_post_put_c1_p10k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario3_post_put_c1_p10k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -6108,6 +6141,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c1_p10k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -6220,14 +6254,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario3_post_put_c1_p100k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario3_post_put_c1_p100k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -6235,6 +6269,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c1_p100k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -6347,14 +6382,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario3_post_put_c10_p1k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario3_post_put_c10_p1k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -6362,6 +6397,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c10_p1k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -6474,14 +6510,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario3_post_put_c10_p10k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario3_post_put_c10_p10k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -6489,6 +6525,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c10_p10k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -6601,14 +6638,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario3_post_put_c10_p100k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario3_post_put_c10_p100k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -6616,6 +6653,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c10_p100k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -6728,14 +6766,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario3_post_put_c50_p1k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario3_post_put_c50_p1k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -6743,6 +6781,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c50_p1k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -6855,14 +6894,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario3_post_put_c50_p10k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario3_post_put_c50_p10k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -6870,6 +6909,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c50_p10k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -6982,14 +7022,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario3_post_put_c50_p100k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario3_post_put_c50_p100k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -6997,6 +7037,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c50_p100k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -7109,14 +7150,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario4_list_configmap_n100_p1k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario4_list_configmap_n100_p1k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -7124,6 +7165,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n100_p1k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -7236,14 +7278,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario4_list_configmap_n100_p10k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario4_list_configmap_n100_p10k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -7251,6 +7293,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n100_p10k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -7363,14 +7406,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario4_list_configmap_n100_p100k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario4_list_configmap_n100_p100k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -7378,6 +7421,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n100_p100k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -7490,14 +7534,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario4_list_configmap_n1000_p1k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario4_list_configmap_n1000_p1k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -7505,6 +7549,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n1000_p1k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -7617,14 +7662,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario4_list_configmap_n1000_p10k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario4_list_configmap_n1000_p10k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -7632,6 +7677,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n1000_p10k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -7744,14 +7790,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario4_list_configmap_n1000_p100k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario4_list_configmap_n1000_p100k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -7759,6 +7805,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n1000_p100k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -7871,14 +7918,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario4_list_configmap_n10000_p1k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario4_list_configmap_n10000_p1k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -7886,6 +7933,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n10000_p1k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -7998,14 +8046,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario4_list_configmap_n10000_p10k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario4_list_configmap_n10000_p10k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -8013,6 +8061,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n10000_p10k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -8125,14 +8174,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario4_list_configmap_n10000_p100k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario4_list_configmap_n10000_p100k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -8140,6 +8189,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n10000_p100k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -8252,14 +8302,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario5_mixed_c10_p1k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario5_mixed_c10_p1k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -8267,6 +8317,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario5_mixed_c10_p1k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -8379,14 +8430,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario5_mixed_c10_p10k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario5_mixed_c10_p10k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -8394,6 +8445,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario5_mixed_c10_p10k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -8506,14 +8558,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario6_getpodlog_c20.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario6_getpodlog_c20.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -8521,6 +8573,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario6_getpodlog_c20)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -8633,14 +8686,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario6_getpodlog_c25.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario6_getpodlog_c25.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -8648,6 +8701,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario6_getpodlog_c25)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -9905,14 +9959,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario1_get_configmap_c1.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario1_get_configmap_c1.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -9920,6 +9974,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario1_get_configmap_c1)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -10032,14 +10087,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario2_get_list_configmap_c1.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario2_get_list_configmap_c1.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -10047,6 +10102,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario2_get_list_configmap_c1)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -10159,14 +10215,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario2_get_list_configmap_c5.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario2_get_list_configmap_c5.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -10174,6 +10230,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario2_get_list_configmap_c5)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -10286,14 +10343,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario2_get_list_configmap_c10.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario2_get_list_configmap_c10.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -10301,6 +10358,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario2_get_list_configmap_c10)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -10413,14 +10471,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario2_get_list_configmap_c50.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario2_get_list_configmap_c50.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -10428,6 +10486,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario2_get_list_configmap_c50)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -10540,14 +10599,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario3_post_put_c1_p1k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario3_post_put_c1_p1k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -10555,6 +10614,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c1_p1k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -10667,14 +10727,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario3_post_put_c1_p10k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario3_post_put_c1_p10k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -10682,6 +10742,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c1_p10k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -10794,14 +10855,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario3_post_put_c1_p100k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario3_post_put_c1_p100k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -10809,6 +10870,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c1_p100k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -10921,14 +10983,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario3_post_put_c10_p1k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario3_post_put_c10_p1k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -10936,6 +10998,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c10_p1k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -11048,14 +11111,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario3_post_put_c10_p10k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario3_post_put_c10_p10k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -11063,6 +11126,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c10_p10k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -11175,14 +11239,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario3_post_put_c10_p100k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario3_post_put_c10_p100k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -11190,6 +11254,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c10_p100k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -11302,14 +11367,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario3_post_put_c50_p1k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario3_post_put_c50_p1k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -11317,6 +11382,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c50_p1k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -11429,14 +11495,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario3_post_put_c50_p10k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario3_post_put_c50_p10k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -11444,6 +11510,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c50_p10k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -11556,14 +11623,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario3_post_put_c50_p100k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario3_post_put_c50_p100k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -11571,6 +11638,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c50_p100k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -11683,14 +11751,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario4_list_configmap_n100_p1k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario4_list_configmap_n100_p1k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -11698,6 +11766,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n100_p1k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -11810,14 +11879,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario4_list_configmap_n100_p10k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario4_list_configmap_n100_p10k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -11825,6 +11894,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n100_p10k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -11937,14 +12007,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario4_list_configmap_n100_p100k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario4_list_configmap_n100_p100k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -11952,6 +12022,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n100_p100k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -12064,14 +12135,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario4_list_configmap_n1000_p1k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario4_list_configmap_n1000_p1k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -12079,6 +12150,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n1000_p1k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -12191,14 +12263,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario4_list_configmap_n1000_p10k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario4_list_configmap_n1000_p10k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -12206,6 +12278,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n1000_p10k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -12318,14 +12391,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario4_list_configmap_n1000_p100k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario4_list_configmap_n1000_p100k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -12333,6 +12406,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n1000_p100k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -12445,14 +12519,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario4_list_configmap_n10000_p1k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario4_list_configmap_n10000_p1k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -12460,6 +12534,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n10000_p1k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -12572,14 +12647,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario4_list_configmap_n10000_p10k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario4_list_configmap_n10000_p10k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -12587,6 +12662,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n10000_p10k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -12699,14 +12775,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario4_list_configmap_n10000_p100k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario4_list_configmap_n10000_p100k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -12714,6 +12790,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n10000_p100k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -12826,14 +12903,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario5_mixed_c10_p1k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario5_mixed_c10_p1k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -12841,6 +12918,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario5_mixed_c10_p1k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -12953,14 +13031,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario5_mixed_c10_p10k.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario5_mixed_c10_p10k.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -12968,6 +13046,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario5_mixed_c10_p10k)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -13080,14 +13159,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario6_getpodlog_c20.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario6_getpodlog_c20.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -13095,6 +13174,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario6_getpodlog_c20)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x
@@ -13207,14 +13287,14 @@ stages:
           sleep 120
         done
       displayName: Run kperf runner group
-    - script: |
+    - bash: |
         set -euo pipefail
-        sleep 300
         attempt=0
         max_attempts=5
-        until kperf rg result | tee "/tmp/kperf-result-scenario6_getpodlog_c25.json"; do
+        until kperf rg result --wait | tee "/tmp/kperf-result-scenario6_getpodlog_c25.json"; do
           attempt=$((attempt + 1))
           if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
             exit 1
           fi
           echo "attempt $attempt failed; retry in 10s" >&2
@@ -13222,6 +13302,7 @@ stages:
         done
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario6_getpodlog_c25)
+      timeoutInMinutes: 15
     - script: |
         set -euo pipefail
         set -x

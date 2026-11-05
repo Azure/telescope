@@ -22,6 +22,28 @@ runkperf -v 3 bench \\
     }
 }
 
+FetchKperfRunnerGroupResult = lambda resultPath: str, displayName: str = "Fetch kperf runner group result", timeoutInMinutes: int = 15 -> steps.Step {
+    steps.Bash {
+        bash = """
+set -euo pipefail
+attempt=0
+max_attempts=5
+until kperf rg result --wait | tee "${resultPath}"; do
+  attempt=$((attempt + 1))
+  if [ "$attempt" -ge "$max_attempts" ]; then
+    echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
+    exit 1
+  fi
+  echo "attempt $attempt failed; retry in 10s" >&2
+  sleep 10
+done
+"""
+        displayName = displayName
+        continueOnError = True
+        timeoutInMinutes = timeoutInMinutes
+    }
+}
+
 # RunKperfRunnerGroup runs `kperf rg run` with the specified runner image, runner
 # group manifest, optional flow control setting, and optional affinity selector.
 RunKperfRunnerGroup = lambda runnerImage: str, runnerGroup: str, flowcontrol: str = "", affinity: str = "", target: str = Undefined -> steps.Step {
