@@ -92,6 +92,13 @@ jobs:
       azureSubscription: Azure-for-Telescope-internal
       scriptType: bash
       scriptLocation: inlineScript
+      inlineScript: "set -exo pipefail\ncreate_node_pool() {\n  local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds\n  deadline=$(($(date +%s) + 600))\n  while :; do\n    attempt=$((attempt + 1))\n    if output=$(az aks nodepool add \"$@\" 2>&1); then\n      rc=0\n    else\n      rc=$?\n    fi\n    echo \"$output\"\n    if [ \"$rc\" -eq 0 ]; then\n      return 0\n    fi\n    if echo \"$output\" | grep -qiE \"OperationNotAllowed\"; then\n      now=$(date +%s)\n      if [ \"$now\" -ge \"$deadline\" ]; then\n        echo \"Retriable error persisted past 600s retry window ($attempt attempts); giving up.\"\n        return \"$rc\"\n      fi\n      remaining_retry_seconds=$((deadline - now))\n      echo \"Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining_retry_seconds seconds remain in retry window).\"\n      sleep \"$sleep_between\"\n    else\n      echo \"Non-retriable error (rc=$rc); giving up after attempt $attempt.\"\n      return \"$rc\"\n    fi\n  done\n}\n\n\ncreate_node_pool \\\n  --cluster-name \"$(CLUSTER)\" \\\n  --resource-group \"$(RESOURCE_GROUP)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"runner\" \\\n  --node-count 1 \\\n  --node-vm-size \"Standard_D4s_v5\" \\\n  --mode User \\\n  \n"
+    displayName: Create node pool runner
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
         az aks get-credentials \
@@ -133,24 +140,64 @@ jobs:
     displayName: Prepare WI resources for 50/sec
   - bash: |
       set -euo pipefail
-      profile="$(Agent.TempDirectory)/$(RUN_ID)-r50-load-profile.yaml"
+      profile="$(Agent.TempDirectory)/$(RUN_ID)-r50-runner-group.yaml"
       sed \
         -e 's/__RUN_NAMESPACE__/$(RUN_ID)-r50/g' \
         -e 's/__RATE__/50/g' \
         -e 's/__PHASE_RUN_ID__/$(RUN_ID)-r50/g' \
-        "$(Build.SourcesDirectory)/kcl/workload_identity_webhook/load-profile.yaml" > "$profile"
+        "$(Build.SourcesDirectory)/kcl/workload_identity_webhook/runner-group.yaml" > "$profile"
       if grep -q '__[A-Z_]*__' "$profile"; then
-        echo "Unresolved load-profile placeholders" >&2
+        echo "Unresolved runner-group placeholders" >&2
         exit 1
       fi
-    displayName: Prepare 50/sec load profile
+    displayName: Prepare 50/sec runner group
   - script: |
       set -euo pipefail
       set -x
 
-      kperf runner run \
-        --config "$(Agent.TempDirectory)/$(RUN_ID)-r50-load-profile.yaml"
-    displayName: Run kperf at 50 CREATEs/sec
+      run_rg() {
+        args=(
+          rg run
+          --runner-image="ghcr.io/liyu-ma/kperf@sha256:36f8e1cdbb6a4bd2fde4b29bf0cb5e4e014484ae9ddca9136f43449897ffb647"
+          --runnergroup="file://$(Agent.TempDirectory)/$(RUN_ID)-r50-runner-group.yaml"
+        )
+        if [ -n "" ]; then
+          args+=(--runner-flowcontrol="")
+        fi
+        if [ -n "agentpool=runner" ]; then
+          args+=(--affinity="agentpool=runner")
+        fi
+        kperf "${args[@]}"
+      }
+
+      cleanup_rg() {
+        kperf rg delete || true
+        kubectl -n runnergroups-kperf-io delete pod runnergroup-server \
+          --force --grace-period=0 --ignore-not-found=true --timeout=120s || true
+      }
+
+      cleanup_rg
+
+      attempt=0
+      max_attempts=10
+      until run_rg; do
+        attempt=$((attempt + 1))
+        if [ "$attempt" -ge "$max_attempts" ]; then
+          echo "kperf rg run failed after $attempt attempts" >&2
+          kubectl -n runnergroups-kperf-io get pods -o wide || true
+          kubectl -n runnergroups-kperf-io describe pod runnergroup-server || true
+          kubectl -n runnergroups-kperf-io get events --sort-by=.lastTimestamp | tail -50 || true
+          exit 1
+        fi
+        cleanup_rg
+        echo "attempt $attempt failed; cleaning up and retrying in 120s" >&2
+        sleep 120
+      done
+    displayName: Run kperf runner group at 50 CREATEs/sec
+  - bash: |
+      set -euo pipefail
+      kperf rg result --wait --timeout=15m
+    displayName: Wait for 50/sec runner group result
     timeoutInMinutes: 15
   - bash: |
       set -euo pipefail
@@ -183,24 +230,64 @@ jobs:
     displayName: Prepare WI resources for 100/sec
   - bash: |
       set -euo pipefail
-      profile="$(Agent.TempDirectory)/$(RUN_ID)-r100-load-profile.yaml"
+      profile="$(Agent.TempDirectory)/$(RUN_ID)-r100-runner-group.yaml"
       sed \
         -e 's/__RUN_NAMESPACE__/$(RUN_ID)-r100/g' \
         -e 's/__RATE__/100/g' \
         -e 's/__PHASE_RUN_ID__/$(RUN_ID)-r100/g' \
-        "$(Build.SourcesDirectory)/kcl/workload_identity_webhook/load-profile.yaml" > "$profile"
+        "$(Build.SourcesDirectory)/kcl/workload_identity_webhook/runner-group.yaml" > "$profile"
       if grep -q '__[A-Z_]*__' "$profile"; then
-        echo "Unresolved load-profile placeholders" >&2
+        echo "Unresolved runner-group placeholders" >&2
         exit 1
       fi
-    displayName: Prepare 100/sec load profile
+    displayName: Prepare 100/sec runner group
   - script: |
       set -euo pipefail
       set -x
 
-      kperf runner run \
-        --config "$(Agent.TempDirectory)/$(RUN_ID)-r100-load-profile.yaml"
-    displayName: Run kperf at 100 CREATEs/sec
+      run_rg() {
+        args=(
+          rg run
+          --runner-image="ghcr.io/liyu-ma/kperf@sha256:36f8e1cdbb6a4bd2fde4b29bf0cb5e4e014484ae9ddca9136f43449897ffb647"
+          --runnergroup="file://$(Agent.TempDirectory)/$(RUN_ID)-r100-runner-group.yaml"
+        )
+        if [ -n "" ]; then
+          args+=(--runner-flowcontrol="")
+        fi
+        if [ -n "agentpool=runner" ]; then
+          args+=(--affinity="agentpool=runner")
+        fi
+        kperf "${args[@]}"
+      }
+
+      cleanup_rg() {
+        kperf rg delete || true
+        kubectl -n runnergroups-kperf-io delete pod runnergroup-server \
+          --force --grace-period=0 --ignore-not-found=true --timeout=120s || true
+      }
+
+      cleanup_rg
+
+      attempt=0
+      max_attempts=10
+      until run_rg; do
+        attempt=$((attempt + 1))
+        if [ "$attempt" -ge "$max_attempts" ]; then
+          echo "kperf rg run failed after $attempt attempts" >&2
+          kubectl -n runnergroups-kperf-io get pods -o wide || true
+          kubectl -n runnergroups-kperf-io describe pod runnergroup-server || true
+          kubectl -n runnergroups-kperf-io get events --sort-by=.lastTimestamp | tail -50 || true
+          exit 1
+        fi
+        cleanup_rg
+        echo "attempt $attempt failed; cleaning up and retrying in 120s" >&2
+        sleep 120
+      done
+    displayName: Run kperf runner group at 100 CREATEs/sec
+  - bash: |
+      set -euo pipefail
+      kperf rg result --wait --timeout=15m
+    displayName: Wait for 100/sec runner group result
     timeoutInMinutes: 15
   - bash: |
       set -euo pipefail
@@ -233,24 +320,64 @@ jobs:
     displayName: Prepare WI resources for 150/sec
   - bash: |
       set -euo pipefail
-      profile="$(Agent.TempDirectory)/$(RUN_ID)-r150-load-profile.yaml"
+      profile="$(Agent.TempDirectory)/$(RUN_ID)-r150-runner-group.yaml"
       sed \
         -e 's/__RUN_NAMESPACE__/$(RUN_ID)-r150/g' \
         -e 's/__RATE__/150/g' \
         -e 's/__PHASE_RUN_ID__/$(RUN_ID)-r150/g' \
-        "$(Build.SourcesDirectory)/kcl/workload_identity_webhook/load-profile.yaml" > "$profile"
+        "$(Build.SourcesDirectory)/kcl/workload_identity_webhook/runner-group.yaml" > "$profile"
       if grep -q '__[A-Z_]*__' "$profile"; then
-        echo "Unresolved load-profile placeholders" >&2
+        echo "Unresolved runner-group placeholders" >&2
         exit 1
       fi
-    displayName: Prepare 150/sec load profile
+    displayName: Prepare 150/sec runner group
   - script: |
       set -euo pipefail
       set -x
 
-      kperf runner run \
-        --config "$(Agent.TempDirectory)/$(RUN_ID)-r150-load-profile.yaml"
-    displayName: Run kperf at 150 CREATEs/sec
+      run_rg() {
+        args=(
+          rg run
+          --runner-image="ghcr.io/liyu-ma/kperf@sha256:36f8e1cdbb6a4bd2fde4b29bf0cb5e4e014484ae9ddca9136f43449897ffb647"
+          --runnergroup="file://$(Agent.TempDirectory)/$(RUN_ID)-r150-runner-group.yaml"
+        )
+        if [ -n "" ]; then
+          args+=(--runner-flowcontrol="")
+        fi
+        if [ -n "agentpool=runner" ]; then
+          args+=(--affinity="agentpool=runner")
+        fi
+        kperf "${args[@]}"
+      }
+
+      cleanup_rg() {
+        kperf rg delete || true
+        kubectl -n runnergroups-kperf-io delete pod runnergroup-server \
+          --force --grace-period=0 --ignore-not-found=true --timeout=120s || true
+      }
+
+      cleanup_rg
+
+      attempt=0
+      max_attempts=10
+      until run_rg; do
+        attempt=$((attempt + 1))
+        if [ "$attempt" -ge "$max_attempts" ]; then
+          echo "kperf rg run failed after $attempt attempts" >&2
+          kubectl -n runnergroups-kperf-io get pods -o wide || true
+          kubectl -n runnergroups-kperf-io describe pod runnergroup-server || true
+          kubectl -n runnergroups-kperf-io get events --sort-by=.lastTimestamp | tail -50 || true
+          exit 1
+        fi
+        cleanup_rg
+        echo "attempt $attempt failed; cleaning up and retrying in 120s" >&2
+        sleep 120
+      done
+    displayName: Run kperf runner group at 150 CREATEs/sec
+  - bash: |
+      set -euo pipefail
+      kperf rg result --wait --timeout=15m
+    displayName: Wait for 150/sec runner group result
     timeoutInMinutes: 15
   - bash: |
       set -euo pipefail

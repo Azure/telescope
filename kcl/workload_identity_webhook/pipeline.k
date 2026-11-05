@@ -32,28 +32,30 @@ kubectl --request-timeout=60s annotate serviceaccount pod-benchmark \\
         steps.Bash {
             bash = """
 set -euo pipefail
-profile="$(Agent.TempDirectory)/$(RUN_ID)-r${rate}-load-profile.yaml"
+profile="$(Agent.TempDirectory)/$(RUN_ID)-r${rate}-runner-group.yaml"
 sed \\
   -e 's/__RUN_NAMESPACE__/$(RUN_ID)-r${rate}/g' \\
   -e 's/__RATE__/${rate}/g' \\
   -e 's/__PHASE_RUN_ID__/$(RUN_ID)-r${rate}/g' \\
-  "$(Build.SourcesDirectory)/kcl/workload_identity_webhook/load-profile.yaml" > "$profile"
+  "$(Build.SourcesDirectory)/kcl/workload_identity_webhook/runner-group.yaml" > "$profile"
 if grep -q '__[A-Z_]*__' "$profile"; then
-  echo "Unresolved load-profile placeholders" >&2
+  echo "Unresolved runner-group placeholders" >&2
   exit 1
 fi
 """
-            displayName = "Prepare ${rate}/sec load profile"
+            displayName = "Prepare ${rate}/sec runner group"
         },
-        steps.Script {
-            script = """
+        kperf.RunKperfRunnerGroup(
+            RUNNER_IMAGE,
+            "file://$(Agent.TempDirectory)/$(RUN_ID)-r${rate}-runner-group.yaml",
+            affinity="agentpool=runner",
+            displayName="Run kperf runner group at ${rate} CREATEs/sec"),
+        steps.Bash {
+            bash = """
 set -euo pipefail
-set -x
-
-kperf runner run \\
-  --config "$(Agent.TempDirectory)/$(RUN_ID)-r${rate}-load-profile.yaml"
+kperf rg result --wait --timeout=15m
 """
-            displayName = "Run kperf at ${rate} CREATEs/sec"
+            displayName = "Wait for ${rate}/sec runner group result"
             timeoutInMinutes = 15
         },
         steps.Bash {
@@ -153,6 +155,16 @@ az aks create \\
   --tags SkipAKSCluster=true \\
   --yes
 """),
+                azure.CreateNodePool(
+                    const.DEFAULT_SERVICE_CONNECTION,
+                    "$(CLUSTER)",
+                    "$(RESOURCE_GROUP)",
+                    SUBSCRIPTION_ID,
+                    azure.NodePool {
+                        name = "runner"
+                        sku = "Standard_D4s_v5"
+                        count = 1
+                    }),
                 azure.GetCredentials(
                     const.DEFAULT_SERVICE_CONNECTION,
                     "$(CLUSTER)",
