@@ -9,7 +9,7 @@ parameters:
 pr: none
 jobs:
 - job: benchmark
-  displayName: 'Baseline Run: 50/100/150 RPS'
+  displayName: 'Baseline Run: 50/100/150/200 RPS'
   timeoutInMinutes: 240
   cancelTimeoutInMinutes: 25
   variables:
@@ -427,6 +427,107 @@ jobs:
       echo "Starting five-minute pause after 150/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
       sleep 300
       echo "Finished pause after 150/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    condition: not(canceled())
+    displayName: Pause 5 minutes after kperf run
+    timeoutInMinutes: 6
+  - bash: |
+      set -euo pipefail
+      namespace="$(RUN_ID)-r200"
+      kubectl create namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
+      kubectl create serviceaccount pod-benchmark --namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
+      # Use a fake client ID because benchmark Pods do not access Azure resources.
+      kubectl --request-timeout=60s annotate serviceaccount pod-benchmark \
+        --namespace "$namespace" \
+        "azure.workload.identity/client-id=00000000-0000-4000-8000-000000000001" \
+        --overwrite
+    displayName: Prepare WI resources for 200/sec
+  - bash: |
+      set -euo pipefail
+      profile="$(Agent.TempDirectory)/$(RUN_ID)-r200-runner-group.yaml"
+      sed \
+        -e 's/__RUN_NAMESPACE__/$(RUN_ID)-r200/g' \
+        -e 's/__RATE__/200/g' \
+        -e 's/__PHASE_RUN_ID__/$(RUN_ID)-r200/g' \
+        "$(Build.SourcesDirectory)/kcl/workload_identity_webhook/runner-group.yaml" > "$profile"
+      if grep -q '__[A-Z_]*__' "$profile"; then
+        echo "Unresolved runner-group placeholders" >&2
+        exit 1
+      fi
+    displayName: Prepare 200/sec runner group
+  - script: |
+      set -euo pipefail
+      set -x
+
+      run_rg() {
+        args=(
+          rg run
+          --runner-image="ghcr.io/liyu-ma/kperf@sha256:36f8e1cdbb6a4bd2fde4b29bf0cb5e4e014484ae9ddca9136f43449897ffb647"
+          --runnergroup="file://$(Agent.TempDirectory)/$(RUN_ID)-r200-runner-group.yaml"
+        )
+        if [ -n "" ]; then
+          args+=(--runner-flowcontrol="")
+        fi
+        if [ -n "agentpool=runner" ]; then
+          args+=(--affinity="agentpool=runner")
+        fi
+        kperf "${args[@]}"
+      }
+
+      cleanup_rg() {
+        kperf rg delete || true
+        kubectl -n runnergroups-kperf-io delete pod runnergroup-server \
+          --force --grace-period=0 --ignore-not-found=true --timeout=120s || true
+      }
+
+      cleanup_rg
+
+      attempt=0
+      max_attempts=10
+      until run_rg; do
+        attempt=$((attempt + 1))
+        if [ "$attempt" -ge "$max_attempts" ]; then
+          echo "kperf rg run failed after $attempt attempts" >&2
+          kubectl -n runnergroups-kperf-io get pods -o wide || true
+          kubectl -n runnergroups-kperf-io describe pod runnergroup-server || true
+          kubectl -n runnergroups-kperf-io get events --sort-by=.lastTimestamp | tail -50 || true
+          exit 1
+        fi
+        cleanup_rg
+        echo "attempt $attempt failed; cleaning up and retrying in 120s" >&2
+        sleep 120
+      done
+    displayName: Run kperf runner group at 200 CREATEs/sec
+  - bash: |
+      set -euo pipefail
+      attempt=0
+      max_attempts=5
+      until kperf rg result --wait | tee "$(Agent.TempDirectory)/$(RUN_ID)-r200-result.json"; do
+        attempt=$((attempt + 1))
+        if [ "$attempt" -ge "$max_attempts" ]; then
+          echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
+          exit 1
+        fi
+        echo "attempt $attempt failed; retry in 10s" >&2
+        sleep 10
+      done
+    continueOnError: true
+    displayName: Wait for 200/sec runner group result
+    timeoutInMinutes: 15
+  - bash: |
+      set -euo pipefail
+      kubectl delete namespace "$(RUN_ID)-r200" \
+        --ignore-not-found=true \
+        --wait=true
+      echo "Namespace cleanup completed for 200/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    condition: not(canceled())
+    continueOnError: true
+    displayName: Delete namespace from 200/sec run
+    timeoutInMinutes: 15
+  - bash: |
+      set -euo pipefail
+      echo "Starting five-minute pause after 200/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      sleep 300
+      echo "Finished pause after 200/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
     condition: not(canceled())
     displayName: Pause 5 minutes after kperf run
     timeoutInMinutes: 6
