@@ -31,7 +31,6 @@ max_attempts=5
 until kperf rg result --wait | tee "${resultPath}"; do
   attempt=$((attempt + 1))
   if [ "$attempt" -ge "$max_attempts" ]; then
-    echo "kperf runner group result retrieval or output write failed after $attempt attempts" >&2
     exit 1
   fi
   echo "attempt $attempt failed; retry in 10s" >&2
