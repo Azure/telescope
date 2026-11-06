@@ -22,10 +22,13 @@ runkperf -v 3 bench \\
     }
 }
 
-FetchKperfRunnerGroupResult = lambda resultPath: str, displayName: str = "Fetch kperf runner group result", timeoutInMinutes: int = 15 -> steps.Step {
+# The initial delay shortens the port-forward connection while waiting for results.
+FetchKperfRunnerGroupResult = lambda resultPath: str, displayName: str = "Fetch kperf runner group result", initialDelaySeconds: int = 300, timeoutInMinutes: int = 15 -> steps.Step {
+    assert initialDelaySeconds >= 0, "initialDelaySeconds must be non-negative"
     steps.Bash {
         bash = """
 set -euo pipefail
+sleep ${initialDelaySeconds}
 attempt=0
 max_attempts=5
 until kperf rg result --wait | tee "${resultPath}"; do
