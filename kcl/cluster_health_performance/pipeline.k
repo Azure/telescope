@@ -166,8 +166,8 @@ fi
                 kperf.RunKperfDataIngest("cm", "kperf", s.name, total=s.count, qps=50, burst=50, size=s.size, groupSize=50, batchSize=s.count)
                 kperf.RunKperfRunnerGroup("ghcr.io/xinweiwei24/kperf:20260709-pause", "file://$(Pipeline.Workspace)/s/${s.manifest}", affinity="agentpool=runner")
                 kperf.FetchKperfRunnerGroupResult(
-                    "/tmp/kperf-result-${name}.json",
-                    displayName="Fetch kperf runner group result (${name})")
+                    displayName="Fetch kperf runner group result (${name})",
+                    resultPath="/tmp/kperf-result-${name}.json")
                 # Delete the namespace before the next scenario recreates it.
                 steps.Script {
                     displayName = "Cleanup scenario state (${name})"
