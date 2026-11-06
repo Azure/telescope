@@ -643,14 +643,14 @@ stages:
         set -x
 
         temp_dir=$(mktemp -p /tmp -d kperfinstall.XXXX)
-        docker rmi ghcr.io/azure/kperf:0.3.6 2>/dev/null || true
-        docker pull ghcr.io/azure/kperf:0.3.6
+        docker rmi ghcr.io/azure/kperf:0.3.7 2>/dev/null || true
+        docker pull ghcr.io/azure/kperf:0.3.7
         docker run --rm -v $temp_dir:/install-dir \
-          ghcr.io/azure/kperf:0.3.6 bash -c "set -x; install /kperf /runkperf /install-dir"
+          ghcr.io/azure/kperf:0.3.7 bash -c "set -x; install /kperf /runkperf /install-dir"
 
         sudo install $temp_dir/kperf $temp_dir/runkperf /usr/local/bin
         rm -rf $temp_dir
-        docker rmi ghcr.io/azure/kperf:0.3.6 2>/dev/null || true
+        docker rmi ghcr.io/azure/kperf:0.3.7 2>/dev/null || true
       displayName: Install runkperf binary
     - script: |
         set -euo pipefail
@@ -5244,14 +5244,14 @@ stages:
         set -x
 
         temp_dir=$(mktemp -p /tmp -d kperfinstall.XXXX)
-        docker rmi ghcr.io/azure/kperf:0.3.6 2>/dev/null || true
-        docker pull ghcr.io/azure/kperf:0.3.6
+        docker rmi ghcr.io/azure/kperf:0.3.7 2>/dev/null || true
+        docker pull ghcr.io/azure/kperf:0.3.7
         docker run --rm -v $temp_dir:/install-dir \
-          ghcr.io/azure/kperf:0.3.6 bash -c "set -x; install /kperf /runkperf /install-dir"
+          ghcr.io/azure/kperf:0.3.7 bash -c "set -x; install /kperf /runkperf /install-dir"
 
         sudo install $temp_dir/kperf $temp_dir/runkperf /usr/local/bin
         rm -rf $temp_dir
-        docker rmi ghcr.io/azure/kperf:0.3.6 2>/dev/null || true
+        docker rmi ghcr.io/azure/kperf:0.3.7 2>/dev/null || true
       displayName: Install runkperf binary
     - script: |
         set -euo pipefail
@@ -9845,14 +9845,14 @@ stages:
         set -x
 
         temp_dir=$(mktemp -p /tmp -d kperfinstall.XXXX)
-        docker rmi ghcr.io/azure/kperf:0.3.6 2>/dev/null || true
-        docker pull ghcr.io/azure/kperf:0.3.6
+        docker rmi ghcr.io/azure/kperf:0.3.7 2>/dev/null || true
+        docker pull ghcr.io/azure/kperf:0.3.7
         docker run --rm -v $temp_dir:/install-dir \
-          ghcr.io/azure/kperf:0.3.6 bash -c "set -x; install /kperf /runkperf /install-dir"
+          ghcr.io/azure/kperf:0.3.7 bash -c "set -x; install /kperf /runkperf /install-dir"
 
         sudo install $temp_dir/kperf $temp_dir/runkperf /usr/local/bin
         rm -rf $temp_dir
-        docker rmi ghcr.io/azure/kperf:0.3.6 2>/dev/null || true
+        docker rmi ghcr.io/azure/kperf:0.3.7 2>/dev/null || true
       displayName: Install runkperf binary
     - script: |
         set -euo pipefail

@@ -51,4 +51,7 @@ loadProfile:
             namespace: kperf
             deleteRatio: 0.4
             payloadSize: 10240
+            pod:
+              nodeSelector:
+                agentpool: userpool
           shares: 25

@@ -21,6 +21,9 @@ loadProfile:
             namespace: kperf
             deleteRatio: 0
             payloadSize: 1024
+            pod:
+              nodeSelector:
+                agentpool: userpool
           shares: 1
         - put:
             version: v1
