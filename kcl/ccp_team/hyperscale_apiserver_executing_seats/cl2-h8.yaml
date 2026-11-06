@@ -28,11 +28,8 @@ metadata:
   name: cl2
   namespace: clusterloader2
 spec:
-  # 6 is chosen mainly to generate enough load without runs taking too long — in
-  # practice it's already sufficient and doesn't cause CCP or cl2 errors. It keeps
-  # the control plane driven near saturation without the load drivers themselves
-  # becoming the bottleneck. Setting it to 8 would be a bit too much; the smaller
-  # tiers might also be slightly over, but not by much.
+  # Keep six load drivers, with one per runner node: two 32Gi requests exceed
+  # the allocatable memory of a Standard_D16dS_v4 node.
   completions: 6
   parallelism: 6
   backoffLimit: 0
@@ -51,7 +48,7 @@ spec:
         resources:
           requests:
             cpu: '6'
-            memory: '24Gi'
+            memory: '32Gi'
         volumeMounts:
         - mountPath: /override
           name: cl2-override

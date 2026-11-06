@@ -9,10 +9,9 @@ SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
 RESOURCE_GROUP = "$(RUN_ID)"
 LOCATION = "swedencentral"
 
-# cl2pool node count per tier. Each cl2 load-driver pod requests 6 CPU, so a
-# Standard_D16dS_v4 (16 vCPU) fits ~2 pods; sized to the tier's cl2 completions
-# (H2=2, H4=4, H8=6) so utilization stays consistent across tiers.
-CL2_NODE_COUNTS = {"H2": 1, "H4": 2, "H8": 3}
+# H2/H4 fit two CL2 drivers per Standard_D16dS_v4 node. H8 requests 32Gi per
+# driver, so provision one node per driver to provide more memory headroom.
+CL2_NODE_COUNTS = {"H2": 1, "H4": 2, "H8": 6}
 
 KWOK_POOL = azure.NodePool {
     name = "kwokpool"
