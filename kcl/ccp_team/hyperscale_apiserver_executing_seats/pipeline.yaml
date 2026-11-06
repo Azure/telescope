@@ -675,7 +675,7 @@ stages:
             --resource-group "$(RUN_ID)" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --name "cl2pool" \
-            --node-count 3 \
+            --node-count 6 \
             --node-vm-size "Standard_D16dS_v4" \
             --mode User \
             --node-taints cl2pool=true:NoSchedule
