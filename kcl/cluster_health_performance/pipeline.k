@@ -148,7 +148,7 @@ az aks create \\
             health.ValidateCsiNode(const.DEFAULT_SERVICE_CONNECTION, "azurefile-csi")
             health.ValidateClusterIPService(const.DEFAULT_SERVICE_CONNECTION)
             # Run kperf performance workloads.
-            kperf.InstallRunkperf("ghcr.io/azure/kperf:0.3.6")
+            kperf.InstallRunkperf("ghcr.io/azure/kperf:0.3.7")
             # Expand each scenario into setup, ingest, run, fetch, and cleanup steps.
             *[step for name, s in WORKLOADS for step in [
                 # preApply (scenario6): apply loggers, wait Ready.
