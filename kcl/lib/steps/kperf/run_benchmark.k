@@ -24,7 +24,7 @@ runkperf -v 3 bench \\
 
 # Tune initialDelaySeconds based on the known workload duration to minimise exposure
 # to network disruption while fetching results over a port-forward connection.
-FetchKperfRunnerGroupResult = lambda displayName: str = "Fetch kperf runner group result", resultPath: str = "", initialDelaySeconds: int = 300, timeoutInMinutes: int = 15 -> steps.Step {
+FetchKperfRunnerGroupResult = lambda displayName: str = "Fetch kperf runner group result", resultPath: str = "", initialDelaySeconds: int = 0, timeoutInMinutes: int = 15 -> steps.Step {
     assert initialDelaySeconds >= 0, "initialDelaySeconds must be non-negative"
     steps.Bash {
         bash = """
