@@ -22,6 +22,31 @@ runkperf -v 3 bench \\
     }
 }
 
+# Tune initialDelaySeconds based on the known workload duration to minimise exposure
+# to network disruption while fetching results over a port-forward connection.
+FetchKperfRunnerGroupResult = lambda displayName: str = "Fetch kperf runner group result", resultPath: str = "", initialDelaySeconds: int = 0, timeoutInMinutes: int = 15 -> steps.Step {
+    assert initialDelaySeconds >= 0, "initialDelaySeconds must be non-negative"
+    steps.Bash {
+        bash = """
+set -euo pipefail
+sleep ${initialDelaySeconds}
+attempt=0
+max_attempts=5
+until kperf rg result --wait${' | tee "' + resultPath + '"' if resultPath else ""}; do
+  attempt=$((attempt + 1))
+  if [ "$attempt" -ge "$max_attempts" ]; then
+    exit 1
+  fi
+  echo "attempt $attempt failed; retry in 10s" >&2
+  sleep 10
+done
+"""
+        displayName = displayName
+        continueOnError = True
+        timeoutInMinutes = timeoutInMinutes
+    }
+}
+
 # RunKperfRunnerGroup runs `kperf rg run` with the specified runner image, runner
 # group manifest, optional flow control setting, and optional affinity selector.
 RunKperfRunnerGroup = lambda runnerImage: str, runnerGroup: str, flowcontrol: str = "", affinity: str = "", target: str = Undefined -> steps.Step {
