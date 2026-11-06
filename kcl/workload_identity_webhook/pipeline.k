@@ -96,7 +96,6 @@ output = ap.Pipeline {
             job = "benchmark"
             displayName = "Baseline Run: 100/150/200/250 RPS"
             timeoutInMinutes = 240
-            # Allow bounded cleanup and recovery during cancellation.
             cancelTimeoutInMinutes = 25
             variables = {
                 RESOURCE_GROUP = "$(RUN_ID)"

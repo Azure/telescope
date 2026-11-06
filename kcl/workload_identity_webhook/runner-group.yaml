@@ -24,4 +24,6 @@ loadProfile:
                 azure.workload.identity/use: "true"
                 benchmark-run: "__PHASE_RUN_ID__"
               serviceAccountName: pod-benchmark
+              # No scheduler handles this name: Pods undergo admission but remain
+              # unscheduled, excluding node placement and container startup work.
               schedulerName: kperf-admission-only
