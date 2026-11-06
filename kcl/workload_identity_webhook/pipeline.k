@@ -9,8 +9,7 @@ import lib.util.asi_dashboard
 
 SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
 LOCATION = "australiaeast"
-# TODO: Replace the user-selected PR image with a published upstream release.
-RUNNER_IMAGE = "ghcr.io/liyu-ma/kperf@sha256:36f8e1cdbb6a4bd2fde4b29bf0cb5e4e014484ae9ddca9136f43449897ffb647"
+RUNNER_IMAGE = "ghcr.io/azure/kperf:0.3.7"
 RATES = [100, 150, 200, 250]
 
 RunBenchmark = lambda rate: int -> [steps.Step] {
@@ -51,7 +50,6 @@ fi
             affinity="agentpool=runner",
             displayName="Run kperf runner group at ${rate} CREATEs/sec"),
         kperf.FetchKperfRunnerGroupResult(
-            resultPath="$(Agent.TempDirectory)/$(RUN_ID)-r${rate}-result.json",
             displayName="Wait for ${rate}/sec runner group result"),
         steps.Bash {
             bash = """
