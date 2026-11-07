@@ -207,8 +207,8 @@ data:
     - name: default
       globalQPSLoad:
         qps: {{$defaultQps}}
-        # Six drivers provide 31,998 burst actions, approximately matching H4's 32,000.
-        burst: 5333
+        # Six drivers provide 30,000 burst actions, below H4's 32,000.
+        burst: 5000
     - name: RandomizedSaturationTimeLimited
       RandomizedTimeLimitedLoad:
         timeLimit: {{$saturationTime}}s
