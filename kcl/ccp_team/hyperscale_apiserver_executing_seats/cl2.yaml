@@ -19,7 +19,9 @@ data:
     CL2_EXIT_AFTER_EXEC: true
     CL2_ENABLE_PVS: false
     CL2_ENABLE_CLUSTER_OOMS_TRACKER: false
-    CL2_DEFAULT_QPS: 4000
+    # Test a 25% lower sustained action rate (18,000/s across six drivers)
+    # while holding the burst and workload size unchanged.
+    CL2_DEFAULT_QPS: 3000
     CL2_RUN_ON_ARM_NODES: true
 ---
 apiVersion: batch/v1
