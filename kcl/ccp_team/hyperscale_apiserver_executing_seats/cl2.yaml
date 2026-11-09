@@ -19,8 +19,7 @@ data:
     CL2_EXIT_AFTER_EXEC: true
     CL2_ENABLE_PVS: false
     CL2_ENABLE_CLUSTER_OOMS_TRACKER: false
-    # Test a 25% lower sustained action rate (18,000/s across six drivers)
-    # while holding the burst and workload size unchanged.
+    # Hold the sustained action rate fixed while testing a smaller burst.
     CL2_DEFAULT_QPS: 3000
     CL2_RUN_ON_ARM_NODES: true
 ---
@@ -209,8 +208,8 @@ data:
     - name: default
       globalQPSLoad:
         qps: {{$defaultQps}}
-        # Six drivers provide 27,000 burst actions, below H4's 32,000.
-        burst: 4500
+        # Reduce aggregate burst capacity to 18,000 actions across six drivers.
+        burst: 3000
     - name: RandomizedSaturationTimeLimited
       RandomizedTimeLimitedLoad:
         timeLimit: {{$saturationTime}}s
