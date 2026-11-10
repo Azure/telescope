@@ -19,8 +19,8 @@ data:
     CL2_EXIT_AFTER_EXEC: true
     CL2_ENABLE_PVS: false
     CL2_ENABLE_CLUSTER_OOMS_TRACKER: false
-    # Hold the sustained action rate fixed while testing a smaller burst.
-    CL2_DEFAULT_QPS: 3000
+    # Test lower sustained and burst action rates without changing workload size.
+    CL2_DEFAULT_QPS: 2000
     CL2_RUN_ON_ARM_NODES: true
 ---
 apiVersion: batch/v1
@@ -208,8 +208,8 @@ data:
     - name: default
       globalQPSLoad:
         qps: {{$defaultQps}}
-        # Reduce aggregate burst capacity to 18,000 actions across six drivers.
-        burst: 3000
+        # Reduce aggregate burst capacity to 12,000 actions across six drivers.
+        burst: 2000
     - name: RandomizedSaturationTimeLimited
       RandomizedTimeLimitedLoad:
         timeLimit: {{$saturationTime}}s
