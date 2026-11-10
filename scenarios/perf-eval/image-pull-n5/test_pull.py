@@ -68,6 +68,10 @@ class TestCoordinator(unittest.TestCase):
         self.fail_command = None
         self.pods = []
         self.selected = None
+        self.secret_targets = {}
+        self.manifest = MANIFEST
+        self.redirect_accounts = ["dfauereplica3"]
+        self.redirect_index = 0
         self.failed_index = 0
         self.ready_after_seconds = 0
         self.resolution_delay = 0
@@ -99,12 +103,14 @@ class TestCoordinator(unittest.TestCase):
             self.assertTrue(request.get_header("Authorization").startswith("Basic "))
             return Response(json.dumps({"access_token": "private-token"}).encode())
         if "/manifests/" in request.full_url:
-            return Response(MANIFEST if self.mode != "wrong-manifest" else b"bad-manifest")
+            return Response(self.manifest if self.mode != "wrong-manifest" else b"bad-manifest")
         if "/blobs/" in request.full_url:
             self.sleep(self.resolution_delay)
             if self.mode == "proxy":
                 return Response()
-            url = target()["url"]
+            account = self.redirect_accounts[min(self.redirect_index, len(self.redirect_accounts) - 1)]
+            self.redirect_index += 1
+            url = target()["url"].replace("dfauereplica3", account)
             if self.mode == "wrong-redirect":
                 url = url.replace("dfauereplica3.blob.core.windows.net", "other.example")
             raise urllib.error.HTTPError(request.full_url, 307, "redirect", {"Location": url}, None)
@@ -129,6 +135,7 @@ class TestCoordinator(unittest.TestCase):
             output = {}
             if payload["kind"] == "Secret":
                 self.selected = json.loads(payload["stringData"]["target.json"]) or None
+                self.secret_targets[payload["metadata"]["name"]] = self.selected
             if payload["kind"] == "List":
                 self.assertTrue(any(args[:2] == ["create", "serviceaccount"] for args, _ in self.calls))
                 self.pods = payload["items"]
@@ -150,6 +157,7 @@ class TestCoordinator(unittest.TestCase):
                     self.complete_downloads()
         elif arguments == ["replace", "-f", "-"]:
             self.selected = json.loads(payload["stringData"]["target.json"])
+            self.secret_targets[payload["metadata"]["name"]] = self.selected
             self.complete_downloads()
             output = {}
         elif arguments[:2] == ["get", "pods"]:
@@ -160,19 +168,21 @@ class TestCoordinator(unittest.TestCase):
             output = {"items": self.pods}
         elif arguments[0] == "logs":
             pod_name = arguments[3]
+            selected = self.target_for_pod(next(pod for pod in self.pods if pod["metadata"]["name"] == pod_name))
             if self.mode == "failure" and pod_name == f"pull-{self.failed_index + 1}":
                 output = {"status": "failure", "error": "Storage SAS expires before the download window finishes"}
             else:
                 output = {
                     "status": "success",
-                    "storage_account": self.selected["account"],
-                    "blob_digest": self.selected["digest"],
-                    "downloaded_bytes": download.LAYER_BYTES,
-                    "started_at": download.utc(self.selected["start"] + 1),
-                    "finished_at": download.utc(self.selected["start"] + 3),
+                    "storage_account": selected["account"],
+                    "storage_role": selected.get("storage_role", "replica"),
+                    "blob_digest": selected["digest"],
+                    "downloaded_bytes": selected["size"],
+                    "started_at": download.utc(selected["start"] + 1),
+                    "finished_at": download.utc(selected["start"] + 3),
                     "duration_seconds": 2,
-                    "window_start": download.utc(self.selected["start"]),
-                    "window_end": download.utc(self.selected["end"]),
+                    "window_start": download.utc(selected["start"]),
+                    "window_end": download.utc(selected["end"]),
                     "client_request_id": "client-" + pod_name,
                     "storage_request_id": "storage-" + pod_name,
                 }
@@ -183,9 +193,11 @@ class TestCoordinator(unittest.TestCase):
                 elif self.mode == "short-download":
                     output["downloaded_bytes"] -= 1
                 elif self.mode == "late":
-                    output["finished_at"] = download.utc(self.selected["end"])
+                    output["finished_at"] = download.utc(selected["end"])
                 elif self.mode == "duplicate-request":
                     output["storage_request_id"] = "same-request"
+                elif self.mode == "duplicate-client":
+                    output["client_request_id"] = "same-client"
                 elif self.mode == "bad-json":
                     return subprocess.CompletedProcess(command, 0, "invalid-json", "")
         elif arguments[:2] == ["delete", "namespace"]:
@@ -194,9 +206,15 @@ class TestCoordinator(unittest.TestCase):
             self.fail(f"Unexpected command: {arguments}")
         return subprocess.CompletedProcess(command, 0, json.dumps(output), "")
 
+    def target_for_pod(self, pod):
+        secret = pod["spec"]["volumes"][0]["secret"]["secretName"]
+        return self.secret_targets[secret]
+
     def complete_downloads(self):
-        self.sleep(self.selected["start"] + 3 - self.epoch)
+        self.sleep(max(0, self.selected["start"] + 3 - self.epoch))
         for pod in self.pods:
+            if not self.target_for_pod(pod):
+                continue
             pod["status"]["phase"] = "Succeeded"
             pod["status"]["containerStatuses"][0]["state"] = {"terminated": {"exitCode": 0}}
         if self.mode == "pending":
@@ -208,10 +226,10 @@ class TestCoordinator(unittest.TestCase):
         if self.mode == "unexpected-pod":
             self.pods.append({**self.pods[0], "metadata": {"name": "unexpected"}})
 
-    def execute(self):
+    def execute(self, **kwargs):
         stdout, stderr = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
-            code = pull.run(self.args)
+            code = pull.run(self.args, **kwargs)
         report = json.loads(self.result_file.read_text(encoding="utf-8"))
         text = stdout.getvalue() + stderr.getvalue() + self.result_file.read_text()
         for secret in ("secret-value", "PRIVATE-SAS", "private-token"):
@@ -637,6 +655,11 @@ class StreamingResponse:
         self.remaining -= length
         return b"x" * length
 
+    def readinto(self, buffer):
+        data = self.read(len(buffer))
+        buffer[:len(data)] = data
+        return len(data)
+
 
 class TestDownloadWorker(unittest.TestCase):
     @classmethod
@@ -645,6 +668,8 @@ class TestDownloadWorker(unittest.TestCase):
         for _ in range(1024):
             digest.update(b"x" * (1024 * 1024))
         cls.digest = "sha256:" + digest.hexdigest()
+        digest.update(b"x" * (1073834596 - download.LAYER_BYTES))
+        cls.fresh_size_digest = "sha256:" + digest.hexdigest()
 
     def setUp(self):
         self.target = target(self.digest)
@@ -705,6 +730,86 @@ class TestDownloadWorker(unittest.TestCase):
         self.assertEqual(result["downloaded_bytes"], download.LAYER_BYTES)
         opened.assert_called_once()
         sleep.assert_not_called()
+
+    def test_download_reuses_one_buffer_and_reports_costs(self):
+        buffers = set()
+        response = StreamingResponse(download.LAYER_BYTES)
+        original = response.readinto
+
+        def receive(buffer):
+            buffers.add(id(buffer))
+            return original(buffer)
+
+        response.readinto = receive
+        with patch("urllib.request.OpenerDirector.open", return_value=response):
+            result = download.download(self.target)
+        self.assertEqual(len(buffers), 1)
+        for field in ("time_to_headers_seconds", "cpu_seconds", "hashing_seconds"):
+            self.assertGreaterEqual(result[field], 0)
+        self.assertEqual(result["downloaded_bytes"], download.LAYER_BYTES)
+
+    def test_cancelled_download_never_opens_storage_connection(self):
+        import threading
+        cancel = threading.Event()
+        cancel.set()
+        with patch("urllib.request.OpenerDirector.open") as opened:
+            with self.assertRaisesRegex(download.DownloadError, "cancelled"):
+                download.download(self.target, cancel_event=cancel)
+        opened.assert_not_called()
+
+    def test_cancelled_stream_stops_before_next_receive(self):
+        import threading
+        cancel = threading.Event()
+        response = StreamingResponse(download.LAYER_BYTES)
+        original = response.readinto
+        calls = []
+
+        def receive(buffer):
+            calls.append(1)
+            count = original(buffer)
+            cancel.set()
+            return count
+
+        response.readinto = receive
+        with patch("urllib.request.OpenerDirector.open", return_value=response):
+            with self.assertRaisesRegex(download.DownloadError, "cancelled"):
+                download.download(self.target, cancel_event=cancel)
+        self.assertEqual(len(calls), 1)
+
+    def test_streams_actual_fresh_layer_size_in_one_get(self):
+        size = 1073834596
+        selected = {**self.target, "size": size, "digest": self.fresh_size_digest}
+        selected["url"] = selected["url"].replace(self.digest[7:], self.fresh_size_digest[7:])
+        selected["url"] = selected["url"].replace(
+            f"/sha256/{self.digest[7:9]}/", f"/sha256/{self.fresh_size_digest[7:9]}/",
+        )
+        response = StreamingResponse(size)
+        response.headers["Content-Length"] = str(size)
+        with patch("urllib.request.OpenerDirector.open", return_value=response) as opened:
+            result = download.download(selected)
+        self.assertEqual(result["downloaded_bytes"], size)
+        self.assertEqual(result["blob_digest"], self.fresh_size_digest)
+        opened.assert_called_once()
+
+    def test_primary_worker_streams_one_get_with_explicit_primary_identity(self):
+        from test_primary import primary_bundle
+        bundle = primary_bundle(digest=self.digest)
+        selected = pull.resolve_primary_target(IMAGE, bundle)
+        response = StreamingResponse(download.LAYER_BYTES)
+        self.epoch = selected["start"]
+        with patch("urllib.request.OpenerDirector.open", return_value=response) as opened:
+            result = download.download(selected)
+        self.assertEqual(result["storage_account"], "dfauemanaged1")
+        self.assertEqual(result["storage_role"], "primary")
+        self.assertEqual(result["downloaded_bytes"], download.LAYER_BYTES)
+        opened.assert_called_once()
+
+    def test_layer_size_must_be_an_integer_at_least_one_gib(self):
+        for size in (None, "1073741824", True, 0, -1, download.LAYER_BYTES - 1):
+            with self.subTest(size=size), self.assertRaises(download.DownloadError):
+                download.validate_layer_size(size)
+        download.validate_layer_size(download.LAYER_BYTES)
+        download.validate_layer_size(1073834596)
 
     def test_immediate_mode_still_rejects_invalid_deadlines_and_expired_sas(self):
         self.target.update(start_mode="immediate", start=BASE_TIME + 121, end=BASE_TIME + 421)

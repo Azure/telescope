@@ -7,11 +7,40 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
 import unittest
 from unittest.mock import patch
+
+
+class TestSavedTarget(unittest.TestCase):
+    def test_local_pipeline_and_documentation_share_the_pinned_image(self):
+        scenario = Path(__file__).resolve().parent
+        launcher = (scenario / "run-local.ps1").read_text(encoding="utf-8")
+        pipeline = (scenario.parents[2] / "pipelines" / "system" / "new-pipeline-test.yml").read_text(encoding="utf-8")
+        local_image = re.search(r'\[string\]\$Image\s*=\s*"([^"]+)"', launcher)
+        pipeline_image = re.search(r"^\s*test_image:\s*(\S+)\s*$", pipeline, re.MULTILINE)
+        self.assertIsNotNone(local_image)
+        self.assertIsNotNone(pipeline_image)
+        image = local_image.group(1)
+        self.assertRegex(image, r"^test1gb@sha256:[0-9a-f]{64}$")
+        self.assertEqual(
+            image,
+            "test1gb@sha256:06d20fd1e468005b0fb1b4d3fce678e75f7ec5d9d76e635d335da9d440be25db",
+        )
+        self.assertEqual(image, pipeline_image.group(1))
+        self.assertIn(image, (scenario / "README.md").read_text(encoding="utf-8"))
+
+    def test_launchers_do_not_embed_passwords(self):
+        scenario = Path(__file__).resolve().parent
+        launcher = (scenario / "run-local.ps1").read_text(encoding="utf-8")
+        self.assertIn("[string]$Password = $env:ACR_PULL_PASSWORD", launcher)
+        self.assertNotRegex(launcher, r'\[string\]\$Password\s*=\s*"[^"]+"')
+        warm = (scenario / "run-local-warm-traffic.ps1").read_text(encoding="utf-8")
+        self.assertIn('@PSBoundParameters -WarmTraffic', warm)
+        self.assertNotIn("sha256:", warm)
 
 
 @unittest.skipUnless(sys.platform == "linux", "The local launcher runs inside WSL Linux")
@@ -32,7 +61,11 @@ class TestLocalLauncher(unittest.TestCase):
         self.args = argparse.Namespace(
             registry="registry.azurecr.io", image="image@sha256:" + "a" * 64,
             username="reader", setup_only=False, password_stdin=True, start_immediately=True,
-            two_batches=False, pull_count=5,
+            two_batches=False, pull_count=5, warm_traffic=False,
+            primary_target_stdin=False,
+            direct=False,
+            scale_in_threshold_bytes=4 * 1073741824,
+            scale_out_threshold_bytes=5 * 1073741824,
         )
 
     def test_dedicated_context_restored_and_parallel_runs_blocked(self):
@@ -129,6 +162,156 @@ class TestLocalLauncher(unittest.TestCase):
             with self.assertRaisesRegex(self.launcher.DownloadError, "five downloads per batch"):
                 self.launcher.execute(self.args)
         prepare.assert_not_called()
+
+    def test_warm_mode_dispatches_six_downloads_with_thresholds(self):
+        self.args.warm_traffic = True
+        with patch.object(self.launcher, "prepare_cluster", return_value="local-node"):
+            with patch.object(self.launcher, "command", return_value=""):
+                with patch.object(self.launcher.pull, "run", return_value=0) as run:
+                    with patch("sys.stdin", io.StringIO("synthetic-password\n")):
+                        with contextlib.redirect_stdout(io.StringIO()):
+                            self.assertEqual(self.launcher.execute(self.args), 0)
+        self.assertEqual(run.call_args.kwargs, {
+            "node_count": 1, "region": "local", "registry_resource_group": None,
+            "start_immediately": True, "pull_count": 6, "warm_traffic": True,
+            "scale_in_threshold_bytes": 4294967296, "scale_out_threshold_bytes": 5368709120,
+        })
+
+    def test_primary_dispatch_uses_bundle_without_registry_credentials(self):
+        self.args.primary_target_stdin = True
+        self.args.password_stdin = False
+        self.args.username = ""
+        bundle = {"image": "synthetic-image", "url": "https://example.test/?sig=PRIVATE"}
+        output = io.StringIO()
+        with patch.object(self.launcher, "prepare_cluster", return_value="local-node"):
+            with patch.object(self.launcher, "command", return_value=""):
+                with patch.object(self.launcher.pull, "run", return_value=0) as run:
+                    with patch("sys.stdin", io.StringIO(json.dumps(bundle) + "\n")):
+                        with patch.object(self.launcher.getpass, "getpass") as prompt:
+                            with contextlib.redirect_stdout(output):
+                                self.assertEqual(self.launcher.execute(self.args), 0)
+        self.assertEqual(run.call_args.kwargs["primary_bundle"], bundle)
+        self.assertEqual(run.call_args.kwargs["pull_count"], 5)
+        prompt.assert_not_called()
+        self.assertNotIn("PRIVATE", output.getvalue())
+
+    def test_primary_setup_needs_neither_target_nor_credentials(self):
+        self.args.primary_target_stdin = True
+        self.args.password_stdin = False
+        self.args.setup_only = True
+        with patch.object(self.launcher, "prepare_cluster", return_value="local-node"):
+            with patch.object(self.launcher, "check_workers") as check:
+                with patch("sys.stdin", io.StringIO("")):
+                    self.assertEqual(self.launcher.execute(self.args), 0)
+        check.assert_called_once_with("local-node", pull_count=5)
+
+    def test_primary_rejects_conflicting_modes_before_setup(self):
+        self.args.primary_target_stdin = True
+        self.args.password_stdin = False
+        for field in ("two_batches", "warm_traffic", "password_stdin"):
+            with self.subTest(field=field):
+                setattr(self.args, field, True)
+                with patch.object(self.launcher, "prepare_cluster") as prepare:
+                    with self.assertRaisesRegex(self.launcher.DownloadError, "Primary mode cannot"):
+                        self.launcher.execute(self.args)
+                prepare.assert_not_called()
+                setattr(self.args, field, False)
+
+    def test_primary_cli_accepts_no_registry_username(self):
+        arguments = [
+            "local.py", "--registry", self.args.registry, "--image", self.args.image,
+            "--primary-target-stdin",
+        ]
+        with patch("sys.argv", arguments), patch.object(self.launcher, "execute", return_value=0) as execute:
+            self.assertEqual(self.launcher.main(), 0)
+        self.assertTrue(execute.call_args.args[0].primary_target_stdin)
+        self.assertEqual(execute.call_args.args[0].username, "")
+
+    def test_direct_mode_skips_cluster_and_namespace_operations(self):
+        self.args.direct = True
+        with patch.object(self.launcher, "prepare_cluster") as prepare:
+            with patch.object(self.launcher, "command") as command:
+                with patch.object(self.launcher.direct, "run", return_value=0) as run:
+                    with patch("sys.stdin", io.StringIO("temporary-password\n")):
+                        with contextlib.redirect_stdout(io.StringIO()):
+                            self.assertEqual(self.launcher.execute(self.args), 0)
+        prepare.assert_not_called()
+        command.assert_not_called()
+        self.assertEqual(run.call_args.kwargs["pull_count"], 5)
+        self.assertTrue(run.call_args.kwargs["start_immediately"])
+
+    def test_direct_setup_is_local_only(self):
+        self.args.direct = True
+        self.args.setup_only = True
+        with patch.object(self.launcher, "prepare_cluster") as prepare:
+            with patch.object(self.launcher, "command") as command:
+                with patch.object(self.launcher.direct, "run") as run:
+                    with contextlib.redirect_stdout(io.StringIO()):
+                        self.assertEqual(self.launcher.execute(self.args), 0)
+        prepare.assert_not_called()
+        command.assert_not_called()
+        run.assert_not_called()
+
+    def test_direct_two_batch_mode_is_rejected_before_setup(self):
+        self.args.direct = True
+        self.args.two_batches = True
+        with patch.object(self.launcher, "prepare_cluster") as prepare:
+            with self.assertRaisesRegex(self.launcher.DownloadError, "one batch"):
+                self.launcher.execute(self.args)
+        prepare.assert_not_called()
+
+    def test_direct_cli_flag_is_forwarded(self):
+        arguments = [
+            "local.py", "--registry", self.args.registry, "--image", self.args.image,
+            "--username", self.args.username, "--direct",
+        ]
+        with patch("sys.argv", arguments), patch.object(self.launcher, "execute", return_value=0) as execute:
+            self.assertEqual(self.launcher.main(), 0)
+        self.assertTrue(execute.call_args.args[0].direct)
+
+    def test_replica_cli_still_requires_username(self):
+        arguments = ["local.py", "--registry", self.args.registry, "--image", self.args.image]
+        with patch("sys.argv", arguments), contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit) as error:
+                self.launcher.main()
+        self.assertEqual(error.exception.code, 2)
+
+    def test_warm_setup_only_checks_six_workers_without_credentials(self):
+        self.args.warm_traffic = True
+        self.args.setup_only = True
+        with patch.object(self.launcher, "prepare_cluster", return_value="local-node"):
+            with patch.object(self.launcher, "check_workers") as check:
+                with patch.object(self.launcher.pull, "run") as run:
+                    with patch.object(self.launcher.getpass, "getpass") as prompt:
+                        self.assertEqual(self.launcher.execute(self.args), 0)
+        check.assert_called_once_with("local-node", pull_count=6)
+        run.assert_not_called()
+        prompt.assert_not_called()
+
+    def test_warm_mode_rejects_conflicting_workloads_before_setup(self):
+        self.args.warm_traffic = True
+        for two_batches, count in ((True, 5), (False, 4)):
+            with self.subTest(two_batches=two_batches, count=count):
+                self.args.two_batches = two_batches
+                self.args.pull_count = count
+                with patch.object(self.launcher, "prepare_cluster") as prepare:
+                    with self.assertRaisesRegex(self.launcher.DownloadError, "three-plus-three"):
+                        self.launcher.execute(self.args)
+                prepare.assert_not_called()
+
+    def test_warm_cli_accepts_explicit_thresholds(self):
+        arguments = [
+            "local.py", "--registry", self.args.registry, "--image", self.args.image,
+            "--username", self.args.username, "--warm-traffic",
+            "--scale-in-threshold-bytes", "4294967296",
+            "--scale-out-threshold-bytes", "5368709120",
+        ]
+        with patch("sys.argv", arguments), patch.object(self.launcher, "execute", return_value=0) as execute:
+            self.assertEqual(self.launcher.main(), 0)
+        args = execute.call_args.args[0]
+        self.assertTrue(args.warm_traffic)
+        self.assertEqual(args.scale_in_threshold_bytes, 4294967296)
+        self.assertEqual(args.scale_out_threshold_bytes, 5368709120)
 
     def test_three_downloads_are_rejected_before_cluster_setup(self):
         self.args.pull_count = 3

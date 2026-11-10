@@ -16,6 +16,7 @@ import time
 import uuid
 
 import pull
+import direct
 from download import DownloadError, error_message
 
 
@@ -226,19 +227,35 @@ def execute(args):
         raise DownloadError("Expected four or five downloads")
     if args.two_batches and args.pull_count != pull.PULL_COUNT:
         raise DownloadError("Two-batch mode requires five downloads per batch")
+    if args.warm_traffic and (args.two_batches or args.pull_count != pull.PULL_COUNT):
+        raise DownloadError("Warm-traffic mode requires its own fixed three-plus-three workload")
+    if args.primary_target_stdin and (args.warm_traffic or args.two_batches or args.password_stdin):
+        raise DownloadError("Primary mode cannot be combined with warm traffic, two batches, or password stdin")
+    if args.direct and args.two_batches:
+        raise DownloadError("Direct mode supports one batch per run")
+    pull_count = pull.WARM_PULL_COUNT if args.warm_traffic else args.pull_count
     image = f"{args.registry}/{args.image}"
     pull.parse_image(image)
     with local_context():
-        node = prepare_cluster()
+        node = None if args.direct else prepare_cluster()
         if args.setup_only:
-            check_workers(node, pull_count=args.pull_count)
+            if args.direct:
+                print(f"Ready: direct WSL mode for {pull_count} workers; no registry requests or downloads started.")
+            else:
+                check_workers(node, pull_count=pull_count)
             return 0
         # A stale namespace is never deleted automatically; it may own an unfinished run.
-        for namespace in (pull.NAMESPACE, *BATCH_NAMESPACES):
+        for namespace in () if args.direct else (pull.NAMESPACE, *BATCH_NAMESPACES):
             existing = command("kubectl", "get", "namespace", namespace, "--ignore-not-found", "-o", "name").strip()
             if existing:
                 raise DownloadError(f"Namespace {namespace} already exists. Inspect it before deleting or retrying.")
-        if args.password_stdin:
+        primary_bundle = None
+        if args.primary_target_stdin:
+            primary_bundle = json.loads(sys.stdin.readline())
+            if not isinstance(primary_bundle, dict):
+                raise DownloadError("Primary stdin must contain a JSON object")
+            password = ""
+        elif args.password_stdin:
             password = sys.stdin.readline().rstrip("\r\n")
         else:
             password = os.environ.get("ACR_PULL_PASSWORD", "")
@@ -246,7 +263,7 @@ def execute(args):
                 if not sys.stdin.isatty():
                     raise DownloadError("Use an interactive terminal, ACR_PULL_PASSWORD, or --password-stdin")
                 password = getpass.getpass(f"Pull password/token for {args.username} at {args.registry}: ")
-        if not password or password.startswith("$("):
+        if not args.primary_target_stdin and (not password or password.startswith("$(")):
             raise DownloadError("A registry pull password/token is required")
         run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
         result_file = STATE / "results" / f"{run_id}.json"
@@ -258,18 +275,51 @@ def execute(args):
         os.environ["ACR_PULL_USERNAME"] = args.username
         os.environ["ACR_PULL_PASSWORD"] = password
         if args.two_batches:
-            print(f"Starting two batches of five one-GiB layer downloads: {image}", flush=True)
+            print(f"Starting two batches of five complete layer downloads: {image}", flush=True)
             print("Batch 2 launches 60 seconds after batch 1, without waiting for it to finish.", flush=True)
-        else:
-            print(f"Starting {args.pull_count} one-GiB layer downloads: {image}", flush=True)
+        elif args.primary_target_stdin:
+            print(f"Starting {pull_count} verified primary-only layer downloads: {image}", flush=True)
             print(f"Result file: {result_file}", flush=True)
-        if args.start_immediately or args.two_batches:
+        elif args.warm_traffic:
+            print(f"Starting three complete layer downloads from each of two distinct accounts: {image}", flush=True)
+            print(
+                f"Required deployed thresholds: scale-in={args.scale_in_threshold_bytes} bytes; "
+                f"scale-out={args.scale_out_threshold_bytes} bytes. Server settings are not changed or verified.",
+                flush=True,
+            )
+            print(f"Result file: {result_file}", flush=True)
+        else:
+            print(f"Starting {pull_count} complete layer downloads: {image}", flush=True)
+            print(f"Result file: {result_file}", flush=True)
+        if args.direct:
+            print("Direct WSL backend: no Kubernetes Pods, CNI, or container runtime in the download path.", flush=True)
+        elif args.start_immediately or args.two_batches:
             print("Each Pod starts downloading as soon as it starts; no aligned-window wait.", flush=True)
         else:
             print("The workers wait for a common five-minute window. Do not start another run.", flush=True)
         try:
-            if args.two_batches:
+            if args.direct:
+                status = direct.run(
+                    run_args, start_immediately=args.start_immediately, pull_count=pull_count,
+                    primary_bundle=primary_bundle, warm_traffic=args.warm_traffic,
+                    scale_in_threshold_bytes=args.scale_in_threshold_bytes,
+                    scale_out_threshold_bytes=args.scale_out_threshold_bytes,
+                )
+            elif args.two_batches:
                 status = run_two_batches(image, run_id)
+            elif args.primary_target_stdin:
+                status = pull.run(
+                    run_args, node_count=1, region="local", registry_resource_group=None,
+                    start_immediately=args.start_immediately, pull_count=pull_count,
+                    primary_bundle=primary_bundle,
+                )
+            elif args.warm_traffic:
+                status = pull.run(
+                    run_args, node_count=1, region="local", registry_resource_group=None,
+                    start_immediately=args.start_immediately, pull_count=pull_count,
+                    warm_traffic=True, scale_in_threshold_bytes=args.scale_in_threshold_bytes,
+                    scale_out_threshold_bytes=args.scale_out_threshold_bytes,
+                )
             else:
                 status = pull.run(
                     run_args, node_count=1, region="local", registry_resource_group=None,
@@ -281,7 +331,8 @@ def execute(args):
                     os.environ.pop(key, None)
                 else:
                     os.environ[key] = value
-        for namespace in BATCH_NAMESPACES if args.two_batches else (pull.NAMESPACE,):
+        namespaces = () if args.direct else (BATCH_NAMESPACES if args.two_batches else (pull.NAMESPACE,))
+        for namespace in namespaces:
             remaining = command("kubectl", "get", "namespace", namespace, "--ignore-not-found", "-o", "name").strip()
             if remaining:
                 command("kubectl", "wait", "--for=delete", f"namespace/{namespace}", "--timeout=120s")
@@ -293,14 +344,22 @@ def execute(args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--registry", required=True, help="ACR hostname without https://")
-    parser.add_argument("--image", required=True, help="Repository@sha256:digest; exactly one one-GiB layer")
-    parser.add_argument("--username", required=True)
+    parser.add_argument("--image", required=True, help="Repository@sha256:digest; one layer of at least one GiB")
+    parser.add_argument("--username", default="")
+    parser.add_argument("--primary-target-stdin", action="store_true",
+                        help="Read a verified primary location and read-only SAS from stdin; no registry password")
+    parser.add_argument("--direct", action="store_true", help="Download on the WSL host without kind/Kubernetes")
     parser.add_argument("--setup-only", action="store_true", help="Verify the requested number of Ready Pods without registry traffic")
     parser.add_argument("--password-stdin", action="store_true", help="Read the password from stdin, never an argument")
     parser.add_argument("--start-immediately", action="store_true", help="Publish the target before creating Pods; do not wait for an aligned window")
     parser.add_argument("--two-batches", action="store_true", help="Launch five immediate downloads, then another five after 60 seconds")
+    parser.add_argument("--warm-traffic", action="store_true", help="Three downloads from each of two distinct replica accounts (SI-03)")
+    parser.add_argument("--scale-in-threshold-bytes", type=int, default=pull.DEFAULT_SCALE_IN_THRESHOLD_BYTES)
+    parser.add_argument("--scale-out-threshold-bytes", type=int, default=pull.DEFAULT_SCALE_OUT_THRESHOLD_BYTES)
     parser.add_argument("--pull-count", type=int, choices=pull.SUPPORTED_PULL_COUNTS, default=pull.PULL_COUNT, help="Downloads per single-batch run (4 or 5; default: 5)")
     args = parser.parse_args()
+    if not args.primary_target_stdin and not args.username:
+        parser.error("--username is required for registry-selected replica downloads")
     try:
         return execute(args)
     except (OSError, ValueError, KeyError, DownloadError, subprocess.SubprocessError) as error:

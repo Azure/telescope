@@ -18,6 +18,7 @@ import uuid
 WINDOW_SECONDS = 300
 LAYER_BYTES = 1073741824
 WORKER_TIMEOUT_SECONDS = 1200
+READ_BUFFER_BYTES = 1024 * 1024
 
 
 class DownloadError(RuntimeError):
@@ -37,7 +38,35 @@ def utc(timestamp):
     return datetime.fromtimestamp(timestamp, timezone.utc).isoformat()
 
 
-def storage_account(url, digest):
+def primary_location(location, digest):
+    if (
+        not isinstance(location, dict)
+        or location.get("PrimaryCopy") is not True
+        or location.get("IsElasticCopy", False) is not False
+        or location.get("Status") not in (None, "", "Active")
+    ):
+        raise DownloadError("Expected an active PrimaryCopy=true, non-elastic BlobLocation row")
+    account = location.get("StorageAccountName", "")
+    container = location.get("StorageContainerName", "")
+    if not isinstance(account, str) or not re.fullmatch(r"[a-z0-9]{3,24}", account):
+        raise DownloadError("Primary storage account is invalid")
+    if (
+        not isinstance(container, str)
+        or not re.fullmatch(r"[a-z0-9][a-z0-9-]{1,61}[a-z0-9]", container)
+        or "--" in container
+    ):
+        raise DownloadError("Primary storage container is invalid")
+    partition = location.get("PartitionKey", "")
+    if (
+        not isinstance(partition, str)
+        or not re.fullmatch(re.escape(digest.removeprefix("sha256:")) + r"&[0-9a-f]{32}", partition)
+        or location.get("RowKey") != f"{account}&{container}"
+    ):
+        raise DownloadError("Primary BlobLocation keys do not match the layer or location")
+    return account, container
+
+
+def storage_account(url, digest, *, primary=None):
     parsed = urllib.parse.urlsplit(url)
     if (
         parsed.scheme != "https"
@@ -48,7 +77,9 @@ def storage_account(url, digest):
     ):
         raise DownloadError("Expected an HTTPS Azure Storage SAS URL")
     match = re.fullmatch(r"([a-z0-9]{3,24})\.blob\.core\.windows\.net", parsed.hostname or "")
-    if not match or not any(marker in match[1] for marker in ("replica", "replstore")):
+    if not match:
+        raise DownloadError("Expected a public Azure Storage blob endpoint")
+    if primary is None and not any(marker in match[1] for marker in ("replica", "replstore")):
         raise DownloadError("Registry did not select an eligible replica storage account")
     if not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
         raise DownloadError("Invalid layer digest")
@@ -56,17 +87,36 @@ def storage_account(url, digest):
     suffix = f"/v2/blobs/sha256/{encoded[:2]}/{encoded}/data"
     if not urllib.parse.unquote(parsed.path).endswith(suffix):
         raise DownloadError("Registry redirect does not point to the requested layer")
-    if not urllib.parse.parse_qs(parsed.query).get("sig"):
+    parameters = urllib.parse.parse_qs(parsed.query)
+    if not parameters.get("sig"):
         raise DownloadError("Registry redirect is missing a SAS signature")
+    if primary is not None:
+        account, container = primary_location(primary, digest)
+        if match[1] != account or urllib.parse.unquote(parsed.path) != f"/{container}/docker/registry{suffix}":
+            raise DownloadError("Signed URL does not match the verified primary account, container, and blob")
+        if any(parameters.get(key) != [value] for key, value in (
+            ("sp", "r"), ("sr", "b"), ("spr", "https"),
+        )):
+            raise DownloadError("Primary downloads require an HTTPS-only, read-only, blob-scoped SAS")
     return match[1]
 
 
+def validate_layer_size(size):
+    if type(size) is not int or size < LAYER_BYTES:
+        raise DownloadError("Expected a layer of at least one GiB with an integer byte size")
+
+
 def validate_target(target):
-    account = storage_account(target["url"], target["digest"])
+    role = target.get("storage_role", "replica")
+    if role not in ("replica", "primary"):
+        raise DownloadError("Invalid storage role")
+    primary = target.get("primary_location") if role == "primary" else None
+    if role == "primary" and not isinstance(primary, dict):
+        raise DownloadError("Primary target is missing its BlobLocation evidence")
+    account = storage_account(target["url"], target["digest"], primary=primary)
     if account != target["account"]:
         raise DownloadError("Storage account does not match the selected account")
-    if target["size"] != LAYER_BYTES:
-        raise DownloadError("Expected exactly one GiB of layer data")
+    validate_layer_size(target["size"])
     start, end = target["start"], target["end"]
     start_mode = target.get("start_mode", "aligned")
     if start_mode not in ("aligned", "immediate"):
@@ -130,10 +180,17 @@ def error_message(error, secrets=()):
     return f"{type(error).__name__} while preparing or downloading the blob"
 
 
-def download(target):
+def download(target, *, cancel_event=None):
     validate_target(target)
+
+    def check_cancelled():
+        if cancel_event is not None and cancel_event.is_set():
+            raise DownloadError("Download cancelled; the run was interrupted or another worker failed")
+
     while time.time() < target["start"]:
+        check_cancelled()
         time.sleep(max(0, min(1, target["start"] - time.time())))
+    check_cancelled()
     if time.time() >= target["end"]:
         raise DownloadError("Download window expired before the request started")
     client_request_id = str(uuid.uuid4())
@@ -143,9 +200,12 @@ def download(target):
     })
     started = time.time()
     monotonic_start = time.monotonic()
+    cpu_start = time.thread_time()
+    hashing_seconds = 0.0
     digest = hashlib.sha256()
     count = 0
     with open_request(request, timeout=min(30, target["end"] - started)) as response:
+        headers_seconds = time.monotonic() - monotonic_start
         if response.status != 200:
             raise DownloadError("Expected HTTP 200 for a full, non-range blob download")
         if int(response.headers.get("Content-Length", "-1")) != target["size"]:
@@ -153,13 +213,21 @@ def download(target):
         request_id = response.headers.get("x-ms-request-id")
         if not request_id:
             raise DownloadError("Storage response is missing its request ID")
-        while chunk := response.read(1024 * 1024):
-            count += len(chunk)
+        buffer = bytearray(READ_BUFFER_BYTES)
+        view = memoryview(buffer)
+        while True:
+            check_cancelled()
+            received = response.readinto(buffer)
+            if not received:
+                break
+            count += received
             if count > target["size"]:
                 raise DownloadError("Storage returned more bytes than the layer size")
             if time.time() >= target["end"]:
                 raise DownloadError("Download exceeded the five-minute transfer deadline")
-            digest.update(chunk)
+            hash_start = time.monotonic()
+            digest.update(view[:received])
+            hashing_seconds += time.monotonic() - hash_start
     finished = time.time()
     actual_digest = "sha256:" + digest.hexdigest()
     if count != target["size"] or actual_digest != target["digest"]:
@@ -169,11 +237,15 @@ def download(target):
     return {
         "status": "success",
         "storage_account": target["account"],
+        "storage_role": target.get("storage_role", "replica"),
         "blob_digest": actual_digest,
         "downloaded_bytes": count,
         "started_at": utc(started),
         "finished_at": utc(finished),
         "duration_seconds": time.monotonic() - monotonic_start,
+        "time_to_headers_seconds": headers_seconds,
+        "hashing_seconds": hashing_seconds,
+        "cpu_seconds": time.thread_time() - cpu_start,
         "window_start": utc(target["start"]),
         "window_end": utc(target["end"]),
         "client_request_id": client_request_id,
