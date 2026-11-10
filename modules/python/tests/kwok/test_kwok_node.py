@@ -715,8 +715,8 @@ class TestNodeCreation(unittest.TestCase):
         for workers in (0, -1):
             with self.subTest(workers=workers), self.assertRaisesRegex(ValueError, "greater than zero"):
                 self.make_node(node_create_workers=workers)
-        for qps in (0, -1):
-            with self.subTest(qps=qps), self.assertRaisesRegex(ValueError, "greater than zero"):
+        for qps in (0, -1, float("nan"), float("inf"), float("-inf")):
+            with self.subTest(qps=qps), self.assertRaisesRegex(ValueError, "finite and greater than zero"):
                 self.make_node(node_create_qps=qps)
         self.k8s_client.create_node.assert_not_called()
 
@@ -933,10 +933,13 @@ class TestNodeCreation(unittest.TestCase):
             ("--node-create-workers", "1.5", SystemExit),
             ("--node-create-qps", "0", ValueError),
             ("--node-create-qps", "-1", ValueError),
+            ("--node-create-qps", "nan", ValueError),
+            ("--node-create-qps", "inf", ValueError),
+            ("--node-create-qps", "-inf", ValueError),
             ("--node-create-qps", "invalid", SystemExit),
         ]:
             with self.subTest(option=option, value=value), patch(
-                "sys.argv", ["kwok", "--action", "create", option, value],
+                "sys.argv", ["kwok", "--action", "create", f"{option}={value}"],
             ), self.assertRaises(error):
                 main()
         self.k8s_client.create_node.assert_not_called()

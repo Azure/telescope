@@ -357,8 +357,8 @@ class Node(KWOK):
     def __post_init__(self):
         if self.node_create_workers < 1:
             raise ValueError("node_create_workers must be greater than zero.")
-        if self.node_create_qps <= 0:
-            raise ValueError("node_create_qps must be greater than zero.")
+        if not math.isfinite(self.node_create_qps) or self.node_create_qps <= 0:
+            raise ValueError("node_create_qps must be finite and greater than zero.")
 
     def _controller_count(self):
         """Calculate how many controller deployments are needed."""
