@@ -25,14 +25,14 @@ stages:
             image: "python:3.12.12-slim"
           topology: image-pull-download
           matrix:
-            image_pull_5nodes_private:
-              # Three system nodes and five download workers.
-              desired_nodes: 8
-              node_count: 5
+            image_pull_1000nodes_private:
+              # Three system nodes and 1,000 download workers.
+              desired_nodes: 1003
+              node_count: 1000
               repeats: 1
               # Existing Dogfood registry in rg_wj_cus1; never modify it.
               registry_endpoint: williamjcusaue1.azurecr-test.io
-              # Resolve one replica URL, then download this layer five times in one aligned window.
+              # Resolve one replica URL, then download once per worker in one aligned window (1,000 pulls).
               test_image: test1gb@sha256:06d20fd1e468005b0fb1b4d3fce678e75f7ec5d9d76e635d335da9d440be25db
               kubernetes_version: "1.34"
           max_parallel: 1
