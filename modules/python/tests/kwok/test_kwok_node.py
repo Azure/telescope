@@ -1,6 +1,9 @@
 """Tests for KWOK node functionality."""  # pylint: disable=too-many-lines
 import json
 import os
+import subprocess
+import sys
+import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor, wait
 from threading import Barrier, Event, Lock, get_ident
@@ -12,8 +15,7 @@ from kubernetes import client
 # Mock kubernetes config before importing
 with patch('kubernetes.config.load_kube_config'):
     from clients.kubernetes_client import AuthSynchronizedApiClient, KubernetesClient
-    from kwok.kwok import Node, main
-    from kwok.kwok_util import NodeCreatePacer
+    from kwok.kwok import Node, NodeCreatePacer, main
 
 
 def make_mock_node(name, **kwargs):
@@ -788,7 +790,7 @@ class TestNodeCreation(unittest.TestCase):
         stopped.wait.side_effect = lambda delay: clock.__setitem__(0, clock[0] + delay)
         self.k8s_client.create_node.side_effect = [RuntimeError("busy"), RuntimeError("busy"), None]
         with patch("kwok.kwok.Event", return_value=stopped), patch(
-            "kwok.kwok_util.time.monotonic", side_effect=lambda: clock[0],
+            "kwok.kwok.time.monotonic", side_effect=lambda: clock[0],
         ):
             self.make_node(node_count=1, node_create_workers=2, node_create_qps=4).create()
         self.assertEqual(self.k8s_client.create_node.call_count, 3)
@@ -896,7 +898,7 @@ class TestNodeCreation(unittest.TestCase):
 
         self.k8s_client.create_node.side_effect = create
         with patch("kwok.kwok.wait", side_effect=wait_for_tasks), patch(
-            "kwok.kwok_util.time.monotonic", side_effect=lambda: clock[0],
+            "kwok.kwok.time.monotonic", side_effect=lambda: clock[0],
         ):
             self.make_node(node_count=1, node_create_workers=2).create()
         self.output.assert_any_call(
@@ -940,6 +942,41 @@ class TestNodeCreation(unittest.TestCase):
         self.k8s_client.create_node.assert_not_called()
 
 
+class TestKwokEntryPoint(unittest.TestCase):
+    def test_help_runs_as_script_and_module(self):
+        module_directory = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        with tempfile.TemporaryDirectory() as directory:
+            kubeconfig_path = os.path.join(directory, "config")
+            with open(kubeconfig_path, "w", encoding="utf-8") as kubeconfig_file:
+                yaml.safe_dump({
+                    "apiVersion": "v1",
+                    "kind": "Config",
+                    "clusters": [{"name": "test", "cluster": {"server": "https://127.0.0.1:9"}}],
+                    "contexts": [{"name": "test", "context": {"cluster": "test", "user": "test"}}],
+                    "current-context": "test",
+                    "users": [{"name": "test", "user": {}}],
+                }, kubeconfig_file)
+            environment = {
+                **os.environ,
+                "KUBECONFIG": kubeconfig_path,
+                "PYTHONPATH": f":{module_directory}",
+            }
+            for arguments in (["kwok/kwok.py"], ["-m", "kwok.kwok"]):
+                with self.subTest(arguments=arguments):
+                    result = subprocess.run(
+                        [sys.executable, *arguments, "--help"],
+                        cwd=module_directory,
+                        env=environment,
+                        capture_output=True,
+                        text=True,
+                        timeout=15,
+                        check=False,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertIn("--node-create-workers", result.stdout)
+                    self.assertIn("--node-create-qps", result.stdout)
+
+
 class TestNodeCreatePacer(unittest.TestCase):
     def test_shared_budget_no_catch_up_and_cancellation(self):
         clock = [0.0]
@@ -947,7 +984,7 @@ class TestNodeCreatePacer(unittest.TestCase):
         stopped.is_set.return_value = False
         stopped.wait.side_effect = lambda delay: clock.__setitem__(0, clock[0] + delay)
         barrier = Barrier(4)
-        with patch("kwok.kwok_util.time.monotonic", side_effect=lambda: clock[0]):
+        with patch("kwok.kwok.time.monotonic", side_effect=lambda: clock[0]):
             pacer = NodeCreatePacer(4, stopped)
 
             def acquire():
