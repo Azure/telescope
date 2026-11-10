@@ -1,5 +1,6 @@
 import azure_pipelines.ap
 import azure_pipelines.ap.jobs.job
+import azure_pipelines.ap.steps
 import lib.const
 import lib.steps.azure
 import lib.steps.common
@@ -9,9 +10,30 @@ SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
 RESOURCE_GROUP = "$(RUN_ID)"
 LOCATION = "swedencentral"
 
-# H2/H4 fit two CL2 drivers per Standard_D16dS_v4 node. H8 requests 32Gi per
-# driver, so provision one node per driver to provide more memory headroom.
-CL2_NODE_COUNTS = {"H2": 1, "H4": 2, "H8": 6}
+schema Cl2Config:
+    nodeCount: int
+    driverCount: int
+    memoryRequest: str
+
+# Preserve per-tier concurrency; H2/H4 fit two drivers per runner node.
+CL2_CONFIGS: {str: Cl2Config} = {
+    "H2": Cl2Config {
+        nodeCount = 1
+        driverCount = 2
+        memoryRequest = "24Gi"
+    }
+    "H4": Cl2Config {
+        nodeCount = 2
+        driverCount = 4
+        memoryRequest = "24Gi"
+    }
+    # Two 32Gi requests exceed a Standard_D16dS_v4 node's allocatable memory.
+    "H8": Cl2Config {
+        nodeCount = 6
+        driverCount = 6
+        memoryRequest = "32Gi"
+    }
+}
 
 KWOK_POOL = azure.NodePool {
     name = "kwokpool"
@@ -19,15 +41,6 @@ KWOK_POOL = azure.NodePool {
     count = 60
     taintPrefix = "kwok"
     labels = "kwok=true"
-}
-
-makeCl2Pool = lambda size: str -> azure.NodePool {
-    azure.NodePool {
-        name = "cl2pool"
-        sku = "Standard_D16dS_v4"
-        count = CL2_NODE_COUNTS[size]
-        taintPrefix = "cl2pool"
-    }
 }
 
 makeCreateClusterScript = lambda size: str, cluster: str -> str {
@@ -62,12 +75,19 @@ az aks create \\
 }
 
 # Builds the benchmarking job for one scaling size. Kept as a lambda (not inlined
-# into the stages comprehension below) so the per-size locals cluster/cl2Pool/
-# createClusterScript are defined once and reused across steps — a list
+# into the stages comprehension below) so the per-size locals are defined once
+# and reused across steps — a list
 # comprehension can't declare locals, which would force repeating those expressions.
 makeBenchmarkingJob = lambda size: str -> job.Job {
     cluster = "stg-${size}-hyperscale-apiserver-seats"
-    cl2Pool = makeCl2Pool(size)
+    cl2Directory = "kcl/ccp_team/hyperscale_apiserver_executing_seats"
+    cl2Config = CL2_CONFIGS[size]
+    cl2Pool = azure.NodePool {
+        name = "cl2pool"
+        sku = "Standard_D16dS_v4"
+        count = cl2Config.nodeCount
+        taintPrefix = "cl2pool"
+    }
     createClusterScript = makeCreateClusterScript(size, cluster)
     job.Job {
         job = "benchmarking"
@@ -120,10 +140,26 @@ makeBenchmarkingJob = lambda size: str -> job.Job {
                     "validate-success-threshold": "0.9"
                     "log-level": "WARNING"
                 }),
+            steps.Bash {
+                displayName = "Render CL2 manifest"
+                workingDirectory = "$(Pipeline.Workspace)/s/${cl2Directory}"
+                bash = """
+set -euo pipefail
+sed \\
+    -e 's/__CL2_DRIVER_COUNT__/${cl2Config.driverCount}/g' \\
+    -e 's/__CL2_MEMORY_REQUEST__/${cl2Config.memoryRequest}/g' \\
+    cl2.yaml > cl2-rendered.yaml
+
+if grep -q '__CL2_[A-Z_]*__' cl2-rendered.yaml; then
+    echo "Unresolved CL2 template placeholders" >&2
+    exit 1
+fi
+"""
+            },
             k8s.RunClusterLoader2(
                 const.DEFAULT_SERVICE_CONNECTION,
                 "clusterloader2",
-                manifest = "kcl/ccp_team/hyperscale_apiserver_executing_seats/cl2-${size.lower()}.yaml"),
+                manifest = "${cl2Directory}/cl2-rendered.yaml"),
             k8s.PrintCl2PodLogs(
                 const.DEFAULT_SERVICE_CONNECTION,
                 "clusterloader2"),
