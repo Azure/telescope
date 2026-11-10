@@ -1,6 +1,7 @@
 """Tests for KWOK node functionality."""  # pylint: disable=too-many-lines
 import json
 import os
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -911,19 +912,24 @@ class TestNodeCreation(unittest.TestCase):
         )
 
     def test_validate_accepts_creation_options_without_changing_validation(self):
+        self.k8s_client.get_config_map.return_value = MagicMock()
+        self.k8s_client.get_nodes.return_value = [
+            make_mock_node("kwok-node-0", allocatable={"cpu": "32"}, capacity={"cpu": "32"}),
+        ]
         with patch("sys.argv", [
             "kwok", "--action", "validate", "--node-create-workers", "8",
             "--node-create-qps", "20", "--log-level", "WARNING",
-        ]), patch("kwok.kwok.Node", wraps=Node) as node_class:
-            node_class.side_effect = lambda **kwargs: Node(**kwargs, k8s_client=self.k8s_client)
-            self.k8s_client.get_config_map.return_value = MagicMock()
-            self.k8s_client.get_nodes.return_value = [
-                make_mock_node("kwok-node-0", allocatable={"cpu": "32"}, capacity={"cpu": "32"}),
-            ]
+        ]), patch.multiple(
+            Node.k8s_client,
+            get_config_map=self.k8s_client.get_config_map,
+            get_deployment=self.k8s_client.get_deployment,
+            get_nodes=self.k8s_client.get_nodes,
+            create_node=self.k8s_client.create_node,
+        ):
             main()
-        self.assertEqual(node_class.call_args.kwargs["node_create_workers"], 8)
-        self.assertEqual(node_class.call_args.kwargs["node_create_qps"], 20)
         self.k8s_client.create_node.assert_not_called()
+        self.k8s_client.get_config_map.assert_called_once_with("kwok", "kube-system")
+        self.k8s_client.get_deployment.assert_called_once_with("kwok-controller-0", "kube-system")
         self.k8s_client.get_nodes.assert_called_once_with()
 
     def test_cli_rejects_invalid_creation_options(self):
@@ -1145,12 +1151,18 @@ class TestKwokPipeline(unittest.TestCase):
                 self.assertTrue(create["continueOnError"])
                 self.assertNotIn("continueOnError", validate)
                 for step, action in [(create, "create"), (validate, "validate")]:
-                    script = step["script"]
-                    self.assertIn(f"--action {action}", script)
-                    self.assertIn("--node-count 15000", script)
-                    self.assertIn("--validate-success-threshold 0.9", script)
-                    self.assertIn("--node-create-workers 8", script)
-                    self.assertIn("--node-create-qps 20", script)
+                    arguments = shlex.split(step["script"])
+                    for option, expected in {
+                        "--action": action,
+                        "--node-count": "15000",
+                        "--validate-success-threshold": "0.9",
+                        "--node-create-workers": "8",
+                        "--node-create-qps": "20",
+                    }.items():
+                        with self.subTest(action=action, option=option):
+                            self.assertEqual(arguments.count(option), 1)
+                            index = arguments.index(option)
+                            self.assertEqual(arguments[index + 1:index + 2], [expected])
 
 
 if __name__ == "__main__":

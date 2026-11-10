@@ -120,6 +120,7 @@ makeBenchmarkingJob = lambda size: str -> job.Job {
                     "node-lease-duration-seconds": "60"
                     "validate-success-threshold": "0.9"
                     "log-level": "WARNING"
+                    # Allow for parallel creation of kwok  nodes at ~18 nodes/s: 15,000 nodes in ~14 min.
                     "node-create-workers": "8"
                     "node-create-qps": "20"
                 }),
