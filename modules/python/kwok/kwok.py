@@ -1,10 +1,18 @@
-"""KWOK (Kubernetes WithOut Kubelet) - Virtual Node/Pod Simulator."""
+"""KWOK (Kubernetes WithOut Kubelet) - Virtual Node/Pod Simulator.
+
+Node creation is sequential by default, with 50 ms spacing. Opt in with
+--node-create-workers; --node-create-qps caps aggregate attempts (including
+retries) only in parallel mode. Conflict replacement and DRA requests add API
+traffic beyond that cap. Both options are accepted but unused by validation.
+"""
 import argparse
 import time
 import math
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from dataclasses import dataclass
+from concurrent.futures import CancelledError, FIRST_COMPLETED, ThreadPoolExecutor, wait
+from threading import Event
 
 import json
 
@@ -13,11 +21,18 @@ import yaml
 from kubernetes import client
 
 from clients.kubernetes_client import KubernetesClient
+from kwok.kwok_util import (
+    NODE_CREATE_PROGRESS_INTERVAL_SECONDS,
+    NodeCreatePacer,
+    NodeCreationTracker,
+)
 from utils.logger_config import setup_logging
 from utils.retries import execute_with_retries
 
 
 NODE_CREATE_INTERVAL_SECONDS = 0.05
+DEFAULT_NODE_CREATE_WORKERS = 1
+DEFAULT_NODE_CREATE_QPS = 20.0
 CONTROLLER_READY_TIMEOUT_SECONDS = 900
 CONTROLLER_READY_POLL_INTERVAL_SECONDS = 5
 NODE_LEASE_PARALLELISM = 200
@@ -340,6 +355,14 @@ class Node(KWOK):
     node_gpu: str = "0"
     enable_dra: bool = False
     nodes_per_controller: int = 100
+    node_create_workers: int = DEFAULT_NODE_CREATE_WORKERS
+    node_create_qps: float = DEFAULT_NODE_CREATE_QPS
+
+    def __post_init__(self):
+        if self.node_create_workers < 1:
+            raise ValueError("node_create_workers must be greater than zero.")
+        if self.node_create_qps <= 0:
+            raise ValueError("node_create_qps must be greater than zero.")
 
     def _controller_count(self):
         """Calculate how many controller deployments are needed."""
@@ -371,52 +394,104 @@ class Node(KWOK):
                     "kwok/config/device-class.yaml"
                 )
 
-            for i in range(self.node_count):
-                controller_index = i // self.nodes_per_controller
-                node_name = f"kwok-node-{i}"
-                replacements = {
-                    "node_name": node_name,
-                    "node_ip": self._generate_node_ip(i),
-                    "node_cpu": self.node_cpu,
-                    "node_memory": self.node_memory,
-                    "node_pods": self.node_pods,
-                    "node_gpu": self.node_gpu,
-                    "controller_group": str(controller_index),
-                }
-                kwok_template = self.k8s_client.create_template(
-                    self.node_manifest_path, replacements
-                )
+            progress = NodeCreationTracker(self.node_count)
+            if self.node_create_workers == 1:
+                for index in range(self.node_count):
+                    self._create_node(index, progress)
+                    progress.report(in_flight=0)
+                progress.report(in_flight=0, force=True)
+            else:
+                self._create_nodes_parallel(progress)
 
-                execute_with_retries(
-                    self.k8s_client.create_node,
-                    kwok_template,
-                )
-
-                if NODE_CREATE_INTERVAL_SECONDS > 0 and i < self.node_count - 1:
-                    time.sleep(NODE_CREATE_INTERVAL_SECONDS)
-
-                # Apply resource slice for each node if DRA is enabled
-                if self.enable_dra:
-                    resource_slice_name = f"kwok-resource-slice-{i}"
-                    print(f"Creating resource slice {resource_slice_name} for node {node_name}")
-
-                    replacements = {
-                        "resource_slice_name": resource_slice_name,
-                        "node_name": node_name
-                    }
-
-                    resource_slice_template = self.k8s_client.create_template(
-                        "kwok/config/resource-slice.yaml", replacements
-                    )
-
-                    execute_with_retries(
-                        self.k8s_client.create_resource_slice,
-                        resource_slice_template
-                    )
-
-            print(f"Successfully created {self.node_count} virtual nodes.")
+            print(f"Successfully created {self.node_count} virtual nodes.", flush=True)
         except Exception as e:
             raise RuntimeError(f"Failed to create nodes: {e}") from e
+
+    def _create_node(self, index, progress, pacer=None):
+        node_name = f"kwok-node-{index}"
+        try:
+            replacements = {
+                "node_name": node_name,
+                "node_ip": self._generate_node_ip(index),
+                "node_cpu": self.node_cpu,
+                "node_memory": self.node_memory,
+                "node_pods": self.node_pods,
+                "node_gpu": self.node_gpu,
+                "controller_group": str(index // self.nodes_per_controller),
+            }
+            template = self.k8s_client.create_template(self.node_manifest_path, replacements)
+
+            def create_attempt():
+                if pacer is not None and not pacer.acquire():
+                    return False
+                self.k8s_client.create_node(template)
+                progress.record_node()
+                return True
+
+            if not execute_with_retries(create_attempt):
+                # Return from the retry operation first so cancellation is not retried.
+                raise CancelledError(f"Stopped before creating {node_name}")
+
+            if pacer is None and NODE_CREATE_INTERVAL_SECONDS > 0 and index < self.node_count - 1:
+                time.sleep(NODE_CREATE_INTERVAL_SECONDS)
+
+            if self.enable_dra:
+                resource_slice_name = f"kwok-resource-slice-{index}"
+                if pacer is None:
+                    print(f"Creating resource slice {resource_slice_name} for node {node_name}")
+                template = self.k8s_client.create_template(
+                    "kwok/config/resource-slice.yaml",
+                    {"resource_slice_name": resource_slice_name, "node_name": node_name},
+                )
+                execute_with_retries(self.k8s_client.create_resource_slice, template)
+        except CancelledError:
+            raise
+        except Exception as error:
+            if pacer is not None:
+                pacer.stopped.set()
+            raise RuntimeError(f"{node_name}: {error}") from error
+
+    def _create_nodes_parallel(self, progress):
+        stopped = Event()
+        pacer = NodeCreatePacer(self.node_create_qps, stopped)
+        failures = []
+        next_index = 0
+        pending = set()
+        with ThreadPoolExecutor(max_workers=self.node_create_workers) as executor:
+            try:
+                while pending or (next_index < self.node_count and not stopped.is_set()):
+                    while (len(pending) < self.node_create_workers and
+                           next_index < self.node_count and not stopped.is_set()):
+                        pending.add(executor.submit(
+                            self._create_node, next_index, progress, pacer,
+                        ))
+                        next_index += 1
+                    done, _ = wait(
+                        pending,
+                        timeout=NODE_CREATE_PROGRESS_INTERVAL_SECONDS,
+                        return_when=FIRST_COMPLETED,
+                    )
+                    for future in done:
+                        pending.remove(future)
+                        try:
+                            future.result()
+                        except CancelledError:
+                            if not stopped.is_set():
+                                raise
+                        except Exception as error:
+                            failures.append(error)
+                            stopped.set()
+                    if stopped.is_set():
+                        for future in pending:
+                            future.cancel()
+                    progress.report(in_flight=len(pending))
+            finally:
+                stopped.set()
+                for future in pending:
+                    future.cancel()
+        progress.report(in_flight=0, force=True)
+        if failures:
+            raise RuntimeError("; ".join(str(error) for error in failures)) from failures[0]
 
     def _wait_for_controllers_ready(self):
         """Wait until expected kwok-controller deployment(s) are available."""
@@ -708,6 +783,19 @@ def main():
         help="Maximum number of virtual nodes managed per controller deployment (default: 100).",
     )
     parser.add_argument(
+        "--node-create-workers",
+        type=int,
+        default=DEFAULT_NODE_CREATE_WORKERS,
+        help=f"Concurrent node creation tasks (default: {DEFAULT_NODE_CREATE_WORKERS}, sequential).",
+    )
+    parser.add_argument(
+        "--node-create-qps",
+        type=float,
+        default=DEFAULT_NODE_CREATE_QPS,
+        help=f"Shared node-create attempts/second in parallel mode (default: {DEFAULT_NODE_CREATE_QPS}). "
+             "Includes retries, not conflict replacement or DRA requests; ignored with one worker.",
+    )
+    parser.add_argument(
         "--controller-cpu-request",
         type=str,
         default=DEFAULT_CONTROLLER_CPU_REQUEST,
@@ -782,6 +870,8 @@ def main():
         enable_metrics=args.enable_metrics,
         enable_dra=args.enable_dra,
         nodes_per_controller=args.nodes_per_controller,
+        node_create_workers=args.node_create_workers,
+        node_create_qps=args.node_create_qps,
         controller_cpu_request=args.controller_cpu_request,
         controller_memory_request=args.controller_memory_request,
         controller_cpu_limit=args.controller_cpu_limit,

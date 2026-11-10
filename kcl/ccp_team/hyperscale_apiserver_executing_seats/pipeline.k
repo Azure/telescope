@@ -120,6 +120,8 @@ makeBenchmarkingJob = lambda size: str -> job.Job {
                     "node-lease-duration-seconds": "60"
                     "validate-success-threshold": "0.9"
                     "log-level": "WARNING"
+                    "node-create-workers": "8"
+                    "node-create-qps": "20"
                 }),
             k8s.RunClusterLoader2(
                 const.DEFAULT_SERVICE_CONNECTION,
