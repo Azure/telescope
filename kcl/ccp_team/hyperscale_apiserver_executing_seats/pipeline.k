@@ -27,7 +27,6 @@ CL2_CONFIGS: {str: Cl2Config} = {
         driverCount = 4
         memoryRequest = "24Gi"
     }
-    # Two 32Gi requests exceed a Standard_D16dS_v4 node's allocatable memory.
     "H8": Cl2Config {
         nodeCount = 6
         driverCount = 6
