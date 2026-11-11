@@ -202,6 +202,19 @@ stages:
         python3 kwok/kwok.py   --action validate   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING
       workingDirectory: modules/python
       displayName: Validate KWOK Nodes
+    - bash: |
+        set -euo pipefail
+        sed \
+            -e 's/__CL2_DRIVER_COUNT__/2/g' \
+            -e 's/__CL2_MEMORY_REQUEST__/24Gi/g' \
+            cl2.yaml > cl2-rendered.yaml
+
+        if grep -q '__CL2_[A-Z_]*__' cl2-rendered.yaml; then
+            echo "Unresolved CL2 template placeholders" >&2
+            exit 1
+        fi
+      workingDirectory: $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats
+      displayName: Render CL2 manifest
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -211,7 +224,7 @@ stages:
           set -exo pipefail
           set +eo pipefail
           kubectl create namespace "clusterloader2" || true
-          kubectl apply -f $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/cl2-h2.yaml
+          kubectl apply -f $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/cl2-rendered.yaml
           # Wait
           consecutive_errors=0
           while true; do
@@ -481,6 +494,19 @@ stages:
         python3 kwok/kwok.py   --action validate   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING
       workingDirectory: modules/python
       displayName: Validate KWOK Nodes
+    - bash: |
+        set -euo pipefail
+        sed \
+            -e 's/__CL2_DRIVER_COUNT__/4/g' \
+            -e 's/__CL2_MEMORY_REQUEST__/24Gi/g' \
+            cl2.yaml > cl2-rendered.yaml
+
+        if grep -q '__CL2_[A-Z_]*__' cl2-rendered.yaml; then
+            echo "Unresolved CL2 template placeholders" >&2
+            exit 1
+        fi
+      workingDirectory: $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats
+      displayName: Render CL2 manifest
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -490,7 +516,7 @@ stages:
           set -exo pipefail
           set +eo pipefail
           kubectl create namespace "clusterloader2" || true
-          kubectl apply -f $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/cl2-h4.yaml
+          kubectl apply -f $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/cl2-rendered.yaml
           # Wait
           consecutive_errors=0
           while true; do
@@ -693,7 +719,7 @@ stages:
             --resource-group "$(RUN_ID)" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --name "cl2pool" \
-            --node-count 3 \
+            --node-count 6 \
             --node-vm-size "Standard_D16dS_v4" \
             --mode User \
             --node-taints cl2pool=true:NoSchedule
@@ -760,6 +786,19 @@ stages:
         python3 kwok/kwok.py   --action validate   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING
       workingDirectory: modules/python
       displayName: Validate KWOK Nodes
+    - bash: |
+        set -euo pipefail
+        sed \
+            -e 's/__CL2_DRIVER_COUNT__/6/g' \
+            -e 's/__CL2_MEMORY_REQUEST__/32Gi/g' \
+            cl2.yaml > cl2-rendered.yaml
+
+        if grep -q '__CL2_[A-Z_]*__' cl2-rendered.yaml; then
+            echo "Unresolved CL2 template placeholders" >&2
+            exit 1
+        fi
+      workingDirectory: $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats
+      displayName: Render CL2 manifest
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -769,7 +808,7 @@ stages:
           set -exo pipefail
           set +eo pipefail
           kubectl create namespace "clusterloader2" || true
-          kubectl apply -f $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/cl2-h8.yaml
+          kubectl apply -f $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/cl2-rendered.yaml
           # Wait
           consecutive_errors=0
           while true; do
