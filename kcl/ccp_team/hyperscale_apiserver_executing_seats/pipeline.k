@@ -122,7 +122,6 @@ makeBenchmarkingJob = lambda size: str -> job.Job {
                     "log-level": "WARNING"
                     # Allow for parallel creation of kwok  nodes at ~18 nodes/s: 15,000 nodes in ~14 min.
                     "node-create-workers": "8"
-                    "node-create-qps": "20"
                 }),
             k8s.RunClusterLoader2(
                 const.DEFAULT_SERVICE_CONNECTION,
