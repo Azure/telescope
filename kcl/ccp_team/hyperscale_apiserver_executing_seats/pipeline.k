@@ -54,6 +54,7 @@ az aks create \\
     --name "${cluster}" \\
     --location "${LOCATION}" \\
     --kubernetes-version "1.36" \\
+    --node-os-upgrade-channel none \\
     --dns-name-prefix "${cluster}-dns" \\
     --tier standard \\
     --enable-managed-identity \\
