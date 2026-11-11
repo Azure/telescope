@@ -1,24 +1,27 @@
 import azure_pipelines.ap.steps
 
-CACHE_COMMANDS = REDACT_OUTPUT + """
+CacheCommands = lambda checksDir: str -> str {
+    REDACT_OUTPUT + """
 alluxio() {
-    timeout 180 kubectl --request-timeout=180s exec -n alx-ns alluxio-coordinator-0 \\
+    kubectl exec -n alx-ns alluxio-coordinator-0 \\
         -c alluxio-coordinator -- alluxio "$@"
 }
 client_exec() {
-    timeout 300 kubectl --request-timeout=300s exec -n alx-ns warp-client -c warp -- "$@"
+    kubectl exec -n alx-ns warp-client -c warp -- "$@"
 }
 cache_report() {
     alluxio fs check-cached --path /blob --recursive --limit 17 |
         redact > "$result_dir/cache-$1.txt"
-    jq -Rse -L "$CHECKS_DIR" 'include "checks"; cache_counts' "$result_dir/cache-$1.txt"
+    jq -Rse -L "${checksDir}" 'include "checks"; cache_counts' "$result_dir/cache-$1.txt"
 }
 """
+}
 
 CreateWarpClient = lambda workDir: str, resultDir: str -> steps.Bash {
-    BashStep(
-        "Create the dedicated Warp client"
-        """
+    steps.Bash {
+        name = "alluxio_warp_client"
+        displayName = "Create the dedicated Warp client"
+        bash = ShellSetup(workDir, resultDir) + """
 cat > "$work_dir/client.yaml" <<EOF
 apiVersion: v1
 kind: Pod
@@ -44,10 +47,10 @@ spec:
         - |
           set -eu
           curl --fail --silent --show-error --location \\
-            https://github.com/minio/warp/releases/download/v$warp_version/warp_Linux_x86_64.tar.gz \\
+            https://github.com/minio/warp/releases/download/v${WARP_VERSION}/warp_Linux_x86_64.tar.gz \\
             -o /tools/warp.tar.gz
           cd /tools
-          echo '$warp_sha256  warp.tar.gz' | sha256sum -c -
+          echo '${WARP_SHA256}  warp.tar.gz' | sha256sum -c -
           tar -xzf warp.tar.gz warp
           chmod +x warp
       volumeMounts:
@@ -63,30 +66,25 @@ spec:
         - {name: tools, mountPath: /tools}
         - {name: results, mountPath: /results}
 EOF
-timeout 180 kubectl create --dry-run=server --validate=strict -f "$work_dir/client.yaml" > /dev/null
-timeout 180 kubectl create -f "$work_dir/client.yaml" > /dev/null
-timeout 660 kubectl wait -n alx-ns --for=condition=Ready pod/warp-client --timeout=600s
-timeout 300 kubectl --request-timeout=300s exec -n alx-ns warp-client -c warp \\
+kubectl create --dry-run=server --validate=strict -f "$work_dir/client.yaml" > /dev/null
+kubectl create -f "$work_dir/client.yaml" > /dev/null
+kubectl wait -n alx-ns --for=condition=Ready pod/warp-client --timeout=600s
+kubectl exec -n alx-ns warp-client -c warp \\
     -- /tools/warp --version > "$result_dir/warp-version.txt"
 """
-        workDir
-        resultDir
-        "alluxio_warp_client"
-        environment = {
-            warp_version = WARP_VERSION
-            warp_sha256 = WARP_SHA256
-        }
-    )
+    }
 }
 
 RunWarpGet = lambda phase: "cold-start" | "warm-cache", workDir: str, resultDir: str, checksDir: str -> steps.Bash {
-    BashStep(
-        "Run ${phase} Warp GET"
-        CACHE_COMMANDS + """
-counts="$(cache_report "$cache_label")"
-[[ "$(jq -r --arg field "$cache_field" '.[$field]' <<< "$counts")" == 16 ]] ||
+    steps.Bash {
+        name = "alluxio_cold" if phase == "cold-start" else "alluxio_warm"
+        displayName = "Run ${phase} Warp GET"
+        bash = ShellSetup(workDir, resultDir) + CacheCommands(checksDir) + """
+phase="${phase}"
+counts="$(cache_report "${"before-cold" if phase == "cold-start" else "before-warm"}")"
+[[ "$(jq -r --arg field "${"uncached" if phase == "cold-start" else "all"}" '.[$field]' <<< "$counts")" == 16 ]] ||
     fail "$phase requires the expected cache state for all 16 objects"
-host="$(timeout 70 kubectl --request-timeout=60s get pod alluxio-worker-0 -n alx-ns -o json |
+host="$(kubectl get pod alluxio-worker-0 -n alx-ns -o json |
     jq -er '.status.podIP'):29998"
 start="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 status=0
@@ -112,9 +110,9 @@ jq -n --arg phase "$phase" --arg command_start "$start" --arg command_end "$end"
 client_exec cat "/results/$phase.csv.zst" > "$result_dir/$phase.csv.zst"
 [[ -s "$result_dir/$phase.csv.zst" ]] || fail "Warp raw data is empty for $phase"
 client_exec /tools/warp analyze --full --json "/results/$phase.csv.zst" > "$result_dir/$phase-analysis.json"
-jq -e -L "$CHECKS_DIR" \\
+jq -e -L "${checksDir}" \\
     --slurpfile timing "$result_dir/$phase-timing.json" \\
-    --arg warp_version "$warp_version" --arg alluxio_version "$alluxio_tag" \\
+    --arg warp_version "${WARP_VERSION}" --arg alluxio_version "${ALLUXIO_TAG}" \\
     'include "checks"; warp_summary + $timing[0] + $ARGS.named +
      {concurrency: 16, requested_duration_seconds: 60, dataset_bytes: 1073741824}' \\
     "$result_dir/$phase-analysis.json" > "$work_dir/summary.json"
@@ -124,24 +122,14 @@ if [[ "$phase" == warm-cache ]]; then
     [[ "$(jq -r '.all' <<< "$counts")" == 16 ]] || fail "Dataset was not fully cached after the warm phase"
 fi
 """
-        workDir
-        resultDir
-        "alluxio_cold" if phase == "cold-start" else "alluxio_warm"
-        environment = {
-            phase = phase
-            cache_label = "before-cold" if phase == "cold-start" else "before-warm"
-            cache_field = "uncached" if phase == "cold-start" else "all"
-            CHECKS_DIR = checksDir
-            warp_version = WARP_VERSION
-            alluxio_tag = ALLUXIO_TAG
-        }
-    )
+    }
 }
 
 PreloadAlluxioDataset = lambda workDir: str, resultDir: str, checksDir: str -> steps.Bash {
-    BashStep(
-        "Preload all 16 objects into the Alluxio cache"
-        CACHE_COMMANDS + """
+    steps.Bash {
+        name = "alluxio_preload"
+        displayName = "Preload all 16 objects into the Alluxio cache"
+        bash = ShellSetup(workDir, resultDir) + CacheCommands(checksDir) + """
 alluxio job load --path /blob --submit | redact > "$result_dir/preload-submit.txt"
 deadline=$((SECONDS + 600))
 while :; do
@@ -159,9 +147,5 @@ while :; do
     sleep 10
 done
 """
-        workDir
-        resultDir
-        "alluxio_preload"
-        environment = {CHECKS_DIR = checksDir}
-    )
+    }
 }

@@ -1,5 +1,3 @@
-import azure_pipelines.ap.steps
-
 ALLUXIO_TAG = "AI-3.8-15.1.28"
 OPERATOR_TAG = "3.7.6"
 WARP_VERSION = "1.3.1"
@@ -58,16 +56,3 @@ redact() {
     done
 }
 """
-
-BashStep = lambda displayName: str, script: str, workDir: str, resultDir: str, stepName: str, environment: {str:str} = {} -> steps.Bash {
-    steps.Bash {
-        name = stepName
-        displayName = displayName
-        bash = ShellSetup(workDir, resultDir) + script
-        env = environment | {
-            WORK_DIR = workDir
-            RESULT_DIR = resultDir
-            KUBECONFIG = "${workDir}/kubeconfig"
-        }
-    }
-}

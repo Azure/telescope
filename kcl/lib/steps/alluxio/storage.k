@@ -6,11 +6,11 @@ SeedWarpDataset = lambda serviceConnection: str, workDir: str, resultDir: str, c
         serviceConnection
         "Create Blob storage and seed 1 GiB"
         ShellSetup(workDir, resultDir) + LOAD_CONFIG + SECRET_COMMANDS + """
-cluster_info="$(timeout 300 az aks show \\
+cluster_info="$(az aks show \\
     --name "$cluster" \\
     --resource-group "$resource_group" \\
     --subscription "$subscription")"
-timeout 300 az storage account create \\
+az storage account create \\
     --name "$storage_account" \\
     --resource-group "$resource_group" \\
     --subscription "$subscription" \\
@@ -22,12 +22,12 @@ timeout 300 az storage account create \\
     --allow-blob-public-access false \\
     --hns false > /dev/null
 export AZURE_STORAGE_ACCOUNT="$storage_account"
-AZURE_STORAGE_KEY="$(private_command timeout 300 az storage account keys list \\
+AZURE_STORAGE_KEY="$(private_command az storage account keys list \\
     --account-name "$storage_account" \\
     --resource-group "$resource_group" \\
     --subscription "$subscription" | jq -er '.[0].value')"
 export AZURE_STORAGE_KEY
-timeout 300 az storage container create \\
+az storage container create \\
     --name warp-data \\
     --public-access off > /dev/null
 for ((index = 0; index < 16; index++)); do
@@ -35,16 +35,16 @@ for ((index = 0; index < 16; index++)); do
     head -c 67108864 /dev/zero |
         openssl enc -aes-256-ctr -K "$(printf '%064x' "$index")" \\
             -iv 00000000000000000000000000000000 > "$work_dir/blob.bin"
-    timeout 300 az storage blob upload \\
+    az storage blob upload \\
         --container-name warp-data \\
         --name "$(printf 'object-%02d.bin' "$index")" \\
         --file "$work_dir/blob.bin" \\
         --overwrite false > /dev/null
 done
 rm -f -- "$work_dir/blob.bin"
-timeout 300 az storage blob list --container-name warp-data |
+az storage blob list --container-name warp-data |
     jq -e -L "${checksDir}" 'include "checks"; validate_dataset' > /dev/null
-private_command timeout 300 az storage container generate-sas \\
+private_command az storage container generate-sas \\
     --name warp-data \\
     --permissions rl \\
     --expiry "$(date -u -d '+4 hours' +%Y-%m-%dT%H:%MZ)" \\

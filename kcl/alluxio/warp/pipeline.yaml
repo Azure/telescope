@@ -52,20 +52,20 @@ jobs:
         resource_group="alluxio-$(RUN_ID)-$(System.JobAttempt)"
         cluster="alluxio-warp"
         location="westeurope"
-        registry="$(timeout 300 az acr show --ids "$acr_resource_id")"
+        registry="$(az acr show --ids "$acr_resource_id")"
         registry_name="$(jq -er '.name' <<< "$registry")"
         acr_subscription="$(jq -er '.id | split("/")[2]' <<< "$registry")"
         images='{}'
         for image in "$alluxio_image" "$operator_image"; do
             tag="AI-3.8-15.1.28"
             if [[ "$image" == "$operator_image" ]]; then tag="3.7.6"; fi
-            digest="$(timeout 300 az acr repository show \
+            digest="$(az acr repository show \
                 --name "$registry_name" \
                 --subscription "$acr_subscription" \
                 --image "${image#*/}:$tag" | jq -er '.digest')"
             images="$(jq --arg image "$image:$tag" --arg digest "$digest" '. + {($image): $digest}' <<< "$images")"
         done
-        exists="$(timeout 300 az group exists \
+        exists="$(az group exists \
             --name "$resource_group" \
             --subscription "$subscription")"
         [[ "$exists" == false ]] || fail "Resource group already exists or could not be verified; refusing to reuse or delete it"
@@ -233,8 +233,7 @@ jobs:
           --name "alluxio-warp" \
           --resource-group "alluxio-$(RUN_ID)-$(System.JobAttempt)" \
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-          --overwrite-existing \
-          -f $(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/kubeconfig
+          --overwrite-existing
     displayName: Get credentials for alluxio-warp
   - task: AzureCLI@2
     inputs:
@@ -262,7 +261,7 @@ jobs:
             printf -v "$name" '%s' "$(jq -er --arg name "$name" '.[$name] | select(type == "string" and length > 0)' "$work_dir/config.json")"
             [[ -n "${!name}" ]] || fail "Missing configuration field: $name"
         done
-        identity="$(timeout 300 az aks show \
+        identity="$(az aks show \
             --name "$cluster" \
             --resource-group "$resource_group" \
             --subscription "$subscription" | jq -er '.identityProfile.kubeletidentity.objectId')"
@@ -270,7 +269,7 @@ jobs:
         role_id="$acr_resource_id/providers/Microsoft.Authorization/roleAssignments/$role_name"
         # Persist ownership before creation so uncertain CLI receipts remain recoverable.
         jq -n --arg id "$role_id" '{id: $id}' > "$work_dir/role.json"
-        timeout 300 az role assignment create \
+        az role assignment create \
             --name "$role_name" \
             --assignee-object-id "$identity" \
             --assignee-principal-type ServicePrincipal \
@@ -315,11 +314,11 @@ jobs:
         require_secret() {
             [[ -n "${!1:-}" && "${!1}" != '$('* ]] || fail "Required secret pipeline variable $1 is missing"
         }
-        cluster_info="$(timeout 300 az aks show \
+        cluster_info="$(az aks show \
             --name "$cluster" \
             --resource-group "$resource_group" \
             --subscription "$subscription")"
-        timeout 300 az storage account create \
+        az storage account create \
             --name "$storage_account" \
             --resource-group "$resource_group" \
             --subscription "$subscription" \
@@ -331,12 +330,12 @@ jobs:
             --allow-blob-public-access false \
             --hns false > /dev/null
         export AZURE_STORAGE_ACCOUNT="$storage_account"
-        AZURE_STORAGE_KEY="$(private_command timeout 300 az storage account keys list \
+        AZURE_STORAGE_KEY="$(private_command az storage account keys list \
             --account-name "$storage_account" \
             --resource-group "$resource_group" \
             --subscription "$subscription" | jq -er '.[0].value')"
         export AZURE_STORAGE_KEY
-        timeout 300 az storage container create \
+        az storage container create \
             --name warp-data \
             --public-access off > /dev/null
         for ((index = 0; index < 16; index++)); do
@@ -344,16 +343,16 @@ jobs:
             head -c 67108864 /dev/zero |
                 openssl enc -aes-256-ctr -K "$(printf '%064x' "$index")" \
                     -iv 00000000000000000000000000000000 > "$work_dir/blob.bin"
-            timeout 300 az storage blob upload \
+            az storage blob upload \
                 --container-name warp-data \
                 --name "$(printf 'object-%02d.bin' "$index")" \
                 --file "$work_dir/blob.bin" \
                 --overwrite false > /dev/null
         done
         rm -f -- "$work_dir/blob.bin"
-        timeout 300 az storage blob list --container-name warp-data |
+        az storage blob list --container-name warp-data |
             jq -e -L "$(Build.SourcesDirectory)/kcl/alluxio/warp" 'include "checks"; validate_dataset' > /dev/null
-        private_command timeout 300 az storage container generate-sas \
+        private_command az storage container generate-sas \
             --name warp-data \
             --permissions rl \
             --expiry "$(date -u -d '+4 hours' +%Y-%m-%dT%H:%MZ)" \
@@ -402,23 +401,22 @@ jobs:
         require_secret() {
             [[ -n "${!1:-}" && "${!1}" != '$('* ]] || fail "Required secret pipeline variable $1 is missing"
         }
-        export KUBECONFIG="$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/kubeconfig"
-        registry="$(timeout 300 az acr show --ids "$acr_resource_id")"
+        registry="$(az acr show --ids "$acr_resource_id")"
         registry_name="$(jq -er '.name' <<< "$registry")"
         login_server="$(jq -er '.loginServer' <<< "$registry")"
-        registry_token="$(private_command timeout 300 az acr login \
+        registry_token="$(private_command az acr login \
             --name "$registry_name" \
             --subscription "$acr_subscription" \
             --expose-token --query accessToken --output tsv)"
         printf '%s' "$registry_token" |
-            private_command timeout 300 helm registry login "$login_server" \
+            private_command helm registry login "$login_server" \
                 --username 00000000-0000-0000-0000-000000000000 \
                 --password-stdin --registry-config "$work_dir/helm-registry.json" > /dev/null
         unset registry_token
-        timeout 70 kubectl --request-timeout=60s create namespace alx-ns
+        kubectl create namespace alx-ns
         jq -n --arg image "$operator_image" --arg tag "3.7.6" \
             '{global: {image: $image, imageTag: $tag}}' > "$work_dir/operator-values.json"
-        timeout 960 helm install operator "oci://REPLACE_ME.azurecr.io/helm/alluxio-operator" \
+        helm install operator "oci://REPLACE_ME.azurecr.io/helm/alluxio-operator" \
             --version "3.7.6" \
             --registry-config "$work_dir/helm-registry.json" \
             --namespace alluxio-operator \
@@ -427,7 +425,7 @@ jobs:
             --wait \
             --timeout 15m
         for crd in alluxioclusters licenses underfilesystems; do
-            timeout 180 kubectl wait --for=condition=Established \
+            kubectl wait --for=condition=Established \
                 "crd/$crd.k8s-operator.alluxio.com" --timeout=120s
         done
     displayName: Install the Alluxio operator
@@ -463,13 +461,13 @@ jobs:
           [[ -n "${!1:-}" && "${!1}" != '$('* ]] || fail "Required secret pipeline variable $1 is missing"
       }
       create_private_resource() {
-          private_command timeout 180 kubectl create --dry-run=server --validate=strict -f "$1" > /dev/null
-          private_command timeout 180 kubectl create -f "$1" > /dev/null
+          private_command kubectl create --dry-run=server --validate=strict -f "$1" > /dev/null
+          private_command kubectl create -f "$1" > /dev/null
       }
       wait_phase() {
           local kind="$1" name="$2" field="$3" expected="$4" phase deadline=$((SECONDS + 900))
           while :; do
-              phase="$(timeout 70 kubectl --request-timeout=60s get \
+              phase="$(kubectl get \
                   "$kind" "$name" -n alx-ns -o "jsonpath={.status.$field}")"
               [[ "$phase" != "$expected" ]] || return 0
               case "$phase" in
@@ -488,7 +486,7 @@ jobs:
         namespace: alx-ns
       spec:
         image: $alluxio_image
-        imageTag: $alluxio_tag
+        imageTag: AI-3.8-15.1.28
         properties:
           alluxio.worker.s3.api.enabled: "true"
           alluxio.worker.s3.redirect.enabled: "false"
@@ -518,8 +516,8 @@ jobs:
         prometheus: {enabled: false}
         grafana: {enabled: false}
       EOF
-      timeout 180 kubectl create --dry-run=server --validate=strict -f "$work_dir/cluster.yaml" > /dev/null
-      timeout 180 kubectl create -f "$work_dir/cluster.yaml" > /dev/null
+      kubectl create --dry-run=server --validate=strict -f "$work_dir/cluster.yaml" > /dev/null
+      kubectl create -f "$work_dir/cluster.yaml" > /dev/null
       jq -n '{
           apiVersion: "k8s-operator.alluxio.com/v1", kind: "License",
           metadata: {name: "alluxio-license", namespace: "alx-ns"},
@@ -530,15 +528,11 @@ jobs:
       wait_phase license alluxio-license phase Completed
       wait_phase alluxiocluster alluxio clusterPhase Ready
       for pod in alluxio-coordinator-0 alluxio-worker-0; do
-          timeout 660 kubectl wait -n alx-ns --for=condition=Ready "pod/$pod" --timeout=600s
+          kubectl wait -n alx-ns --for=condition=Ready "pod/$pod" --timeout=600s
       done
     displayName: Create Alluxio and apply the deployment license
     env:
-      alluxio_tag: AI-3.8-15.1.28
       ALLUXIO_LICENSE_STRING: $(ALLUXIO_LICENSE_STRING)
-      WORK_DIR: $(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)
-      RESULT_DIR: $(Build.ArtifactStagingDirectory)/alluxio-warp
-      KUBECONFIG: $(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/kubeconfig
     name: alluxio_cluster
   - bash: |
       set +x
@@ -571,13 +565,13 @@ jobs:
           [[ -n "${!1:-}" && "${!1}" != '$('* ]] || fail "Required secret pipeline variable $1 is missing"
       }
       create_private_resource() {
-          private_command timeout 180 kubectl create --dry-run=server --validate=strict -f "$1" > /dev/null
-          private_command timeout 180 kubectl create -f "$1" > /dev/null
+          private_command kubectl create --dry-run=server --validate=strict -f "$1" > /dev/null
+          private_command kubectl create -f "$1" > /dev/null
       }
       wait_phase() {
           local kind="$1" name="$2" field="$3" expected="$4" phase deadline=$((SECONDS + 900))
           while :; do
-              phase="$(timeout 70 kubectl --request-timeout=60s get \
+              phase="$(kubectl get \
                   "$kind" "$name" -n alx-ns -o "jsonpath={.status.$field}")"
               [[ "$phase" != "$expected" ]] || return 0
               case "$phase" in
@@ -608,13 +602,9 @@ jobs:
       }' > "$work_dir/ufs.json"
       create_private_resource "$work_dir/ufs.json"
       wait_phase ufs alluxio-blob phase Ready
-      timeout 180 kubectl --request-timeout=180s exec -n alx-ns alluxio-coordinator-0 \
+      kubectl exec -n alx-ns alluxio-coordinator-0 \
           -c alluxio-coordinator -- alluxio fs ls /blob | redact
     displayName: Mount Azure Blob in Alluxio
-    env:
-      WORK_DIR: $(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)
-      RESULT_DIR: $(Build.ArtifactStagingDirectory)/alluxio-warp
-      KUBECONFIG: $(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/kubeconfig
     name: alluxio_mount
   - bash: |
       set +x
@@ -656,10 +646,10 @@ jobs:
               - |
                 set -eu
                 curl --fail --silent --show-error --location \
-                  https://github.com/minio/warp/releases/download/v$warp_version/warp_Linux_x86_64.tar.gz \
+                  https://github.com/minio/warp/releases/download/v1.3.1/warp_Linux_x86_64.tar.gz \
                   -o /tools/warp.tar.gz
                 cd /tools
-                echo '$warp_sha256  warp.tar.gz' | sha256sum -c -
+                echo '5a84ed6efdd8390f77e5990dc43722868b026c7574f41ffb1b7289795aadb603  warp.tar.gz' | sha256sum -c -
                 tar -xzf warp.tar.gz warp
                 chmod +x warp
             volumeMounts:
@@ -675,18 +665,12 @@ jobs:
               - {name: tools, mountPath: /tools}
               - {name: results, mountPath: /results}
       EOF
-      timeout 180 kubectl create --dry-run=server --validate=strict -f "$work_dir/client.yaml" > /dev/null
-      timeout 180 kubectl create -f "$work_dir/client.yaml" > /dev/null
-      timeout 660 kubectl wait -n alx-ns --for=condition=Ready pod/warp-client --timeout=600s
-      timeout 300 kubectl --request-timeout=300s exec -n alx-ns warp-client -c warp \
+      kubectl create --dry-run=server --validate=strict -f "$work_dir/client.yaml" > /dev/null
+      kubectl create -f "$work_dir/client.yaml" > /dev/null
+      kubectl wait -n alx-ns --for=condition=Ready pod/warp-client --timeout=600s
+      kubectl exec -n alx-ns warp-client -c warp \
           -- /tools/warp --version > "$result_dir/warp-version.txt"
     displayName: Create the dedicated Warp client
-    env:
-      warp_version: '1.3.1'
-      warp_sha256: '5a84ed6efdd8390f77e5990dc43722868b026c7574f41ffb1b7289795aadb603'
-      WORK_DIR: $(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)
-      RESULT_DIR: $(Build.ArtifactStagingDirectory)/alluxio-warp
-      KUBECONFIG: $(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/kubeconfig
     name: alluxio_warp_client
   - bash: |
       set -exo pipefail
@@ -720,21 +704,22 @@ jobs:
           done
       }
       alluxio() {
-          timeout 180 kubectl --request-timeout=180s exec -n alx-ns alluxio-coordinator-0 \
+          kubectl exec -n alx-ns alluxio-coordinator-0 \
               -c alluxio-coordinator -- alluxio "$@"
       }
       client_exec() {
-          timeout 300 kubectl --request-timeout=300s exec -n alx-ns warp-client -c warp -- "$@"
+          kubectl exec -n alx-ns warp-client -c warp -- "$@"
       }
       cache_report() {
           alluxio fs check-cached --path /blob --recursive --limit 17 |
               redact > "$result_dir/cache-$1.txt"
-          jq -Rse -L "$CHECKS_DIR" 'include "checks"; cache_counts' "$result_dir/cache-$1.txt"
+          jq -Rse -L "$(Build.SourcesDirectory)/kcl/alluxio/warp" 'include "checks"; cache_counts' "$result_dir/cache-$1.txt"
       }
-      counts="$(cache_report "$cache_label")"
-      [[ "$(jq -r --arg field "$cache_field" '.[$field]' <<< "$counts")" == 16 ]] ||
+      phase="cold-start"
+      counts="$(cache_report "before-cold")"
+      [[ "$(jq -r --arg field "uncached" '.[$field]' <<< "$counts")" == 16 ]] ||
           fail "$phase requires the expected cache state for all 16 objects"
-      host="$(timeout 70 kubectl --request-timeout=60s get pod alluxio-worker-0 -n alx-ns -o json |
+      host="$(kubectl get pod alluxio-worker-0 -n alx-ns -o json |
           jq -er '.status.podIP'):29998"
       start="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
       status=0
@@ -760,9 +745,9 @@ jobs:
       client_exec cat "/results/$phase.csv.zst" > "$result_dir/$phase.csv.zst"
       [[ -s "$result_dir/$phase.csv.zst" ]] || fail "Warp raw data is empty for $phase"
       client_exec /tools/warp analyze --full --json "/results/$phase.csv.zst" > "$result_dir/$phase-analysis.json"
-      jq -e -L "$CHECKS_DIR" \
+      jq -e -L "$(Build.SourcesDirectory)/kcl/alluxio/warp" \
           --slurpfile timing "$result_dir/$phase-timing.json" \
-          --arg warp_version "$warp_version" --arg alluxio_version "$alluxio_tag" \
+          --arg warp_version "1.3.1" --arg alluxio_version "AI-3.8-15.1.28" \
           'include "checks"; warp_summary + $timing[0] + $ARGS.named +
            {concurrency: 16, requested_duration_seconds: 60, dataset_bytes: 1073741824}' \
           "$result_dir/$phase-analysis.json" > "$work_dir/summary.json"
@@ -772,16 +757,6 @@ jobs:
           [[ "$(jq -r '.all' <<< "$counts")" == 16 ]] || fail "Dataset was not fully cached after the warm phase"
       fi
     displayName: Run cold-start Warp GET
-    env:
-      phase: cold-start
-      cache_label: before-cold
-      cache_field: uncached
-      CHECKS_DIR: $(Build.SourcesDirectory)/kcl/alluxio/warp
-      warp_version: '1.3.1'
-      alluxio_tag: AI-3.8-15.1.28
-      WORK_DIR: $(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)
-      RESULT_DIR: $(Build.ArtifactStagingDirectory)/alluxio-warp
-      KUBECONFIG: $(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/kubeconfig
     name: alluxio_cold
   - bash: |
       set +x
@@ -809,16 +784,16 @@ jobs:
           done
       }
       alluxio() {
-          timeout 180 kubectl --request-timeout=180s exec -n alx-ns alluxio-coordinator-0 \
+          kubectl exec -n alx-ns alluxio-coordinator-0 \
               -c alluxio-coordinator -- alluxio "$@"
       }
       client_exec() {
-          timeout 300 kubectl --request-timeout=300s exec -n alx-ns warp-client -c warp -- "$@"
+          kubectl exec -n alx-ns warp-client -c warp -- "$@"
       }
       cache_report() {
           alluxio fs check-cached --path /blob --recursive --limit 17 |
               redact > "$result_dir/cache-$1.txt"
-          jq -Rse -L "$CHECKS_DIR" 'include "checks"; cache_counts' "$result_dir/cache-$1.txt"
+          jq -Rse -L "$(Build.SourcesDirectory)/kcl/alluxio/warp" 'include "checks"; cache_counts' "$result_dir/cache-$1.txt"
       }
       alluxio job load --path /blob --submit | redact > "$result_dir/preload-submit.txt"
       deadline=$((SECONDS + 600))
@@ -837,11 +812,6 @@ jobs:
           sleep 10
       done
     displayName: Preload all 16 objects into the Alluxio cache
-    env:
-      CHECKS_DIR: $(Build.SourcesDirectory)/kcl/alluxio/warp
-      WORK_DIR: $(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)
-      RESULT_DIR: $(Build.ArtifactStagingDirectory)/alluxio-warp
-      KUBECONFIG: $(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/kubeconfig
     name: alluxio_preload
   - bash: |
       set +x
@@ -869,21 +839,22 @@ jobs:
           done
       }
       alluxio() {
-          timeout 180 kubectl --request-timeout=180s exec -n alx-ns alluxio-coordinator-0 \
+          kubectl exec -n alx-ns alluxio-coordinator-0 \
               -c alluxio-coordinator -- alluxio "$@"
       }
       client_exec() {
-          timeout 300 kubectl --request-timeout=300s exec -n alx-ns warp-client -c warp -- "$@"
+          kubectl exec -n alx-ns warp-client -c warp -- "$@"
       }
       cache_report() {
           alluxio fs check-cached --path /blob --recursive --limit 17 |
               redact > "$result_dir/cache-$1.txt"
-          jq -Rse -L "$CHECKS_DIR" 'include "checks"; cache_counts' "$result_dir/cache-$1.txt"
+          jq -Rse -L "$(Build.SourcesDirectory)/kcl/alluxio/warp" 'include "checks"; cache_counts' "$result_dir/cache-$1.txt"
       }
-      counts="$(cache_report "$cache_label")"
-      [[ "$(jq -r --arg field "$cache_field" '.[$field]' <<< "$counts")" == 16 ]] ||
+      phase="warm-cache"
+      counts="$(cache_report "before-warm")"
+      [[ "$(jq -r --arg field "all" '.[$field]' <<< "$counts")" == 16 ]] ||
           fail "$phase requires the expected cache state for all 16 objects"
-      host="$(timeout 70 kubectl --request-timeout=60s get pod alluxio-worker-0 -n alx-ns -o json |
+      host="$(kubectl get pod alluxio-worker-0 -n alx-ns -o json |
           jq -er '.status.podIP'):29998"
       start="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
       status=0
@@ -909,9 +880,9 @@ jobs:
       client_exec cat "/results/$phase.csv.zst" > "$result_dir/$phase.csv.zst"
       [[ -s "$result_dir/$phase.csv.zst" ]] || fail "Warp raw data is empty for $phase"
       client_exec /tools/warp analyze --full --json "/results/$phase.csv.zst" > "$result_dir/$phase-analysis.json"
-      jq -e -L "$CHECKS_DIR" \
+      jq -e -L "$(Build.SourcesDirectory)/kcl/alluxio/warp" \
           --slurpfile timing "$result_dir/$phase-timing.json" \
-          --arg warp_version "$warp_version" --arg alluxio_version "$alluxio_tag" \
+          --arg warp_version "1.3.1" --arg alluxio_version "AI-3.8-15.1.28" \
           'include "checks"; warp_summary + $timing[0] + $ARGS.named +
            {concurrency: 16, requested_duration_seconds: 60, dataset_bytes: 1073741824}' \
           "$result_dir/$phase-analysis.json" > "$work_dir/summary.json"
@@ -921,16 +892,6 @@ jobs:
           [[ "$(jq -r '.all' <<< "$counts")" == 16 ]] || fail "Dataset was not fully cached after the warm phase"
       fi
     displayName: Run warm-cache Warp GET
-    env:
-      phase: warm-cache
-      cache_label: before-warm
-      cache_field: all
-      CHECKS_DIR: $(Build.SourcesDirectory)/kcl/alluxio/warp
-      warp_version: '1.3.1'
-      alluxio_tag: AI-3.8-15.1.28
-      WORK_DIR: $(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)
-      RESULT_DIR: $(Build.ArtifactStagingDirectory)/alluxio-warp
-      KUBECONFIG: $(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/kubeconfig
     name: alluxio_warm
   - bash: |
       set -exo pipefail
@@ -953,10 +914,6 @@ jobs:
       }
       trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
       trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/license.json" "$work_dir/ufs.json" "$work_dir/helm-registry.json"' EXIT
-      if [[ ! -f "$work_dir/kubeconfig" ]]; then
-          echo '{"cluster_access":"not established"}' > "$result_dir/diagnostics.json"
-          exit 0
-      fi
       for namespace in alx-ns alluxio-operator; do
           kubectl get pods -n "$namespace" -o json |
               jq --arg namespace "$namespace" '{
@@ -972,10 +929,6 @@ jobs:
           > "$result_dir/diagnostics.json"
     condition: always()
     displayName: Collect safe deployment diagnostics
-    env:
-      WORK_DIR: $(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)
-      RESULT_DIR: $(Build.ArtifactStagingDirectory)/alluxio-warp
-      KUBECONFIG: $(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/kubeconfig
     name: alluxio_diagnostics
   - task: PublishPipelineArtifact@1
     inputs:
@@ -1014,12 +967,12 @@ jobs:
             [[ -n "${!name}" ]] || fail "Missing configuration field: $name"
         done
         role_id="$(jq -er '.id' "$work_dir/role.json")"
-        roles="$(timeout 300 az role assignment list \
+        roles="$(az role assignment list \
             --scope "$acr_resource_id" \
             --subscription "$acr_subscription")"
         jq -e 'type == "array" and all(.[]; .id | type == "string" and length > 0)' <<< "$roles" > /dev/null
         if jq -e --arg id "$role_id" 'any(.[]; (.id | ascii_downcase) == ($id | ascii_downcase))' <<< "$roles" > /dev/null; then
-            timeout 300 az role assignment delete \
+            az role assignment delete \
                 --ids "$role_id" \
                 --subscription "$acr_subscription"
         fi
