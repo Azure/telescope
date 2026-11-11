@@ -1,5 +1,6 @@
 import azure_pipelines.ap
 import azure_pipelines.ap.jobs.job
+import azure_pipelines.ap.steps
 import lib.const
 import lib.steps.azure
 import lib.steps.common
@@ -18,9 +19,12 @@ RESOURCE_GROUP = "$(RUN_ID)"
 # quota (100 vCPU) fits one stage (at most 11 nodes = 44 vCPU); running more
 # stages in parallel needs the requested increase.
 LOCATION = "australiaeast"
-NODE_SKU = "Standard_D4ds_v5"
 CLUSTER = "nsl-cilium"
 TARGET_POOL = "userpool"
+# Passed between steps: the measurement writes RECORDS_FILE, the format step turns it
+# into RESULT_FILE, and UploadResult uploads RESULT_FILE.
+RECORDS_FILE = "/tmp/node-startup-records.jsonl"
+RESULT_FILE = "/tmp/run-result.json"
 DEFAULT_ITERATIONS = 5
 # v1 value: gives Cluster Autoscaler time to leave backoff between scale-ups.
 DEFAULT_CLUSTER_AUTOSCALER_COOLDOWN_SECONDS = 240
@@ -112,7 +116,7 @@ az aks create \\
   --dns-service-ip 192.168.0.10 \\
   --nodepool-name default \\
   --node-count 1 \\
-  --node-vm-size "${NODE_SKU}" \\
+  --node-vm-size "Standard_D4ds_v5" \\
   --node-osdisk-type Ephemeral \\
   --nodepool-taints "CriticalAddonsOnly=true:NoSchedule" \\
   --tags SkipAKSCluster=true ${LIFECYCLE_TAGS}
@@ -124,7 +128,7 @@ az aks create \\
                         SUBSCRIPTION_ID,
                         azure.NodePool {
                             name = TARGET_POOL
-                            sku = NODE_SKU
+                            sku = "Standard_D4ds_v5"
                             count = 1
                             minCount = 1
                             maxCount = 10
@@ -158,6 +162,41 @@ if [ "$defender" = "true" ]; then
   exit 1
 fi
 """),
+                    # An Azure Policy installs the AzSecPack add-on shortly after the node pool is
+                    # created. Its scale set updates conflict with Cluster Autoscaler's, so a scale-up
+                    # during the install fails and the autoscaler backs off for ~5 minutes (run 86026).
+                    # Wait for the install so the first iteration measures a normal scale-up. Never
+                    # fails the run: iterations that still hit a backoff are flagged in the result.
+                    azure.AzCli(
+                        SERVICE_CONNECTION,
+                        "Wait for AzSecPack add-on",
+                        """
+addon_url="https://management.azure.com/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.ContainerService/managedClusters/${CLUSTER}/extensionAddons/azuresecuritylinuxagent?api-version=2024-09-01"
+start=$(date +%s)
+while :; do
+  state=$(az rest --method get --url "$addon_url" --query properties.provisioningState -o tsv 2>/dev/null || echo NotFound)
+  elapsed=$(( $(date +%s) - start ))
+  echo "AzSecPack add-on after $elapsed s: $state"
+  case "$state" in
+    Succeeded)
+      exit 0 ;;
+    Failed|Canceled)
+      echo "##vso[task.logissue type=warning]AzSecPack add-on install ended as $state; continuing"
+      exit 0 ;;
+    NotFound)
+      # Not created yet. If it never appears, the policy didn't install it on this cluster.
+      if [ "$elapsed" -ge 300 ]; then
+        echo "AzSecPack add-on not installed after $elapsed s; continuing"
+        exit 0
+      fi ;;
+  esac
+  if [ "$elapsed" -ge 600 ]; then
+    echo "##vso[task.logissue type=warning]AzSecPack add-on still $state after $elapsed s; continuing"
+    exit 0
+  fi
+  sleep 15
+done
+"""),
                     common.RecordCurrentTime("BENCHMARK_START_TIME"),
                     azure.AzCli(
                         SERVICE_CONNECTION,
@@ -187,19 +226,24 @@ python3 node_startup/main.py \\
   --iteration-cooldown-seconds \${{ parameters.cluster_autoscaler_cooldown_seconds }} \\
   --deadline-epoch-seconds "$deadline" \\
   --uses-default-settings ${USES_DEFAULT_SETTINGS} \\
-  --records-file /tmp/node-startup-records.jsonl
-
-# One JSON line per valid iteration, in the envelope Telescope result storage expects.
-# Printed to the log, then uploaded by the next step.
+  --records-file "${RECORDS_FILE}"
+"""),
+                    # One JSON line per valid iteration, in the envelope Telescope result storage
+                    # expects. Printed to the log, then uploaded by the next step.
+                    steps.Bash {
+                        displayName = "Format results"
+                        bash = """
+set -exo pipefail
 jq -c '{
   timestamp: .operation.end_timestamp,
   run_id: "$(RUN_ID)",
   run_url: "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)",
   pipeline: "$(Build.DefinitionName)",
   result: .
-}' /tmp/node-startup-records.jsonl > /tmp/run-result.json
-cat /tmp/run-result.json
-"""),
+}' "${RECORDS_FILE}" > "${RESULT_FILE}"
+cat "${RESULT_FILE}"
+"""
+                    },
                     # Telescope's shared results storage, ingested into Kusto by the Telescope
                     # team. UploadResult uses storage account keys, so SERVICE_CONNECTION's
                     # identity needs permission to list keys on that account. The default
@@ -210,7 +254,8 @@ cat /tmp/run-result.json
                         SERVICE_CONNECTION,
                         const.DEFAULT_STORAGE_ACCOUNT,
                         const.DEFAULT_STORAGE_SUBSCRIPTION_ID,
-                        const.DEFAULT_STORAGE_CONTAINER),
+                        const.DEFAULT_STORAGE_CONTAINER,
+                        localFile = RESULT_FILE),
                     common.RecordCurrentTime("BENCHMARK_END_TIME"),
                     asi_dashboard.PrintAsiDashboardUrl(
                         SERVICE_CONNECTION,

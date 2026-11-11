@@ -326,6 +326,39 @@ stages:
             exit 1
           fi
       displayName: Check Defender sensor is off
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          addon_url="https://management.azure.com/subscriptions/$(TELESCOPE_SUBSCRIPTION_ID)/resourceGroups/$(RUN_ID)/providers/Microsoft.ContainerService/managedClusters/nsl-cilium/extensionAddons/azuresecuritylinuxagent?api-version=2024-09-01"
+          start=$(date +%s)
+          while :; do
+            state=$(az rest --method get --url "$addon_url" --query properties.provisioningState -o tsv 2>/dev/null || echo NotFound)
+            elapsed=$(( $(date +%s) - start ))
+            echo "AzSecPack add-on after $elapsed s: $state"
+            case "$state" in
+              Succeeded)
+                exit 0 ;;
+              Failed|Canceled)
+                echo "##vso[task.logissue type=warning]AzSecPack add-on install ended as $state; continuing"
+                exit 0 ;;
+              NotFound)
+                # Not created yet. If it never appears, the policy didn't install it on this cluster.
+                if [ "$elapsed" -ge 300 ]; then
+                  echo "AzSecPack add-on not installed after $elapsed s; continuing"
+                  exit 0
+                fi ;;
+            esac
+            if [ "$elapsed" -ge 600 ]; then
+              echo "##vso[task.logissue type=warning]AzSecPack add-on still $state after $elapsed s; continuing"
+              exit 0
+            fi
+            sleep 15
+          done
+      displayName: Wait for AzSecPack add-on
     - bash: |
         set -exo pipefail
         TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
@@ -363,19 +396,19 @@ stages:
             --iteration-cooldown-seconds ${{ parameters.cluster_autoscaler_cooldown_seconds }} \
             --deadline-epoch-seconds "$deadline" \
             --uses-default-settings ${{ and(eq(parameters.iterations, 5), eq(parameters.cluster_autoscaler_cooldown_seconds, 240)) }} \
-            --records-file /tmp/node-startup-records.jsonl
-
-          # One JSON line per valid iteration, in the envelope Telescope result storage expects.
-          # Printed to the log, then uploaded by the next step.
-          jq -c '{
-            timestamp: .operation.end_timestamp,
-            run_id: "$(RUN_ID)",
-            run_url: "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)",
-            pipeline: "$(Build.DefinitionName)",
-            result: .
-          }' /tmp/node-startup-records.jsonl > /tmp/run-result.json
-          cat /tmp/run-result.json
+            --records-file "/tmp/node-startup-records.jsonl"
       displayName: Measure node startup latency
+    - bash: |
+        set -exo pipefail
+        jq -c '{
+          timestamp: .operation.end_timestamp,
+          run_id: "$(RUN_ID)",
+          run_url: "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)",
+          pipeline: "$(Build.DefinitionName)",
+          result: .
+        }' "/tmp/node-startup-records.jsonl" > "/tmp/run-result.json"
+        cat "/tmp/run-result.json"
+      displayName: Format results
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal

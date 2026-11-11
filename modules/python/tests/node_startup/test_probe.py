@@ -138,6 +138,31 @@ class PoolWaitTest(unittest.TestCase):
         self.assertFalse(result)
 
 
+class DefaultServiceAccountWaitTest(unittest.TestCase):
+    def wait(self, missing_reads):
+        api = FakeCoreV1Api()
+        api.service_account_missing_reads = missing_reads
+        fake_time = FakeTime()
+        with mock.patch("node_startup.probe.time", fake_time):
+            probe.wait_for_default_service_account(api, scenarios.PROBE_NAMESPACE)
+        return fake_time.now
+
+    def test_returns_once_the_service_account_exists(self):
+        self.assertEqual(self.wait(missing_reads=0), 0)
+        self.assertEqual(self.wait(missing_reads=3), 3)
+
+    def test_times_out(self):
+        with self.assertRaisesRegex(probe.ProbeTimeout, "has no default service account within 1 minutes"):
+            self.wait(missing_reads=1000)
+
+    def test_other_errors_are_raised(self):
+        api = FakeCoreV1Api()
+        with mock.patch.object(api, "read_namespaced_service_account",
+                               side_effect=client.rest.ApiException(status=403)):
+            with self.assertRaises(client.rest.ApiException):
+                probe.wait_for_default_service_account(api, scenarios.PROBE_NAMESPACE)
+
+
 class DeployProbePodTest(unittest.TestCase):
     def deploy(self, node_label_key, provisioner, api):
         k8s = kubernetes_client(KubernetesClient, api)

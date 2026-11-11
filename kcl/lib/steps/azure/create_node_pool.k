@@ -22,7 +22,7 @@ schema NodePool:
 
     check:
         (minCount == Undefined) == (maxCount == Undefined), "minCount and maxCount must be set together"
-        minCount <= count <= maxCount if maxCount != Undefined, "count must be within [minCount, maxCount]"
+        minCount <= count <= maxCount if minCount != Undefined and maxCount != Undefined, "count must be within [minCount, maxCount]"
 
 # CREATE_NODEPOOL_RETRY_WINDOW_SEC is the maximum time (in seconds) to keep retrying node pool creation when AKS returns a transient retriable error.
 CREATE_NODEPOOL_RETRY_WINDOW_SEC = 600
