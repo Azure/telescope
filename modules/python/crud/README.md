@@ -152,8 +152,9 @@ python3 -m crud.main all \
 ## Workload Timing
 
 Each workload command writes one aggregate operation record to `RESULT_DIR`.
+By default, each instance is applied and waited on before the next is submitted.
 The duration covers all requested workload instances through their Available,
-Ready, or Complete condition.
+Ready, or Complete condition, including the existing pod-readiness checks.
 
 ```bash
 python3 -m crud.main deployment \
@@ -184,6 +185,37 @@ python3 -m crud.main job \
     --step-timeout "$STEP_TIME_OUT"
 ```
 
+### Historical Azure benchmark profile
+
+Azure workload commands support `--workload-profile legacy-shell`.
+This does not change the default workload path. The profile uses
+packaged historical templates and cannot be combined
+with `--manifest-dir`.
+
+The profile applies all Deployments before waiting. Jobs use one controller with
+`--count 1`, `--completions N`, parallelism N, and the Perl pi workload.
+StatefulSets use one controller with `--count 1`, `--replicas N`, Parallel pod
+management, and 5-GiB `managed-csi` PVCs mounted at `/usr/share/nginx/html`.
+Deployment images remain nginx 1.21.6; StatefulSets retain nginx 1.15.5-alpine.
+Counts and timeouts must be positive.
+
+`legacy-shell` preserves Job/StatefulSet `agentpool` node selectors. Deployment
+targeting remains absent, matching the previous benchmark. It waits for the
+complete batch's pods to reach Running (Deployment/StatefulSet) or Succeeded
+(Job). Timing starts before the last Deployment apply, or the single
+Job/StatefulSet apply, and ends when the pod count is observed. The workload
+timeout is one wall-clock waiting budget, not a per-pod budget.
+
+There is no additional five-minute pod wait.
+
+Canonical `duration` still measures the complete workload operation. Profile metadata
+records `workload_start_timestamp`, `workload_end_timestamp`, and
+`workload_readiness_time`; `collect --legacy-output` uses that historical metric
+for the legacy `time` alias. Failed submissions/readiness checks remain failed
+operations and stop the batch; previously submitted resources are left for the
+pipeline's cleanup. Exact old polling cadence and shell timeout-counter quirks
+are not reproduced.
+
 ## Collect Benchmark Results
 
 `telescope-crud collect` converts canonical operation files into final Telescope
@@ -192,7 +224,8 @@ uppercase environment variables remain supported for existing callers.
 An explicit `--result-file` must not point to a canonical operation input,
 including through a symbolic link.
 
-By default, collection preserves the canonical `operation_info` object and
+By default, collection preserves the canonical `operation_info` fields as a
+JSON-encoded string and
 appends rows containing `timestamp`, `region`, `operation_info`, `run_id`, and
 `run_url`, as before. No legacy names or pipeline context fields are added.
 
@@ -250,8 +283,11 @@ Invalid inputs or publishing failures are logged and return a nonzero exit
 code without replacing the previous output. This includes missing or unreadable
 source directories and directories with no operation inputs in legacy mode.
 An output path containing a canonical operation result is rejected, including
-paths through symbolic links. Previously published JSONL output remains
-replaceable, including custom output within the source directory.
+paths through symbolic links. Previously published JSONL output files remain
+replaceable, including custom output within the source directory. Legacy
+collection preserves output file symlinks and atomically replaces their resolved
+targets, so repeated collection through the same link remains supported.
+Dangling links can create a new target; symlink loops fail before publication.
 Default collection retains its existing no-op behavior when no source files
 are found. In legacy mode, validated rows are
 published by atomically replacing the output file, so rerunning collection does

@@ -31,7 +31,7 @@ Documentation = "https://github.com/Azure/telescope/tree/main/modules/python"
 packages = ["iperf3", "clients", "utils", "clusterloader2", "kwok", "gpu", "crud", "crud.azure", "crud.aws"]
 
 [tool.setuptools.package-data]
-crud = ["workload_templates/*.yml"]
+crud = ["workload_templates/*.yml", "workload_templates/legacy/*.yml"]
 
 [tool.setuptools.dynamic]
 dependencies = {file = "requirements.txt"}

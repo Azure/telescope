@@ -17,7 +17,8 @@ import sys
 import tempfile
 import traceback
 from datetime import datetime, timezone
-from crud.azure.node_pool_crud import NodePoolCRUD as AzureNodePoolCRUD
+from pathlib import Path
+from crud.azure.node_pool_crud import LEGACY_WORKLOAD_PROFILE, NodePoolCRUD as AzureNodePoolCRUD
 from crud.azure.machine_crud import MachineCRUD as AzureMachineCRUD
 from crud.aws.node_pool_crud import NodePoolCRUD as AWSNodePoolCRUD
 from crud.operation import OperationContext
@@ -40,10 +41,7 @@ AKS_DATA_FIELDS = (
     "vm_size", "node_pool_name", "create_node_count", "scale_node_count",
     "node_pool_type", "node_pool_number", "batch_size", "workload_test_setting",
 )
-COLLECT_ARGS = (
-    "result_dir", "result_file", "run_id", "run_url", "region", "cloud_info",
-    *AKS_DATA_FIELDS,
-)
+COLLECT_ARGS = ("result_dir", "result_file", "run_id", "run_url", "region", "cloud_info", *AKS_DATA_FIELDS)
 REQUIRED_COLLECT_ARGS = ("result_dir", "run_url", "run_id", "region")
 
 
@@ -65,6 +63,10 @@ def _build_operation_info(content):
     operation_info["name"] = LEGACY_OPERATION_NAMES.get(canonical_name, canonical_name)
     operation_info["succeeded"] = operation_info.get("success")
     operation_info["time"] = operation_info.get("duration")
+    if metadata.get("workload_profile") == LEGACY_WORKLOAD_PROFILE:
+        operation_info["time"] = metadata.get(
+            "workload_readiness_time", operation_info["time"]
+        )
     for field in (
         "command_execution_time", "node_readiness_time", "warning_message",
         "batch_command_execution_times", "percentile_node_readiness_times",
@@ -186,8 +188,10 @@ def collect_benchmark_results(args=None):
     check_output_path = legacy_output or getattr(args, "result_file", None) is not None
     if check_output_path:
         try:
+            if legacy_output:
+                result_file = str(Path(result_file).resolve())
             _validate_output_path(result_file)
-        except (OSError, ValueError) as error:
+        except (OSError, RuntimeError, ValueError) as error:
             logger.error("Invalid output file `%s`: %s", result_file, error)
             return 1
     if legacy_output:
@@ -344,6 +348,9 @@ def handle_workload_operations(node_pool_crud, args):
     result = None
 
     try:
+        workload_kwargs = {}
+        if getattr(args, "workload_profile", "default") == LEGACY_WORKLOAD_PROFILE:
+            workload_kwargs["workload_profile"] = args.workload_profile
         if command == "deployment":
             if not hasattr(node_pool_crud, 'create_deployment'):
                 logger.error("Cloud provider does not support deployment workload operations")
@@ -356,6 +363,7 @@ def handle_workload_operations(node_pool_crud, args):
                 "manifest_dir": args.manifest_dir,
                 "number_of_deployments": args.count,
                 "label_selector": args.label_selector,
+                **workload_kwargs,
             }
 
             result = node_pool_crud.create_deployment(**deploy_kwargs)
@@ -371,6 +379,7 @@ def handle_workload_operations(node_pool_crud, args):
                 "manifest_dir": args.manifest_dir,
                 "number_of_statefulsets": args.count,
                 "label_selector": args.label_selector,
+                **workload_kwargs,
             }
 
             result = node_pool_crud.create_statefulset(**statefulset_kwargs)
@@ -386,6 +395,7 @@ def handle_workload_operations(node_pool_crud, args):
                 "manifest_dir": args.manifest_dir,
                 "number_of_jobs": args.count,
                 "label_selector": args.label_selector,
+                **workload_kwargs,
             }
 
             result = node_pool_crud.create_job(**job_kwargs)
@@ -753,6 +763,11 @@ def main():
         help="Directory containing Kubernetes manifest files"
     )
     workload_common_parser.add_argument(
+        "--workload-profile",
+        choices=("default", LEGACY_WORKLOAD_PROFILE), default="default",
+        help="Opt-in historical Azure workload templates, batch submission and timing",
+    )
+    workload_common_parser.add_argument(
         "--label-selector",
         default="app=nginx-container",
         help="Label selector for created pods (default: app=nginx-container)"
@@ -838,11 +853,22 @@ def main():
                 AzureNodePoolTypeConstants.VIRTUAL_MACHINE_SCALE_SETS,
             )
             != AzureNodePoolTypeConstants.VIRTUAL_MACHINE_SCALE_SETS
+            or getattr(args, "workload_profile", "default") != "default"
         ):
             parser.error(
                 "--cluster-name, --exclude-managed-identity, and non-default "
-                "--node-pool-type values are supported only with --cloud azure"
+                "--node-pool-type values, and legacy workload profiles are supported "
+                "only with --cloud azure"
             )
+
+        if getattr(args, "workload_profile", "default") == LEGACY_WORKLOAD_PROFILE:
+            if args.manifest_dir:
+                parser.error("--manifest-dir cannot be combined with a legacy workload profile")
+            size = args.completions if args.command == "job" else args.replicas
+            if size <= 0 or args.count <= 0 or args.step_timeout <= 0:
+                parser.error("Legacy workloads require positive counts and timeout")
+            if args.command != "deployment" and args.count != 1:
+                parser.error("Legacy Jobs and StatefulSets require --count 1")
 
         # Validate required arguments are present for node pool operations
         if args.command in ["create", "scale", "delete", "all"] and not hasattr(

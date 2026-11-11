@@ -117,6 +117,18 @@ class TestBuildOperationInfo(unittest.TestCase):
         self.assertEqual(operation_info["canonical_name"], "create_machines")
         self.assertEqual(operation_info["data"], {})
 
+    def test_legacy_workload_time_uses_historical_metric_not_total_execution(self):
+        for name in ("create_pods", "create_jobs", "create_statefulset"):
+            with self.subTest(name=name):
+                info = _build_operation_info({"operation_info": {
+                    "name": name, "success": True, "duration": 100,
+                    "metadata": {
+                        "workload_profile": "legacy-shell", "workload_readiness_time": 45,
+                    },
+                }})
+                self.assertEqual(info["duration"], 100)
+                self.assertEqual(info["time"], 45)
+
 
 class TestNodePoolCRUDFunctions(unittest.TestCase):
     """Tests for the node pool CRUD functions in main.py"""
@@ -554,6 +566,41 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         self.assertEqual(collect_args.region, "eastus")
         self.assertEqual(collect_args.scale_node_count, "10")
         self.assertEqual(cm.exception.code, 0)
+
+    @mock.patch("crud.main.AzureNodePoolCRUD")
+    def test_main_passes_legacy_workload_profile(self, mock_crud):
+        arguments = [
+            "crud", "deployment", "--cloud", "azure", "--run-id", "test-run",
+            "--node-pool-name", "test-pool", "--count", "3", "--replicas", "5",
+            "--workload-profile", "legacy-shell",
+        ]
+        with mock.patch("sys.argv", arguments):
+            self.assertIsNone(main())
+        self.assertEqual(
+            mock_crud.return_value.create_deployment.call_args.kwargs["workload_profile"],
+            "legacy-shell",
+        )
+
+    @mock.patch("crud.main.AzureNodePoolCRUD")
+    @mock.patch("crud.main.AWSNodePoolCRUD")
+    def test_main_rejects_invalid_legacy_workload_configuration(self, mock_aws, mock_azure):
+        for options in (
+            ["--cloud", "aws"], ["--count", "2"], ["--completions", "0"],
+            ["--step-timeout", "0"], ["--manifest-dir", "/tmp/custom"],
+            ["--workload-profile", "legacy-python"],
+        ):
+            with self.subTest(options=options):
+                arguments = [
+                    "crud", "job", "--cloud", "azure", "--run-id", "test-run",
+                    "--node-pool-name", "test-pool", "--workload-profile", "legacy-shell",
+                    *options,
+                ]
+                with mock.patch("sys.argv", arguments):
+                    with self.assertRaises(SystemExit) as exit_code:
+                        main()
+                self.assertEqual(exit_code.exception.code, 2)
+        mock_azure.assert_not_called()
+        mock_aws.assert_not_called()
 
     @mock.patch("crud.main.AzureNodePoolCRUD")
     def test_handle_workload_operations_create_deployment_success(self, mock_azure_crud):
@@ -1102,6 +1149,124 @@ class TestCollectBenchmarkResults(unittest.TestCase):
                     )
                     with open(source, encoding="utf-8") as operation_file:
                         self.assertEqual(operation_file.read(), original)
+
+    def test_legacy_collection_preserves_output_file_symlinks_on_reruns(self):
+        source = self._write_operation("create_pods")
+        previous = json.dumps({"operation_info": "{}"}) + "\n"
+        for mode in ("default", "argument", "environment"):
+            for external in (False, True):
+                for relative in (False, True):
+                    with self.subTest(mode=mode, external=external, relative=relative):
+                        with tempfile.TemporaryDirectory(dir=self.test_dir) as root:
+                            result_dir = os.path.join(root, "inputs")
+                            os.mkdir(result_dir)
+                            operation = os.path.join(result_dir, "operation.json")
+                            shutil.copyfile(source, operation)
+                            target = os.path.join(root if external else result_dir, "prior.json")
+                            with open(target, "w", encoding="utf-8") as output:
+                                output.write(previous)
+                            link = os.path.join(
+                                result_dir, "results.json" if mode == "default" else "custom.json"
+                            )
+                            link_target = os.path.relpath(target, result_dir) if relative else target
+                            os.symlink(link_target, link)
+                            self._set_env(RESULT_DIR=result_dir, RESULT_FILE="")
+                            args = argparse.Namespace(legacy_output=True)
+                            if mode == "argument":
+                                args.result_file = link
+                            elif mode == "environment":
+                                self._set_env(RESULT_FILE=link)
+                            with mock.patch("crud.main.os.replace", wraps=os.replace) as replace:
+                                for _ in range(2):
+                                    self.assertEqual(collect_benchmark_results(args), 0)
+                                    self.assertTrue(os.path.islink(link))
+                                    self.assertEqual(os.readlink(link), link_target)
+                                    with open(target, encoding="utf-8") as output:
+                                        rows = [json.loads(line) for line in output]
+                                    self.assertEqual(len(rows), 1)
+                                    self.assertEqual(
+                                        json.loads(rows[0]["operation_info"])["canonical_name"],
+                                        "create_pods",
+                                    )
+                            self.assertEqual(replace.call_count, 2)
+                            for call in replace.call_args_list:
+                                self.assertEqual(call.args[1], target)
+                                self.assertEqual(os.path.dirname(call.args[0]), os.path.dirname(target))
+                            with open(operation, encoding="utf-8") as original:
+                                self.assertEqual(json.load(original)["operation_info"]["name"], "create_pods")
+                            for directory in (root, result_dir):
+                                self.assertFalse(any(name.startswith(".results-") for name in os.listdir(directory)))
+
+    def test_legacy_collection_preserves_dangling_output_symlink_chain(self):
+        self._set_env()
+        self._write_operation("create_pods")
+        target = os.path.join(self.test_dir, "nested", "output.json")
+        intermediate = os.path.join(self.test_dir, "output-link")
+        link = os.path.join(self.test_dir, "results.json")
+        os.symlink(os.path.join("nested", "output.json"), intermediate)
+        os.symlink("output-link", link)
+        for _ in range(2):
+            self.assertEqual(collect_benchmark_results(self.legacy_args), 0)
+            self.assertTrue(os.path.islink(link))
+            self.assertTrue(os.path.islink(intermediate))
+            self.assertEqual(os.readlink(link), "output-link")
+            self.assertEqual(os.readlink(intermediate), os.path.join("nested", "output.json"))
+            with open(target, encoding="utf-8") as output:
+                self.assertEqual(len([json.loads(line) for line in output]), 1)
+
+    def test_legacy_collection_failure_preserves_output_symlink_and_target(self):
+        self._set_env()
+        source = self._write_operation("create_pods")
+        target = os.path.join(self.test_dir, "prior.json")
+        previous = json.dumps({"operation_info": "{}"}) + "\n"
+        with open(target, "w", encoding="utf-8") as output:
+            output.write(previous)
+        link = os.path.join(self.test_dir, "results.json")
+        os.symlink("prior.json", link)
+        for name in ("json.load", "os.replace"):
+            with self.subTest(failure=name):
+                with mock.patch(f"crud.main.{name}", side_effect=OSError("test failure")):
+                    with self.assertLogs("crud.main", level="ERROR"):
+                        self.assertEqual(collect_benchmark_results(self.legacy_args), 1)
+                self.assertTrue(os.path.islink(link))
+                self.assertEqual(os.readlink(link), "prior.json")
+                with open(target, encoding="utf-8") as output:
+                    self.assertEqual(output.read(), previous)
+                with open(source, encoding="utf-8") as operation:
+                    self.assertEqual(json.load(operation)["operation_info"]["name"], "create_pods")
+                self.assertFalse(any(name.startswith(".results-") for name in os.listdir(self.test_dir)))
+
+    def test_legacy_collection_rejects_output_symlink_loops(self):
+        source = self._write_operation("create_pods")
+        for chained in (False, True):
+            with self.subTest(chained=chained):
+                with tempfile.TemporaryDirectory(dir=self.test_dir) as directory:
+                    shutil.copyfile(source, os.path.join(directory, "operation.json"))
+                    self._set_env(RESULT_DIR=directory, RESULT_FILE="")
+                    link = os.path.join(directory, "results.json")
+                    target = "output-link" if chained else "results.json"
+                    if chained:
+                        os.symlink("results.json", os.path.join(directory, target))
+                    os.symlink(target, link)
+                    with self.assertLogs("crud.main", level="ERROR"):
+                        self.assertEqual(collect_benchmark_results(self.legacy_args), 1)
+                    self.assertTrue(os.path.islink(link))
+                    self.assertEqual(os.readlink(link), target)
+                    self.assertFalse(any(name.startswith(".results-") for name in os.listdir(directory)))
+
+    def test_default_collection_preserves_output_file_symlink(self):
+        self._set_env()
+        self._write_operation("create_pods")
+        target = os.path.join(self.test_dir, "prior.json")
+        with open(target, "w", encoding="utf-8"):
+            pass
+        link = os.path.join(self.test_dir, "results.json")
+        os.symlink("prior.json", link)
+        for expected in (1, 2):
+            self.assertEqual(collect_benchmark_results(argparse.Namespace(result_file=link)), 0)
+            self.assertTrue(os.path.islink(link))
+            with open(target, encoding="utf-8") as output:
+                self.assertEqual(len([json.loads(line) for line in output]), expected)
 
     def test_legacy_collection_reruns_custom_output_through_directory_alias(self):
         self._set_env()
