@@ -1,0 +1,16 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pi-{{NODE_POOL_NAME}}
+spec:
+  completions: {{JOB_COMPLETIONS}}
+  parallelism: {{JOB_COMPLETIONS}}
+  template:
+    spec:
+      containers:
+        - name: pi
+          image: perl:5.34.0
+          command: ["perl", "-Mbignum=bpi", "-wle", "print bpi(200)"]
+      restartPolicy: Never
+      nodeSelector: {{NODE_SELECTOR}}
+  backoffLimit: 4

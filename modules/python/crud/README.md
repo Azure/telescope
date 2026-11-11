@@ -39,6 +39,15 @@ export SCENARIO_NAME=$SCENARIO_NAME
 mkdir -p $RESULT_DIR
 ```
 
+For Azure node-pool create and scale using shared provisioning instrumentation,
+`--step-timeout` controls Kubernetes node readiness as before. ARM provisioning
+(SDK polling or the VirtualMachines CLI) retains its historical 30-minute
+allowance, or uses `--step-timeout` when it is longer. Thus the default
+`--step-timeout 600` still allows 10 minutes for readiness and 30 minutes for ARM;
+`--step-timeout 2400` allows 40 minutes for both. Progressive scaling applies
+these limits to each scale step. The low-level provisioning helpers retain their
+30-minute default when called without a timeout override.
+
 ### Azure Variables
 
 ```bash
@@ -143,8 +152,9 @@ python3 -m crud.main all \
 ## Workload Timing
 
 Each workload command writes one aggregate operation record to `RESULT_DIR`.
+By default, each instance is applied and waited on before the next is submitted.
 The duration covers all requested workload instances through their Available,
-Ready, or Complete condition.
+Ready, or Complete condition, including the existing pod-readiness checks.
 
 ```bash
 python3 -m crud.main deployment \
@@ -175,14 +185,111 @@ python3 -m crud.main job \
     --step-timeout "$STEP_TIME_OUT"
 ```
 
+### Historical Azure benchmark profile
+
+Azure workload commands support `--workload-profile legacy-shell`.
+This does not change the default workload path. The profile uses
+packaged historical templates and cannot be combined
+with `--manifest-dir`.
+
+The profile applies all Deployments before waiting. Jobs use one controller with
+`--count 1`, `--completions N`, parallelism N, and the Perl pi workload.
+StatefulSets use one controller with `--count 1`, `--replicas N`, Parallel pod
+management, and 5-GiB `managed-csi` PVCs mounted at `/usr/share/nginx/html`.
+Deployment images remain nginx 1.21.6; StatefulSets retain nginx 1.15.5-alpine.
+Counts and timeouts must be positive.
+
+`legacy-shell` preserves Job/StatefulSet `agentpool` node selectors. Deployment
+targeting remains absent, matching the previous benchmark. It waits for the
+complete batch's pods to reach Running (Deployment/StatefulSet) or Succeeded
+(Job). Timing starts before the last Deployment apply, or the single
+Job/StatefulSet apply, and ends when the pod count is observed. The workload
+timeout is one wall-clock waiting budget, not a per-pod budget.
+
+There is no additional five-minute pod wait.
+
+Canonical `duration` still measures the complete workload operation. Profile metadata
+records `workload_start_timestamp`, `workload_end_timestamp`, and
+`workload_readiness_time`; `collect --legacy-output` uses that historical metric
+for the legacy `time` alias. Failed submissions/readiness checks remain failed
+operations and stop the batch; previously submitted resources are left for the
+pipeline's cleanup. Exact old polling cadence and shell timeout-counter quirks
+are not reproduced.
+
 ## Collect Benchmark Results
 
-Collect and process benchmark results from JSON files:
+`telescope-crud collect` converts canonical operation files into final Telescope
+JSONL rows. Pipeline-owned context can be passed explicitly; the equivalent
+uppercase environment variables remain supported for existing callers.
+An explicit `--result-file` must not point to a canonical operation input,
+including through a symbolic link.
+
+By default, collection preserves the canonical `operation_info` fields as a
+JSON-encoded string and
+appends rows containing `timestamp`, `region`, `operation_info`, `run_id`, and
+`run_url`, as before. No legacy names or pipeline context fields are added.
+
+Internal pipelines publishing to legacy ADX consumers must explicitly opt in:
 
 ```bash
-# Set environment variables for collection
-export RESULT_DIR=/tmp/${RUN_ID}
-export RUN_URL="https://example.com/pipeline/run"
-
-python3 -m crud.main collect
+telescope-crud collect \
+    --legacy-output \
+    --result-dir "/tmp/${RUN_ID}" \
+    --result-file "/tmp/${RUN_ID}/results.json" \
+    --run-id "$RUN_ID" \
+    --run-url "$RUN_URL" \
+    --region "$REGION" \
+    --cloud-info "$CLOUD_INFO" \
+    --vm-size "$VM_SIZE" \
+    --node-pool-name "$NODE_POOL_NAME" \
+    --create-node-count "$CREATE_NODE_COUNT" \
+    --scale-node-count "$SCALE_NODE_COUNT" \
+    --node-pool-type "$NODE_POOL_TYPE" \
+    --node-pool-number "$NODE_POOL_NUMBER" \
+    --batch-size "$BATCH_SIZE" \
+    --workload-test-setting "$WORKLOAD_TEST_SETTING"
 ```
+
+`python3 -m crud.main collect` is also supported.
+
+Explicit arguments override their environment variables. `RESULT_FILE` is read
+from the environment only in legacy mode; default collection uses
+`RESULT_DIR/results.json` unless `--result-file` is explicitly supplied.
+`RESULT_DIR`, `RUN_ID`,
+`RUN_URL`, and `REGION` (or their CLI equivalents) are required. The output
+defaults to `RESULT_DIR/results.json`. `CLOUD_INFO` / `--cloud-info` supplies a
+JSON-encoded object such as `{"cloud":"azure","aks_name":"my-cluster"}`; it
+defaults to `{}` when omitted. In legacy mode, supplied cloud context must be
+valid JSON containing an object; empty strings, non-object values, and non-finite
+numbers are rejected before publication. Other context fields are optional and used only
+with `--legacy-output`. Node counts and batch size are published as integers;
+the node-pool number retains the legacy string representation.
+
+With `--legacy-output`, `operation_info` retains canonical fields such as
+`success`, `duration`, timestamps, errors, and `metadata`, and adds legacy
+consumer aliases (`succeeded`, `time`, and node timings). The adapter lives in
+the collector, not CRUD execution logic.
+
+The original operation name is retained as `canonical_name`; the published
+`name` maps `create_node_pool`, `scale_up`, `scale_down`, and `delete_node_pool`
+to `create_agent_pool`, `scale_agent_pool`, `clean_agent_pool`, and
+`delete_agent_pool`, respectively. Workload names are unchanged. `data` contains
+JSON-encoded node-pool `metadata.cluster_info` (the legacy string representation)
+or the workload metadata. Source files are never modified.
+
+Legacy collection requires each source to contain an `operation_info` object with a
+non-empty string `name`, boolean `success`, and object `metadata` if present.
+Invalid inputs or publishing failures are logged and return a nonzero exit
+code without replacing the previous output. This includes missing or unreadable
+source directories and directories with no operation inputs in legacy mode.
+An output path containing a canonical operation result is rejected, including
+paths through symbolic links. Previously published JSONL output files remain
+replaceable, including custom output within the source directory. Legacy
+collection preserves output file symlinks and atomically replaces their resolved
+targets, so repeated collection through the same link remains supported.
+Dangling links can create a new target; symlink loops fail before publication.
+Default collection retains its existing no-op behavior when no source files
+are found. In legacy mode, validated rows are
+published by atomically replacing the output file, so rerunning collection does
+not duplicate rows. Default collection appends each row immediately and propagates
+input/output exceptions, retaining rows already appended before a later failure.
