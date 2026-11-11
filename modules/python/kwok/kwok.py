@@ -433,8 +433,7 @@ class Node(KWOK):
 
             if self.enable_dra:
                 resource_slice_name = f"kwok-resource-slice-{index}"
-                if pacer is None:
-                    print(f"Creating resource slice {resource_slice_name} for node {node_name}")
+                print(f"Creating resource slice {resource_slice_name} for node {node_name}")
                 template = self.k8s_client.create_template(
                     "kwok/config/resource-slice.yaml",
                     {"resource_slice_name": resource_slice_name, "node_name": node_name},

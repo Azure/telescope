@@ -782,6 +782,16 @@ class TestNodeCreation(unittest.TestCase):
             self.k8s_client.apply_manifest_from_file.call_args_list.count(call("kwok/config/device-class.yaml")), 1,
         )
         self.assertEqual(self.k8s_client.create_node.call_count, 6)
+        self.assertEqual(
+            sorted(
+                item.args[0] for item in self.output.call_args_list
+                if item.args[0].startswith("Creating resource slice ")
+            ),
+            [
+                f"Creating resource slice kwok-resource-slice-{index} for node kwok-node-{index}"
+                for index in range(6)
+            ],
+        )
         self.sleep.assert_not_called()
 
     def test_retry_attempts_are_paced_without_extra_retries(self):
