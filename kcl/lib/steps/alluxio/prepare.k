@@ -13,20 +13,20 @@ subscription="${subscription}"
 resource_group="${resourceGroup}"
 cluster="${cluster}"
 location="${location}"
-registry="$(timeout 300 az acr show --ids "$acr_resource_id")"
+registry="$(az acr show --ids "$acr_resource_id")"
 registry_name="$(jq -er '.name' <<< "$registry")"
 acr_subscription="$(jq -er '.id | split("/")[2]' <<< "$registry")"
 images='{}'
 for image in "$alluxio_image" "$operator_image"; do
     tag="${ALLUXIO_TAG}"
     if [[ "$image" == "$operator_image" ]]; then tag="${OPERATOR_TAG}"; fi
-    digest="$(timeout 300 az acr repository show \\
+    digest="$(az acr repository show \\
         --name "$registry_name" \\
         --subscription "$acr_subscription" \\
         --image "\${image#*/}:$tag" | jq -er '.digest')"
     images="$(jq --arg image "$image:$tag" --arg digest "$digest" '. + {($image): $digest}' <<< "$images")"
 done
-exists="$(timeout 300 az group exists \\
+exists="$(az group exists \\
     --name "$resource_group" \\
     --subscription "$subscription")"
 [[ "$exists" == false ]] || fail "Resource group already exists or could not be verified; refusing to reuse or delete it"
