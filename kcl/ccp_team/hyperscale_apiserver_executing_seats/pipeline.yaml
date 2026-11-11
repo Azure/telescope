@@ -62,6 +62,7 @@ stages:
               --name "stg-H2-hyperscale-apiserver-seats" \
               --location "swedencentral" \
               --kubernetes-version "1.36" \
+              --node-os-upgrade-channel none \
               --dns-name-prefix "stg-H2-hyperscale-apiserver-seats-dns" \
               --tier standard \
               --enable-managed-identity \
@@ -390,6 +391,7 @@ stages:
               --name "stg-H4-hyperscale-apiserver-seats" \
               --location "swedencentral" \
               --kubernetes-version "1.36" \
+              --node-os-upgrade-channel none \
               --dns-name-prefix "stg-H4-hyperscale-apiserver-seats-dns" \
               --tier standard \
               --enable-managed-identity \
@@ -718,6 +720,7 @@ stages:
               --name "stg-H8-hyperscale-apiserver-seats" \
               --location "swedencentral" \
               --kubernetes-version "1.36" \
+              --node-os-upgrade-channel none \
               --dns-name-prefix "stg-H8-hyperscale-apiserver-seats-dns" \
               --tier standard \
               --enable-managed-identity \
