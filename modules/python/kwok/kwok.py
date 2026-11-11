@@ -394,8 +394,8 @@ class Node(KWOK):
             if self.node_create_workers == 1:
                 for index in range(self.node_count):
                     self._create_node(index, progress)
-                    progress.report(in_flight=0)
-                progress.report(in_flight=0, force=True)
+                    progress.report(pending_tasks=0)
+                progress.report(pending_tasks=0, force=True)
             else:
                 self._create_nodes_parallel(progress)
 
@@ -479,12 +479,12 @@ class Node(KWOK):
                     if stopped.is_set():
                         for future in pending:
                             future.cancel()
-                    progress.report(in_flight=len(pending))
+                    progress.report(pending_tasks=len(pending))
             finally:
                 stopped.set()
                 for future in pending:
                     future.cancel()
-        progress.report(in_flight=0, force=True)
+        progress.report(pending_tasks=0, force=True)
         if failures:
             raise RuntimeError("; ".join(str(error) for error in failures)) from failures[0]
 
@@ -748,7 +748,7 @@ class NodeCreationTracker:
         with self.lock:
             self.created += 1
 
-    def report(self, in_flight, force=False):
+    def report(self, pending_tasks, force=False):
         now = time.monotonic()
         if not force and now - self.last_report < NODE_CREATE_REPORT_INTERVAL_SECONDS:
             return
@@ -758,7 +758,7 @@ class NodeCreationTracker:
             created = self.created
         rate = created / elapsed if elapsed > 0 else 0
         print(
-            f"Created {created}/{self.total} virtual nodes; in-flight={in_flight}; "
+            f"Created {created}/{self.total} virtual nodes; pending-tasks={pending_tasks}; "
             f"elapsed={elapsed:.1f}s; completed-rate={rate:.1f} nodes/s",
             flush=True,
         )

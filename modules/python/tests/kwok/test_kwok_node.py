@@ -876,7 +876,7 @@ class TestNodeCreation(unittest.TestCase):
             self.make_node(node_count=5, node_create_workers=2, node_create_qps=1000).create()
         names = [item.args[0]["node_name"] for item in self.k8s_client.create_node.call_args_list]
         self.assertEqual(sorted(names), ["kwok-node-0"] * 3 + ["kwok-node-1"])
-        self.assertTrue(any("Created 1/5 virtual nodes; in-flight=0" in str(item)
+        self.assertTrue(any("Created 1/5 virtual nodes; pending-tasks=0" in str(item)
                             for item in self.output.call_args_list))
 
     def test_progress_distinguishes_node_success_from_dra_failure(self):
@@ -913,11 +913,11 @@ class TestNodeCreation(unittest.TestCase):
         ):
             self.make_node(node_count=1, node_create_workers=2).create()
         self.output.assert_any_call(
-            "Created 0/1 virtual nodes; in-flight=1; elapsed=10.0s; completed-rate=0.0 nodes/s",
+            "Created 0/1 virtual nodes; pending-tasks=1; elapsed=10.0s; completed-rate=0.0 nodes/s",
             flush=True,
         )
         self.output.assert_any_call(
-            "Created 1/1 virtual nodes; in-flight=0; elapsed=10.0s; completed-rate=0.1 nodes/s",
+            "Created 1/1 virtual nodes; pending-tasks=0; elapsed=10.0s; completed-rate=0.1 nodes/s",
             flush=True,
         )
 
