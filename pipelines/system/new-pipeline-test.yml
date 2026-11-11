@@ -6,6 +6,8 @@ pool:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: image-pull-n1000
+  ACR_PULL_USERNAME: williamjcusaue1
+  ACR_PULL_PASSWORD: 58jBdanzX98R6zYW4WgoL3T5PZWxMo85RdqUzj43BPriXYrImF81JQQJ99CIADL93NaEqg7NAAACAZCRFR7H
 
 stages:
   - stage: azure_australiaeast_image_pull
@@ -34,7 +36,7 @@ stages:
               scrape_registry: False
               containerd_scrape_interval: 30s
               registry_endpoint: williamjcusaue1.azurecr-test.io
-              test_image: test1gb:latest
+              test_image: test1gb:06d20fd1e468005b0fb1b4d3fce678e75f7ec5d9d76e635d335da9d440be25db
               kubernetes_version: "1.34"
               pod_startup_latency_threshold: 10m
               anonymous_pull: False
