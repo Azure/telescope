@@ -37,7 +37,7 @@ stages:
               count: 1
               replicas: 3
               completions: 1
-              system_node_pool: '{"name":"default","node_count":1,"vm_size":"Standard_D4s_v3"}'
+              system_node_pool: '{"name":"default","node_count":1,"vm_size":"Standard_D4s_v3","vm_set_type":"VirtualMachineScaleSets"}'
           max_parallel: 1
           credential_type: service_connection
           ssh_key_enabled: false
