@@ -6,7 +6,7 @@ metadata:
 data:
   override.yaml: |
     NODES: 12000
-    PODS_PER_NODE: 4
+    PODS_PER_NODE: 3
     BIG_GROUP_SIZE: 1
     MEDIUM_GROUP_SIZE: 1
     SMALL_GROUP_SIZE: 1
@@ -19,8 +19,8 @@ data:
     CL2_EXIT_AFTER_EXEC: true
     CL2_ENABLE_PVS: false
     CL2_ENABLE_CLUSTER_OOMS_TRACKER: false
-    # Keep the action rate fixed while increasing workload size.
-    CL2_DEFAULT_QPS: 2000
+    # Increase the sustained action rate while limiting burst capacity.
+    CL2_DEFAULT_QPS: 5000
     CL2_RUN_ON_ARM_NODES: true
 ---
 apiVersion: batch/v1
@@ -208,8 +208,8 @@ data:
     - name: default
       globalQPSLoad:
         qps: {{$defaultQps}}
-        # Reduce aggregate burst capacity to 12,000 actions across six drivers.
-        burst: 2000
+        # Limit aggregate burst capacity to 600 actions across six drivers.
+        burst: 100
     - name: RandomizedSaturationTimeLimited
       RandomizedTimeLimitedLoad:
         timeLimit: {{$saturationTime}}s
