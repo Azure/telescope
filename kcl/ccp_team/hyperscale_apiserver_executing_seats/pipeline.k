@@ -16,6 +16,8 @@ schema Cl2Config:
     memoryRequest: str
 
 # Preserve per-tier concurrency; H2/H4 fit two drivers per runner node.
+# For H8, six drivers keep the control plane near saturation without excessive
+# run time; observed runs show no CCP or CL2 errors or driver bottlenecks.
 CL2_CONFIGS: {str: Cl2Config} = {
     "H2": Cl2Config {
         nodeCount = 1
