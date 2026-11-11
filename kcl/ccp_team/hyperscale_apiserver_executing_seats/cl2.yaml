@@ -6,7 +6,7 @@ metadata:
 data:
   override.yaml: |
     NODES: 12000
-    PODS_PER_NODE: 3
+    PODS_PER_NODE: 4
     BIG_GROUP_SIZE: 1
     MEDIUM_GROUP_SIZE: 1
     SMALL_GROUP_SIZE: 1
@@ -19,7 +19,7 @@ data:
     CL2_EXIT_AFTER_EXEC: true
     CL2_ENABLE_PVS: false
     CL2_ENABLE_CLUSTER_OOMS_TRACKER: false
-    # Test lower sustained and burst action rates without changing workload size.
+    # Keep the action rate fixed while increasing workload size.
     CL2_DEFAULT_QPS: 2000
     CL2_RUN_ON_ARM_NODES: true
 ---
