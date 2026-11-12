@@ -1,26 +1,6 @@
 import azure_pipelines.ap.steps
 import lib.steps.azure
 
-RESOURCE_COMMANDS = SECRET_COMMANDS + """
-create_private_resource() {
-    private_command kubectl create --dry-run=server --validate=strict -f "$1" > /dev/null
-    private_command kubectl create -f "$1" > /dev/null
-}
-wait_phase() {
-    local kind="$1" name="$2" field="$3" expected="$4" phase deadline=$((SECONDS + 900))
-    while :; do
-        phase="$(kubectl get \\
-            "$kind" "$name" -n alx-ns -o "jsonpath={.status.$field}")"
-        [[ "$phase" != "$expected" ]] || return 0
-        case "$phase" in
-            Failed|Error|Terminated) fail "$kind/$name failed; inspect securely in cluster" ;;
-        esac
-        (( SECONDS < deadline )) || fail "$kind/$name did not reach $expected before timeout"
-        sleep 10
-    done
-}
-"""
-
 InstallOperator = lambda serviceConnection: str, operatorChart: str, workDir: str, resultDir: str -> steps.Step {
     azure.AzCli(
         serviceConnection
