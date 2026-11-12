@@ -13,7 +13,8 @@ stages:
     displayName: Benchmarking
     timeoutInMinutes: 1440
     steps:
-    - bash: |
+    - bash: |2
+
         set -eo pipefail
 
         job_id="$(System.JobId)"
@@ -34,6 +35,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
           az config set defaults.location="southeastasia"
           az account show
@@ -45,6 +47,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |+
           set -exo pipefail
+
           az group create \
             --name "$(RUN_ID)" \
             --location "southeastasia" \
@@ -58,10 +61,12 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           az rest \
             --method put \
             --uri "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/$(RUN_ID)/providers/Microsoft.ContainerService/managedClusters/stg-H2-hyperscale-pod-scheduling-rate?api-version=2026-01-02-preview" \
-            --body "{
+            --body "
+          {
               \"location\": \"southeastasia\",
               \"identity\": { \"type\": \"SystemAssigned\" },
               \"sku\": {
@@ -110,6 +115,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           while true; do
             STATE=$(az aks show \
               --name "stg-H2-hyperscale-pod-scheduling-rate" \
@@ -137,6 +143,8 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
+
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -185,6 +193,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           az aks get-credentials \
             --name "stg-H2-hyperscale-pod-scheduling-rate" \
             --resource-group "$(RUN_ID)" \
@@ -198,6 +207,8 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
+
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -248,6 +259,7 @@ stages:
         inlineScript: |-
           set -exo pipefail
           cd modules/python
+
           export PYTHONPATH=$PYTHONPATH:$(pwd)
           python3 kwok/kwok.py   --action create   --node-count 2000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 100 --pod-play-stage-parallelism 500
       displayName: Create KWOK Nodes
@@ -259,6 +271,7 @@ stages:
         inlineScript: |-
           set -exo pipefail
           cd modules/python
+
           export PYTHONPATH=$PYTHONPATH:$(pwd)
           python3 kwok/kwok.py   --action validate   --node-count 2000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 100 --pod-play-stage-parallelism 500
       displayName: Validate KWOK Nodes
@@ -269,6 +282,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           set +eo pipefail
           kubectl create namespace "clusterloader2" || true
           kubectl apply -f $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/cl2-h2.yaml || exit 1
@@ -315,6 +329,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           for pod in $(kubectl get pods --namespace="clusterloader2" -l job-name=cl2 -o jsonpath='{.items[*].metadata.name}'); do
             echo "===== Logs for pod: $pod ====="
             kubectl logs --namespace="clusterloader2" "$pod" || true
@@ -327,30 +342,14 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-          for NODE_RG in $(az aks list \
+
+          python3 "$(Build.SourcesDirectory)/kcl/lib/steps/azure/resource_group.py" delete \
             --resource-group "$(RUN_ID)" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-            --query "[].nodeResourceGroup" \
-            --output tsv); do
-            echo "Checking VMSS rolling upgrades in node resource group: $NODE_RG"
-            for VMSS in $(az vmss list \
-              --resource-group "$NODE_RG" \
-              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-              --query "[].name" \
-              --output tsv); do
-              echo "Attempting to cancel rolling upgrade for VMSS: $VMSS"
-              az vmss rolling-upgrade cancel \
-                --resource-group "$NODE_RG" \
-                --name "$VMSS" \
-                --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-                && echo "Cancelled rolling upgrade for $VMSS." \
-                || echo "No active rolling upgrade to cancel for $VMSS (or cancel not applicable)."
-            done
-          done
-
-          az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
+            --timeout-seconds 2700 \
+            --poll-interval-seconds 30
       condition: always()
-      displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+      displayName: Delete resource group with rolling-upgrade recovery (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
 - stage: H4
   displayName: H4
   jobs:
@@ -358,7 +357,8 @@ stages:
     displayName: Benchmarking
     timeoutInMinutes: 1440
     steps:
-    - bash: |
+    - bash: |2
+
         set -eo pipefail
 
         job_id="$(System.JobId)"
@@ -379,6 +379,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
           az config set defaults.location="southeastasia"
           az account show
@@ -390,6 +391,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |+
           set -exo pipefail
+
           az group create \
             --name "$(RUN_ID)" \
             --location "southeastasia" \
@@ -403,10 +405,12 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           az rest \
             --method put \
             --uri "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/$(RUN_ID)/providers/Microsoft.ContainerService/managedClusters/stg-H4-hyperscale-pod-scheduling-rate?api-version=2026-01-02-preview" \
-            --body "{
+            --body "
+          {
               \"location\": \"southeastasia\",
               \"identity\": { \"type\": \"SystemAssigned\" },
               \"sku\": {
@@ -455,6 +459,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           while true; do
             STATE=$(az aks show \
               --name "stg-H4-hyperscale-pod-scheduling-rate" \
@@ -482,6 +487,8 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
+
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -530,6 +537,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           az aks get-credentials \
             --name "stg-H4-hyperscale-pod-scheduling-rate" \
             --resource-group "$(RUN_ID)" \
@@ -543,6 +551,8 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
+
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -593,6 +603,7 @@ stages:
         inlineScript: |-
           set -exo pipefail
           cd modules/python
+
           export PYTHONPATH=$PYTHONPATH:$(pwd)
           python3 kwok/kwok.py   --action create   --node-count 4000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 100 --pod-play-stage-parallelism 500
       displayName: Create KWOK Nodes
@@ -604,6 +615,7 @@ stages:
         inlineScript: |-
           set -exo pipefail
           cd modules/python
+
           export PYTHONPATH=$PYTHONPATH:$(pwd)
           python3 kwok/kwok.py   --action validate   --node-count 4000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 100 --pod-play-stage-parallelism 500
       displayName: Validate KWOK Nodes
@@ -614,6 +626,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           set +eo pipefail
           kubectl create namespace "clusterloader2" || true
           kubectl apply -f $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/cl2-h4.yaml || exit 1
@@ -660,6 +673,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           for pod in $(kubectl get pods --namespace="clusterloader2" -l job-name=cl2 -o jsonpath='{.items[*].metadata.name}'); do
             echo "===== Logs for pod: $pod ====="
             kubectl logs --namespace="clusterloader2" "$pod" || true
@@ -672,30 +686,14 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-          for NODE_RG in $(az aks list \
+
+          python3 "$(Build.SourcesDirectory)/kcl/lib/steps/azure/resource_group.py" delete \
             --resource-group "$(RUN_ID)" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-            --query "[].nodeResourceGroup" \
-            --output tsv); do
-            echo "Checking VMSS rolling upgrades in node resource group: $NODE_RG"
-            for VMSS in $(az vmss list \
-              --resource-group "$NODE_RG" \
-              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-              --query "[].name" \
-              --output tsv); do
-              echo "Attempting to cancel rolling upgrade for VMSS: $VMSS"
-              az vmss rolling-upgrade cancel \
-                --resource-group "$NODE_RG" \
-                --name "$VMSS" \
-                --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-                && echo "Cancelled rolling upgrade for $VMSS." \
-                || echo "No active rolling upgrade to cancel for $VMSS (or cancel not applicable)."
-            done
-          done
-
-          az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
+            --timeout-seconds 2700 \
+            --poll-interval-seconds 30
       condition: always()
-      displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+      displayName: Delete resource group with rolling-upgrade recovery (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
 - stage: H8
   displayName: H8
   jobs:
@@ -703,7 +701,8 @@ stages:
     displayName: Benchmarking
     timeoutInMinutes: 1440
     steps:
-    - bash: |
+    - bash: |2
+
         set -eo pipefail
 
         job_id="$(System.JobId)"
@@ -724,6 +723,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
           az config set defaults.location="southeastasia"
           az account show
@@ -735,6 +735,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |+
           set -exo pipefail
+
           az group create \
             --name "$(RUN_ID)" \
             --location "southeastasia" \
@@ -748,10 +749,12 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           az rest \
             --method put \
             --uri "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/$(RUN_ID)/providers/Microsoft.ContainerService/managedClusters/stg-H8-hyperscale-pod-scheduling-rate?api-version=2026-01-02-preview" \
-            --body "{
+            --body "
+          {
               \"location\": \"southeastasia\",
               \"identity\": { \"type\": \"SystemAssigned\" },
               \"sku\": {
@@ -800,6 +803,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           while true; do
             STATE=$(az aks show \
               --name "stg-H8-hyperscale-pod-scheduling-rate" \
@@ -827,6 +831,8 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
+
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -875,6 +881,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           az aks get-credentials \
             --name "stg-H8-hyperscale-pod-scheduling-rate" \
             --resource-group "$(RUN_ID)" \
@@ -888,6 +895,8 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
+
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -938,6 +947,7 @@ stages:
         inlineScript: |-
           set -exo pipefail
           cd modules/python
+
           export PYTHONPATH=$PYTHONPATH:$(pwd)
           python3 kwok/kwok.py   --action create   --node-count 8000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 100 --pod-play-stage-parallelism 500
       displayName: Create KWOK Nodes
@@ -949,6 +959,7 @@ stages:
         inlineScript: |-
           set -exo pipefail
           cd modules/python
+
           export PYTHONPATH=$PYTHONPATH:$(pwd)
           python3 kwok/kwok.py   --action validate   --node-count 8000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 100 --pod-play-stage-parallelism 500
       displayName: Validate KWOK Nodes
@@ -959,6 +970,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           set +eo pipefail
           kubectl create namespace "clusterloader2" || true
           kubectl apply -f $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/cl2-h8.yaml || exit 1
@@ -1005,6 +1017,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           for pod in $(kubectl get pods --namespace="clusterloader2" -l job-name=cl2 -o jsonpath='{.items[*].metadata.name}'); do
             echo "===== Logs for pod: $pod ====="
             kubectl logs --namespace="clusterloader2" "$pod" || true
@@ -1017,27 +1030,11 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-          for NODE_RG in $(az aks list \
+
+          python3 "$(Build.SourcesDirectory)/kcl/lib/steps/azure/resource_group.py" delete \
             --resource-group "$(RUN_ID)" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-            --query "[].nodeResourceGroup" \
-            --output tsv); do
-            echo "Checking VMSS rolling upgrades in node resource group: $NODE_RG"
-            for VMSS in $(az vmss list \
-              --resource-group "$NODE_RG" \
-              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-              --query "[].name" \
-              --output tsv); do
-              echo "Attempting to cancel rolling upgrade for VMSS: $VMSS"
-              az vmss rolling-upgrade cancel \
-                --resource-group "$NODE_RG" \
-                --name "$VMSS" \
-                --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-                && echo "Cancelled rolling upgrade for $VMSS." \
-                || echo "No active rolling upgrade to cancel for $VMSS (or cancel not applicable)."
-            done
-          done
-
-          az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
+            --timeout-seconds 2700 \
+            --poll-interval-seconds 30
       condition: always()
-      displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+      displayName: Delete resource group with rolling-upgrade recovery (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
