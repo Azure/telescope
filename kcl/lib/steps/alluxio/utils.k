@@ -63,3 +63,20 @@ redact() {
     done
 }
 """
+
+AlluxioCommands = lambda checksDir: str -> str {
+    REDACT_OUTPUT + """
+alluxio() {
+    kubectl exec -n alx-ns alluxio-coordinator-0 \\
+        -c alluxio-coordinator -- alluxio "$@"
+}
+client_exec() {
+    kubectl exec -n alx-ns warp-client -c warp -- "$@"
+}
+cache_report() {
+    alluxio fs check-cached --path /blob --recursive --limit 17 |
+        redact > "$result_dir/cache-$1.txt"
+    jq -Rse -L "${checksDir}" 'include "checks"; cache_counts' "$result_dir/cache-$1.txt"
+}
+"""
+}
