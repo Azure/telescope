@@ -146,6 +146,7 @@ az aks create \\
             )
             alluxio.MountBlobStorage(
                 STORAGE_ACCOUNT
+                "${CHECKS_DIR}/ufs.yaml"
                 WORK_DIR
                 RESULT_DIR
             )

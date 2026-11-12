@@ -44,7 +44,7 @@ jobs:
             exit 1
         }
         trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
-        trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/ufs.json" "$work_dir/helm-registry.json"' EXIT
+        trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/helm-registry.json"' EXIT
         acr_resource_id="/subscriptions/REPLACE_ME_SUBSCRIPTION_ID/resourceGroups/REPLACE_ME_RESOURCE_GROUP/providers/Microsoft.ContainerRegistry/registries/REPLACE_ME_REGISTRY"
         alluxio_image="REPLACE_ME.azurecr.io/alluxio-enterprise"
         operator_image="REPLACE_ME.azurecr.io/alluxio-operator"
@@ -251,7 +251,7 @@ jobs:
             exit 1
         }
         trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
-        trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/ufs.json" "$work_dir/helm-registry.json"' EXIT
+        trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/helm-registry.json"' EXIT
         identity="$(az aks show \
             --name "alluxio-warp" \
             --resource-group "alluxio-$(RUN_ID)-$(System.JobAttempt)" \
@@ -289,7 +289,7 @@ jobs:
             exit 1
         }
         trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
-        trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/ufs.json" "$work_dir/helm-registry.json"' EXIT
+        trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/helm-registry.json"' EXIT
         private_command() {
             if "$@" > "$work_dir/command.out" 2> "$work_dir/command.err"; then
                 cat "$work_dir/command.out"
@@ -338,12 +338,19 @@ jobs:
         rm -f -- "$work_dir/blob.bin"
         az storage blob list --container-name warp-data |
             jq -e -L "$(Build.SourcesDirectory)/kcl/alluxio/warp" 'include "checks"; validate_dataset' > /dev/null
-        private_command az storage container generate-sas \
+        BLOB_SAS="$(az storage container generate-sas \
             --name warp-data \
             --permissions rl \
             --expiry "$(date -u -d '+4 hours' +%Y-%m-%dT%H:%MZ)" \
-            --https-only | jq -er 'select(type == "string" and length > 0)' > "$work_dir/blob-sas"
+            --https-only 2> /dev/null |
+            jq -er 'select(type == "string" and length > 0)' 2> /dev/null)" ||
+            fail "Could not generate the Blob SAS; secret-bearing output withheld"
         unset AZURE_STORAGE_KEY
+        sas_value="${BLOB_SAS//'%'/'%AZP25'}"
+        sas_value="${sas_value//$'\n'/'%0A'}"
+        sas_value="${sas_value//$'\r'/'%0D'}"
+        printf '##vso[task.setvariable variable=BLOB_SAS;issecret=true]%s\n' "$sas_value"
+        unset BLOB_SAS sas_value
         jq -n \
             --arg storage_account "alx$(Build.BuildId)a$(System.JobAttempt)" --arg container warp-data \
             --arg location "westeurope" --arg kubernetes_version "$(jq -er '.kubernetesVersion' <<< "$cluster_info")" \
@@ -371,7 +378,7 @@ jobs:
             exit 1
         }
         trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
-        trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/ufs.json" "$work_dir/helm-registry.json"' EXIT
+        trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/helm-registry.json"' EXIT
         private_command() {
             if "$@" > "$work_dir/command.out" 2> "$work_dir/command.err"; then
                 cat "$work_dir/command.out"
@@ -425,7 +432,7 @@ jobs:
           exit 1
       }
       trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
-      trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/ufs.json" "$work_dir/helm-registry.json"' EXIT
+      trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/helm-registry.json"' EXIT
       private_command() {
           if "$@" > "$work_dir/command.out" 2> "$work_dir/command.err"; then
               cat "$work_dir/command.out"
@@ -435,10 +442,6 @@ jobs:
       }
       require_secret() {
           [[ -n "${!1:-}" && "${!1}" != '$('* ]] || fail "Required secret pipeline variable $1 is missing"
-      }
-      create_private_resource() {
-          private_command kubectl create --dry-run=server --validate=strict -f "$1" > /dev/null
-          private_command kubectl create -f "$1" > /dev/null
       }
       wait_phase() {
           local kind="$1" name="$2" field="$3" expected="$4" phase deadline=$((SECONDS + 900))
@@ -453,11 +456,10 @@ jobs:
               sleep 10
           done
       }
-      if [[ -f "$work_dir/blob-sas" ]]; then BLOB_SAS="$(< "$work_dir/blob-sas")"; fi
       redact() {
           local line secret
           while IFS= read -r line || [[ -n "$line" ]]; do
-              for secret in "${ALLUXIO_LICENSE_STRING:-}" "${AZURE_STORAGE_KEY:-}" "${BLOB_SAS:-}"; do
+              for secret in "${ALLUXIO_LICENSE_STRING:-}" "${BLOB_SAS:-}"; do
                   if [[ -n "$secret" ]]; then line="${line//"$secret"/<redacted>}"; fi
               done
               printf '%s\n' "$line"
@@ -499,7 +501,7 @@ jobs:
           exit 1
       }
       trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
-      trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/ufs.json" "$work_dir/helm-registry.json"' EXIT
+      trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/helm-registry.json"' EXIT
       private_command() {
           if "$@" > "$work_dir/command.out" 2> "$work_dir/command.err"; then
               cat "$work_dir/command.out"
@@ -509,10 +511,6 @@ jobs:
       }
       require_secret() {
           [[ -n "${!1:-}" && "${!1}" != '$('* ]] || fail "Required secret pipeline variable $1 is missing"
-      }
-      create_private_resource() {
-          private_command kubectl create --dry-run=server --validate=strict -f "$1" > /dev/null
-          private_command kubectl create -f "$1" > /dev/null
       }
       wait_phase() {
           local kind="$1" name="$2" field="$3" expected="$4" phase deadline=$((SECONDS + 900))
@@ -527,30 +525,31 @@ jobs:
               sleep 10
           done
       }
-      if [[ -f "$work_dir/blob-sas" ]]; then BLOB_SAS="$(< "$work_dir/blob-sas")"; fi
       redact() {
           local line secret
           while IFS= read -r line || [[ -n "$line" ]]; do
-              for secret in "${ALLUXIO_LICENSE_STRING:-}" "${AZURE_STORAGE_KEY:-}" "${BLOB_SAS:-}"; do
+              for secret in "${ALLUXIO_LICENSE_STRING:-}" "${BLOB_SAS:-}"; do
                   if [[ -n "$secret" ]]; then line="${line//"$secret"/<redacted>}"; fi
               done
               printf '%s\n' "$line"
           done
       }
-      export BLOB_SAS
-      BLOB_SAS="$(< "$work_dir/blob-sas")"
-      jq -n --arg account "alx$(Build.BuildId)a$(System.JobAttempt)" '{
-          apiVersion: "k8s-operator.alluxio.com/v1", kind: "UnderFileSystem",
-          metadata: {name: "alluxio-blob", namespace: "alx-ns"},
-          spec: {alluxioCluster: "alluxio", mountPath: "/blob",
-                 path: ("abfs://" + $account + ".blob.core.windows.net/warp-data/"),
+      require_secret BLOB_SAS
+      ufs="$(jq -n --arg account "alx$(Build.BuildId)a$(System.JobAttempt)" '{
+          spec: {path: ("abfs://" + $account + ".blob.core.windows.net/warp-data/"),
                  mountOptions: {"alluxio.underfs.abfs.sas.token": env.BLOB_SAS}}
-      }' > "$work_dir/ufs.json"
-      create_private_resource "$work_dir/ufs.json"
+      }' | kubectl patch --local --type=merge -f "$(Build.SourcesDirectory)/kcl/alluxio/warp/ufs.yaml" \
+          --patch-file /dev/stdin -o yaml 2> >(redact >&2))"
+      printf '%s\n' "$ufs" |
+          kubectl create --dry-run=server --validate=strict -f - > /dev/null 2> >(redact >&2)
+      printf '%s\n' "$ufs" | kubectl create -f - > /dev/null 2> >(redact >&2)
+      unset ufs
       wait_phase ufs alluxio-blob phase Ready
       kubectl exec -n alx-ns alluxio-coordinator-0 \
           -c alluxio-coordinator -- alluxio fs ls /blob | redact
     displayName: Mount Azure Blob in Alluxio
+    env:
+      BLOB_SAS: $(BLOB_SAS)
     name: alluxio_mount
   - bash: |
       set +x
@@ -566,7 +565,7 @@ jobs:
           exit 1
       }
       trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
-      trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/ufs.json" "$work_dir/helm-registry.json"' EXIT
+      trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/helm-registry.json"' EXIT
       client="$(kubectl set env --local -f "$(Build.SourcesDirectory)/kcl/alluxio/warp/client.yaml" --containers=install-warp \
           WARP_VERSION="1.3.1" WARP_SHA256="5a84ed6efdd8390f77e5990dc43722868b026c7574f41ffb1b7289795aadb603" -o yaml)"
       printf '%s\n' "$client" | kubectl create --dry-run=server --validate=strict -f - > /dev/null
@@ -596,12 +595,11 @@ jobs:
           exit 1
       }
       trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
-      trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/ufs.json" "$work_dir/helm-registry.json"' EXIT
-      if [[ -f "$work_dir/blob-sas" ]]; then BLOB_SAS="$(< "$work_dir/blob-sas")"; fi
+      trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/helm-registry.json"' EXIT
       redact() {
           local line secret
           while IFS= read -r line || [[ -n "$line" ]]; do
-              for secret in "${ALLUXIO_LICENSE_STRING:-}" "${AZURE_STORAGE_KEY:-}" "${BLOB_SAS:-}"; do
+              for secret in "${ALLUXIO_LICENSE_STRING:-}" "${BLOB_SAS:-}"; do
                   if [[ -n "$secret" ]]; then line="${line//"$secret"/<redacted>}"; fi
               done
               printf '%s\n' "$line"
@@ -661,6 +659,8 @@ jobs:
           [[ "$(jq -r '.all' <<< "$counts")" == 16 ]] || fail "Dataset was not fully cached after the warm phase"
       fi
     displayName: Run cold-start Warp GET
+    env:
+      BLOB_SAS: $(BLOB_SAS)
     name: alluxio_cold
   - bash: |
       set +x
@@ -676,12 +676,11 @@ jobs:
           exit 1
       }
       trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
-      trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/ufs.json" "$work_dir/helm-registry.json"' EXIT
-      if [[ -f "$work_dir/blob-sas" ]]; then BLOB_SAS="$(< "$work_dir/blob-sas")"; fi
+      trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/helm-registry.json"' EXIT
       redact() {
           local line secret
           while IFS= read -r line || [[ -n "$line" ]]; do
-              for secret in "${ALLUXIO_LICENSE_STRING:-}" "${AZURE_STORAGE_KEY:-}" "${BLOB_SAS:-}"; do
+              for secret in "${ALLUXIO_LICENSE_STRING:-}" "${BLOB_SAS:-}"; do
                   if [[ -n "$secret" ]]; then line="${line//"$secret"/<redacted>}"; fi
               done
               printf '%s\n' "$line"
@@ -716,6 +715,8 @@ jobs:
           sleep 10
       done
     displayName: Preload all 16 objects into the Alluxio cache
+    env:
+      BLOB_SAS: $(BLOB_SAS)
     name: alluxio_preload
   - bash: |
       set +x
@@ -731,12 +732,11 @@ jobs:
           exit 1
       }
       trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
-      trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/ufs.json" "$work_dir/helm-registry.json"' EXIT
-      if [[ -f "$work_dir/blob-sas" ]]; then BLOB_SAS="$(< "$work_dir/blob-sas")"; fi
+      trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/helm-registry.json"' EXIT
       redact() {
           local line secret
           while IFS= read -r line || [[ -n "$line" ]]; do
-              for secret in "${ALLUXIO_LICENSE_STRING:-}" "${AZURE_STORAGE_KEY:-}" "${BLOB_SAS:-}"; do
+              for secret in "${ALLUXIO_LICENSE_STRING:-}" "${BLOB_SAS:-}"; do
                   if [[ -n "$secret" ]]; then line="${line//"$secret"/<redacted>}"; fi
               done
               printf '%s\n' "$line"
@@ -796,6 +796,8 @@ jobs:
           [[ "$(jq -r '.all' <<< "$counts")" == 16 ]] || fail "Dataset was not fully cached after the warm phase"
       fi
     displayName: Run warm-cache Warp GET
+    env:
+      BLOB_SAS: $(BLOB_SAS)
     name: alluxio_warm
   - bash: |
       set -exo pipefail
@@ -817,7 +819,7 @@ jobs:
           exit 1
       }
       trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
-      trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/ufs.json" "$work_dir/helm-registry.json"' EXIT
+      trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/helm-registry.json"' EXIT
       for namespace in alx-ns alluxio-operator; do
           kubectl get pods -n "$namespace" -o json |
               jq --arg namespace "$namespace" '{
@@ -860,7 +862,7 @@ jobs:
             exit 1
         }
         trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
-        trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/ufs.json" "$work_dir/helm-registry.json"' EXIT
+        trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/helm-registry.json"' EXIT
         if [[ ! -f "$work_dir/role.json" ]]; then
             echo "No registry grant was created by this run"
             exit 0

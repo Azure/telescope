@@ -80,6 +80,9 @@ if [[ "$phase" == warm-cache ]]; then
     [[ "$(jq -r '.all' <<< "$counts")" == 16 ]] || fail "Dataset was not fully cached after the warm phase"
 fi
 """
+        env = {
+            BLOB_SAS = "$(BLOB_SAS)"
+        }
     }
 }
 
@@ -105,5 +108,8 @@ while :; do
     sleep 10
 done
 """
+        env = {
+            BLOB_SAS = "$(BLOB_SAS)"
+        }
     }
 }
