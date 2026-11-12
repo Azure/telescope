@@ -3,7 +3,8 @@ import lib.steps.azure
 
 MAX_CONSECUTIVE_APISERVER_ERRORS = 20
 
-RunClusterLoader2 = lambda serviceConnection: str, namespace: str, manifest: str -> steps.Step {
+RunClusterLoader2 = lambda serviceConnection: str, namespace: str, manifest: str, enableLiveLogs: bool = False, logDirectory: str = Undefined -> steps.Step {
+    assert not enableLiveLogs or logDirectory, "Live CL2 logs require an artifact directory"
     script = """
 set +eo pipefail
 kubectl create namespace "${namespace}" || true
@@ -44,5 +45,12 @@ while true; do
   sleep 30
 done
 """
-    azure.AzCli(serviceConnection, "Run cluster loader 2", script)
+    liveScript = """
+exec bash "$(Pipeline.Workspace)/s/scripts/run_cluster_loader_2.sh" \\
+    --namespace "${namespace}" \\
+    --manifest "$(Pipeline.Workspace)/s/${manifest}" \\
+    --log-directory "${logDirectory}" \\
+    --poll-interval 60
+"""
+    azure.AzCli(serviceConnection, "Run cluster loader 2", liveScript if enableLiveLogs else script)
 }
