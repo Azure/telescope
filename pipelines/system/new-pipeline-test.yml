@@ -38,6 +38,7 @@ stages:
               registry_endpoint: williamjcusaue1.azurecr-test.io
               test_image: test100mb@sha256:0dd1c11e5ba4fc4751ef4b46b0f791bf648af408e78d0d77e523a48f680719b1
               kubernetes_version: "1.34"
+              aad_enabled: "true"
               pod_startup_latency_threshold: 10m
               anonymous_pull: False
           max_parallel: 1
