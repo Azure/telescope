@@ -5,6 +5,8 @@ import argparse
 import time
 
 from datetime import datetime, timezone
+from kubernetes.client.exceptions import ApiException
+from urllib3.exceptions import HTTPError
 from clusterloader2.utils import parse_xml_to_json, run_cl2_command, get_measurement
 from clients.kubernetes_client import KubernetesClient
 from utils.common import str2bool
@@ -105,7 +107,12 @@ def validate_clusterloader2(node_count, operation_timeout_in_minutes=10, min_rea
     while time.time() < timeout:
         try:
             ready_nodes = kube_client.get_ready_nodes()
-        except Exception as e:
+        except (ApiException, HTTPError) as e:
+            if isinstance(e, ApiException) and e.status in (401, 403):
+                raise RuntimeError(
+                    f"Kubernetes node query failed with HTTP {e.status}. "
+                    "Check kubeconfig authentication (including kubelogin) and node-list permissions."
+                ) from e
             print(f"Transient error querying nodes, will retry: {e}", flush=True)
             time.sleep(10)
             continue

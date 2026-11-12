@@ -3,6 +3,8 @@ import os
 import unittest
 import tempfile
 from unittest.mock import patch, MagicMock
+from kubernetes.client.exceptions import ApiException
+from urllib3.exceptions import ProtocolError
 
 from clusterloader2.large_cluster.large_cluster import (
     calculate_config,
@@ -440,6 +442,40 @@ class TestLargeCluster(unittest.TestCase):
             validate_clusterloader2(node_count=2, operation_timeout_in_minutes=5, node_label="role=test")
 
         self.assertIn("No ready nodes found with label 'role=test'", str(context.exception))
+
+    @patch('clusterloader2.large_cluster.large_cluster.time.sleep')
+    @patch('clusterloader2.large_cluster.large_cluster.KubernetesClient')
+    def test_validate_clusterloader2_auth_errors_fail_immediately(self, mock_client_class, mock_sleep):
+        for status in (401, 403):
+            with self.subTest(status=status):
+                mock_client = MagicMock()
+                mock_client.get_ready_nodes.side_effect = ApiException(status=status)
+                mock_client_class.return_value = mock_client
+                with self.assertRaisesRegex(RuntimeError, f"HTTP {status}"):
+                    validate_clusterloader2(node_count=5, min_ready_percent=99)
+                mock_client.get_ready_nodes.assert_called_once()
+                mock_sleep.assert_not_called()
+
+    @patch('clusterloader2.large_cluster.large_cluster.time.sleep')
+    @patch('clusterloader2.large_cluster.large_cluster.KubernetesClient')
+    def test_validate_clusterloader2_transient_errors_retry(self, mock_client_class, mock_sleep):
+        for error in (ApiException(status=429), ApiException(status=503), ProtocolError("connection reset")):
+            with self.subTest(error=error):
+                mock_client = MagicMock()
+                mock_client.get_ready_nodes.side_effect = [error, ["node1"]]
+                mock_client_class.return_value = mock_client
+                mock_sleep.reset_mock()
+                validate_clusterloader2(node_count=1)
+                self.assertEqual(mock_client.get_ready_nodes.call_count, 2)
+                mock_sleep.assert_called_once_with(10)
+
+    @patch('clusterloader2.large_cluster.large_cluster.time.sleep')
+    @patch('clusterloader2.large_cluster.large_cluster.KubernetesClient')
+    def test_validate_clusterloader2_unexpected_error_is_not_retried(self, mock_client_class, mock_sleep):
+        mock_client_class.return_value.get_ready_nodes.side_effect = ValueError("invalid node data")
+        with self.assertRaisesRegex(ValueError, "invalid node data"):
+            validate_clusterloader2(node_count=1)
+        mock_sleep.assert_not_called()
 
     # ==================== execute_clusterloader2() Tests ====================
 

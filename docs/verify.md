@@ -82,3 +82,23 @@ deactivate
 ## Verify End-to-End
 
 To verify end-to-end functionality, you can run the E2E tests as described in the [E2E Testing Guide](e2e-testing.md). This will ensure that all components work together as expected across different cloud providers.
+
+### AKS image-pull pipeline checks
+
+- Where Azure Policy requires Microsoft Entra authentication, set `aad_enabled: "true"`
+  in the pipeline matrix. Registry `anonymous_pull` is independent of cluster authentication.
+- Image-pull validation installs kubelogin, refreshes the Azure CLI login, converts
+  kubeconfig to `azurecli` authentication, and checks node access before polling readiness.
+  HTTP 401/403 errors fail immediately; the pipeline identity still needs permission to
+  list nodes and manage the benchmark's Kubernetes resources.
+- For a kubelogin kubeconfig, the CRI pipeline uses [Dockerfile.aks](../modules/python/clusterloader2/Dockerfile.aks)
+  to build a cached local derivative of the selected Debian/Ubuntu benchmark image.
+  It adds Azure CLI and kubelogin while retaining the benchmark binary and entrypoint.
+  Credentials are supplied by the existing Azure CLI cache mount, not embedded in the image.
+- Dependency setup skips APT when `bc` and `nc` are already available. Missing packages
+  use a bounded 900-second dpkg lock wait; no package-manager processes or locks are removed.
+  Agent repository signing-key warnings must be repaired in the agent image rather than
+  bypassing signature verification.
+- Resource creation and Terraform init/apply require successful preceding steps.
+  Cleanup remains enabled after failures for resource groups that were created and
+  Terraform applies that started.
