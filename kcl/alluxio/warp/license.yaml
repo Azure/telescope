@@ -1,0 +1,10 @@
+apiVersion: k8s-operator.alluxio.com/v1
+kind: License
+metadata:
+  name: alluxio-license
+  namespace: alx-ns
+spec:
+  clusters:
+    - name: alluxio
+      namespace: alx-ns
+  licenseString: ""
