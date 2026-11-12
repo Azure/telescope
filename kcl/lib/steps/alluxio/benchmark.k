@@ -1,22 +1,5 @@
 import azure_pipelines.ap.steps
 
-CacheCommands = lambda checksDir: str -> str {
-    REDACT_OUTPUT + """
-alluxio() {
-    kubectl exec -n alx-ns alluxio-coordinator-0 \\
-        -c alluxio-coordinator -- alluxio "$@"
-}
-client_exec() {
-    kubectl exec -n alx-ns warp-client -c warp -- "$@"
-}
-cache_report() {
-    alluxio fs check-cached --path /blob --recursive --limit 17 |
-        redact > "$result_dir/cache-$1.txt"
-    jq -Rse -L "${checksDir}" 'include "checks"; cache_counts' "$result_dir/cache-$1.txt"
-}
-"""
-}
-
 CreateWarpClient = lambda manifest: str, workDir: str, resultDir: str -> steps.Bash {
     steps.Bash {
         name = "alluxio_warp_client"
@@ -37,7 +20,7 @@ RunWarpGet = lambda phase: "cold-start" | "warm-cache", workDir: str, resultDir:
     steps.Bash {
         name = "alluxio_cold" if phase == "cold-start" else "alluxio_warm"
         displayName = "Run ${phase} Warp GET"
-        bash = ShellSetup(workDir, resultDir) + CacheCommands(checksDir) + """
+        bash = ShellSetup(workDir, resultDir) + AlluxioCommands(checksDir) + """
 phase="${phase}"
 counts="$(cache_report "${"before-cold" if phase == "cold-start" else "before-warm"}")"
 [[ "$(jq -r --arg field "${"uncached" if phase == "cold-start" else "all"}" '.[$field]' <<< "$counts")" == 16 ]] ||
@@ -90,7 +73,7 @@ PreloadAlluxioDataset = lambda workDir: str, resultDir: str, checksDir: str -> s
     steps.Bash {
         name = "alluxio_preload"
         displayName = "Preload all 16 objects into the Alluxio cache"
-        bash = ShellSetup(workDir, resultDir) + CacheCommands(checksDir) + """
+        bash = ShellSetup(workDir, resultDir) + AlluxioCommands(checksDir) + """
 alluxio job load --path /blob --submit | redact > "$result_dir/preload-submit.txt"
 deadline=$((SECONDS + 600))
 while :; do
