@@ -45,7 +45,7 @@ jobs:
         }
         trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
         trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/license.json" "$work_dir/ufs.json" "$work_dir/helm-registry.json"' EXIT
-        acr_resource_id="REPLACE_ME_ACR_RESOURCE_ID"
+        acr_resource_id="/subscriptions/REPLACE_ME_SUBSCRIPTION_ID/resourceGroups/REPLACE_ME_RESOURCE_GROUP/providers/Microsoft.ContainerRegistry/registries/REPLACE_ME_REGISTRY"
         alluxio_image="REPLACE_ME.azurecr.io/alluxio-enterprise"
         operator_image="REPLACE_ME.azurecr.io/alluxio-operator"
         subscription="b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
@@ -54,14 +54,13 @@ jobs:
         location="westeurope"
         registry="$(az acr show --ids "$acr_resource_id")"
         registry_name="$(jq -er '.name' <<< "$registry")"
-        acr_subscription="$(jq -er '.id | split("/")[2]' <<< "$registry")"
         images='{}'
         for image in "$alluxio_image" "$operator_image"; do
             tag="AI-3.8-15.1.28"
             if [[ "$image" == "$operator_image" ]]; then tag="3.7.6"; fi
             digest="$(az acr repository show \
                 --name "$registry_name" \
-                --subscription "$acr_subscription" \
+                --subscription "REPLACE_ME_SUBSCRIPTION_ID" \
                 --image "${image#*/}:$tag" | jq -er '.digest')"
             images="$(jq --arg image "$image:$tag" --arg digest "$digest" '. + {($image): $digest}' <<< "$images")"
         done
@@ -70,23 +69,20 @@ jobs:
             --subscription "$subscription")"
         [[ "$exists" == false ]] || fail "Resource group already exists or could not be verified; refusing to reuse or delete it"
 
-        storage_account="alx$(printf '%s' "$resource_group" | sha256sum | cut -c1-20)"
         jq -n \
-            --arg acr_resource_id "$acr_resource_id" --arg acr_subscription "$acr_subscription" \
+            --arg acr_resource_id "$acr_resource_id" --arg acr_subscription "REPLACE_ME_SUBSCRIPTION_ID" \
             --arg alluxio_image "$alluxio_image" --arg operator_image "$operator_image" \
             --arg resource_group "$resource_group" --arg subscription "$subscription" \
-            --arg cluster "$cluster" --arg location "$location" --arg storage_account "$storage_account" \
-            '$ARGS.named' > "$work_dir/config.json"
-        jq \
+            --arg cluster "$cluster" --arg location "$location" --arg storage_account "alx$(Build.BuildId)a$(System.JobAttempt)" \
             --argjson image_digests "$images" \
             --arg operator_chart "oci://REPLACE_ME.azurecr.io/helm/alluxio-operator" \
             --arg operator_version "3.7.6" --arg warp_version "1.3.1" \
-            '. + $ARGS.named + {
+            '$ARGS.named + {
                 worker_cache: "8Gi", worker_cache_reserved: "1Gi",
                 support_nodes: {count: 2, sku: "Standard_D8s_v5"},
                 worker_nodes: {count: 1, sku: "Standard_D16s_v5"},
                 client_nodes: {count: 1, sku: "Standard_D8s_v5"}
-            }' "$work_dir/config.json" > "$result_dir/configuration.json"
+            }' > "$result_dir/configuration.json"
         echo '##vso[task.setvariable variable=READY_FOR_PROVISIONING;isOutput=true]true'
     displayName: Prepare run configuration
     name: alluxio_setup
@@ -256,17 +252,12 @@ jobs:
         }
         trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
         trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/license.json" "$work_dir/ufs.json" "$work_dir/helm-registry.json"' EXIT
-        for name in acr_resource_id acr_subscription alluxio_image operator_image \
-                    resource_group subscription cluster location storage_account; do
-            printf -v "$name" '%s' "$(jq -er --arg name "$name" '.[$name] | select(type == "string" and length > 0)' "$work_dir/config.json")"
-            [[ -n "${!name}" ]] || fail "Missing configuration field: $name"
-        done
         identity="$(az aks show \
-            --name "$cluster" \
-            --resource-group "$resource_group" \
-            --subscription "$subscription" | jq -er '.identityProfile.kubeletidentity.objectId')"
+            --name "alluxio-warp" \
+            --resource-group "alluxio-$(RUN_ID)-$(System.JobAttempt)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" | jq -er '.identityProfile.kubeletidentity.objectId')"
         role_name="$(cat /proc/sys/kernel/random/uuid)"
-        role_id="$acr_resource_id/providers/Microsoft.Authorization/roleAssignments/$role_name"
+        role_id="/subscriptions/REPLACE_ME_SUBSCRIPTION_ID/resourceGroups/REPLACE_ME_RESOURCE_GROUP/providers/Microsoft.ContainerRegistry/registries/REPLACE_ME_REGISTRY/providers/Microsoft.Authorization/roleAssignments/$role_name"
         # Persist ownership before creation so uncertain CLI receipts remain recoverable.
         jq -n --arg id "$role_id" '{id: $id}' > "$work_dir/role.json"
         az role assignment create \
@@ -274,8 +265,8 @@ jobs:
             --assignee-object-id "$identity" \
             --assignee-principal-type ServicePrincipal \
             --role AcrPull \
-            --scope "$acr_resource_id" \
-            --subscription "$acr_subscription" > /dev/null
+            --scope "/subscriptions/REPLACE_ME_SUBSCRIPTION_ID/resourceGroups/REPLACE_ME_RESOURCE_GROUP/providers/Microsoft.ContainerRegistry/registries/REPLACE_ME_REGISTRY" \
+            --subscription "REPLACE_ME_SUBSCRIPTION_ID" > /dev/null
     displayName: Grant this cluster image pull access
     name: alluxio_acr_grant
   - task: AzureCLI@2
@@ -299,11 +290,6 @@ jobs:
         }
         trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
         trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/license.json" "$work_dir/ufs.json" "$work_dir/helm-registry.json"' EXIT
-        for name in acr_resource_id acr_subscription alluxio_image operator_image \
-                    resource_group subscription cluster location storage_account; do
-            printf -v "$name" '%s' "$(jq -er --arg name "$name" '.[$name] | select(type == "string" and length > 0)' "$work_dir/config.json")"
-            [[ -n "${!name}" ]] || fail "Missing configuration field: $name"
-        done
         private_command() {
             if "$@" > "$work_dir/command.out" 2> "$work_dir/command.err"; then
                 cat "$work_dir/command.out"
@@ -315,25 +301,25 @@ jobs:
             [[ -n "${!1:-}" && "${!1}" != '$('* ]] || fail "Required secret pipeline variable $1 is missing"
         }
         cluster_info="$(az aks show \
-            --name "$cluster" \
-            --resource-group "$resource_group" \
-            --subscription "$subscription")"
+            --name "alluxio-warp" \
+            --resource-group "alluxio-$(RUN_ID)-$(System.JobAttempt)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219")"
         az storage account create \
-            --name "$storage_account" \
-            --resource-group "$resource_group" \
-            --subscription "$subscription" \
-            --location "$location" \
+            --name "alx$(Build.BuildId)a$(System.JobAttempt)" \
+            --resource-group "alluxio-$(RUN_ID)-$(System.JobAttempt)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --location "westeurope" \
             --kind StorageV2 \
             --sku Standard_LRS \
             --https-only true \
             --min-tls-version TLS1_2 \
             --allow-blob-public-access false \
             --hns false > /dev/null
-        export AZURE_STORAGE_ACCOUNT="$storage_account"
+        export AZURE_STORAGE_ACCOUNT="alx$(Build.BuildId)a$(System.JobAttempt)"
         AZURE_STORAGE_KEY="$(private_command az storage account keys list \
-            --account-name "$storage_account" \
-            --resource-group "$resource_group" \
-            --subscription "$subscription" | jq -er '.[0].value')"
+            --account-name "alx$(Build.BuildId)a$(System.JobAttempt)" \
+            --resource-group "alluxio-$(RUN_ID)-$(System.JobAttempt)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" | jq -er '.[0].value')"
         export AZURE_STORAGE_KEY
         az storage container create \
             --name warp-data \
@@ -359,8 +345,8 @@ jobs:
             --https-only | jq -er 'select(type == "string" and length > 0)' > "$work_dir/blob-sas"
         unset AZURE_STORAGE_KEY
         jq -n \
-            --arg storage_account "$storage_account" --arg container warp-data \
-            --arg location "$location" --arg kubernetes_version "$(jq -er '.kubernetesVersion' <<< "$cluster_info")" \
+            --arg storage_account "alx$(Build.BuildId)a$(System.JobAttempt)" --arg container warp-data \
+            --arg location "westeurope" --arg kubernetes_version "$(jq -er '.kubernetesVersion' <<< "$cluster_info")" \
             '$ARGS.named + {object_count: 16, object_bytes: 67108864, total_bytes: 1073741824}' \
             > "$result_dir/dataset.json"
     displayName: Create Blob storage and seed 1 GiB
@@ -386,11 +372,6 @@ jobs:
         }
         trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
         trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/license.json" "$work_dir/ufs.json" "$work_dir/helm-registry.json"' EXIT
-        for name in acr_resource_id acr_subscription alluxio_image operator_image \
-                    resource_group subscription cluster location storage_account; do
-            printf -v "$name" '%s' "$(jq -er --arg name "$name" '.[$name] | select(type == "string" and length > 0)' "$work_dir/config.json")"
-            [[ -n "${!name}" ]] || fail "Missing configuration field: $name"
-        done
         private_command() {
             if "$@" > "$work_dir/command.out" 2> "$work_dir/command.err"; then
                 cat "$work_dir/command.out"
@@ -401,12 +382,12 @@ jobs:
         require_secret() {
             [[ -n "${!1:-}" && "${!1}" != '$('* ]] || fail "Required secret pipeline variable $1 is missing"
         }
-        registry="$(az acr show --ids "$acr_resource_id")"
+        registry="$(az acr show --ids "/subscriptions/REPLACE_ME_SUBSCRIPTION_ID/resourceGroups/REPLACE_ME_RESOURCE_GROUP/providers/Microsoft.ContainerRegistry/registries/REPLACE_ME_REGISTRY")"
         registry_name="$(jq -er '.name' <<< "$registry")"
         login_server="$(jq -er '.loginServer' <<< "$registry")"
         registry_token="$(private_command az acr login \
             --name "$registry_name" \
-            --subscription "$acr_subscription" \
+            --subscription "REPLACE_ME_SUBSCRIPTION_ID" \
             --expose-token --query accessToken --output tsv)"
         printf '%s' "$registry_token" |
             private_command helm registry login "$login_server" \
@@ -414,7 +395,7 @@ jobs:
                 --password-stdin --registry-config "$work_dir/helm-registry.json" > /dev/null
         unset registry_token
         kubectl create namespace alx-ns
-        jq -n --arg image "$operator_image" --arg tag "3.7.6" \
+        jq -n --arg image "REPLACE_ME.azurecr.io/alluxio-operator" --arg tag "3.7.6" \
             '{global: {image: $image, imageTag: $tag}}' > "$work_dir/operator-values.json"
         helm install operator "oci://REPLACE_ME.azurecr.io/helm/alluxio-operator" \
             --version "3.7.6" \
@@ -445,11 +426,6 @@ jobs:
       }
       trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
       trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/license.json" "$work_dir/ufs.json" "$work_dir/helm-registry.json"' EXIT
-      for name in acr_resource_id acr_subscription alluxio_image operator_image \
-                  resource_group subscription cluster location storage_account; do
-          printf -v "$name" '%s' "$(jq -er --arg name "$name" '.[$name] | select(type == "string" and length > 0)' "$work_dir/config.json")"
-          [[ -n "${!name}" ]] || fail "Missing configuration field: $name"
-      done
       private_command() {
           if "$@" > "$work_dir/command.out" 2> "$work_dir/command.err"; then
               cat "$work_dir/command.out"
@@ -485,7 +461,7 @@ jobs:
         name: alluxio
         namespace: alx-ns
       spec:
-        image: $alluxio_image
+        image: REPLACE_ME.azurecr.io/alluxio-enterprise
         imageTag: AI-3.8-15.1.28
         properties:
           alluxio.worker.s3.api.enabled: "true"
@@ -549,11 +525,6 @@ jobs:
       }
       trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
       trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/license.json" "$work_dir/ufs.json" "$work_dir/helm-registry.json"' EXIT
-      for name in acr_resource_id acr_subscription alluxio_image operator_image \
-                  resource_group subscription cluster location storage_account; do
-          printf -v "$name" '%s' "$(jq -er --arg name "$name" '.[$name] | select(type == "string" and length > 0)' "$work_dir/config.json")"
-          [[ -n "${!name}" ]] || fail "Missing configuration field: $name"
-      done
       private_command() {
           if "$@" > "$work_dir/command.out" 2> "$work_dir/command.err"; then
               cat "$work_dir/command.out"
@@ -593,7 +564,7 @@ jobs:
       }
       export BLOB_SAS
       BLOB_SAS="$(< "$work_dir/blob-sas")"
-      jq -n --arg account "$storage_account" '{
+      jq -n --arg account "alx$(Build.BuildId)a$(System.JobAttempt)" '{
           apiVersion: "k8s-operator.alluxio.com/v1", kind: "UnderFileSystem",
           metadata: {name: "alluxio-blob", namespace: "alx-ns"},
           spec: {alluxioCluster: "alluxio", mountPath: "/blob",
@@ -961,20 +932,15 @@ jobs:
             echo "No registry grant was created by this run"
             exit 0
         fi
-        for name in acr_resource_id acr_subscription alluxio_image operator_image \
-                    resource_group subscription cluster location storage_account; do
-            printf -v "$name" '%s' "$(jq -er --arg name "$name" '.[$name] | select(type == "string" and length > 0)' "$work_dir/config.json")"
-            [[ -n "${!name}" ]] || fail "Missing configuration field: $name"
-        done
         role_id="$(jq -er '.id' "$work_dir/role.json")"
         roles="$(az role assignment list \
-            --scope "$acr_resource_id" \
-            --subscription "$acr_subscription")"
+            --scope "/subscriptions/REPLACE_ME_SUBSCRIPTION_ID/resourceGroups/REPLACE_ME_RESOURCE_GROUP/providers/Microsoft.ContainerRegistry/registries/REPLACE_ME_REGISTRY" \
+            --subscription "REPLACE_ME_SUBSCRIPTION_ID")"
         jq -e 'type == "array" and all(.[]; .id | type == "string" and length > 0)' <<< "$roles" > /dev/null
         if jq -e --arg id "$role_id" 'any(.[]; (.id | ascii_downcase) == ($id | ascii_downcase))' <<< "$roles" > /dev/null; then
             az role assignment delete \
                 --ids "$role_id" \
-                --subscription "$acr_subscription"
+                --subscription "REPLACE_ME_SUBSCRIPTION_ID"
         fi
         rm -- "$work_dir/role.json"
     condition: always()

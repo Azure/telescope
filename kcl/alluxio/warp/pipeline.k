@@ -8,13 +8,15 @@ import lib.steps.common
 import lib.steps.k8s
 
 # Replace these constants with the existing registry and staged image/chart repositories.
-ACR_RESOURCE_ID = "REPLACE_ME_ACR_RESOURCE_ID"
+ACR_RESOURCE_ID = "/subscriptions/REPLACE_ME_SUBSCRIPTION_ID/resourceGroups/REPLACE_ME_RESOURCE_GROUP/providers/Microsoft.ContainerRegistry/registries/REPLACE_ME_REGISTRY"
+ACR_SUBSCRIPTION_ID = ACR_RESOURCE_ID.split("/")[2]
 ALLUXIO_IMAGE_REPOSITORY = "REPLACE_ME.azurecr.io/alluxio-enterprise"
 OPERATOR_IMAGE_REPOSITORY = "REPLACE_ME.azurecr.io/alluxio-operator"
 OPERATOR_CHART_REPOSITORY = "oci://REPLACE_ME.azurecr.io/helm/alluxio-operator"
 LOCATION = "westeurope"
 RESOURCE_GROUP = "alluxio-$(RUN_ID)-$(System.JobAttempt)"
 CLUSTER = "alluxio-warp"
+STORAGE_ACCOUNT = "alx$(Build.BuildId)a$(System.JobAttempt)"
 WORK_DIR = "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
 RESULT_DIR = "$(Build.ArtifactStagingDirectory)/alluxio-warp"
 CHECKS_DIR = "$(Build.SourcesDirectory)/kcl/alluxio/warp"
@@ -35,6 +37,7 @@ output = ap.Pipeline {
             alluxio.PrepareRun(
                 const.DEFAULT_SERVICE_CONNECTION
                 ACR_RESOURCE_ID
+                ACR_SUBSCRIPTION_ID
                 ALLUXIO_IMAGE_REPOSITORY
                 OPERATOR_IMAGE_REPOSITORY
                 OPERATOR_CHART_REPOSITORY
@@ -42,6 +45,7 @@ output = ap.Pipeline {
                 RESOURCE_GROUP
                 CLUSTER
                 LOCATION
+                STORAGE_ACCOUNT
                 WORK_DIR
                 RESULT_DIR
             )
@@ -105,26 +109,41 @@ az aks create \\
             )
             alluxio.GrantImagePullAccess(
                 const.DEFAULT_SERVICE_CONNECTION
+                ACR_RESOURCE_ID
+                ACR_SUBSCRIPTION_ID
+                const.DEFAULT_SUBSCRIPTION_ID
+                RESOURCE_GROUP
+                CLUSTER
                 WORK_DIR
                 RESULT_DIR
             )
             alluxio.SeedWarpDataset(
                 const.DEFAULT_SERVICE_CONNECTION
+                const.DEFAULT_SUBSCRIPTION_ID
+                RESOURCE_GROUP
+                CLUSTER
+                LOCATION
+                STORAGE_ACCOUNT
                 WORK_DIR
                 RESULT_DIR
                 CHECKS_DIR
             )
             alluxio.InstallOperator(
                 const.DEFAULT_SERVICE_CONNECTION
+                ACR_RESOURCE_ID
+                ACR_SUBSCRIPTION_ID
+                OPERATOR_IMAGE_REPOSITORY
                 OPERATOR_CHART_REPOSITORY
                 WORK_DIR
                 RESULT_DIR
             )
             alluxio.CreateAlluxioCluster(
+                ALLUXIO_IMAGE_REPOSITORY
                 WORK_DIR
                 RESULT_DIR
             )
             alluxio.MountBlobStorage(
+                STORAGE_ACCOUNT
                 WORK_DIR
                 RESULT_DIR
             )
@@ -182,6 +201,8 @@ jq -s 'add' "$work_dir/diagnostics-alx-ns.json" "$work_dir/diagnostics-alluxio-o
             }
             alluxio.RemoveImagePullAccess(
                 const.DEFAULT_SERVICE_CONNECTION
+                ACR_RESOURCE_ID
+                ACR_SUBSCRIPTION_ID
                 WORK_DIR
                 RESULT_DIR
             )

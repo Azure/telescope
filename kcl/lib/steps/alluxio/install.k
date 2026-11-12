@@ -1,17 +1,17 @@
 import azure_pipelines.ap.steps
 import lib.steps.azure
 
-InstallOperator = lambda serviceConnection: str, operatorChart: str, workDir: str, resultDir: str -> steps.Step {
+InstallOperator = lambda serviceConnection: str, registryId: str, registrySubscription: str, operatorImage: str, operatorChart: str, workDir: str, resultDir: str -> steps.Step {
     azure.AzCli(
         serviceConnection
         "Install the Alluxio operator"
-        ShellSetup(workDir, resultDir) + LOAD_CONFIG + SECRET_COMMANDS + """
-registry="$(az acr show --ids "$acr_resource_id")"
+        ShellSetup(workDir, resultDir) + SECRET_COMMANDS + """
+registry="$(az acr show --ids "${registryId}")"
 registry_name="$(jq -er '.name' <<< "$registry")"
 login_server="$(jq -er '.loginServer' <<< "$registry")"
 registry_token="$(private_command az acr login \\
     --name "$registry_name" \\
-    --subscription "$acr_subscription" \\
+    --subscription "${registrySubscription}" \\
     --expose-token --query accessToken --output tsv)"
 printf '%s' "$registry_token" |
     private_command helm registry login "$login_server" \\
@@ -19,7 +19,7 @@ printf '%s' "$registry_token" |
         --password-stdin --registry-config "$work_dir/helm-registry.json" > /dev/null
 unset registry_token
 kubectl create namespace alx-ns
-jq -n --arg image "$operator_image" --arg tag "${OPERATOR_TAG}" \\
+jq -n --arg image "${operatorImage}" --arg tag "${OPERATOR_TAG}" \\
     '{global: {image: $image, imageTag: $tag}}' > "$work_dir/operator-values.json"
 helm install operator "${operatorChart}" \\
     --version "${OPERATOR_TAG}" \\
@@ -38,11 +38,11 @@ done
     )
 }
 
-CreateAlluxioCluster = lambda workDir: str, resultDir: str -> steps.Bash {
+CreateAlluxioCluster = lambda alluxioImage: str, workDir: str, resultDir: str -> steps.Bash {
     steps.Bash {
         name = "alluxio_cluster"
         displayName = "Create Alluxio and apply the deployment license"
-        bash = ShellSetup(workDir, resultDir) + LOAD_CONFIG + RESOURCE_COMMANDS + """
+        bash = ShellSetup(workDir, resultDir) + RESOURCE_COMMANDS + """
 require_secret ALLUXIO_LICENSE_STRING
 cat > "$work_dir/cluster.yaml" <<EOF
 apiVersion: k8s-operator.alluxio.com/v1
@@ -51,7 +51,7 @@ metadata:
   name: alluxio
   namespace: alx-ns
 spec:
-  image: $alluxio_image
+  image: ${alluxioImage}
   imageTag: ${ALLUXIO_TAG}
   properties:
     alluxio.worker.s3.api.enabled: "true"
@@ -103,14 +103,14 @@ done
     }
 }
 
-MountBlobStorage = lambda workDir: str, resultDir: str -> steps.Bash {
+MountBlobStorage = lambda storageAccount: str, workDir: str, resultDir: str -> steps.Bash {
     steps.Bash {
         name = "alluxio_mount"
         displayName = "Mount Azure Blob in Alluxio"
-        bash = ShellSetup(workDir, resultDir) + LOAD_CONFIG + RESOURCE_COMMANDS + REDACT_OUTPUT + """
+        bash = ShellSetup(workDir, resultDir) + RESOURCE_COMMANDS + REDACT_OUTPUT + """
 export BLOB_SAS
 BLOB_SAS="$(< "$work_dir/blob-sas")"
-jq -n --arg account "$storage_account" '{
+jq -n --arg account "${storageAccount}" '{
     apiVersion: "k8s-operator.alluxio.com/v1", kind: "UnderFileSystem",
     metadata: {name: "alluxio-blob", namespace: "alx-ns"},
     spec: {alluxioCluster: "alluxio", mountPath: "/blob",
