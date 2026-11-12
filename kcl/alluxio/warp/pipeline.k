@@ -139,6 +139,7 @@ az aks create \\
             )
             alluxio.CreateAlluxioCluster(
                 ALLUXIO_IMAGE_REPOSITORY
+                "${CHECKS_DIR}/cluster.yaml"
                 WORK_DIR
                 RESULT_DIR
             )
@@ -148,6 +149,7 @@ az aks create \\
                 RESULT_DIR
             )
             alluxio.CreateWarpClient(
+                "${CHECKS_DIR}/client.yaml"
                 WORK_DIR
                 RESULT_DIR
             )

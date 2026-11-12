@@ -454,46 +454,11 @@ jobs:
           done
       }
       require_secret ALLUXIO_LICENSE_STRING
-      cat > "$work_dir/cluster.yaml" <<EOF
-      apiVersion: k8s-operator.alluxio.com/v1
-      kind: AlluxioCluster
-      metadata:
-        name: alluxio
-        namespace: alx-ns
-      spec:
-        image: REPLACE_ME.azurecr.io/alluxio-enterprise
-        imageTag: AI-3.8-15.1.28
-        properties:
-          alluxio.worker.s3.api.enabled: "true"
-          alluxio.worker.s3.redirect.enabled: "false"
-          alluxio.security.authentication.type: SIMPLE
-          alluxio.underfs.abfs.sdk.version: "2"
-        coordinator:
-          nodeSelector: {agentpool: systempool}
-          resources:
-            requests: {cpu: "4", memory: 12Gi}
-            limits: {cpu: "4", memory: 12Gi}
-          jvmOptions: ["-Xmx4g", "-Xms4g", "-XX:MaxDirectMemorySize=4g"]
-        worker:
-          count: 1
-          nodeSelector: {agentpool: workerpool}
-          tolerations:
-            - {key: alluxio, operator: Equal, value: "true", effect: NoSchedule}
-          resources:
-            requests: {cpu: "8", memory: 24Gi}
-            limits: {cpu: "8", memory: 24Gi}
-          jvmOptions: ["-Xmx8g", "-Xms8g", "-XX:MaxDirectMemorySize=12g"]
-          pagestore: {size: 8Gi, reservedSize: 1Gi}
-        # A single etcd replica is sufficient for this disposable, non-HA PoC.
-        etcd:
-          replicaCount: 1
-          nodeSelector: {agentpool: systempool}
-          persistence: {storageClass: managed-csi, size: 10Gi}
-        prometheus: {enabled: false}
-        grafana: {enabled: false}
-      EOF
-      kubectl create --dry-run=server --validate=strict -f "$work_dir/cluster.yaml" > /dev/null
-      kubectl create -f "$work_dir/cluster.yaml" > /dev/null
+      patch="$(jq -n --arg image "REPLACE_ME.azurecr.io/alluxio-enterprise" --arg tag "AI-3.8-15.1.28" \
+          '{spec: {image: $image, imageTag: $tag}}')"
+      cluster="$(kubectl patch --local --type=merge -f "$(Build.SourcesDirectory)/kcl/alluxio/warp/cluster.yaml" -p "$patch" -o yaml)"
+      printf '%s\n' "$cluster" | kubectl create --dry-run=server --validate=strict -f - > /dev/null
+      printf '%s\n' "$cluster" | kubectl create -f - > /dev/null
       jq -n '{
           apiVersion: "k8s-operator.alluxio.com/v1", kind: "License",
           metadata: {name: "alluxio-license", namespace: "alx-ns"},
@@ -592,52 +557,10 @@ jobs:
       }
       trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
       trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/license.json" "$work_dir/ufs.json" "$work_dir/helm-registry.json"' EXIT
-      cat > "$work_dir/client.yaml" <<EOF
-      apiVersion: v1
-      kind: Pod
-      metadata:
-        name: warp-client
-        namespace: alx-ns
-      spec:
-        restartPolicy: Never
-        automountServiceAccountToken: false
-        nodeSelector: {agentpool: clientpool}
-        tolerations:
-          - {key: warp, operator: Equal, value: "true", effect: NoSchedule}
-        volumes:
-          - {name: tools, emptyDir: {}}
-          - {name: results, emptyDir: {}}
-        initContainers:
-          - name: install-warp
-            image: curlimages/curl:8.12.1
-            securityContext: {runAsUser: 0}
-            command:
-              - sh
-              - -c
-              - |
-                set -eu
-                curl --fail --silent --show-error --location \
-                  https://github.com/minio/warp/releases/download/v1.3.1/warp_Linux_x86_64.tar.gz \
-                  -o /tools/warp.tar.gz
-                cd /tools
-                echo '5a84ed6efdd8390f77e5990dc43722868b026c7574f41ffb1b7289795aadb603  warp.tar.gz' | sha256sum -c -
-                tar -xzf warp.tar.gz warp
-                chmod +x warp
-            volumeMounts:
-              - {name: tools, mountPath: /tools}
-        containers:
-          - name: warp
-            image: debian:12.9-slim
-            command: [sh, -c, "sleep 10800"]
-            resources:
-              requests: {cpu: "4", memory: 8Gi}
-              limits: {cpu: "6", memory: 12Gi}
-            volumeMounts:
-              - {name: tools, mountPath: /tools}
-              - {name: results, mountPath: /results}
-      EOF
-      kubectl create --dry-run=server --validate=strict -f "$work_dir/client.yaml" > /dev/null
-      kubectl create -f "$work_dir/client.yaml" > /dev/null
+      client="$(kubectl set env --local -f "$(Build.SourcesDirectory)/kcl/alluxio/warp/client.yaml" --containers=install-warp \
+          WARP_VERSION="1.3.1" WARP_SHA256="5a84ed6efdd8390f77e5990dc43722868b026c7574f41ffb1b7289795aadb603" -o yaml)"
+      printf '%s\n' "$client" | kubectl create --dry-run=server --validate=strict -f - > /dev/null
+      printf '%s\n' "$client" | kubectl create -f - > /dev/null
       kubectl wait -n alx-ns --for=condition=Ready pod/warp-client --timeout=600s
       kubectl exec -n alx-ns warp-client -c warp \
           -- /tools/warp --version > "$result_dir/warp-version.txt"

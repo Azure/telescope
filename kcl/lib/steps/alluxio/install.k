@@ -38,52 +38,17 @@ done
     )
 }
 
-CreateAlluxioCluster = lambda alluxioImage: str, workDir: str, resultDir: str -> steps.Bash {
+CreateAlluxioCluster = lambda alluxioImage: str, manifest: str, workDir: str, resultDir: str -> steps.Bash {
     steps.Bash {
         name = "alluxio_cluster"
         displayName = "Create Alluxio and apply the deployment license"
         bash = ShellSetup(workDir, resultDir) + RESOURCE_COMMANDS + """
 require_secret ALLUXIO_LICENSE_STRING
-cat > "$work_dir/cluster.yaml" <<EOF
-apiVersion: k8s-operator.alluxio.com/v1
-kind: AlluxioCluster
-metadata:
-  name: alluxio
-  namespace: alx-ns
-spec:
-  image: ${alluxioImage}
-  imageTag: ${ALLUXIO_TAG}
-  properties:
-    alluxio.worker.s3.api.enabled: "true"
-    alluxio.worker.s3.redirect.enabled: "false"
-    alluxio.security.authentication.type: SIMPLE
-    alluxio.underfs.abfs.sdk.version: "2"
-  coordinator:
-    nodeSelector: {agentpool: systempool}
-    resources:
-      requests: {cpu: "4", memory: 12Gi}
-      limits: {cpu: "4", memory: 12Gi}
-    jvmOptions: ["-Xmx4g", "-Xms4g", "-XX:MaxDirectMemorySize=4g"]
-  worker:
-    count: 1
-    nodeSelector: {agentpool: workerpool}
-    tolerations:
-      - {key: alluxio, operator: Equal, value: "true", effect: NoSchedule}
-    resources:
-      requests: {cpu: "8", memory: 24Gi}
-      limits: {cpu: "8", memory: 24Gi}
-    jvmOptions: ["-Xmx8g", "-Xms8g", "-XX:MaxDirectMemorySize=12g"]
-    pagestore: {size: 8Gi, reservedSize: 1Gi}
-  # A single etcd replica is sufficient for this disposable, non-HA PoC.
-  etcd:
-    replicaCount: 1
-    nodeSelector: {agentpool: systempool}
-    persistence: {storageClass: managed-csi, size: 10Gi}
-  prometheus: {enabled: false}
-  grafana: {enabled: false}
-EOF
-kubectl create --dry-run=server --validate=strict -f "$work_dir/cluster.yaml" > /dev/null
-kubectl create -f "$work_dir/cluster.yaml" > /dev/null
+patch="$(jq -n --arg image "${alluxioImage}" --arg tag "${ALLUXIO_TAG}" \\
+    '{spec: {image: $image, imageTag: $tag}}')"
+cluster="$(kubectl patch --local --type=merge -f "${manifest}" -p "$patch" -o yaml)"
+printf '%s\\n' "$cluster" | kubectl create --dry-run=server --validate=strict -f - > /dev/null
+printf '%s\\n' "$cluster" | kubectl create -f - > /dev/null
 jq -n '{
     apiVersion: "k8s-operator.alluxio.com/v1", kind: "License",
     metadata: {name: "alluxio-license", namespace: "alx-ns"},

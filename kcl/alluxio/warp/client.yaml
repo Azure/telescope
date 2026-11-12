@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: warp-client
+  namespace: alx-ns
+spec:
+  restartPolicy: Never
+  automountServiceAccountToken: false
+  nodeSelector: {agentpool: clientpool}
+  tolerations:
+    - {key: warp, operator: Equal, value: "true", effect: NoSchedule}
+  volumes:
+    - {name: tools, emptyDir: {}}
+    - {name: results, emptyDir: {}}
+  initContainers:
+    - name: install-warp
+      image: curlimages/curl:8.12.1
+      securityContext: {runAsUser: 0}
+      command:
+        - sh
+        - -c
+        - |
+          set -eu
+          curl --fail --silent --show-error --location \
+            "https://github.com/minio/warp/releases/download/v${WARP_VERSION}/warp_Linux_x86_64.tar.gz" \
+            -o /tools/warp.tar.gz
+          cd /tools
+          echo "$WARP_SHA256  warp.tar.gz" | sha256sum -c -
+          tar -xzf warp.tar.gz warp
+          chmod +x warp
+      volumeMounts:
+        - {name: tools, mountPath: /tools}
+  containers:
+    - name: warp
+      image: debian:12.9-slim
+      command: [sh, -c, "sleep 10800"]
+      resources:
+        requests: {cpu: "4", memory: 8Gi}
+        limits: {cpu: "6", memory: 12Gi}
+      volumeMounts:
+        - {name: tools, mountPath: /tools}
+        - {name: results, mountPath: /results}
