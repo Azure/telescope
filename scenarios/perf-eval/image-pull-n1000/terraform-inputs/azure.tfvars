@@ -70,7 +70,7 @@ aks_config_list = [
       {
         name                 = "userpool"
         subnet_name          = "imgpull-subnet-1"
-        node_count           = 1000
+        node_count           = 500
         auto_scaling_enabled = false
         vm_size              = "Standard_D4ds_v5"
         os_disk_type         = "Managed"

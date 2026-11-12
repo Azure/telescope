@@ -21,9 +21,9 @@ stages:
             image: "ghcr.io/azure/clusterloader2:v20250513"
           topology: image-pull
           matrix:
-            image-pull-1000nodes:
-              desired_nodes: 1004
-              node_count: 1000
+            image-pull-500nodes:
+              desired_nodes: 504
+              node_count: 500
               max_pods: 7
               repeats: 1
               operation_timeout: 80m
@@ -33,8 +33,8 @@ stages:
               scrape_kubelets: False
               scrape_registry: False
               containerd_scrape_interval: 30s
-              registry_endpoint: elasticstoragecuseuap.azurecr.io
-              test_image: "layertest:latest"
+              registry_endpoint: williamjcuseuap1.azurecr.io
+              test_image: "test20gb:latest"
               kubernetes_version: "1.34"
               pod_startup_latency_threshold: 60m
               anonymous_pull: True
