@@ -50,11 +50,9 @@ client_exec cat "/results/$phase.csv.zst" > "${resultDir}/$phase.csv.zst"
 client_exec /tools/warp analyze --full --json "/results/$phase.csv.zst" > "${resultDir}/$phase-analysis.json"
 jq -e -L "${checksDir}" \\
     --slurpfile timing "${resultDir}/$phase-timing.json" \\
-    --arg warp_version "1.3.1" --arg alluxio_version "${ALLUXIO_TAG}" \\
-    'include "checks"; warp_summary + $timing[0] + $ARGS.named +
+    'include "checks"; warp_summary + $timing[0] +
      {concurrency: 16, requested_duration_seconds: 60, dataset_bytes: 1073741824}' \\
-    "${resultDir}/$phase-analysis.json" > "${workDir}/summary.json"
-mv -- "${workDir}/summary.json" "${resultDir}/$phase-summary.json"
+    "${resultDir}/$phase-analysis.json" > "${resultDir}/$phase-summary.json"
 if [[ "$phase" == warm-cache ]]; then
     counts="$(cache_report after-warm)"
     [[ "$(jq -r '.all' <<< "$counts")" == 16 ]] || fail "Dataset was not fully cached after the warm phase"
