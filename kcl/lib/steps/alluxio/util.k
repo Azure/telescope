@@ -19,7 +19,7 @@ fail() {
     exit 1
 }
 trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
-trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/ufs.json" "$work_dir/helm-registry.json"' EXIT
+trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/helm-registry.json"' EXIT
 """
 }
 
@@ -37,10 +37,6 @@ require_secret() {
 """
 
 RESOURCE_COMMANDS = SECRET_COMMANDS + """
-create_private_resource() {
-    private_command kubectl create --dry-run=server --validate=strict -f "$1" > /dev/null
-    private_command kubectl create -f "$1" > /dev/null
-}
 wait_phase() {
     local kind="$1" name="$2" field="$3" expected="$4" phase deadline=$((SECONDS + 900))
     while :; do
@@ -57,11 +53,10 @@ wait_phase() {
 """
 
 REDACT_OUTPUT = """
-if [[ -f "$work_dir/blob-sas" ]]; then BLOB_SAS="$(< "$work_dir/blob-sas")"; fi
 redact() {
     local line secret
     while IFS= read -r line || [[ -n "$line" ]]; do
-        for secret in "\${ALLUXIO_LICENSE_STRING:-}" "\${AZURE_STORAGE_KEY:-}" "\${BLOB_SAS:-}"; do
+        for secret in "\${ALLUXIO_LICENSE_STRING:-}" "\${BLOB_SAS:-}"; do
             if [[ -n "$secret" ]]; then line="\${line//"$secret"/<redacted>}"; fi
         done
         printf '%s\\n' "$line"

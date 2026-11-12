@@ -68,24 +68,27 @@ done
     }
 }
 
-MountBlobStorage = lambda storageAccount: str, workDir: str, resultDir: str -> steps.Bash {
+MountBlobStorage = lambda storageAccount: str, manifest: str, workDir: str, resultDir: str -> steps.Bash {
     steps.Bash {
         name = "alluxio_mount"
         displayName = "Mount Azure Blob in Alluxio"
         bash = ShellSetup(workDir, resultDir) + RESOURCE_COMMANDS + REDACT_OUTPUT + """
-export BLOB_SAS
-BLOB_SAS="$(< "$work_dir/blob-sas")"
-jq -n --arg account "${storageAccount}" '{
-    apiVersion: "k8s-operator.alluxio.com/v1", kind: "UnderFileSystem",
-    metadata: {name: "alluxio-blob", namespace: "alx-ns"},
-    spec: {alluxioCluster: "alluxio", mountPath: "/blob",
-           path: ("abfs://" + $account + ".blob.core.windows.net/warp-data/"),
+require_secret BLOB_SAS
+ufs="$(jq -n --arg account "${storageAccount}" '{
+    spec: {path: ("abfs://" + $account + ".blob.core.windows.net/warp-data/"),
            mountOptions: {"alluxio.underfs.abfs.sas.token": env.BLOB_SAS}}
-}' > "$work_dir/ufs.json"
-create_private_resource "$work_dir/ufs.json"
+}' | kubectl patch --local --type=merge -f "${manifest}" \\
+    --patch-file /dev/stdin -o yaml 2> >(redact >&2))"
+printf '%s\\n' "$ufs" |
+    kubectl create --dry-run=server --validate=strict -f - > /dev/null 2> >(redact >&2)
+printf '%s\\n' "$ufs" | kubectl create -f - > /dev/null 2> >(redact >&2)
+unset ufs
 wait_phase ufs alluxio-blob phase Ready
 kubectl exec -n alx-ns alluxio-coordinator-0 \\
     -c alluxio-coordinator -- alluxio fs ls /blob | redact
 """
+        env = {
+            BLOB_SAS = "$(BLOB_SAS)"
+        }
     }
 }

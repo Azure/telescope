@@ -44,12 +44,19 @@ done
 rm -f -- "$work_dir/blob.bin"
 az storage blob list --container-name warp-data |
     jq -e -L "${checksDir}" 'include "checks"; validate_dataset' > /dev/null
-private_command az storage container generate-sas \\
+BLOB_SAS="$(az storage container generate-sas \\
     --name warp-data \\
     --permissions rl \\
     --expiry "$(date -u -d '+4 hours' +%Y-%m-%dT%H:%MZ)" \\
-    --https-only | jq -er 'select(type == "string" and length > 0)' > "$work_dir/blob-sas"
+    --https-only 2> /dev/null |
+    jq -er 'select(type == "string" and length > 0)' 2> /dev/null)" ||
+    fail "Could not generate the Blob SAS; secret-bearing output withheld"
 unset AZURE_STORAGE_KEY
+sas_value="\${BLOB_SAS//'%'/'%AZP25'}"
+sas_value="\${sas_value//$'\\n'/'%0A'}"
+sas_value="\${sas_value//$'\\r'/'%0D'}"
+printf '##vso[task.setvariable variable=BLOB_SAS;issecret=true]%s\\n' "$sas_value"
+unset BLOB_SAS sas_value
 jq -n \\
     --arg storage_account "${storageAccount}" --arg container warp-data \\
     --arg location "${location}" --arg kubernetes_version "$(jq -er '.kubernetesVersion' <<< "$cluster_info")" \\
