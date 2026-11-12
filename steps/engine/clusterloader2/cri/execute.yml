@@ -9,6 +9,25 @@ parameters:
     type: string
 
 steps:
+  - ${{ if eq(parameters.cloud, 'azure') }}:
+      - script: |
+          set -euo pipefail
+
+          image="$CL2_BASE_IMAGE"
+          exec_command=$(kubectl config view --minify -o jsonpath='{.users[0].user.exec.command}')
+          if [[ "${exec_command##*/}" == "kubelogin" ]]; then
+            build_context=$(mktemp -d)
+            trap 'rm -f -- "$build_context/kubelogin"; rmdir -- "$build_context"' EXIT
+            cp -- "$(command -v kubelogin)" "$build_context/kubelogin"
+            image=$(docker build --quiet --build-arg "BASE_IMAGE=$CL2_BASE_IMAGE" \
+              --file "$CL2_DOCKERFILE" "$build_context")
+            docker run --rm --entrypoint /bin/sh "$image" -c 'az version && kubelogin --version'
+          fi
+          echo "##vso[task.setvariable variable=CRI_CL2_IMAGE]$image"
+        displayName: "Prepare AKS benchmark authentication"
+        env:
+          CL2_BASE_IMAGE: ${{ parameters.engine_input.image }}
+          CL2_DOCKERFILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/Dockerfile.aks
   - script: |
       set -eo pipefail
 
@@ -46,11 +65,12 @@ steps:
     env:
       ${{ if eq(parameters.cloud, 'azure') }}:
         CLOUD: aks
+        CL2_IMAGE: $(CRI_CL2_IMAGE)
       ${{ else }}:
         CLOUD: ${{ parameters.cloud }}
+        CL2_IMAGE: ${{ parameters.engine_input.image }}
       REGION: ${{ parameters.region }}
       PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/cri.py
-      CL2_IMAGE: ${{ parameters.engine_input.image }}
       CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/config
       CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/results
     displayName: "Run Benchmark"
