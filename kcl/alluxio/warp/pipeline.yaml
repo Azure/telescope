@@ -34,17 +34,15 @@ jobs:
         set +x
         set -Eeuo pipefail
         umask 077
-        work_dir="$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
-        result_dir="$(Build.ArtifactStagingDirectory)/alluxio-warp"
-        mkdir -p -- "$work_dir" "$result_dir"
-        chmod 700 "$work_dir"
+        mkdir -p -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)" "$(Build.ArtifactStagingDirectory)/alluxio-warp"
+        chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
         export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
         fail() {
             echo "ALLUXIO WARP FAILED: $*" >&2
             exit 1
         }
         trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
-        trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/helm-registry.json"' EXIT
+        trap 'rm -f -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/blob.bin" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/helm-registry.json"' EXIT
         acr_resource_id="/subscriptions/REPLACE_ME_SUBSCRIPTION_ID/resourceGroups/REPLACE_ME_RESOURCE_GROUP/providers/Microsoft.ContainerRegistry/registries/REPLACE_ME_REGISTRY"
         alluxio_image="REPLACE_ME.azurecr.io/alluxio-enterprise"
         operator_image="REPLACE_ME.azurecr.io/alluxio-operator"
@@ -82,7 +80,7 @@ jobs:
                 support_nodes: {count: 2, sku: "Standard_D8s_v5"},
                 worker_nodes: {count: 1, sku: "Standard_D16s_v5"},
                 client_nodes: {count: 1, sku: "Standard_D8s_v5"}
-            }' > "$result_dir/configuration.json"
+            }' > "$(Build.ArtifactStagingDirectory)/alluxio-warp/configuration.json"
     displayName: Record run configuration and image digests
   - task: AzureCLI@2
     inputs:
@@ -239,17 +237,15 @@ jobs:
         set +x
         set -Eeuo pipefail
         umask 077
-        work_dir="$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
-        result_dir="$(Build.ArtifactStagingDirectory)/alluxio-warp"
-        mkdir -p -- "$work_dir" "$result_dir"
-        chmod 700 "$work_dir"
+        mkdir -p -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)" "$(Build.ArtifactStagingDirectory)/alluxio-warp"
+        chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
         export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
         fail() {
             echo "ALLUXIO WARP FAILED: $*" >&2
             exit 1
         }
         trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
-        trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/helm-registry.json"' EXIT
+        trap 'rm -f -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/blob.bin" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/helm-registry.json"' EXIT
         identity="$(az aks show \
             --name "alluxio-warp" \
             --resource-group "alluxio-$(RUN_ID)-$(System.JobAttempt)" \
@@ -257,7 +253,7 @@ jobs:
         role_name="$(cat /proc/sys/kernel/random/uuid)"
         role_id="/subscriptions/REPLACE_ME_SUBSCRIPTION_ID/resourceGroups/REPLACE_ME_RESOURCE_GROUP/providers/Microsoft.ContainerRegistry/registries/REPLACE_ME_REGISTRY/providers/Microsoft.Authorization/roleAssignments/$role_name"
         # Persist ownership before creation so uncertain CLI receipts remain recoverable.
-        jq -n --arg id "$role_id" '{id: $id}' > "$work_dir/role.json"
+        jq -n --arg id "$role_id" '{id: $id}' > "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/role.json"
         az role assignment create \
             --name "$role_name" \
             --assignee-object-id "$identity" \
@@ -277,20 +273,18 @@ jobs:
         set +x
         set -Eeuo pipefail
         umask 077
-        work_dir="$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
-        result_dir="$(Build.ArtifactStagingDirectory)/alluxio-warp"
-        mkdir -p -- "$work_dir" "$result_dir"
-        chmod 700 "$work_dir"
+        mkdir -p -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)" "$(Build.ArtifactStagingDirectory)/alluxio-warp"
+        chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
         export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
         fail() {
             echo "ALLUXIO WARP FAILED: $*" >&2
             exit 1
         }
         trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
-        trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/helm-registry.json"' EXIT
+        trap 'rm -f -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/blob.bin" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/helm-registry.json"' EXIT
         private_command() {
-            if "$@" > "$work_dir/command.out" 2> "$work_dir/command.err"; then
-                cat "$work_dir/command.out"
+            if "$@" > "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" 2> "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err"; then
+                cat "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out"
             else
                 fail "$1 failed; secret-bearing output withheld"
             fi
@@ -326,14 +320,14 @@ jobs:
             # Fixed per-object keys produce deterministic, nonzero 64 MiB payloads.
             head -c 67108864 /dev/zero |
                 openssl enc -aes-256-ctr -K "$(printf '%064x' "$index")" \
-                    -iv 00000000000000000000000000000000 > "$work_dir/blob.bin"
+                    -iv 00000000000000000000000000000000 > "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/blob.bin"
             az storage blob upload \
                 --container-name warp-data \
                 --name "$(printf 'object-%02d.bin' "$index")" \
-                --file "$work_dir/blob.bin" \
+                --file "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/blob.bin" \
                 --overwrite false > /dev/null
         done
-        rm -f -- "$work_dir/blob.bin"
+        rm -f -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/blob.bin"
         az storage blob list --container-name warp-data |
             jq -e -L "$(Build.SourcesDirectory)/kcl/alluxio/warp" 'include "checks"; validate_dataset' > /dev/null
         BLOB_SAS="$(az storage container generate-sas \
@@ -353,7 +347,7 @@ jobs:
             --arg storage_account "alx$(Build.BuildId)a$(System.JobAttempt)" --arg container warp-data \
             --arg location "westeurope" --arg kubernetes_version "$(jq -er '.kubernetesVersion' <<< "$cluster_info")" \
             '$ARGS.named + {object_count: 16, object_bytes: 67108864, total_bytes: 1073741824}' \
-            > "$result_dir/dataset.json"
+            > "$(Build.ArtifactStagingDirectory)/alluxio-warp/dataset.json"
     displayName: Create Blob storage and seed 1 GiB
     name: alluxio_dataset
   - task: AzureCLI@2
@@ -366,20 +360,18 @@ jobs:
         set +x
         set -Eeuo pipefail
         umask 077
-        work_dir="$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
-        result_dir="$(Build.ArtifactStagingDirectory)/alluxio-warp"
-        mkdir -p -- "$work_dir" "$result_dir"
-        chmod 700 "$work_dir"
+        mkdir -p -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)" "$(Build.ArtifactStagingDirectory)/alluxio-warp"
+        chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
         export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
         fail() {
             echo "ALLUXIO WARP FAILED: $*" >&2
             exit 1
         }
         trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
-        trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/helm-registry.json"' EXIT
+        trap 'rm -f -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/blob.bin" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/helm-registry.json"' EXIT
         private_command() {
-            if "$@" > "$work_dir/command.out" 2> "$work_dir/command.err"; then
-                cat "$work_dir/command.out"
+            if "$@" > "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" 2> "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err"; then
+                cat "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out"
             else
                 fail "$1 failed; secret-bearing output withheld"
             fi
@@ -397,17 +389,17 @@ jobs:
         printf '%s' "$registry_token" |
             private_command helm registry login "$login_server" \
                 --username 00000000-0000-0000-0000-000000000000 \
-                --password-stdin --registry-config "$work_dir/helm-registry.json" > /dev/null
+                --password-stdin --registry-config "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/helm-registry.json" > /dev/null
         unset registry_token
         kubectl create namespace alx-ns
         jq -n --arg image "REPLACE_ME.azurecr.io/alluxio-operator" --arg tag "3.7.6" \
-            '{global: {image: $image, imageTag: $tag}}' > "$work_dir/operator-values.json"
+            '{global: {image: $image, imageTag: $tag}}' > "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/operator-values.json"
         helm install operator "oci://REPLACE_ME.azurecr.io/helm/alluxio-operator" \
             --version "3.7.6" \
-            --registry-config "$work_dir/helm-registry.json" \
+            --registry-config "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/helm-registry.json" \
             --namespace alluxio-operator \
             --create-namespace \
-            --values "$work_dir/operator-values.json" \
+            --values "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/operator-values.json" \
             --wait \
             --timeout 15m
         for crd in alluxioclusters licenses underfilesystems; do
@@ -420,20 +412,18 @@ jobs:
       set +x
       set -Eeuo pipefail
       umask 077
-      work_dir="$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
-      result_dir="$(Build.ArtifactStagingDirectory)/alluxio-warp"
-      mkdir -p -- "$work_dir" "$result_dir"
-      chmod 700 "$work_dir"
+      mkdir -p -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)" "$(Build.ArtifactStagingDirectory)/alluxio-warp"
+      chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
       export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
       fail() {
           echo "ALLUXIO WARP FAILED: $*" >&2
           exit 1
       }
       trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
-      trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/helm-registry.json"' EXIT
+      trap 'rm -f -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/blob.bin" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/helm-registry.json"' EXIT
       private_command() {
-          if "$@" > "$work_dir/command.out" 2> "$work_dir/command.err"; then
-              cat "$work_dir/command.out"
+          if "$@" > "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" 2> "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err"; then
+              cat "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out"
           else
               fail "$1 failed; secret-bearing output withheld"
           fi
@@ -489,20 +479,18 @@ jobs:
       set +x
       set -Eeuo pipefail
       umask 077
-      work_dir="$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
-      result_dir="$(Build.ArtifactStagingDirectory)/alluxio-warp"
-      mkdir -p -- "$work_dir" "$result_dir"
-      chmod 700 "$work_dir"
+      mkdir -p -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)" "$(Build.ArtifactStagingDirectory)/alluxio-warp"
+      chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
       export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
       fail() {
           echo "ALLUXIO WARP FAILED: $*" >&2
           exit 1
       }
       trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
-      trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/helm-registry.json"' EXIT
+      trap 'rm -f -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/blob.bin" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/helm-registry.json"' EXIT
       private_command() {
-          if "$@" > "$work_dir/command.out" 2> "$work_dir/command.err"; then
-              cat "$work_dir/command.out"
+          if "$@" > "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" 2> "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err"; then
+              cat "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out"
           else
               fail "$1 failed; secret-bearing output withheld"
           fi
@@ -553,24 +541,20 @@ jobs:
       set +x
       set -Eeuo pipefail
       umask 077
-      work_dir="$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
-      result_dir="$(Build.ArtifactStagingDirectory)/alluxio-warp"
-      mkdir -p -- "$work_dir" "$result_dir"
-      chmod 700 "$work_dir"
+      mkdir -p -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)" "$(Build.ArtifactStagingDirectory)/alluxio-warp"
+      chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
       export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
       fail() {
           echo "ALLUXIO WARP FAILED: $*" >&2
           exit 1
       }
       trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
-      trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/helm-registry.json"' EXIT
-      client="$(kubectl set env --local -f "$(Build.SourcesDirectory)/kcl/alluxio/warp/client.yaml" --containers=install-warp \
-          WARP_VERSION="1.3.1" WARP_SHA256="5a84ed6efdd8390f77e5990dc43722868b026c7574f41ffb1b7289795aadb603" -o yaml)"
-      printf '%s\n' "$client" | kubectl create --dry-run=server --validate=strict -f - > /dev/null
-      printf '%s\n' "$client" | kubectl create -f - > /dev/null
+      trap 'rm -f -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/blob.bin" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/helm-registry.json"' EXIT
+      kubectl create --dry-run=server --validate=strict -f "$(Build.SourcesDirectory)/kcl/alluxio/warp/client.yaml" > /dev/null
+      kubectl create -f "$(Build.SourcesDirectory)/kcl/alluxio/warp/client.yaml" > /dev/null
       kubectl wait -n alx-ns --for=condition=Ready pod/warp-client --timeout=600s
       kubectl exec -n alx-ns warp-client -c warp \
-          -- /tools/warp --version > "$result_dir/warp-version.txt"
+          -- /tools/warp --version > "$(Build.ArtifactStagingDirectory)/alluxio-warp/warp-version.txt"
     displayName: Create the dedicated Warp client
     name: alluxio_warp_client
   - bash: |
@@ -583,17 +567,15 @@ jobs:
       set +x
       set -Eeuo pipefail
       umask 077
-      work_dir="$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
-      result_dir="$(Build.ArtifactStagingDirectory)/alluxio-warp"
-      mkdir -p -- "$work_dir" "$result_dir"
-      chmod 700 "$work_dir"
+      mkdir -p -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)" "$(Build.ArtifactStagingDirectory)/alluxio-warp"
+      chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
       export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
       fail() {
           echo "ALLUXIO WARP FAILED: $*" >&2
           exit 1
       }
       trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
-      trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/helm-registry.json"' EXIT
+      trap 'rm -f -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/blob.bin" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/helm-registry.json"' EXIT
       redact() {
           local line secret
           while IFS= read -r line || [[ -n "$line" ]]; do
@@ -612,8 +594,8 @@ jobs:
       }
       cache_report() {
           alluxio fs check-cached --path /blob --recursive --limit 17 |
-              redact > "$result_dir/cache-$1.txt"
-          jq -Rse -L "$(Build.SourcesDirectory)/kcl/alluxio/warp" 'include "checks"; cache_counts' "$result_dir/cache-$1.txt"
+              redact > "$(Build.ArtifactStagingDirectory)/alluxio-warp/cache-$1.txt"
+          jq -Rse -L "$(Build.SourcesDirectory)/kcl/alluxio/warp" 'include "checks"; cache_counts' "$(Build.ArtifactStagingDirectory)/alluxio-warp/cache-$1.txt"
       }
       phase="cold-start"
       counts="$(cache_report "before-cold")"
@@ -637,21 +619,21 @@ jobs:
           --obj.size=67108864 \
           --full \
           --json \
-          "--benchdata=/results/$phase" > "$result_dir/$phase.log" 2>&1 || status=$?
+          "--benchdata=/results/$phase" > "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase.log" 2>&1 || status=$?
       end="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
       jq -n --arg phase "$phase" --arg command_start "$start" --arg command_end "$end" \
-          '$ARGS.named' > "$result_dir/$phase-timing.json"
+          '$ARGS.named' > "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-timing.json"
       (( status == 0 )) || fail "Warp $phase command failed with status $status; see its log"
-      client_exec cat "/results/$phase.csv.zst" > "$result_dir/$phase.csv.zst"
-      [[ -s "$result_dir/$phase.csv.zst" ]] || fail "Warp raw data is empty for $phase"
-      client_exec /tools/warp analyze --full --json "/results/$phase.csv.zst" > "$result_dir/$phase-analysis.json"
+      client_exec cat "/results/$phase.csv.zst" > "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase.csv.zst"
+      [[ -s "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase.csv.zst" ]] || fail "Warp raw data is empty for $phase"
+      client_exec /tools/warp analyze --full --json "/results/$phase.csv.zst" > "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-analysis.json"
       jq -e -L "$(Build.SourcesDirectory)/kcl/alluxio/warp" \
-          --slurpfile timing "$result_dir/$phase-timing.json" \
+          --slurpfile timing "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-timing.json" \
           --arg warp_version "1.3.1" --arg alluxio_version "AI-3.8-15.1.28" \
           'include "checks"; warp_summary + $timing[0] + $ARGS.named +
            {concurrency: 16, requested_duration_seconds: 60, dataset_bytes: 1073741824}' \
-          "$result_dir/$phase-analysis.json" > "$work_dir/summary.json"
-      mv -- "$work_dir/summary.json" "$result_dir/$phase-summary.json"
+          "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-analysis.json" > "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/summary.json"
+      mv -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/summary.json" "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-summary.json"
       if [[ "$phase" == warm-cache ]]; then
           counts="$(cache_report after-warm)"
           [[ "$(jq -r '.all' <<< "$counts")" == 16 ]] || fail "Dataset was not fully cached after the warm phase"
@@ -659,22 +641,19 @@ jobs:
     displayName: Run cold-start Warp GET
     env:
       BLOB_SAS: $(BLOB_SAS)
-    name: alluxio_cold
   - bash: |
       set +x
       set -Eeuo pipefail
       umask 077
-      work_dir="$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
-      result_dir="$(Build.ArtifactStagingDirectory)/alluxio-warp"
-      mkdir -p -- "$work_dir" "$result_dir"
-      chmod 700 "$work_dir"
+      mkdir -p -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)" "$(Build.ArtifactStagingDirectory)/alluxio-warp"
+      chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
       export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
       fail() {
           echo "ALLUXIO WARP FAILED: $*" >&2
           exit 1
       }
       trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
-      trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/helm-registry.json"' EXIT
+      trap 'rm -f -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/blob.bin" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/helm-registry.json"' EXIT
       redact() {
           local line secret
           while IFS= read -r line || [[ -n "$line" ]]; do
@@ -693,19 +672,19 @@ jobs:
       }
       cache_report() {
           alluxio fs check-cached --path /blob --recursive --limit 17 |
-              redact > "$result_dir/cache-$1.txt"
-          jq -Rse -L "$(Build.SourcesDirectory)/kcl/alluxio/warp" 'include "checks"; cache_counts' "$result_dir/cache-$1.txt"
+              redact > "$(Build.ArtifactStagingDirectory)/alluxio-warp/cache-$1.txt"
+          jq -Rse -L "$(Build.SourcesDirectory)/kcl/alluxio/warp" 'include "checks"; cache_counts' "$(Build.ArtifactStagingDirectory)/alluxio-warp/cache-$1.txt"
       }
-      alluxio job load --path /blob --submit | redact > "$result_dir/preload-submit.txt"
+      alluxio job load --path /blob --submit | redact > "$(Build.ArtifactStagingDirectory)/alluxio-warp/preload-submit.txt"
       deadline=$((SECONDS + 600))
       while :; do
-          alluxio job load --path /blob --progress | redact > "$result_dir/preload.txt"
-          state="$(sed -nE 's/^[[:space:]]*Job State:[[:space:]]*([A-Z_]+)[[:space:]]*$/\1/p' "$result_dir/preload.txt")"
+          alluxio job load --path /blob --progress | redact > "$(Build.ArtifactStagingDirectory)/alluxio-warp/preload.txt"
+          state="$(sed -nE 's/^[[:space:]]*Job State:[[:space:]]*([A-Z_]+)[[:space:]]*$/\1/p' "$(Build.ArtifactStagingDirectory)/alluxio-warp/preload.txt")"
           case "$state" in
               CREATED|RUNNING|SUCCEEDED) ;;
               *) fail "Preload failed or returned an unrecognized job state" ;;
           esac
-          failed="$(sed -nE 's/^[[:space:]]*Files Failed:[[:space:]]*([0-9]+)[[:space:]]*$/\1/p' "$result_dir/preload.txt")"
+          failed="$(sed -nE 's/^[[:space:]]*Files Failed:[[:space:]]*([0-9]+)[[:space:]]*$/\1/p' "$(Build.ArtifactStagingDirectory)/alluxio-warp/preload.txt")"
           [[ "$failed" == 0 ]] || fail "Preload must report zero failed files"
           counts="$(cache_report before-warm)"
           if [[ "$state" == SUCCEEDED && "$(jq -r '.all' <<< "$counts")" == 16 ]]; then break; fi
@@ -720,17 +699,15 @@ jobs:
       set +x
       set -Eeuo pipefail
       umask 077
-      work_dir="$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
-      result_dir="$(Build.ArtifactStagingDirectory)/alluxio-warp"
-      mkdir -p -- "$work_dir" "$result_dir"
-      chmod 700 "$work_dir"
+      mkdir -p -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)" "$(Build.ArtifactStagingDirectory)/alluxio-warp"
+      chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
       export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
       fail() {
           echo "ALLUXIO WARP FAILED: $*" >&2
           exit 1
       }
       trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
-      trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/helm-registry.json"' EXIT
+      trap 'rm -f -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/blob.bin" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/helm-registry.json"' EXIT
       redact() {
           local line secret
           while IFS= read -r line || [[ -n "$line" ]]; do
@@ -749,8 +726,8 @@ jobs:
       }
       cache_report() {
           alluxio fs check-cached --path /blob --recursive --limit 17 |
-              redact > "$result_dir/cache-$1.txt"
-          jq -Rse -L "$(Build.SourcesDirectory)/kcl/alluxio/warp" 'include "checks"; cache_counts' "$result_dir/cache-$1.txt"
+              redact > "$(Build.ArtifactStagingDirectory)/alluxio-warp/cache-$1.txt"
+          jq -Rse -L "$(Build.SourcesDirectory)/kcl/alluxio/warp" 'include "checks"; cache_counts' "$(Build.ArtifactStagingDirectory)/alluxio-warp/cache-$1.txt"
       }
       phase="warm-cache"
       counts="$(cache_report "before-warm")"
@@ -774,21 +751,21 @@ jobs:
           --obj.size=67108864 \
           --full \
           --json \
-          "--benchdata=/results/$phase" > "$result_dir/$phase.log" 2>&1 || status=$?
+          "--benchdata=/results/$phase" > "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase.log" 2>&1 || status=$?
       end="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
       jq -n --arg phase "$phase" --arg command_start "$start" --arg command_end "$end" \
-          '$ARGS.named' > "$result_dir/$phase-timing.json"
+          '$ARGS.named' > "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-timing.json"
       (( status == 0 )) || fail "Warp $phase command failed with status $status; see its log"
-      client_exec cat "/results/$phase.csv.zst" > "$result_dir/$phase.csv.zst"
-      [[ -s "$result_dir/$phase.csv.zst" ]] || fail "Warp raw data is empty for $phase"
-      client_exec /tools/warp analyze --full --json "/results/$phase.csv.zst" > "$result_dir/$phase-analysis.json"
+      client_exec cat "/results/$phase.csv.zst" > "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase.csv.zst"
+      [[ -s "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase.csv.zst" ]] || fail "Warp raw data is empty for $phase"
+      client_exec /tools/warp analyze --full --json "/results/$phase.csv.zst" > "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-analysis.json"
       jq -e -L "$(Build.SourcesDirectory)/kcl/alluxio/warp" \
-          --slurpfile timing "$result_dir/$phase-timing.json" \
+          --slurpfile timing "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-timing.json" \
           --arg warp_version "1.3.1" --arg alluxio_version "AI-3.8-15.1.28" \
           'include "checks"; warp_summary + $timing[0] + $ARGS.named +
            {concurrency: 16, requested_duration_seconds: 60, dataset_bytes: 1073741824}' \
-          "$result_dir/$phase-analysis.json" > "$work_dir/summary.json"
-      mv -- "$work_dir/summary.json" "$result_dir/$phase-summary.json"
+          "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-analysis.json" > "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/summary.json"
+      mv -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/summary.json" "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-summary.json"
       if [[ "$phase" == warm-cache ]]; then
           counts="$(cache_report after-warm)"
           [[ "$(jq -r '.all' <<< "$counts")" == 16 ]] || fail "Dataset was not fully cached after the warm phase"
@@ -796,7 +773,6 @@ jobs:
     displayName: Run warm-cache Warp GET
     env:
       BLOB_SAS: $(BLOB_SAS)
-    name: alluxio_warm
   - bash: |
       set -exo pipefail
       TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
@@ -807,17 +783,15 @@ jobs:
       set +x
       set -Eeuo pipefail
       umask 077
-      work_dir="$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
-      result_dir="$(Build.ArtifactStagingDirectory)/alluxio-warp"
-      mkdir -p -- "$work_dir" "$result_dir"
-      chmod 700 "$work_dir"
+      mkdir -p -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)" "$(Build.ArtifactStagingDirectory)/alluxio-warp"
+      chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
       export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
       fail() {
           echo "ALLUXIO WARP FAILED: $*" >&2
           exit 1
       }
       trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
-      trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/helm-registry.json"' EXIT
+      trap 'rm -f -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/blob.bin" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/helm-registry.json"' EXIT
       for namespace in alx-ns alluxio-operator; do
           kubectl get pods -n "$namespace" -o json |
               jq --arg namespace "$namespace" '{
@@ -827,10 +801,10 @@ jobs:
                           {name, ready, restarts: .restartCount,
                            state: (.state | with_entries(.value |= {reason, exitCode}))}]
                   }]
-              }' > "$work_dir/diagnostics-$namespace.json"
+              }' > "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/diagnostics-$namespace.json"
       done
-      jq -s 'add' "$work_dir/diagnostics-alx-ns.json" "$work_dir/diagnostics-alluxio-operator.json" \
-          > "$result_dir/diagnostics.json"
+      jq -s 'add' "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/diagnostics-alx-ns.json" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/diagnostics-alluxio-operator.json" \
+          > "$(Build.ArtifactStagingDirectory)/alluxio-warp/diagnostics.json"
     condition: always()
     displayName: Collect safe deployment diagnostics
     name: alluxio_diagnostics
@@ -850,22 +824,20 @@ jobs:
         set +x
         set -Eeuo pipefail
         umask 077
-        work_dir="$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
-        result_dir="$(Build.ArtifactStagingDirectory)/alluxio-warp"
-        mkdir -p -- "$work_dir" "$result_dir"
-        chmod 700 "$work_dir"
+        mkdir -p -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)" "$(Build.ArtifactStagingDirectory)/alluxio-warp"
+        chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
         export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
         fail() {
             echo "ALLUXIO WARP FAILED: $*" >&2
             exit 1
         }
         trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
-        trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/helm-registry.json"' EXIT
-        if [[ ! -f "$work_dir/role.json" ]]; then
+        trap 'rm -f -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/blob.bin" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/helm-registry.json"' EXIT
+        if [[ ! -f "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/role.json" ]]; then
             echo "No registry grant was created by this run"
             exit 0
         fi
-        role_id="$(jq -er '.id' "$work_dir/role.json")"
+        role_id="$(jq -er '.id' "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/role.json")"
         roles="$(az role assignment list \
             --scope "/subscriptions/REPLACE_ME_SUBSCRIPTION_ID/resourceGroups/REPLACE_ME_RESOURCE_GROUP/providers/Microsoft.ContainerRegistry/registries/REPLACE_ME_REGISTRY" \
             --subscription "REPLACE_ME_SUBSCRIPTION_ID")"
@@ -875,7 +847,7 @@ jobs:
                 --ids "$role_id" \
                 --subscription "REPLACE_ME_SUBSCRIPTION_ID"
         fi
-        rm -- "$work_dir/role.json"
+        rm -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/role.json"
     condition: always()
     displayName: Remove this run's ACR pull grant
     name: alluxio_acr_cleanup

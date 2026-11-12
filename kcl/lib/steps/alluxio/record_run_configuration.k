@@ -37,13 +37,13 @@ jq -n \\
     --arg cluster "$cluster" --arg location "$location" --arg storage_account "${storageAccount}" \\
     --argjson image_digests "$images" \\
     --arg operator_chart "${operatorChart}" \\
-    --arg operator_version "${OPERATOR_TAG}" --arg warp_version "${WARP_VERSION}" \\
+    --arg operator_version "${OPERATOR_TAG}" --arg warp_version "1.3.1" \\
     '$ARGS.named + {
         worker_cache: "8Gi", worker_cache_reserved: "1Gi",
         support_nodes: {count: 2, sku: "Standard_D8s_v5"},
         worker_nodes: {count: 1, sku: "Standard_D16s_v5"},
         client_nodes: {count: 1, sku: "Standard_D8s_v5"}
-    }' > "$result_dir/configuration.json"
+    }' > "${resultDir}/configuration.json"
 """
     )
 }

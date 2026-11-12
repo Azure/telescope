@@ -1,7 +1,5 @@
 ALLUXIO_TAG = "AI-3.8-15.1.28"
 OPERATOR_TAG = "3.7.6"
-WARP_VERSION = "1.3.1"
-WARP_SHA256 = "5a84ed6efdd8390f77e5990dc43722868b026c7574f41ffb1b7289795aadb603"
 
 # Expand the same secret-safe shell setup into each independent pipeline step.
 ShellSetup = lambda workDir: str, resultDir: str -> str {
@@ -9,24 +7,23 @@ ShellSetup = lambda workDir: str, resultDir: str -> str {
 set +x
 set -Eeuo pipefail
 umask 077
-work_dir="${workDir}"
-result_dir="${resultDir}"
-mkdir -p -- "$work_dir" "$result_dir"
-chmod 700 "$work_dir"
+mkdir -p -- "${workDir}" "${resultDir}"
+chmod 700 "${workDir}"
 export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
 fail() {
     echo "ALLUXIO WARP FAILED: $*" >&2
     exit 1
 }
 trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
-trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/helm-registry.json"' EXIT
+trap 'rm -f -- "${workDir}/command.out" "${workDir}/command.err" "${workDir}/blob.bin" "${workDir}/helm-registry.json"' EXIT
 """
 }
 
-SECRET_COMMANDS = """
+SecretCommands = lambda workDir: str -> str {
+    """
 private_command() {
-    if "$@" > "$work_dir/command.out" 2> "$work_dir/command.err"; then
-        cat "$work_dir/command.out"
+    if "$@" > "${workDir}/command.out" 2> "${workDir}/command.err"; then
+        cat "${workDir}/command.out"
     else
         fail "$1 failed; secret-bearing output withheld"
     fi
@@ -35,8 +32,10 @@ require_secret() {
     [[ -n "\${!1:-}" && "\${!1}" != '$('* ]] || fail "Required secret pipeline variable $1 is missing"
 }
 """
+}
 
-RESOURCE_COMMANDS = SECRET_COMMANDS + """
+ResourceCommands = lambda workDir: str -> str {
+    SecretCommands(workDir) + """
 wait_phase() {
     local kind="$1" name="$2" field="$3" expected="$4" phase deadline=$((SECONDS + 900))
     while :; do
@@ -51,6 +50,7 @@ wait_phase() {
     done
 }
 """
+}
 
 REDACT_OUTPUT = """
 redact() {
@@ -64,7 +64,7 @@ redact() {
 }
 """
 
-AlluxioCommands = lambda checksDir: str -> str {
+AlluxioCommands = lambda checksDir: str, resultDir: str -> str {
     REDACT_OUTPUT + """
 alluxio() {
     kubectl exec -n alx-ns alluxio-coordinator-0 \\
@@ -75,8 +75,8 @@ client_exec() {
 }
 cache_report() {
     alluxio fs check-cached --path /blob --recursive --limit 17 |
-        redact > "$result_dir/cache-$1.txt"
-    jq -Rse -L "${checksDir}" 'include "checks"; cache_counts' "$result_dir/cache-$1.txt"
+        redact > "${resultDir}/cache-$1.txt"
+    jq -Rse -L "${checksDir}" 'include "checks"; cache_counts' "${resultDir}/cache-$1.txt"
 }
 """
 }
