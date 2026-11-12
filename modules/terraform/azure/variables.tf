@@ -327,6 +327,10 @@ variable "aks_config_list" {
       pod_cidr            = optional(string, null)
       service_cidr        = optional(string, null)
       dns_service_ip      = optional(string, null)
+      load_balancer_profile = optional(object({
+        managed_outbound_ip_count = optional(number, null)
+        outbound_ports_allocated  = optional(number, null)
+      }), null)
     }))
     service_mesh_profile = optional(object({
       mode      = string

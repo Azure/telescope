@@ -4,7 +4,28 @@
 
 Measures containerd image pulling throughput (MB/s) and network plugin operation metrics using the CRI module with `scrape_containerd: True`. Uses the `cri-resource-consume` topology.
 
-**Note**: This test is only set up in dogfood environment with anonymous pull only.
+The default configuration targets the 1,000-node benchmark. The dedicated
+[500-node input](terraform-inputs/azure-500nodes.tfvars) is used by
+[New Pipeline Test](../../../pipelines/system/new-pipeline-test.yml) in
+`centraluseuap` with authenticated ACR pulls.
+
+## 500-node pipeline configuration
+
+- Provisions 500 user nodes, three system nodes, and one Prometheus node, matching
+  the pipeline's `node_count: 500` and `desired_nodes: 504`. These matrix variables
+  configure the benchmark and validation; they do not override Terraform counts.
+- Uses AKS-managed networking and an explicit load-balancer egress profile with
+  12 managed outbound IPs and 1,024 SNAT ports per node. This provides capacity for
+  the 504 nodes plus 33% upgrade surge in every pool:
+  `504 + ceil(500 * 0.33) + ceil(3 * 0.33) + ceil(1 * 0.33) = 671` nodes,
+  below the `12 * 64,000 / 1,024 = 750` node capacity.
+- Sets resource expiry to three hours, exceeding the 100-minute job timeout and
+  allowing cleanup headroom. The expiry starts when the resource group is created,
+  not when the benchmark starts.
+- Uses the existing AKS ACR attachment for authentication; no registry password
+  belongs in the pipeline YAML. Rotate any previously exposed registry credential.
+
+The shared [1,000-node input](terraform-inputs/azure.tfvars) is unchanged.
 
 ## Infrastructure
 

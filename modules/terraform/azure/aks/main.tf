@@ -91,6 +91,14 @@ resource "azurerm_kubernetes_cluster" "aks" {
     pod_cidr            = var.aks_config.network_profile.pod_cidr
     service_cidr        = var.aks_config.network_profile.service_cidr
     dns_service_ip      = var.aks_config.network_profile.dns_service_ip
+
+    dynamic "load_balancer_profile" {
+      for_each = var.aks_config.network_profile.load_balancer_profile != null ? [var.aks_config.network_profile.load_balancer_profile] : []
+      content {
+        managed_outbound_ip_count = load_balancer_profile.value.managed_outbound_ip_count
+        outbound_ports_allocated  = load_balancer_profile.value.outbound_ports_allocated
+      }
+    }
   }
   identity {
     type         = local.key_management_service != null ? "UserAssigned" : "SystemAssigned"

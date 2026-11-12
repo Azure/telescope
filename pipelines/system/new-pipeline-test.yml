@@ -18,6 +18,8 @@ stages:
           cloud: azure
           regions:
             - centraluseuap
+          terraform_input_file_mapping:
+            - centraluseuap: "scenarios/perf-eval/image-pull-n1000/terraform-inputs/azure-500nodes.tfvars"
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
