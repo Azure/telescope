@@ -13,7 +13,7 @@ identity="$(az aks show \\
 role_name="$(cat /proc/sys/kernel/random/uuid)"
 role_id="${registryId}/providers/Microsoft.Authorization/roleAssignments/$role_name"
 # Persist ownership before creation so uncertain CLI receipts remain recoverable.
-jq -n --arg id "$role_id" '{id: $id}' > "$work_dir/role.json"
+jq -n --arg id "$role_id" '{id: $id}' > "${workDir}/role.json"
 az role assignment create \\
     --name "$role_name" \\
     --assignee-object-id "$identity" \\
@@ -31,11 +31,11 @@ RemoveImagePullAccess = lambda serviceConnection: str, registryId: str, registry
         serviceConnection
         "Remove this run's ACR pull grant"
         ShellSetup(workDir, resultDir) + """
-if [[ ! -f "$work_dir/role.json" ]]; then
+if [[ ! -f "${workDir}/role.json" ]]; then
     echo "No registry grant was created by this run"
     exit 0
 fi
-role_id="$(jq -er '.id' "$work_dir/role.json")"
+role_id="$(jq -er '.id' "${workDir}/role.json")"
 roles="$(az role assignment list \\
     --scope "${registryId}" \\
     --subscription "${registrySubscription}")"
@@ -45,7 +45,7 @@ if jq -e --arg id "$role_id" 'any(.[]; (.id | ascii_downcase) == ($id | ascii_do
         --ids "$role_id" \\
         --subscription "${registrySubscription}"
 fi
-rm -- "$work_dir/role.json"
+rm -- "${workDir}/role.json"
 """
         stepName = "alluxio_acr_cleanup"
         condition = "always()"

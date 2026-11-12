@@ -5,22 +5,19 @@ CreateWarpClient = lambda manifest: str, workDir: str, resultDir: str -> steps.B
         name = "alluxio_warp_client"
         displayName = "Create the dedicated Warp client"
         bash = ShellSetup(workDir, resultDir) + """
-client="$(kubectl set env --local -f "${manifest}" --containers=install-warp \\
-    WARP_VERSION="${WARP_VERSION}" WARP_SHA256="${WARP_SHA256}" -o yaml)"
-printf '%s\\n' "$client" | kubectl create --dry-run=server --validate=strict -f - > /dev/null
-printf '%s\\n' "$client" | kubectl create -f - > /dev/null
+kubectl create --dry-run=server --validate=strict -f "${manifest}" > /dev/null
+kubectl create -f "${manifest}" > /dev/null
 kubectl wait -n alx-ns --for=condition=Ready pod/warp-client --timeout=600s
 kubectl exec -n alx-ns warp-client -c warp \\
-    -- /tools/warp --version > "$result_dir/warp-version.txt"
+    -- /tools/warp --version > "${resultDir}/warp-version.txt"
 """
     }
 }
 
 RunWarpGet = lambda phase: "cold-start" | "warm-cache", workDir: str, resultDir: str, checksDir: str -> steps.Bash {
     steps.Bash {
-        name = "alluxio_cold" if phase == "cold-start" else "alluxio_warm"
         displayName = "Run ${phase} Warp GET"
-        bash = ShellSetup(workDir, resultDir) + AlluxioCommands(checksDir) + """
+        bash = ShellSetup(workDir, resultDir) + AlluxioCommands(checksDir, resultDir) + """
 phase="${phase}"
 counts="$(cache_report "${"before-cold" if phase == "cold-start" else "before-warm"}")"
 [[ "$(jq -r --arg field "${"uncached" if phase == "cold-start" else "all"}" '.[$field]' <<< "$counts")" == 16 ]] ||
@@ -43,21 +40,21 @@ client_exec /tools/warp get \\
     --obj.size=67108864 \\
     --full \\
     --json \\
-    "--benchdata=/results/$phase" > "$result_dir/$phase.log" 2>&1 || status=$?
+    "--benchdata=/results/$phase" > "${resultDir}/$phase.log" 2>&1 || status=$?
 end="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 jq -n --arg phase "$phase" --arg command_start "$start" --arg command_end "$end" \\
-    '$ARGS.named' > "$result_dir/$phase-timing.json"
+    '$ARGS.named' > "${resultDir}/$phase-timing.json"
 (( status == 0 )) || fail "Warp $phase command failed with status $status; see its log"
-client_exec cat "/results/$phase.csv.zst" > "$result_dir/$phase.csv.zst"
-[[ -s "$result_dir/$phase.csv.zst" ]] || fail "Warp raw data is empty for $phase"
-client_exec /tools/warp analyze --full --json "/results/$phase.csv.zst" > "$result_dir/$phase-analysis.json"
+client_exec cat "/results/$phase.csv.zst" > "${resultDir}/$phase.csv.zst"
+[[ -s "${resultDir}/$phase.csv.zst" ]] || fail "Warp raw data is empty for $phase"
+client_exec /tools/warp analyze --full --json "/results/$phase.csv.zst" > "${resultDir}/$phase-analysis.json"
 jq -e -L "${checksDir}" \\
-    --slurpfile timing "$result_dir/$phase-timing.json" \\
-    --arg warp_version "${WARP_VERSION}" --arg alluxio_version "${ALLUXIO_TAG}" \\
+    --slurpfile timing "${resultDir}/$phase-timing.json" \\
+    --arg warp_version "1.3.1" --arg alluxio_version "${ALLUXIO_TAG}" \\
     'include "checks"; warp_summary + $timing[0] + $ARGS.named +
      {concurrency: 16, requested_duration_seconds: 60, dataset_bytes: 1073741824}' \\
-    "$result_dir/$phase-analysis.json" > "$work_dir/summary.json"
-mv -- "$work_dir/summary.json" "$result_dir/$phase-summary.json"
+    "${resultDir}/$phase-analysis.json" > "${workDir}/summary.json"
+mv -- "${workDir}/summary.json" "${resultDir}/$phase-summary.json"
 if [[ "$phase" == warm-cache ]]; then
     counts="$(cache_report after-warm)"
     [[ "$(jq -r '.all' <<< "$counts")" == 16 ]] || fail "Dataset was not fully cached after the warm phase"
@@ -73,17 +70,17 @@ PreloadAlluxioDataset = lambda workDir: str, resultDir: str, checksDir: str -> s
     steps.Bash {
         name = "alluxio_preload"
         displayName = "Preload all 16 objects into the Alluxio cache"
-        bash = ShellSetup(workDir, resultDir) + AlluxioCommands(checksDir) + """
-alluxio job load --path /blob --submit | redact > "$result_dir/preload-submit.txt"
+        bash = ShellSetup(workDir, resultDir) + AlluxioCommands(checksDir, resultDir) + """
+alluxio job load --path /blob --submit | redact > "${resultDir}/preload-submit.txt"
 deadline=$((SECONDS + 600))
 while :; do
-    alluxio job load --path /blob --progress | redact > "$result_dir/preload.txt"
-    state="$(sed -nE 's/^[[:space:]]*Job State:[[:space:]]*([A-Z_]+)[[:space:]]*$/\\1/p' "$result_dir/preload.txt")"
+    alluxio job load --path /blob --progress | redact > "${resultDir}/preload.txt"
+    state="$(sed -nE 's/^[[:space:]]*Job State:[[:space:]]*([A-Z_]+)[[:space:]]*$/\\1/p' "${resultDir}/preload.txt")"
     case "$state" in
         CREATED|RUNNING|SUCCEEDED) ;;
         *) fail "Preload failed or returned an unrecognized job state" ;;
     esac
-    failed="$(sed -nE 's/^[[:space:]]*Files Failed:[[:space:]]*([0-9]+)[[:space:]]*$/\\1/p' "$result_dir/preload.txt")"
+    failed="$(sed -nE 's/^[[:space:]]*Files Failed:[[:space:]]*([0-9]+)[[:space:]]*$/\\1/p' "${resultDir}/preload.txt")"
     [[ "$failed" == 0 ]] || fail "Preload must report zero failed files"
     counts="$(cache_report before-warm)"
     if [[ "$state" == SUCCEEDED && "$(jq -r '.all' <<< "$counts")" == 16 ]]; then break; fi

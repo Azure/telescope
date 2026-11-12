@@ -188,10 +188,10 @@ for namespace in alx-ns alluxio-operator; do
                     {name, ready, restarts: .restartCount,
                      state: (.state | with_entries(.value |= {reason, exitCode}))}]
             }]
-        }' > "$work_dir/diagnostics-$namespace.json"
+        }' > "${WORK_DIR}/diagnostics-$namespace.json"
 done
-jq -s 'add' "$work_dir/diagnostics-alx-ns.json" "$work_dir/diagnostics-alluxio-operator.json" \\
-    > "$result_dir/diagnostics.json"
+jq -s 'add' "${WORK_DIR}/diagnostics-alx-ns.json" "${WORK_DIR}/diagnostics-alluxio-operator.json" \\
+    > "${RESULT_DIR}/diagnostics.json"
 """
             }
             steps.Task {

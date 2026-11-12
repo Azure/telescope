@@ -22,10 +22,10 @@ spec:
         - |
           set -eu
           curl --fail --silent --show-error --location \
-            "https://github.com/minio/warp/releases/download/v${WARP_VERSION}/warp_Linux_x86_64.tar.gz" \
+            "https://github.com/minio/warp/releases/download/v1.3.1/warp_Linux_x86_64.tar.gz" \
             -o /tools/warp.tar.gz
           cd /tools
-          echo "$WARP_SHA256  warp.tar.gz" | sha256sum -c -
+          echo "5a84ed6efdd8390f77e5990dc43722868b026c7574f41ffb1b7289795aadb603  warp.tar.gz" | sha256sum -c -
           tar -xzf warp.tar.gz warp
           chmod +x warp
       volumeMounts:

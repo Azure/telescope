@@ -5,7 +5,7 @@ InstallOperator = lambda serviceConnection: str, registryId: str, registrySubscr
     azure.AzCli(
         serviceConnection
         "Install the Alluxio operator"
-        ShellSetup(workDir, resultDir) + SECRET_COMMANDS + """
+        ShellSetup(workDir, resultDir) + SecretCommands(workDir) + """
 registry="$(az acr show --ids "${registryId}")"
 registry_name="$(jq -er '.name' <<< "$registry")"
 login_server="$(jq -er '.loginServer' <<< "$registry")"
@@ -16,17 +16,17 @@ registry_token="$(private_command az acr login \\
 printf '%s' "$registry_token" |
     private_command helm registry login "$login_server" \\
         --username 00000000-0000-0000-0000-000000000000 \\
-        --password-stdin --registry-config "$work_dir/helm-registry.json" > /dev/null
+        --password-stdin --registry-config "${workDir}/helm-registry.json" > /dev/null
 unset registry_token
 kubectl create namespace alx-ns
 jq -n --arg image "${operatorImage}" --arg tag "${OPERATOR_TAG}" \\
-    '{global: {image: $image, imageTag: $tag}}' > "$work_dir/operator-values.json"
+    '{global: {image: $image, imageTag: $tag}}' > "${workDir}/operator-values.json"
 helm install operator "${operatorChart}" \\
     --version "${OPERATOR_TAG}" \\
-    --registry-config "$work_dir/helm-registry.json" \\
+    --registry-config "${workDir}/helm-registry.json" \\
     --namespace alluxio-operator \\
     --create-namespace \\
-    --values "$work_dir/operator-values.json" \\
+    --values "${workDir}/operator-values.json" \\
     --wait \\
     --timeout 15m
 for crd in alluxioclusters licenses underfilesystems; do
@@ -42,7 +42,7 @@ CreateAlluxioCluster = lambda alluxioImage: str, manifest: str, licenseManifest:
     steps.Bash {
         name = "alluxio_cluster"
         displayName = "Create Alluxio and apply the deployment license"
-        bash = ShellSetup(workDir, resultDir) + RESOURCE_COMMANDS + REDACT_OUTPUT + """
+        bash = ShellSetup(workDir, resultDir) + ResourceCommands(workDir) + REDACT_OUTPUT + """
 require_secret ALLUXIO_LICENSE_STRING
 patch="$(jq -n --arg image "${alluxioImage}" --arg tag "${ALLUXIO_TAG}" \\
     '{spec: {image: $image, imageTag: $tag}}')"
@@ -72,7 +72,7 @@ MountBlobStorage = lambda storageAccount: str, manifest: str, workDir: str, resu
     steps.Bash {
         name = "alluxio_mount"
         displayName = "Mount Azure Blob in Alluxio"
-        bash = ShellSetup(workDir, resultDir) + RESOURCE_COMMANDS + REDACT_OUTPUT + """
+        bash = ShellSetup(workDir, resultDir) + ResourceCommands(workDir) + REDACT_OUTPUT + """
 require_secret BLOB_SAS
 ufs="$(jq -n --arg account "${storageAccount}" '{
     spec: {path: ("abfs://" + $account + ".blob.core.windows.net/warp-data/"),
