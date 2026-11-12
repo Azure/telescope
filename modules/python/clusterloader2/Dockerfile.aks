@@ -1,0 +1,14 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+USER root
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl \
+    && curl -fsSL https://aka.ms/InstallAzureCLIDeb -o /tmp/install-azure-cli.sh \
+    && bash /tmp/install-azure-cli.sh \
+    && rm /tmp/install-azure-cli.sh
+
+COPY kubelogin /usr/local/bin/kubelogin
+RUN chmod 0755 /usr/local/bin/kubelogin \
+    && kubelogin --version \
+    && az version

@@ -62,8 +62,7 @@ steps:
       pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
 
       echo "Install Ubuntu packages"
-      # Retry apt-get to tolerate transient failures such as the apt/dpkg lock being held by a
-      # background package upgrade, or temporary network errors.
+      # Retry index updates for package-list locks or temporary network errors.
       retry() {
         local i=1
         until "$@"; do
@@ -77,10 +76,15 @@ steps:
         done
       }
 
-      # Recover from interrupted or broken package installations. The '|| true' ensures the script continues even if dpkg returns a non-zero exit code.
-      sudo dpkg --configure -a || true
-      retry sudo apt-get update
-      retry sudo apt-get -y install bc netcat
+      packages=()
+      command -v bc >/dev/null || packages+=(bc)
+      command -v nc >/dev/null || packages+=(netcat-openbsd)
+      if [ "${#packages[@]}" -gt 0 ]; then
+        retry sudo apt-get -o Acquire::Retries=3 update
+        sudo apt-get -o DPkg::Lock::Timeout=900 -o Acquire::Retries=3 -y install "${packages[@]}"
+      else
+        echo "bc and nc are already installed; skipping APT."
+      fi
     displayName: "Install Dependencies"
 
   - template: /steps/cloud/${{ parameters.cloud }}/login.yml
