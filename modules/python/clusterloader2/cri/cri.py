@@ -119,8 +119,10 @@ def override_config_clusterloader2(
     file.close()
 
 def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider, scrape_kubelets, scrape_containerd):
-    run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=True, enable_prometheus=True,
+    exit_code = run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=True, enable_prometheus=True,
                     tear_down_prometheus=False, scrape_kubelets=scrape_kubelets, scrape_containerd=scrape_containerd)
+    if exit_code != 0:
+        raise RuntimeError(f"clusterloader2 failed with exit code {exit_code}")
 
 # Note: verify_measurement only checks kubelet metrics (accessible via node proxy endpoint).
 # Containerd metrics are only available via Prometheus and cannot be verified here.

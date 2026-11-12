@@ -30,15 +30,32 @@ steps:
       exit 0
     fi
 
+    group_exists=$(az group exists --name "$RUN_ID")
+    if [[ "$group_exists" == "false" ]]; then
+      echo "Resource group $RUN_ID is already deleted."
+      exit 0
+    fi
+
     echo "Delete resource group $RUN_ID"
-    az group delete --name $RUN_ID --yes --no-wait
+    if az group delete --name "$RUN_ID" --yes --no-wait; then
+      echo "Resource group deletion requested."
+    else
+      delete_exit_code=$?
+      group_exists=$(az group exists --name "$RUN_ID")
+      if [[ "$group_exists" == "false" ]]; then
+        echo "Resource group $RUN_ID was deleted concurrently."
+        exit 0
+      fi
+      exit "$delete_exit_code"
+    fi
 
     # Poll until the resource group is fully deleted or timeout after 20 minutes
     TIMEOUT=1200
     INTERVAL=30
     WAIT_TIME=0
     while [ $WAIT_TIME -lt $TIMEOUT ]; do
-      if ! az group show --name "$RUN_ID" &>/dev/null; then
+      group_exists=$(az group exists --name "$RUN_ID")
+      if [[ "$group_exists" == "false" ]]; then
         echo "Resource group $RUN_ID deleted successfully."
         exit 0
       fi

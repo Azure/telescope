@@ -9,9 +9,13 @@ parameters:
     type: string
 
 steps:
+  - template: /steps/cloud/${{ parameters.cloud }}/collect-cloud-info.yml
+    parameters:
+      region: ${{ parameters.region }}
   - script: |
       set -eo pipefail
 
+      echo "##vso[task.setvariable variable=CRI_BENCHMARK_STARTED]true"
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE override \
         --node_count $NODE_COUNT \
         --node_per_step ${NODE_PER_STEP:-$NODE_COUNT} \
