@@ -146,7 +146,7 @@ az rest \\
             k8s.PrintCl2PodLogs(
                 const.DEFAULT_SERVICE_CONNECTION,
                 CL2_NAMESPACE),
-            azure.DeleteResourceGroup(
+            azure.DeleteResourceGroupAsync(
                 const.DEFAULT_SERVICE_CONNECTION,
                 RESOURCE_GROUP,
                 SUBSCRIPTION_ID)

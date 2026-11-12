@@ -91,6 +91,7 @@ The `lib/` directory provides reusable steps you can compose into your pipeline:
 | | `azure.AzCli(...)` | Run any Azure CLI script |
 | | `azure.CreateResourceGroup(...)` | Create a resource group |
 | | `azure.DeleteResourceGroup(...)` | Delete a resource group (runs on `always()`) |
+| | `azure.DeleteResourceGroupAsync(...)` | Submit deletion asynchronously, then poll and recover from blocking VMSS upgrades |
 | | `azure.CreateNodePool(...)` | Add a node pool to a cluster |
 | | `azure.GetCredentials(...)` | Download kubeconfig for a cluster |
 | | `azure.WaitForClusterSucceeded(...)` | Poll until cluster is provisioned |
@@ -102,6 +103,56 @@ The `lib/` directory provides reusable steps you can compose into your pipeline:
 | | `util.escapeStr(s)` | Escape backslashes and quotes for shell embedding |
 
 For a complete working example, see [`kcl/example_pipeline/pipeline.k`](kcl/example_pipeline/pipeline.k).
+
+### Resource-group deletion recovery
+
+Use `DeleteResourceGroupAsync` as a single cleanup step: it submits deletion with
+`--no-wait`, then polls until the group and its discovered AKS node resource
+groups disappear. **Async describes the Azure request, not the pipeline step: the
+step waits for cleanup to finish.** Each poll checks remaining VMSS resources and
+cancels active (`RollingForward`) upgrades, including platform-initiated upgrades
+on scale sets with a `Manual` upgrade policy. It waits for cancellation before
+continuing. Associated node groups are eligible when their captured AKS owners
+are deleting or have disappeared. A `Failed` owner is eligible only if it still
+references that exact node group, the parent group is currently `Deleting`, and
+the node group's latest deletion event after this submission explicitly reports
+`ResourceGroupDeletionBlocked` with a VMSS `OperationNotAllowed` / `Rolling Upgrade
+in progress` blocker. Unrelated or stale failures and live owners are excluded.
+An ambiguous `NotFound` from the rolling-upgrade endpoint is treated as absence
+only after a separate VMSS read confirms the scale set has disappeared.
+
+The underlying [Python script](kcl/lib/steps/azure/resource_group.py) requires an
+explicit `delete` subcommand (`python3 .../resource_group.py delete ...`).
+There is no default action; omitting the subcommand is an argument error.
+
+```python
+azure.DeleteResourceGroupAsync(
+    const.DEFAULT_SERVICE_CONNECTION,
+    RESOURCE_GROUP,
+    SUBSCRIPTION_ID,
+    timeoutSeconds = 2700,
+    pollIntervalSeconds = 30)
+```
+
+The overall `timeoutSeconds` defaults to 2700 and `pollIntervalSeconds` to 30.
+Set the pipeline job timeout to leave enough time for cleanup and diagnostics.
+The helper retries a failed resource-group delete at most twice after removing
+an upgrade blocker; it does not repeatedly resubmit an in-flight deletion or
+directly delete AKS-managed VMSS, NICs, or node resource groups. It fails on
+unexpected API errors, unknown upgrade states, and timeout rather than reporting
+cleanup success. An already absent target group is a no-op; node groups cannot
+be rediscovered from an absent cluster, so start recovery before deleting it.
+
+`DeleteResourceGroup` keeps its original blocking Azure CLI behavior. Recovery
+requires no separate cancellation step or enable flag. Both steps default to
+`condition = "always()"`.
+
+`DeleteResourceGroupAsync` requires a Linux agent, Python 3.10+, Azure CLI, and a
+Telescope checkout at `$(Build.SourcesDirectory)`; no additional Python packages
+are needed. The service connection needs resource-group delete/read, AKS and
+VMSS read, rolling-upgrade read/cancel, and Activity Log read permissions,
+including access to associated node resource groups. The hyperscale
+pod-scheduling pipeline uses this integrated cleanup step.
 
 ## Generate Pipeline YAML
 

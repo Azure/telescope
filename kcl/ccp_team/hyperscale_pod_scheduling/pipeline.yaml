@@ -317,9 +317,13 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-          az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
+          python3 "$(Build.SourcesDirectory)/kcl/lib/steps/azure/resource_group.py" delete \
+            --resource-group "$(RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --timeout-seconds 2700 \
+            --poll-interval-seconds 30
       condition: always()
-      displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+      displayName: Delete resource group with rolling-upgrade recovery (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
 - stage: H4
   displayName: H4
   jobs:
@@ -631,9 +635,13 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-          az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
+          python3 "$(Build.SourcesDirectory)/kcl/lib/steps/azure/resource_group.py" delete \
+            --resource-group "$(RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --timeout-seconds 2700 \
+            --poll-interval-seconds 30
       condition: always()
-      displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+      displayName: Delete resource group with rolling-upgrade recovery (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
 - stage: H8
   displayName: H8
   jobs:
@@ -945,6 +953,10 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-          az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
+          python3 "$(Build.SourcesDirectory)/kcl/lib/steps/azure/resource_group.py" delete \
+            --resource-group "$(RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --timeout-seconds 2700 \
+            --poll-interval-seconds 30
       condition: always()
-      displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+      displayName: Delete resource group with rolling-upgrade recovery (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
