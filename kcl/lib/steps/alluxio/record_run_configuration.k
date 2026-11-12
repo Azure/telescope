@@ -1,10 +1,10 @@
 import azure_pipelines.ap.steps
 import lib.steps.azure
 
-PrepareRun = lambda serviceConnection: str, registryId: str, registrySubscription: str, alluxioImage: str, operatorImage: str, operatorChart: str, subscription: str, resourceGroup: str, cluster: str, location: str, storageAccount: str, workDir: str, resultDir: str -> steps.Step {
+RecordRunConfiguration = lambda serviceConnection: str, registryId: str, registrySubscription: str, alluxioImage: str, operatorImage: str, operatorChart: str, subscription: str, resourceGroup: str, cluster: str, location: str, storageAccount: str, workDir: str, resultDir: str -> steps.Step {
     azure.AzCli(
         serviceConnection
-        "Prepare run configuration"
+        "Record run configuration and image digests"
         ShellSetup(workDir, resultDir) + """
 acr_resource_id="${registryId}"
 alluxio_image="${alluxioImage}"
@@ -28,7 +28,7 @@ done
 exists="$(az group exists \\
     --name "$resource_group" \\
     --subscription "$subscription")"
-[[ "$exists" == false ]] || fail "Resource group already exists or could not be verified; refusing to reuse or delete it"
+[[ "$exists" == false ]] || fail "Resource group already exists or could not be verified; refusing to provision into it"
 
 jq -n \\
     --arg acr_resource_id "$acr_resource_id" --arg acr_subscription "${registrySubscription}" \\
@@ -44,8 +44,6 @@ jq -n \\
         worker_nodes: {count: 1, sku: "Standard_D16s_v5"},
         client_nodes: {count: 1, sku: "Standard_D8s_v5"}
     }' > "$result_dir/configuration.json"
-echo '##vso[task.setvariable variable=READY_FOR_PROVISIONING;isOutput=true]true'
 """
-        stepName = "alluxio_setup"
     )
 }

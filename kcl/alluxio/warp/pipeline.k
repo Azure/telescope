@@ -34,7 +34,7 @@ output = ap.Pipeline {
         steps = [
             common.SetRunId()
             k8s.InstallHelm()
-            alluxio.PrepareRun(
+            alluxio.RecordRunConfiguration(
                 const.DEFAULT_SERVICE_CONNECTION
                 ACR_RESOURCE_ID
                 ACR_SUBSCRIPTION_ID
@@ -214,7 +214,6 @@ jq -s 'add' "$work_dir/diagnostics-alx-ns.json" "$work_dir/diagnostics-alluxio-o
                 const.DEFAULT_SERVICE_CONNECTION
                 RESOURCE_GROUP
                 const.DEFAULT_SUBSCRIPTION_ID
-                condition = "and(always(), eq(variables['alluxio_setup.READY_FOR_PROVISIONING'], 'true'))"
             )
         ]
     }]
