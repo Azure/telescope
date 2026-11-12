@@ -17,57 +17,15 @@ cache_report() {
 """
 }
 
-CreateWarpClient = lambda workDir: str, resultDir: str -> steps.Bash {
+CreateWarpClient = lambda manifest: str, workDir: str, resultDir: str -> steps.Bash {
     steps.Bash {
         name = "alluxio_warp_client"
         displayName = "Create the dedicated Warp client"
         bash = ShellSetup(workDir, resultDir) + """
-cat > "$work_dir/client.yaml" <<EOF
-apiVersion: v1
-kind: Pod
-metadata:
-  name: warp-client
-  namespace: alx-ns
-spec:
-  restartPolicy: Never
-  automountServiceAccountToken: false
-  nodeSelector: {agentpool: clientpool}
-  tolerations:
-    - {key: warp, operator: Equal, value: "true", effect: NoSchedule}
-  volumes:
-    - {name: tools, emptyDir: {}}
-    - {name: results, emptyDir: {}}
-  initContainers:
-    - name: install-warp
-      image: curlimages/curl:8.12.1
-      securityContext: {runAsUser: 0}
-      command:
-        - sh
-        - -c
-        - |
-          set -eu
-          curl --fail --silent --show-error --location \\
-            https://github.com/minio/warp/releases/download/v${WARP_VERSION}/warp_Linux_x86_64.tar.gz \\
-            -o /tools/warp.tar.gz
-          cd /tools
-          echo '${WARP_SHA256}  warp.tar.gz' | sha256sum -c -
-          tar -xzf warp.tar.gz warp
-          chmod +x warp
-      volumeMounts:
-        - {name: tools, mountPath: /tools}
-  containers:
-    - name: warp
-      image: debian:12.9-slim
-      command: [sh, -c, "sleep 10800"]
-      resources:
-        requests: {cpu: "4", memory: 8Gi}
-        limits: {cpu: "6", memory: 12Gi}
-      volumeMounts:
-        - {name: tools, mountPath: /tools}
-        - {name: results, mountPath: /results}
-EOF
-kubectl create --dry-run=server --validate=strict -f "$work_dir/client.yaml" > /dev/null
-kubectl create -f "$work_dir/client.yaml" > /dev/null
+client="$(kubectl set env --local -f "${manifest}" --containers=install-warp \\
+    WARP_VERSION="${WARP_VERSION}" WARP_SHA256="${WARP_SHA256}" -o yaml)"
+printf '%s\\n' "$client" | kubectl create --dry-run=server --validate=strict -f - > /dev/null
+printf '%s\\n' "$client" | kubectl create -f - > /dev/null
 kubectl wait -n alx-ns --for=condition=Ready pod/warp-client --timeout=600s
 kubectl exec -n alx-ns warp-client -c warp \\
     -- /tools/warp --version > "$result_dir/warp-version.txt"
