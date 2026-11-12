@@ -27,8 +27,7 @@ helm install operator "${operatorChart}" \\
     --namespace alluxio-operator \\
     --create-namespace \\
     --values "${workDir}/operator-values.json" \\
-    --wait \\
-    --timeout 15m
+    --wait
 for crd in alluxioclusters licenses underfilesystems; do
     kubectl wait --for=condition=Established \\
         "crd/$crd.k8s-operator.alluxio.com" --timeout=120s

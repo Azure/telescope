@@ -12,8 +12,8 @@ identity="$(az aks show \\
     --subscription "${subscription}" | jq -er '.identityProfile.kubeletidentity.objectId')"
 role_name="$(cat /proc/sys/kernel/random/uuid)"
 role_id="${registryId}/providers/Microsoft.Authorization/roleAssignments/$role_name"
-# Persist ownership before creation so uncertain CLI receipts remain recoverable.
-jq -n --arg id "$role_id" '{id: $id}' > "${workDir}/role.json"
+# Record ownership before creation so uncertain CLI results remain recoverable.
+printf '##vso[task.setvariable variable=ALLUXIO_ACR_ROLE_ASSIGNMENT_ID]%s\\n' "$role_id"
 az role assignment create \\
     --name "$role_name" \\
     --assignee-object-id "$identity" \\
@@ -31,11 +31,11 @@ RemoveImagePullAccess = lambda serviceConnection: str, registryId: str, registry
         serviceConnection
         "Remove this run's ACR pull grant"
         ShellSetup(workDir, resultDir) + """
-if [[ ! -f "${workDir}/role.json" ]]; then
+role_id="\${ALLUXIO_ACR_ROLE_ASSIGNMENT_ID:-}"
+if [[ -z "$role_id" ]]; then
     echo "No registry grant was created by this run"
     exit 0
 fi
-role_id="$(jq -er '.id' "${workDir}/role.json")"
 roles="$(az role assignment list \\
     --scope "${registryId}" \\
     --subscription "${registrySubscription}")"
@@ -45,7 +45,7 @@ if jq -e --arg id "$role_id" 'any(.[]; (.id | ascii_downcase) == ($id | ascii_do
         --ids "$role_id" \\
         --subscription "${registrySubscription}"
 fi
-rm -- "${workDir}/role.json"
+echo '##vso[task.setvariable variable=ALLUXIO_ACR_ROLE_ASSIGNMENT_ID]'
 """
         stepName = "alluxio_acr_cleanup"
         condition = "always()"

@@ -252,8 +252,8 @@ jobs:
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" | jq -er '.identityProfile.kubeletidentity.objectId')"
         role_name="$(cat /proc/sys/kernel/random/uuid)"
         role_id="/subscriptions/REPLACE_ME_SUBSCRIPTION_ID/resourceGroups/REPLACE_ME_RESOURCE_GROUP/providers/Microsoft.ContainerRegistry/registries/REPLACE_ME_REGISTRY/providers/Microsoft.Authorization/roleAssignments/$role_name"
-        # Persist ownership before creation so uncertain CLI receipts remain recoverable.
-        jq -n --arg id "$role_id" '{id: $id}' > "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/role.json"
+        # Record ownership before creation so uncertain CLI results remain recoverable.
+        printf '##vso[task.setvariable variable=ALLUXIO_ACR_ROLE_ASSIGNMENT_ID]%s\n' "$role_id"
         az role assignment create \
             --name "$role_name" \
             --assignee-object-id "$identity" \
@@ -400,8 +400,7 @@ jobs:
             --namespace alluxio-operator \
             --create-namespace \
             --values "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/operator-values.json" \
-            --wait \
-            --timeout 15m
+            --wait
         for crd in alluxioclusters licenses underfilesystems; do
             kubectl wait --for=condition=Established \
                 "crd/$crd.k8s-operator.alluxio.com" --timeout=120s
@@ -629,11 +628,9 @@ jobs:
       client_exec /tools/warp analyze --full --json "/results/$phase.csv.zst" > "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-analysis.json"
       jq -e -L "$(Build.SourcesDirectory)/kcl/alluxio/warp" \
           --slurpfile timing "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-timing.json" \
-          --arg warp_version "1.3.1" --arg alluxio_version "AI-3.8-15.1.28" \
-          'include "checks"; warp_summary + $timing[0] + $ARGS.named +
+          'include "checks"; warp_summary + $timing[0] +
            {concurrency: 16, requested_duration_seconds: 60, dataset_bytes: 1073741824}' \
-          "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-analysis.json" > "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/summary.json"
-      mv -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/summary.json" "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-summary.json"
+          "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-analysis.json" > "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-summary.json"
       if [[ "$phase" == warm-cache ]]; then
           counts="$(cache_report after-warm)"
           [[ "$(jq -r '.all' <<< "$counts")" == 16 ]] || fail "Dataset was not fully cached after the warm phase"
@@ -761,11 +758,9 @@ jobs:
       client_exec /tools/warp analyze --full --json "/results/$phase.csv.zst" > "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-analysis.json"
       jq -e -L "$(Build.SourcesDirectory)/kcl/alluxio/warp" \
           --slurpfile timing "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-timing.json" \
-          --arg warp_version "1.3.1" --arg alluxio_version "AI-3.8-15.1.28" \
-          'include "checks"; warp_summary + $timing[0] + $ARGS.named +
+          'include "checks"; warp_summary + $timing[0] +
            {concurrency: 16, requested_duration_seconds: 60, dataset_bytes: 1073741824}' \
-          "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-analysis.json" > "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/summary.json"
-      mv -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/summary.json" "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-summary.json"
+          "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-analysis.json" > "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-summary.json"
       if [[ "$phase" == warm-cache ]]; then
           counts="$(cache_report after-warm)"
           [[ "$(jq -r '.all' <<< "$counts")" == 16 ]] || fail "Dataset was not fully cached after the warm phase"
@@ -833,11 +828,11 @@ jobs:
         }
         trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
         trap 'rm -f -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/blob.bin" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/helm-registry.json"' EXIT
-        if [[ ! -f "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/role.json" ]]; then
+        role_id="${ALLUXIO_ACR_ROLE_ASSIGNMENT_ID:-}"
+        if [[ -z "$role_id" ]]; then
             echo "No registry grant was created by this run"
             exit 0
         fi
-        role_id="$(jq -er '.id' "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/role.json")"
         roles="$(az role assignment list \
             --scope "/subscriptions/REPLACE_ME_SUBSCRIPTION_ID/resourceGroups/REPLACE_ME_RESOURCE_GROUP/providers/Microsoft.ContainerRegistry/registries/REPLACE_ME_REGISTRY" \
             --subscription "REPLACE_ME_SUBSCRIPTION_ID")"
@@ -847,7 +842,7 @@ jobs:
                 --ids "$role_id" \
                 --subscription "REPLACE_ME_SUBSCRIPTION_ID"
         fi
-        rm -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/role.json"
+        echo '##vso[task.setvariable variable=ALLUXIO_ACR_ROLE_ASSIGNMENT_ID]'
     condition: always()
     displayName: Remove this run's ACR pull grant
     name: alluxio_acr_cleanup
