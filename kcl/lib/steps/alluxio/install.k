@@ -38,24 +38,24 @@ done
     )
 }
 
-CreateAlluxioCluster = lambda alluxioImage: str, manifest: str, workDir: str, resultDir: str -> steps.Bash {
+CreateAlluxioCluster = lambda alluxioImage: str, manifest: str, licenseManifest: str, workDir: str, resultDir: str -> steps.Bash {
     steps.Bash {
         name = "alluxio_cluster"
         displayName = "Create Alluxio and apply the deployment license"
-        bash = ShellSetup(workDir, resultDir) + RESOURCE_COMMANDS + """
+        bash = ShellSetup(workDir, resultDir) + RESOURCE_COMMANDS + REDACT_OUTPUT + """
 require_secret ALLUXIO_LICENSE_STRING
 patch="$(jq -n --arg image "${alluxioImage}" --arg tag "${ALLUXIO_TAG}" \\
     '{spec: {image: $image, imageTag: $tag}}')"
 cluster="$(kubectl patch --local --type=merge -f "${manifest}" -p "$patch" -o yaml)"
 printf '%s\\n' "$cluster" | kubectl create --dry-run=server --validate=strict -f - > /dev/null
 printf '%s\\n' "$cluster" | kubectl create -f - > /dev/null
-jq -n '{
-    apiVersion: "k8s-operator.alluxio.com/v1", kind: "License",
-    metadata: {name: "alluxio-license", namespace: "alx-ns"},
-    spec: {clusters: [{name: "alluxio", namespace: "alx-ns"}],
-           licenseString: env.ALLUXIO_LICENSE_STRING}
-}' > "$work_dir/license.json"
-create_private_resource "$work_dir/license.json"
+license="$(jq -n '{spec: {licenseString: env.ALLUXIO_LICENSE_STRING}}' |
+    kubectl patch --local --type=merge -f "${licenseManifest}" \\
+        --patch-file /dev/stdin -o yaml 2> >(redact >&2))"
+printf '%s\\n' "$license" |
+    kubectl create --dry-run=server --validate=strict -f - > /dev/null 2> >(redact >&2)
+printf '%s\\n' "$license" | kubectl create -f - > /dev/null 2> >(redact >&2)
+unset license
 wait_phase license alluxio-license phase Completed
 wait_phase alluxiocluster alluxio clusterPhase Ready
 for pod in alluxio-coordinator-0 alluxio-worker-0; do

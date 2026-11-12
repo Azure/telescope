@@ -19,7 +19,7 @@ fail() {
     exit 1
 }
 trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
-trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/license.json" "$work_dir/ufs.json" "$work_dir/helm-registry.json"' EXIT
+trap 'rm -f -- "$work_dir/command.out" "$work_dir/command.err" "$work_dir/blob.bin" "$work_dir/ufs.json" "$work_dir/helm-registry.json"' EXIT
 """
 }
 

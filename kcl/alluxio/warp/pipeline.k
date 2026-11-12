@@ -140,6 +140,7 @@ az aks create \\
             alluxio.CreateAlluxioCluster(
                 ALLUXIO_IMAGE_REPOSITORY
                 "${CHECKS_DIR}/cluster.yaml"
+                "${CHECKS_DIR}/license.yaml"
                 WORK_DIR
                 RESULT_DIR
             )
