@@ -56,14 +56,6 @@ wait_phase() {
 }
 """
 
-LOAD_CONFIG = """
-for name in acr_resource_id acr_subscription alluxio_image operator_image \\
-            resource_group subscription cluster location storage_account; do
-    printf -v "$name" '%s' "$(jq -er --arg name "$name" '.[$name] | select(type == "string" and length > 0)' "$work_dir/config.json")"
-    [[ -n "\${!name}" ]] || fail "Missing configuration field: $name"
-done
-"""
-
 REDACT_OUTPUT = """
 if [[ -f "$work_dir/blob-sas" ]]; then BLOB_SAS="$(< "$work_dir/blob-sas")"; fi
 redact() {

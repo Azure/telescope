@@ -1,7 +1,7 @@
 import azure_pipelines.ap.steps
 import lib.steps.azure
 
-PrepareRun = lambda serviceConnection: str, registryId: str, alluxioImage: str, operatorImage: str, operatorChart: str, subscription: str, resourceGroup: str, cluster: str, location: str, workDir: str, resultDir: str -> steps.Step {
+PrepareRun = lambda serviceConnection: str, registryId: str, registrySubscription: str, alluxioImage: str, operatorImage: str, operatorChart: str, subscription: str, resourceGroup: str, cluster: str, location: str, storageAccount: str, workDir: str, resultDir: str -> steps.Step {
     azure.AzCli(
         serviceConnection
         "Prepare run configuration"
@@ -15,14 +15,13 @@ cluster="${cluster}"
 location="${location}"
 registry="$(az acr show --ids "$acr_resource_id")"
 registry_name="$(jq -er '.name' <<< "$registry")"
-acr_subscription="$(jq -er '.id | split("/")[2]' <<< "$registry")"
 images='{}'
 for image in "$alluxio_image" "$operator_image"; do
     tag="${ALLUXIO_TAG}"
     if [[ "$image" == "$operator_image" ]]; then tag="${OPERATOR_TAG}"; fi
     digest="$(az acr repository show \\
         --name "$registry_name" \\
-        --subscription "$acr_subscription" \\
+        --subscription "${registrySubscription}" \\
         --image "\${image#*/}:$tag" | jq -er '.digest')"
     images="$(jq --arg image "$image:$tag" --arg digest "$digest" '. + {($image): $digest}' <<< "$images")"
 done
@@ -31,23 +30,20 @@ exists="$(az group exists \\
     --subscription "$subscription")"
 [[ "$exists" == false ]] || fail "Resource group already exists or could not be verified; refusing to reuse or delete it"
 
-storage_account="alx$(printf '%s' "$resource_group" | sha256sum | cut -c1-20)"
 jq -n \\
-    --arg acr_resource_id "$acr_resource_id" --arg acr_subscription "$acr_subscription" \\
+    --arg acr_resource_id "$acr_resource_id" --arg acr_subscription "${registrySubscription}" \\
     --arg alluxio_image "$alluxio_image" --arg operator_image "$operator_image" \\
     --arg resource_group "$resource_group" --arg subscription "$subscription" \\
-    --arg cluster "$cluster" --arg location "$location" --arg storage_account "$storage_account" \\
-    '$ARGS.named' > "$work_dir/config.json"
-jq \\
+    --arg cluster "$cluster" --arg location "$location" --arg storage_account "${storageAccount}" \\
     --argjson image_digests "$images" \\
     --arg operator_chart "${operatorChart}" \\
     --arg operator_version "${OPERATOR_TAG}" --arg warp_version "${WARP_VERSION}" \\
-    '. + $ARGS.named + {
+    '$ARGS.named + {
         worker_cache: "8Gi", worker_cache_reserved: "1Gi",
         support_nodes: {count: 2, sku: "Standard_D8s_v5"},
         worker_nodes: {count: 1, sku: "Standard_D16s_v5"},
         client_nodes: {count: 1, sku: "Standard_D8s_v5"}
-    }' "$work_dir/config.json" > "$result_dir/configuration.json"
+    }' > "$result_dir/configuration.json"
 echo '##vso[task.setvariable variable=READY_FOR_PROVISIONING;isOutput=true]true'
 """
         stepName = "alluxio_setup"
