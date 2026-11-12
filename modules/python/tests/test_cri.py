@@ -3,6 +3,7 @@ import json
 import tempfile
 import unittest
 import sys
+from docker.errors import ContainerError
 from unittest.mock import patch, MagicMock
 from clusterloader2.cri.cri import (
     override_config_clusterloader2,
@@ -137,6 +138,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
 
     @patch('clusterloader2.cri.cri.run_cl2_command')
     def test_execute_clusterloader2(self, mock_run_cl2_command):
+        mock_run_cl2_command.return_value = 0
         # Call the function under test
         execute_clusterloader2(
             cl2_image="mock-image",
@@ -153,6 +155,28 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             "/mock/kubeconfig", "mock-image", "/mock/config", "/mock/report", "aks",
             overrides=True, enable_prometheus=True, tear_down_prometheus=False, scrape_kubelets=True, scrape_containerd=False
         )
+
+    @patch('clusterloader2.utils.DockerClient')
+    def test_execute_clusterloader2_propagates_container_exit(self, mock_docker_client):
+        container = mock_docker_client.return_value.run_container.return_value
+        container.logs.return_value = [b"benchmark diagnostic\n"]
+        for exit_code in (0, 1, 137):
+            with self.subTest(exit_code=exit_code):
+                container.wait.return_value = {"StatusCode": exit_code}
+                arguments = ("image", "config", "reports", "kubeconfig", "aks", False, True)
+                if exit_code == 0:
+                    execute_clusterloader2(*arguments)
+                else:
+                    with self.assertRaisesRegex(RuntimeError, f"exit code {exit_code}"):
+                        execute_clusterloader2(*arguments)
+
+    @patch('clusterloader2.utils.DockerClient')
+    def test_execute_clusterloader2_propagates_docker_error(self, mock_docker_client):
+        mock_docker_client.return_value.run_container.side_effect = ContainerError(
+            MagicMock(), 125, "clusterloader2", "image", b"container failed"
+        )
+        with self.assertRaisesRegex(RuntimeError, "exit code 125"):
+            execute_clusterloader2("image", "config", "reports", "kubeconfig", "aks", False, True)
 
     @patch('clusterloader2.cri.cri.KubernetesClient')
     @patch('kubernetes.client.ApiClient.call_api')

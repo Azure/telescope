@@ -18,6 +18,22 @@ Measures containerd image pulling throughput (MB/s) and network plugin operation
 | Prometheus Pool | 1 x Standard_D64_v3 (larger size required for 1000 nodes - needs more memory and CPU for Prometheus) |
 | User Pool | 1000 x Standard_D4s_v3 |
 
+## Resource lifetime and failure diagnostics
+
+Resources expire three hours after creation. This covers provisioning, the
+60-minute benchmark timeout, and cleanup within the pipeline's 100-minute job
+timeout. The expiry clock starts before AKS provisioning, not at benchmark startup.
+
+The CRI pipeline captures cloud metadata before the benchmark, so result collection
+does not depend on the cluster still existing afterward. A nonzero ClusterLoader2
+exit fails the benchmark step, but result collection still runs. Failed runs publish
+available ClusterLoader2 reports, benchmark pod status, and Kubernetes events in a
+`cri-diagnostics-<job-id>-<region>` pipeline artifact before resource cleanup.
+Diagnostic queries warn explicitly if the cluster is no longer reachable.
+
+Resource-group cleanup treats an already-deleted group as complete, including
+concurrent deletion, but still fails on permission or other Azure CLI errors.
+
 ## Test Workload
 
 | Component | Value |

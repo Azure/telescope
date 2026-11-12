@@ -74,9 +74,11 @@ def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provi
         if exit_code != 0:
             logger.error(
                 f"clusterloader2 exited with a non-zero status code {exit_code}. Make sure to check the logs to confirm whether the error is expected!")
+        return exit_code
     except docker.errors.ContainerError as e:
         logger.error(
             f"Container exited with a non-zero status code: {e.exit_status}\n{e.stderr.decode('utf-8')}")
+        return e.exit_status
 
 
 def get_measurement(file_path):

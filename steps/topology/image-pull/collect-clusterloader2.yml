@@ -53,6 +53,7 @@ steps:
     REGION: ${{ parameters.regions[0] }}
     RUN_URL: $(RUN_URL)
   displayName: "Collect Registry Info"
+  condition: and(succeededOrFailed(), eq(variables['CRI_BENCHMARK_STARTED'], 'true'))
 - template: /steps/engine/clusterloader2/cri/collect.yml
   parameters:
     cloud: ${{ parameters.cloud }}

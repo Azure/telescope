@@ -12,9 +12,22 @@ parameters:
     default: ""
 
 steps:
-  - template: /steps/cloud/${{ parameters.cloud }}/collect-cloud-info.yml
-    parameters:
-      region: ${{ parameters.region }}
+  - script: |
+      set -eu
+
+      mkdir -p "$CL2_REPORT_DIR"
+      if ! kubectl --request-timeout=30s get pods --all-namespaces \
+        -l group=resource-consumer -o json > "$CL2_REPORT_DIR/pods.json"; then
+        echo "##vso[task.logissue type=warning;] Unable to collect benchmark pod status."
+      fi
+      if ! kubectl --request-timeout=30s get events --all-namespaces \
+        --sort-by=.metadata.creationTimestamp -o json > "$CL2_REPORT_DIR/events.json"; then
+        echo "##vso[task.logissue type=warning;] Unable to collect Kubernetes events."
+      fi
+    displayName: "Collect Failed Benchmark Diagnostics"
+    condition: and(failed(), eq(variables['CRI_BENCHMARK_STARTED'], 'true'))
+    env:
+      CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/results
   - script: |
       set -eo pipefail
 
@@ -39,3 +52,11 @@ steps:
       PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/cri.py
       CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/results
     displayName: "Collect Results"
+    condition: and(succeededOrFailed(), eq(variables['CRI_BENCHMARK_STARTED'], 'true'))
+
+  - task: PublishPipelineArtifact@1
+    displayName: "Publish Failed Benchmark Diagnostics"
+    condition: and(failed(), eq(variables['CRI_BENCHMARK_STARTED'], 'true'))
+    inputs:
+      targetPath: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/results
+      artifact: cri-diagnostics-$(System.JobId)-${{ parameters.region }}
