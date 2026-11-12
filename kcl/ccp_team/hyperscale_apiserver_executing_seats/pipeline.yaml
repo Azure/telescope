@@ -791,57 +791,18 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-          set +eo pipefail
-          kubectl create namespace "clusterloader2" || true
-          kubectl apply -f $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/cl2-rendered.yaml || exit 1
-          # Wait
-          consecutive_errors=0
-          while true; do
-            # Under consistent API server errors, we would want to exit early instead of waiting for the entire timeout duration.
-            conditions="$(kubectl get job cl2 --namespace="clusterloader2" -o jsonpath='{range .status.conditions[?(@.status=="True")]}{.type}{" "}{.reason}{" "}{.message}{"\n"}{end}' 2>/tmp/kubectl_err)"
-            kubectl_exit_code=$?
-            if [ $kubectl_exit_code -ne 0 ]; then
-              consecutive_errors=$((consecutive_errors + 1))
-              echo "kubectl get job cl2 failed (exit_code=$kubectl_exit_code, consecutive=$consecutive_errors/20):"
-              cat /tmp/kubectl_err
-              if [ "$consecutive_errors" -ge "20" ]; then
-                echo "Unable to read cl2 Job for $consecutive_errors consecutive polls; aborting."
-                exit 1
-              fi
-              sleep 30
-              continue
-            fi
-            consecutive_errors=0
-
-            while read -r condition reason message; do
-              case "$condition" in
-                Failed)
-                  echo "cl2 Job failed: $reason $message"
-                  exit 1
-                  ;;
-                Complete)
-                  echo "cl2 Job completed successfully"
-                  exit 0
-                  ;;
-              esac
-            done <<< "$conditions"
-
-            kubectl get pods --namespace="clusterloader2" -l job-name=cl2 -o wide || echo "Unable to list cl2 pods; retrying on the next poll."
-            sleep 30
-          done
+          exec bash "$(Pipeline.Workspace)/s/scripts/run_cluster_loader_2.sh" \
+              --namespace "clusterloader2" \
+              --manifest "$(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/cl2-rendered.yaml" \
+              --log-directory "$(Pipeline.Workspace)/cl2-logs/$(Build.BuildId)/H8/$(System.JobAttempt)" \
+              --poll-interval 60
       displayName: Run cluster loader 2
-    - task: AzureCLI@2
+    - task: PublishPipelineArtifact@1
       inputs:
-        azureSubscription: Azure-for-Telescope-internal
-        scriptType: bash
-        scriptLocation: inlineScript
-        inlineScript: |
-          set -exo pipefail
-          for pod in $(kubectl get pods --namespace="clusterloader2" -l job-name=cl2 -o jsonpath='{.items[*].metadata.name}'); do
-            echo "===== Logs for pod: $pod ====="
-            kubectl logs --namespace="clusterloader2" "$pod" || true
-          done
-      displayName: Print cl2 pod logs
+        targetPath: $(Pipeline.Workspace)/cl2-logs/$(Build.BuildId)/H8/$(System.JobAttempt)
+        artifact: cl2-logs-H8
+      condition: always()
+      displayName: Publish cl2 logs
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal

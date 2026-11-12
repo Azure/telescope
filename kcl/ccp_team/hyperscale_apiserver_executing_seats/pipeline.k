@@ -91,6 +91,7 @@ makeBenchmarkingJob = lambda size: str -> job.Job {
         taintPrefix = "cl2pool"
     }
     createClusterScript = makeCreateClusterScript(size, cluster)
+    logDirectory = "$(Pipeline.Workspace)/cl2-logs/$(Build.BuildId)/${size}/$(System.JobAttempt)"
     job.Job {
         job = "benchmarking"
         displayName = "Benchmarking"
@@ -163,10 +164,23 @@ fi
             k8s.RunClusterLoader2(
                 const.DEFAULT_SERVICE_CONNECTION,
                 "clusterloader2",
-                manifest = "${cl2Directory}/cl2-rendered.yaml"),
-            k8s.PrintCl2PodLogs(
-                const.DEFAULT_SERVICE_CONNECTION,
-                "clusterloader2"),
+                manifest = "${cl2Directory}/cl2-rendered.yaml",
+                enableLiveLogs = size == "H8",
+                logDirectory = logDirectory),
+            if size == "H8":
+                steps.Task {
+                    task = "PublishPipelineArtifact@1"
+                    displayName = "Publish cl2 logs"
+                    condition = "always()"
+                    inputs = {
+                        targetPath = logDirectory
+                        artifact = "cl2-logs-${size}"
+                    }
+                }
+            else:
+                k8s.PrintCl2PodLogs(
+                    const.DEFAULT_SERVICE_CONNECTION,
+                    "clusterloader2")
             azure.DeleteResourceGroup(
                 const.DEFAULT_SERVICE_CONNECTION,
                 RESOURCE_GROUP,
