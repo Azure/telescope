@@ -30,8 +30,8 @@ CL2_CONFIGS: {str: Cl2Config} = {
         memoryRequest = "24Gi"
     }
     "H8": Cl2Config {
-        nodeCount = 6
-        driverCount = 6
+        nodeCount = 8
+        driverCount = 8
         memoryRequest = "32Gi"
     }
 }
