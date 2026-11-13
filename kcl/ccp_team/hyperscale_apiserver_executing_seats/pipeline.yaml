@@ -7,7 +7,8 @@ stages:
     displayName: Benchmarking
     timeoutInMinutes: 600
     steps:
-    - bash: |
+    - bash: |2
+
         set -eo pipefail
 
         job_id="$(System.JobId)"
@@ -30,6 +31,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
           az config set defaults.location="swedencentral"
           az account show
@@ -41,6 +43,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |+
           set -exo pipefail
+
           az group create \
             --name "$(RUN_ID)" \
             --location "swedencentral" \
@@ -54,6 +57,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           az extension add --name aks-preview --version 20.0.0b6 --allow-preview true --yes
 
           az aks create \
@@ -92,6 +96,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           az aks get-credentials \
             --name "stg-H2-hyperscale-apiserver-seats" \
             --resource-group "$(RUN_ID)" \
@@ -114,6 +119,8 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
+
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -162,6 +169,8 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
+
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -212,6 +221,7 @@ stages:
         inlineScript: |-
           set -exo pipefail
           cd modules/python
+
           export PYTHONPATH=$PYTHONPATH:$(pwd)
           python3 kwok/kwok.py   --action create   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8
       continueOnError: true
@@ -224,10 +234,12 @@ stages:
         inlineScript: |-
           set -exo pipefail
           cd modules/python
+
           export PYTHONPATH=$PYTHONPATH:$(pwd)
           python3 kwok/kwok.py   --action validate   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8
       displayName: Validate KWOK Nodes
-    - bash: |
+    - bash: |2
+
         set -euo pipefail
         sed \
             -e 's/__CL2_DRIVER_COUNT__/2/g' \
@@ -247,6 +259,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           set +eo pipefail
           kubectl create namespace "clusterloader2" || true
           kubectl apply -f $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/cl2-rendered.yaml || exit 1
@@ -293,6 +306,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           for pod in $(kubectl get pods --namespace="clusterloader2" -l job-name=cl2 -o jsonpath='{.items[*].metadata.name}'); do
             echo "===== Logs for pod: $pod ====="
             kubectl logs --namespace="clusterloader2" "$pod" || true
@@ -305,6 +319,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           for NODE_RG in $(az aks list \
             --resource-group "$(RUN_ID)" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
@@ -336,7 +351,8 @@ stages:
     displayName: Benchmarking
     timeoutInMinutes: 600
     steps:
-    - bash: |
+    - bash: |2
+
         set -eo pipefail
 
         job_id="$(System.JobId)"
@@ -359,6 +375,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
           az config set defaults.location="swedencentral"
           az account show
@@ -370,6 +387,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |+
           set -exo pipefail
+
           az group create \
             --name "$(RUN_ID)" \
             --location "swedencentral" \
@@ -383,6 +401,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           az extension add --name aks-preview --version 20.0.0b6 --allow-preview true --yes
 
           az aks create \
@@ -421,6 +440,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           az aks get-credentials \
             --name "stg-H4-hyperscale-apiserver-seats" \
             --resource-group "$(RUN_ID)" \
@@ -443,6 +463,8 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
+
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -491,6 +513,8 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
+
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -541,6 +565,7 @@ stages:
         inlineScript: |-
           set -exo pipefail
           cd modules/python
+
           export PYTHONPATH=$PYTHONPATH:$(pwd)
           python3 kwok/kwok.py   --action create   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8
       continueOnError: true
@@ -553,10 +578,12 @@ stages:
         inlineScript: |-
           set -exo pipefail
           cd modules/python
+
           export PYTHONPATH=$PYTHONPATH:$(pwd)
           python3 kwok/kwok.py   --action validate   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8
       displayName: Validate KWOK Nodes
-    - bash: |
+    - bash: |2
+
         set -euo pipefail
         sed \
             -e 's/__CL2_DRIVER_COUNT__/4/g' \
@@ -576,6 +603,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           set +eo pipefail
           kubectl create namespace "clusterloader2" || true
           kubectl apply -f $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/cl2-rendered.yaml || exit 1
@@ -622,6 +650,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           for pod in $(kubectl get pods --namespace="clusterloader2" -l job-name=cl2 -o jsonpath='{.items[*].metadata.name}'); do
             echo "===== Logs for pod: $pod ====="
             kubectl logs --namespace="clusterloader2" "$pod" || true
@@ -634,6 +663,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           for NODE_RG in $(az aks list \
             --resource-group "$(RUN_ID)" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
@@ -665,7 +695,8 @@ stages:
     displayName: Benchmarking
     timeoutInMinutes: 600
     steps:
-    - bash: |
+    - bash: |2
+
         set -eo pipefail
 
         job_id="$(System.JobId)"
@@ -688,6 +719,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
           az config set defaults.location="swedencentral"
           az account show
@@ -699,6 +731,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |+
           set -exo pipefail
+
           az group create \
             --name "$(RUN_ID)" \
             --location "swedencentral" \
@@ -712,6 +745,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           az extension add --name aks-preview --version 20.0.0b6 --allow-preview true --yes
 
           az aks create \
@@ -750,6 +784,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           az aks get-credentials \
             --name "stg-H8-hyperscale-apiserver-seats" \
             --resource-group "$(RUN_ID)" \
@@ -772,6 +807,8 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
+
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -820,6 +857,8 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
+
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -870,8 +909,9 @@ stages:
         inlineScript: |-
           set -exo pipefail
           cd modules/python
+
           export PYTHONPATH=$PYTHONPATH:$(pwd)
-          python3 kwok/kwok.py   --action create   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8
+          python3 kwok/kwok.py   --action create   --node-count 18000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8
       continueOnError: true
       displayName: Create KWOK Nodes
     - task: AzureCLI@2
@@ -882,10 +922,12 @@ stages:
         inlineScript: |-
           set -exo pipefail
           cd modules/python
+
           export PYTHONPATH=$PYTHONPATH:$(pwd)
-          python3 kwok/kwok.py   --action validate   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8
+          python3 kwok/kwok.py   --action validate   --node-count 18000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8
       displayName: Validate KWOK Nodes
-    - bash: |
+    - bash: |2
+
         set -euo pipefail
         sed \
             -e 's/__CL2_DRIVER_COUNT__/6/g' \
@@ -905,6 +947,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           exec bash "$(Pipeline.Workspace)/s/scripts/run_cluster_loader_2.sh" \
               --namespace "clusterloader2" \
               --manifest "$(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/cl2-rendered.yaml" \
@@ -924,6 +967,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           for NODE_RG in $(az aks list \
             --resource-group "$(RUN_ID)" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
