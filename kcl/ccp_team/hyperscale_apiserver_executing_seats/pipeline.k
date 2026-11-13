@@ -181,7 +181,7 @@ fi
                 k8s.PrintCl2PodLogs(
                     const.DEFAULT_SERVICE_CONNECTION,
                     "clusterloader2")
-            azure.DeleteResourceGroup(
+            azure.DeleteResourceGroupAsync(
                 const.DEFAULT_SERVICE_CONNECTION,
                 RESOURCE_GROUP,
                 SUBSCRIPTION_ID)
