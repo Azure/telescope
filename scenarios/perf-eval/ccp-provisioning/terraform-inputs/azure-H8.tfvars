@@ -12,6 +12,10 @@ azapi_config_list = [
     kubernetes_version = "1.36.0"
     api_version        = "2026-01-02-preview"
 
+    tags = {
+      "skip-cloudgov-Kubernetes_AADAuth" = "true"
+    }
+
     default_node_pool = {
       name    = "systempool1"
       count   = 3
