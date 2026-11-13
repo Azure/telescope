@@ -358,11 +358,20 @@ class PipelineWiringTests(unittest.TestCase):
                     "targetPath": "$(Pipeline.Workspace)/cl2-logs/$(Build.BuildId)/H8/$(System.JobAttempt)",
                     "artifact": "cl2-logs-H8",
                 })
-                self.assertIn("group delete", steps[run + 2]["inputs"]["inlineScript"])
             else:
                 self.assertNotIn("run_cluster_loader_2.sh", script)
                 self.assertIn("sleep 30", script)
                 self.assertEqual(steps[run + 1]["displayName"], "Print cl2 pod logs")
+            cleanup = steps[run + 2]
+            self.assertEqual(cleanup["condition"], "always()")
+            self.assertEqual(cleanup["inputs"]["inlineScript"], (
+                "set -exo pipefail\n"
+                'python3 "$(Build.SourcesDirectory)/kcl/lib/steps/azure/resource_group.py" delete \\\n'
+                '  --resource-group "$(RUN_ID)" \\\n'
+                '  --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \\\n'
+                "  --timeout-seconds 2700 \\\n"
+                "  --poll-interval-seconds 30\n"
+            ))
 
     def test_timestamp_overlap_rounds_down(self):
         self.assertEqual(since_timestamp("2026-11-12T00:00:05.123456789Z"), "2026-11-12T00:00:03Z")
