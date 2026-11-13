@@ -7,9 +7,6 @@ pool:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: image-pull-n5
-  ACR_PULL_USERNAME: williamjcusaue1
-  ACR_PULL_PASSWORD: 58jBdanzX98R6zYW4WgoL3T5PZWxMo85RdqUzj43BPriXYrImF81JQQJ99CIADL93NaEqg7NAAACAZCRFR7H
-  # Configure ACR_PULL_PASSWORD as a secret Azure DevOps pipeline variable.
 
 stages:
   - stage: azure_australiaeast_image_pull
