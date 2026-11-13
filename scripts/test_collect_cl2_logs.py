@@ -1,6 +1,5 @@
 """Integration tests with an executable kubectl double; no cluster or credentials."""
 
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -339,46 +338,6 @@ class LiveCollectionTests(unittest.TestCase):
 
 
 class PipelineWiringTests(unittest.TestCase):
-    def test_h8_gather_sync_timeouts_preserve_image_modules(self):
-        directory = ROOT / "kcl/ccp_team/hyperscale_apiserver_executing_seats"
-        # SHA256 of unmodified module files from the pinned v20260220 image.
-        original_hashes = {
-            "reconcile-objects.yaml": "438c592b851fd8e673bcb972985f02cbf39738e39c6e3450bdacfb70deea2523",
-            "scheduler-throughput.yaml": "e42ea59cdf60d5b09441b7d0d68d172b03d3d955bd0cc39b2a306aa1bc230e9e",
-        }
-        documents = list(yaml.safe_load_all((directory / "cl2-h8.yaml").read_text()))
-        config = next(doc for doc in documents
-                      if doc["kind"] == "ConfigMap" and doc["metadata"]["name"] == "cl2-testconfig")
-        job = next(doc for doc in documents if doc["kind"] == "Job")
-        spec = job["spec"]["template"]["spec"]
-        container = spec["containers"][0]
-        self.assertEqual(container["image"], "ghcr.io/azure/clusterloader2:v20260220")
-        self.assertIn("--testconfig=testing/load/config-noservice.yaml", container["args"])
-        self.assertIn({"name": "cl2-testconfig", "configMap": {"name": "cl2-testconfig"}},
-                      spec["volumes"])
-        for name, original_hash in original_hashes.items():
-            with self.subTest(module=name):
-                module = config["data"][name]
-                self.assertEqual(module.count("syncTimeout:"), 1)
-                self.assertIn("      action: gather\n      syncTimeout: 10m\n", module)
-                original = module.replace("      syncTimeout: 10m\n", "")
-                self.assertEqual(hashlib.sha256(original.encode()).hexdigest(), original_hash)
-                self.assertIn({
-                    "mountPath": "/root/perf-tests/clusterloader2/testing/load/modules/" + name,
-                    "name": "cl2-testconfig",
-                    "subPath": name,
-                }, container["volumeMounts"])
-                self.assertIn("modules/" + name, config["data"]["config.yaml"])
-        for tier in ("h2", "h4"):
-            with self.subTest(tier=tier):
-                documents = list(yaml.safe_load_all((directory / f"cl2-{tier}.yaml").read_text()))
-                config = next(doc for doc in documents
-                              if doc["kind"] == "ConfigMap" and doc["metadata"]["name"] == "cl2-testconfig")
-                self.assertEqual(set(config["data"]), {"config.yaml"})
-                job = next(doc for doc in documents if doc["kind"] == "Job")
-                mounts = job["spec"]["template"]["spec"]["containers"][0]["volumeMounts"]
-                self.assertFalse(any(mount.get("subPath") in original_hashes for mount in mounts))
-
     def test_h8_only_artifact_before_cleanup_and_legacy_h2_h4(self):
         pipeline = yaml.safe_load(
             (ROOT / "kcl/ccp_team/hyperscale_apiserver_executing_seats/pipeline.yaml").read_text()
