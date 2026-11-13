@@ -112,12 +112,9 @@ groups disappear. **Async describes the Azure request, not the pipeline step: th
 step waits for cleanup to finish.** Each poll checks remaining VMSS resources and
 cancels active (`RollingForward`) upgrades, including platform-initiated upgrades
 on scale sets with a `Manual` upgrade policy. It waits for cancellation before
-continuing. Associated node groups are eligible when their captured AKS owners
-are deleting or have disappeared. A `Failed` owner is eligible only if it still
-references that exact node group, the parent group is currently `Deleting`, and
-the node group's latest deletion event after this submission explicitly reports
-`ResourceGroupDeletionBlocked` with a VMSS `OperationNotAllowed` / `Rolling Upgrade
-in progress` blocker. Unrelated or stale failures and live owners are excluded.
+continuing. Associated node groups are eligible only when all their captured AKS
+clusters are deleting or have disappeared. Clusters in `Failed` or any other
+non-deleting state are excluded from node-group upgrade cancellation.
 An ambiguous `NotFound` from the rolling-upgrade endpoint is treated as absence
 only after a separate VMSS read confirms the scale set has disappeared.
 
@@ -136,12 +133,13 @@ azure.DeleteResourceGroupAsync(
 
 The overall `timeoutSeconds` defaults to 2700 and `pollIntervalSeconds` to 30.
 Set the pipeline job timeout to leave enough time for cleanup and diagnostics.
-The helper retries a failed resource-group delete at most twice after removing
-an upgrade blocker; it does not repeatedly resubmit an in-flight deletion or
-directly delete AKS-managed VMSS, NICs, or node resource groups. It fails on
-unexpected API errors, unknown upgrade states, and timeout rather than reporting
-cleanup success. An already absent target group is a no-op; node groups cannot
-be rediscovered from an absent cluster, so start recovery before deleting it.
+The helper submits resource-group deletion once and attempts to unblock it by
+cancelling active upgrades; it does not resubmit a failed deletion or directly
+delete AKS-managed VMSS, NICs, or node resource groups. It does not query Activity
+Log for deletion failures; if the groups remain, polling continues until timeout.
+Unexpected API errors, unknown upgrade states, and timeout fail the step rather
+than reporting cleanup success. An already absent target group is a no-op; node groups
+cannot be rediscovered from an absent cluster, so start recovery before deleting it.
 
 `DeleteResourceGroup` keeps its original blocking Azure CLI behavior. Recovery
 requires no separate cancellation step or enable flag. Both steps default to
@@ -150,7 +148,7 @@ requires no separate cancellation step or enable flag. Both steps default to
 `DeleteResourceGroupAsync` requires a Linux agent, Python 3.10+, Azure CLI, and a
 Telescope checkout at `$(Build.SourcesDirectory)`; no additional Python packages
 are needed. The service connection needs resource-group delete/read, AKS and
-VMSS read, rolling-upgrade read/cancel, and Activity Log read permissions,
+VMSS read and rolling-upgrade read/cancel permissions,
 including access to associated node resource groups. The hyperscale
 pod-scheduling pipeline uses this integrated cleanup step.
 
