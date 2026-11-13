@@ -338,6 +338,42 @@ class LiveCollectionTests(unittest.TestCase):
 
 
 class PipelineWiringTests(unittest.TestCase):
+    def test_rendered_tiers_preserve_experiment_settings(self):
+        directory = ROOT / "kcl/ccp_team/hyperscale_apiserver_executing_seats"
+        pipeline = yaml.safe_load((directory / "pipeline.yaml").read_text())
+        expected = {
+            "H2": (2, "24Gi", 4000, 8000),
+            "H4": (4, "24Gi", 4000, 8000),
+            "H8": (6, "32Gi", 1000, 100),
+        }
+        for stage in pipeline["stages"]:
+            with self.subTest(stage=stage["stage"]), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                (root / "cl2.yaml").write_text((directory / "cl2.yaml").read_text())
+                steps = stage["jobs"][0]["steps"]
+                render = next(step for step in steps if step.get("displayName") == "Render CL2 manifest")
+                subprocess.run(["bash", "-c", render["bash"]], cwd=root, check=True,
+                               capture_output=True, text=True)
+                manifest = (root / "cl2-rendered.yaml").read_text()
+                self.assertNotIn("__CL2_", manifest)
+                documents = list(yaml.safe_load_all(manifest))
+                job = next(doc for doc in documents if doc["kind"] == "Job")
+                configmaps = {doc["metadata"]["name"]: doc["data"] for doc in documents
+                              if doc["kind"] == "ConfigMap"}
+                drivers, memory, qps, burst = expected[stage["stage"]]
+                self.assertEqual(job["spec"]["completions"], drivers)
+                self.assertEqual(job["spec"]["parallelism"], drivers)
+                container = job["spec"]["template"]["spec"]["containers"][0]
+                self.assertEqual(container["resources"]["requests"], {"cpu": "6", "memory": memory})
+                self.assertEqual(yaml.safe_load(configmaps["cl2-override"]["override.yaml"])["CL2_DEFAULT_QPS"], qps)
+                config = configmaps["cl2-testconfig"]
+                self.assertEqual(set(config), {"config.yaml"})
+                self.assertIn(f"    burst: {burst}\n", config["config.yaml"])
+                self.assertNotIn("syncTimeout", manifest)
+                self.assertEqual(len(container["volumeMounts"]), 2)
+                run = next(step for step in steps if step.get("displayName") == "Run cluster loader 2")
+                self.assertIn("cl2-rendered.yaml", run["inputs"]["inlineScript"])
+
     def test_h8_only_artifact_before_cleanup_and_legacy_h2_h4(self):
         pipeline = yaml.safe_load(
             (ROOT / "kcl/ccp_team/hyperscale_apiserver_executing_seats/pipeline.yaml").read_text()
