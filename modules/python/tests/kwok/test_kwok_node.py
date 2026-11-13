@@ -1162,15 +1162,12 @@ class TestKwokPipeline(unittest.TestCase):
                 self.assertNotIn("continueOnError", validate)
                 for step, action in [(create, "create"), (validate, "validate")]:
                     arguments = shlex.split(step["script"])
-                    self.assertFalse(any(
-                        argument == "--node-create-qps" or argument.startswith("--node-create-qps=")
-                        for argument in arguments
-                    ))
                     for option, expected in {
                         "--action": action,
-                        "--node-count": "15000",
+                        "--node-count": "18000" if stage["stage"] == "H8" else "15000",
                         "--validate-success-threshold": "0.9",
                         "--node-create-workers": "8",
+                        "--node-create-qps": "20",
                     }.items():
                         with self.subTest(action=action, option=option):
                             self.assertEqual(arguments.count(option), 1)

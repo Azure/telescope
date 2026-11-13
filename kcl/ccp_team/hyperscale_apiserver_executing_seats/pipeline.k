@@ -14,10 +14,11 @@ schema Cl2Config:
     nodeCount: int
     driverCount: int
     memoryRequest: str
+    qps: int = 4000
+    burst: int = 8000
 
 # Preserve per-tier concurrency; H2/H4 fit two drivers per runner node.
-# For H8, six drivers keep the control plane near saturation without excessive
-# run time; observed runs show no CCP or CL2 errors or driver bottlenecks.
+# H8 uses dedicated runners and a lower action rate and burst for debugging.
 CL2_CONFIGS: {str: Cl2Config} = {
     "H2": Cl2Config {
         nodeCount = 1
@@ -33,6 +34,8 @@ CL2_CONFIGS: {str: Cl2Config} = {
         nodeCount = 6
         driverCount = 6
         memoryRequest = "32Gi"
+        qps = 1500
+        burst = 100
     }
 }
 
@@ -54,6 +57,7 @@ az aks create \\
     --name "${cluster}" \\
     --location "${LOCATION}" \\
     --kubernetes-version "1.36" \\
+    --node-os-upgrade-channel none \\
     --dns-name-prefix "${cluster}-dns" \\
     --tier standard \\
     --enable-managed-identity \\
@@ -90,6 +94,7 @@ makeBenchmarkingJob = lambda size: str -> job.Job {
         taintPrefix = "cl2pool"
     }
     createClusterScript = makeCreateClusterScript(size, cluster)
+    logDirectory = "$(Pipeline.Workspace)/cl2-logs/$(Build.BuildId)/${size}/$(System.JobAttempt)"
     job.Job {
         job = "benchmarking"
         displayName = "Benchmarking"
@@ -131,7 +136,7 @@ makeBenchmarkingJob = lambda size: str -> job.Job {
                 SUBSCRIPTION_ID,
                 KWOK_POOL),
             *k8s.CreateKwokNodes(
-                15000,
+                18000 if size == "H8" else 15000,
                 continueOnError = True,
                 params = {
                     "node-manifest-path": "$(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml"
@@ -140,8 +145,9 @@ makeBenchmarkingJob = lambda size: str -> job.Job {
                     "node-lease-duration-seconds": "60"
                     "validate-success-threshold": "0.9"
                     "log-level": "WARNING"
-                    # Allow for parallel creation of kwok  nodes at ~18 nodes/s: 15,000 nodes in ~14 min.
+                    # Preserve the experiment's shared create-attempt rate across workers.
                     "node-create-workers": "8"
+                    "node-create-qps": "20"
                 }),
             steps.Bash {
                 displayName = "Render CL2 manifest"
@@ -151,6 +157,8 @@ set -euo pipefail
 sed \\
     -e 's/__CL2_DRIVER_COUNT__/${cl2Config.driverCount}/g' \\
     -e 's/__CL2_MEMORY_REQUEST__/${cl2Config.memoryRequest}/g' \\
+    -e 's/__CL2_QPS__/${cl2Config.qps}/g' \\
+    -e 's/__CL2_BURST__/${cl2Config.burst}/g' \\
     cl2.yaml > cl2-rendered.yaml
 
 if grep -q '__CL2_[A-Z_]*__' cl2-rendered.yaml; then
@@ -162,11 +170,24 @@ fi
             k8s.RunClusterLoader2(
                 const.DEFAULT_SERVICE_CONNECTION,
                 "clusterloader2",
-                manifest = "${cl2Directory}/cl2-rendered.yaml"),
-            k8s.PrintCl2PodLogs(
-                const.DEFAULT_SERVICE_CONNECTION,
-                "clusterloader2"),
-            azure.DeleteResourceGroup(
+                manifest = "${cl2Directory}/cl2-rendered.yaml",
+                enableLiveLogs = size == "H8",
+                logDirectory = logDirectory),
+            if size == "H8":
+                steps.Task {
+                    task = "PublishPipelineArtifact@1"
+                    displayName = "Publish cl2 logs"
+                    condition = "always()"
+                    inputs = {
+                        targetPath = logDirectory
+                        artifact = "cl2-logs-${size}"
+                    }
+                }
+            else:
+                k8s.PrintCl2PodLogs(
+                    const.DEFAULT_SERVICE_CONNECTION,
+                    "clusterloader2")
+            azure.DeleteResourceGroupAsync(
                 const.DEFAULT_SERVICE_CONNECTION,
                 RESOURCE_GROUP,
                 SUBSCRIPTION_ID)

@@ -7,7 +7,8 @@ stages:
     displayName: Benchmarking
     timeoutInMinutes: 600
     steps:
-    - bash: |
+    - bash: |2
+
         set -eo pipefail
 
         job_id="$(System.JobId)"
@@ -28,6 +29,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
           az config set defaults.location="swedencentral"
           az account show
@@ -39,6 +41,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |+
           set -exo pipefail
+
           az group create \
             --name "$(RUN_ID)" \
             --location "swedencentral" \
@@ -52,6 +55,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           az extension add --name aks-preview --version 20.0.0b6 --allow-preview true --yes
 
           az aks create \
@@ -60,6 +64,7 @@ stages:
               --name "stg-H2-hyperscale-apiserver-seats" \
               --location "swedencentral" \
               --kubernetes-version "1.36" \
+              --node-os-upgrade-channel none \
               --dns-name-prefix "stg-H2-hyperscale-apiserver-seats-dns" \
               --tier standard \
               --enable-managed-identity \
@@ -86,6 +91,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           az aks get-credentials \
             --name "stg-H2-hyperscale-apiserver-seats" \
             --resource-group "$(RUN_ID)" \
@@ -99,6 +105,8 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
+
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -147,6 +155,8 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
+
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -189,24 +199,29 @@ stages:
             --node-taints kwok=true:NoSchedule \
             --labels "kwok=true"
       displayName: Create node pool kwokpool
-    - script: |-
+    - script: |2-
+
         set -exo pipefail
         export PYTHONPATH=$PYTHONPATH:$(pwd)
-        python3 kwok/kwok.py   --action create   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8
+        python3 kwok/kwok.py   --action create   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8 --node-create-qps 20
       workingDirectory: modules/python
       continueOnError: true
       displayName: Create KWOK Nodes
-    - script: |-
+    - script: |2-
+
         set -exo pipefail
         export PYTHONPATH=$PYTHONPATH:$(pwd)
-        python3 kwok/kwok.py   --action validate   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8
+        python3 kwok/kwok.py   --action validate   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8 --node-create-qps 20
       workingDirectory: modules/python
       displayName: Validate KWOK Nodes
-    - bash: |
+    - bash: |2
+
         set -euo pipefail
         sed \
             -e 's/__CL2_DRIVER_COUNT__/2/g' \
             -e 's/__CL2_MEMORY_REQUEST__/24Gi/g' \
+            -e 's/__CL2_QPS__/4000/g' \
+            -e 's/__CL2_BURST__/8000/g' \
             cl2.yaml > cl2-rendered.yaml
 
         if grep -q '__CL2_[A-Z_]*__' cl2-rendered.yaml; then
@@ -222,21 +237,22 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           set +eo pipefail
           kubectl create namespace "clusterloader2" || true
-          kubectl apply -f $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/cl2-rendered.yaml
+          kubectl apply -f $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/cl2-rendered.yaml || exit 1
           # Wait
           consecutive_errors=0
           while true; do
             # Under consistent API server errors, we would want to exit early instead of waiting for the entire timeout duration.
-            phases="$(kubectl get pods --namespace="clusterloader2" -o jsonpath='{range .items[*]}{.status.phase}{"\n"}{end}' 2>/tmp/kubectl_err)"
+            conditions="$(kubectl get job cl2 --namespace="clusterloader2" -o jsonpath='{range .status.conditions[?(@.status=="True")]}{.type}{" "}{.reason}{" "}{.message}{"\n"}{end}' 2>/tmp/kubectl_err)"
             kubectl_exit_code=$?
             if [ $kubectl_exit_code -ne 0 ]; then
               consecutive_errors=$((consecutive_errors + 1))
-              echo "kubectl get pods failed (exit_code=$kubectl_exit_code, consecutive=$consecutive_errors/20):"
+              echo "kubectl get job cl2 failed (exit_code=$kubectl_exit_code, consecutive=$consecutive_errors/20):"
               cat /tmp/kubectl_err
               if [ "$consecutive_errors" -ge "20" ]; then
-                echo "API server unresponsive for $consecutive_errors consecutive polls; aborting."
+                echo "Unable to read cl2 Job for $consecutive_errors consecutive polls; aborting."
                 exit 1
               fi
               sleep 30
@@ -244,29 +260,20 @@ stages:
             fi
             consecutive_errors=0
 
-            total=0
-            terminal=0
+            while read -r condition reason message; do
+              case "$condition" in
+                Failed)
+                  echo "cl2 Job failed: $reason $message"
+                  exit 1
+                  ;;
+                Complete)
+                  echo "cl2 Job completed successfully"
+                  exit 0
+                  ;;
+              esac
+            done <<< "$conditions"
 
-            if [ -n "$phases" ]; then
-              while IFS= read -r phase; do
-                if [ -z "$phase" ]; then
-                  continue
-                fi
-
-                total=$((total + 1))
-                if [ "$phase" = "Succeeded" ] || [ "$phase" = "Failed" ]; then
-                  terminal=$((terminal + 1))
-                fi
-              done <<< "$phases"
-            fi
-
-            if [ "$total" -gt 0 ] && [ "$terminal" -eq "$total" ]; then
-              echo "All cl2 pods reached terminal state (Succeeded or Failed)"
-              kubectl get pods --namespace="clusterloader2" -l job-name=cl2 -o wide
-
-              break
-            fi
-
+            kubectl get pods --namespace="clusterloader2" -l job-name=cl2 -o wide || echo "Unable to list cl2 pods; retrying on the next poll."
             sleep 30
           done
       displayName: Run cluster loader 2
@@ -277,6 +284,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           for pod in $(kubectl get pods --namespace="clusterloader2" -l job-name=cl2 -o jsonpath='{.items[*].metadata.name}'); do
             echo "===== Logs for pod: $pod ====="
             kubectl logs --namespace="clusterloader2" "$pod" || true
@@ -289,9 +297,14 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-          az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
+
+          python3 "$(Build.SourcesDirectory)/kcl/lib/steps/azure/resource_group.py" delete \
+            --resource-group "$(RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --timeout-seconds 2700 \
+            --poll-interval-seconds 30
       condition: always()
-      displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+      displayName: Delete resource group with rolling-upgrade recovery (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
 - stage: H4
   displayName: H4
   jobs:
@@ -299,7 +312,8 @@ stages:
     displayName: Benchmarking
     timeoutInMinutes: 600
     steps:
-    - bash: |
+    - bash: |2
+
         set -eo pipefail
 
         job_id="$(System.JobId)"
@@ -320,6 +334,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
           az config set defaults.location="swedencentral"
           az account show
@@ -331,6 +346,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |+
           set -exo pipefail
+
           az group create \
             --name "$(RUN_ID)" \
             --location "swedencentral" \
@@ -344,6 +360,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           az extension add --name aks-preview --version 20.0.0b6 --allow-preview true --yes
 
           az aks create \
@@ -352,6 +369,7 @@ stages:
               --name "stg-H4-hyperscale-apiserver-seats" \
               --location "swedencentral" \
               --kubernetes-version "1.36" \
+              --node-os-upgrade-channel none \
               --dns-name-prefix "stg-H4-hyperscale-apiserver-seats-dns" \
               --tier standard \
               --enable-managed-identity \
@@ -378,6 +396,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           az aks get-credentials \
             --name "stg-H4-hyperscale-apiserver-seats" \
             --resource-group "$(RUN_ID)" \
@@ -391,6 +410,8 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
+
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -439,6 +460,8 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
+
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -481,24 +504,29 @@ stages:
             --node-taints kwok=true:NoSchedule \
             --labels "kwok=true"
       displayName: Create node pool kwokpool
-    - script: |-
+    - script: |2-
+
         set -exo pipefail
         export PYTHONPATH=$PYTHONPATH:$(pwd)
-        python3 kwok/kwok.py   --action create   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8
+        python3 kwok/kwok.py   --action create   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8 --node-create-qps 20
       workingDirectory: modules/python
       continueOnError: true
       displayName: Create KWOK Nodes
-    - script: |-
+    - script: |2-
+
         set -exo pipefail
         export PYTHONPATH=$PYTHONPATH:$(pwd)
-        python3 kwok/kwok.py   --action validate   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8
+        python3 kwok/kwok.py   --action validate   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8 --node-create-qps 20
       workingDirectory: modules/python
       displayName: Validate KWOK Nodes
-    - bash: |
+    - bash: |2
+
         set -euo pipefail
         sed \
             -e 's/__CL2_DRIVER_COUNT__/4/g' \
             -e 's/__CL2_MEMORY_REQUEST__/24Gi/g' \
+            -e 's/__CL2_QPS__/4000/g' \
+            -e 's/__CL2_BURST__/8000/g' \
             cl2.yaml > cl2-rendered.yaml
 
         if grep -q '__CL2_[A-Z_]*__' cl2-rendered.yaml; then
@@ -514,21 +542,22 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           set +eo pipefail
           kubectl create namespace "clusterloader2" || true
-          kubectl apply -f $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/cl2-rendered.yaml
+          kubectl apply -f $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/cl2-rendered.yaml || exit 1
           # Wait
           consecutive_errors=0
           while true; do
             # Under consistent API server errors, we would want to exit early instead of waiting for the entire timeout duration.
-            phases="$(kubectl get pods --namespace="clusterloader2" -o jsonpath='{range .items[*]}{.status.phase}{"\n"}{end}' 2>/tmp/kubectl_err)"
+            conditions="$(kubectl get job cl2 --namespace="clusterloader2" -o jsonpath='{range .status.conditions[?(@.status=="True")]}{.type}{" "}{.reason}{" "}{.message}{"\n"}{end}' 2>/tmp/kubectl_err)"
             kubectl_exit_code=$?
             if [ $kubectl_exit_code -ne 0 ]; then
               consecutive_errors=$((consecutive_errors + 1))
-              echo "kubectl get pods failed (exit_code=$kubectl_exit_code, consecutive=$consecutive_errors/20):"
+              echo "kubectl get job cl2 failed (exit_code=$kubectl_exit_code, consecutive=$consecutive_errors/20):"
               cat /tmp/kubectl_err
               if [ "$consecutive_errors" -ge "20" ]; then
-                echo "API server unresponsive for $consecutive_errors consecutive polls; aborting."
+                echo "Unable to read cl2 Job for $consecutive_errors consecutive polls; aborting."
                 exit 1
               fi
               sleep 30
@@ -536,29 +565,20 @@ stages:
             fi
             consecutive_errors=0
 
-            total=0
-            terminal=0
+            while read -r condition reason message; do
+              case "$condition" in
+                Failed)
+                  echo "cl2 Job failed: $reason $message"
+                  exit 1
+                  ;;
+                Complete)
+                  echo "cl2 Job completed successfully"
+                  exit 0
+                  ;;
+              esac
+            done <<< "$conditions"
 
-            if [ -n "$phases" ]; then
-              while IFS= read -r phase; do
-                if [ -z "$phase" ]; then
-                  continue
-                fi
-
-                total=$((total + 1))
-                if [ "$phase" = "Succeeded" ] || [ "$phase" = "Failed" ]; then
-                  terminal=$((terminal + 1))
-                fi
-              done <<< "$phases"
-            fi
-
-            if [ "$total" -gt 0 ] && [ "$terminal" -eq "$total" ]; then
-              echo "All cl2 pods reached terminal state (Succeeded or Failed)"
-              kubectl get pods --namespace="clusterloader2" -l job-name=cl2 -o wide
-
-              break
-            fi
-
+            kubectl get pods --namespace="clusterloader2" -l job-name=cl2 -o wide || echo "Unable to list cl2 pods; retrying on the next poll."
             sleep 30
           done
       displayName: Run cluster loader 2
@@ -569,6 +589,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           for pod in $(kubectl get pods --namespace="clusterloader2" -l job-name=cl2 -o jsonpath='{.items[*].metadata.name}'); do
             echo "===== Logs for pod: $pod ====="
             kubectl logs --namespace="clusterloader2" "$pod" || true
@@ -581,9 +602,14 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-          az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
+
+          python3 "$(Build.SourcesDirectory)/kcl/lib/steps/azure/resource_group.py" delete \
+            --resource-group "$(RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --timeout-seconds 2700 \
+            --poll-interval-seconds 30
       condition: always()
-      displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+      displayName: Delete resource group with rolling-upgrade recovery (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
 - stage: H8
   displayName: H8
   jobs:
@@ -591,7 +617,8 @@ stages:
     displayName: Benchmarking
     timeoutInMinutes: 600
     steps:
-    - bash: |
+    - bash: |2
+
         set -eo pipefail
 
         job_id="$(System.JobId)"
@@ -612,6 +639,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
           az config set defaults.location="swedencentral"
           az account show
@@ -623,6 +651,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |+
           set -exo pipefail
+
           az group create \
             --name "$(RUN_ID)" \
             --location "swedencentral" \
@@ -636,6 +665,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           az extension add --name aks-preview --version 20.0.0b6 --allow-preview true --yes
 
           az aks create \
@@ -644,6 +674,7 @@ stages:
               --name "stg-H8-hyperscale-apiserver-seats" \
               --location "swedencentral" \
               --kubernetes-version "1.36" \
+              --node-os-upgrade-channel none \
               --dns-name-prefix "stg-H8-hyperscale-apiserver-seats-dns" \
               --tier standard \
               --enable-managed-identity \
@@ -670,6 +701,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
           az aks get-credentials \
             --name "stg-H8-hyperscale-apiserver-seats" \
             --resource-group "$(RUN_ID)" \
@@ -683,6 +715,8 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
+
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -731,6 +765,8 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
+
+
           create_node_pool() {
             local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
             deadline=$(($(date +%s) + 600))
@@ -773,24 +809,29 @@ stages:
             --node-taints kwok=true:NoSchedule \
             --labels "kwok=true"
       displayName: Create node pool kwokpool
-    - script: |-
+    - script: |2-
+
         set -exo pipefail
         export PYTHONPATH=$PYTHONPATH:$(pwd)
-        python3 kwok/kwok.py   --action create   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8
+        python3 kwok/kwok.py   --action create   --node-count 18000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8 --node-create-qps 20
       workingDirectory: modules/python
       continueOnError: true
       displayName: Create KWOK Nodes
-    - script: |-
+    - script: |2-
+
         set -exo pipefail
         export PYTHONPATH=$PYTHONPATH:$(pwd)
-        python3 kwok/kwok.py   --action validate   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8
+        python3 kwok/kwok.py   --action validate   --node-count 18000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8 --node-create-qps 20
       workingDirectory: modules/python
       displayName: Validate KWOK Nodes
-    - bash: |
+    - bash: |2
+
         set -euo pipefail
         sed \
             -e 's/__CL2_DRIVER_COUNT__/6/g' \
             -e 's/__CL2_MEMORY_REQUEST__/32Gi/g' \
+            -e 's/__CL2_QPS__/1500/g' \
+            -e 's/__CL2_BURST__/100/g' \
             cl2.yaml > cl2-rendered.yaml
 
         if grep -q '__CL2_[A-Z_]*__' cl2-rendered.yaml; then
@@ -806,73 +847,31 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -exo pipefail
-          set +eo pipefail
-          kubectl create namespace "clusterloader2" || true
-          kubectl apply -f $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/cl2-rendered.yaml
-          # Wait
-          consecutive_errors=0
-          while true; do
-            # Under consistent API server errors, we would want to exit early instead of waiting for the entire timeout duration.
-            phases="$(kubectl get pods --namespace="clusterloader2" -o jsonpath='{range .items[*]}{.status.phase}{"\n"}{end}' 2>/tmp/kubectl_err)"
-            kubectl_exit_code=$?
-            if [ $kubectl_exit_code -ne 0 ]; then
-              consecutive_errors=$((consecutive_errors + 1))
-              echo "kubectl get pods failed (exit_code=$kubectl_exit_code, consecutive=$consecutive_errors/20):"
-              cat /tmp/kubectl_err
-              if [ "$consecutive_errors" -ge "20" ]; then
-                echo "API server unresponsive for $consecutive_errors consecutive polls; aborting."
-                exit 1
-              fi
-              sleep 30
-              continue
-            fi
-            consecutive_errors=0
 
-            total=0
-            terminal=0
-
-            if [ -n "$phases" ]; then
-              while IFS= read -r phase; do
-                if [ -z "$phase" ]; then
-                  continue
-                fi
-
-                total=$((total + 1))
-                if [ "$phase" = "Succeeded" ] || [ "$phase" = "Failed" ]; then
-                  terminal=$((terminal + 1))
-                fi
-              done <<< "$phases"
-            fi
-
-            if [ "$total" -gt 0 ] && [ "$terminal" -eq "$total" ]; then
-              echo "All cl2 pods reached terminal state (Succeeded or Failed)"
-              kubectl get pods --namespace="clusterloader2" -l job-name=cl2 -o wide
-
-              break
-            fi
-
-            sleep 30
-          done
+          exec bash "$(Pipeline.Workspace)/s/scripts/run_cluster_loader_2.sh" \
+              --namespace "clusterloader2" \
+              --manifest "$(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/cl2-rendered.yaml" \
+              --log-directory "$(Pipeline.Workspace)/cl2-logs/$(Build.BuildId)/H8/$(System.JobAttempt)" \
+              --poll-interval 60
       displayName: Run cluster loader 2
-    - task: AzureCLI@2
+    - task: PublishPipelineArtifact@1
       inputs:
-        azureSubscription: Azure-for-Telescope-internal
-        scriptType: bash
-        scriptLocation: inlineScript
-        inlineScript: |
-          set -exo pipefail
-          for pod in $(kubectl get pods --namespace="clusterloader2" -l job-name=cl2 -o jsonpath='{.items[*].metadata.name}'); do
-            echo "===== Logs for pod: $pod ====="
-            kubectl logs --namespace="clusterloader2" "$pod" || true
-          done
-      displayName: Print cl2 pod logs
-    - task: AzureCLI@2
-      inputs:
-        azureSubscription: Azure-for-Telescope-internal
-        scriptType: bash
-        scriptLocation: inlineScript
-        inlineScript: |
-          set -exo pipefail
-          az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
+        targetPath: $(Pipeline.Workspace)/cl2-logs/$(Build.BuildId)/H8/$(System.JobAttempt)
+        artifact: cl2-logs-H8
       condition: always()
-      displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+      displayName: Publish cl2 logs
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          python3 "$(Build.SourcesDirectory)/kcl/lib/steps/azure/resource_group.py" delete \
+            --resource-group "$(RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --timeout-seconds 2700 \
+            --poll-interval-seconds 30
+      condition: always()
+      displayName: Delete resource group with rolling-upgrade recovery (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
