@@ -4,6 +4,7 @@ from typing import Optional
 import os
 import uuid
 import glob
+from threading import Lock
 import yaml
 import requests
 
@@ -33,10 +34,26 @@ setup_logging()
 logger = get_logger(__name__)
 
 
+class AuthSynchronizedApiClient(client.ApiClient):
+    """Serialize authentication preparation, not HTTP requests.
+
+    Do not externally reconfigure the client or switch context while requests are in flight.
+    """
+
+    def __init__(self, auth_lock):
+        super().__init__()
+        self.auth_lock = auth_lock
+
+    def update_params_for_auth(self, headers, querys, auth_settings):
+        with self.auth_lock:
+            super().update_params_for_auth(headers, querys, auth_settings)
+
+
 class KubernetesClient:
     """Client for managing Kubernetes cluster operations and resources."""
     def __init__(self, config_file=None):
         self.config_file = config_file
+        self._node_auth_lock = Lock()
         config.load_kube_config(config_file=config_file)
         self._setup_clients()
 
@@ -45,7 +62,7 @@ class KubernetesClient:
         Initialize or reinitialize all Kubernetes API clients.
         This method is used by both __init__ and set_context to create client instances.
         """
-        self.api = client.CoreV1Api()
+        self.api = client.CoreV1Api(AuthSynchronizedApiClient(self._node_auth_lock))
         self.app = client.AppsV1Api()
         self.storage = client.StorageV1Api()
         self.batch = client.BatchV1Api()
@@ -1663,7 +1680,7 @@ class KubernetesClient:
 
             api_version = resource_slice_obj.get("apiVersion", "")
             group, version = api_version.split("/") if "/" in api_version else ("", api_version)
-            custom_api = client.CustomObjectsApi()
+            custom_api = client.CustomObjectsApi(self.api.api_client)
 
             response = custom_api.create_cluster_custom_object(
                 group=group,
