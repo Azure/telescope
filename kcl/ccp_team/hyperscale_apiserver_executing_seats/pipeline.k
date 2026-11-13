@@ -14,10 +14,11 @@ schema Cl2Config:
     nodeCount: int
     driverCount: int
     memoryRequest: str
+    qps: int = 4000
+    burst: int = 8000
 
 # Preserve per-tier concurrency; H2/H4 fit two drivers per runner node.
-# For H8, six drivers keep the control plane near saturation without excessive
-# run time; observed runs show no CCP or CL2 errors or driver bottlenecks.
+# H8 uses dedicated runners and a lower action rate and burst for debugging.
 CL2_CONFIGS: {str: Cl2Config} = {
     "H2": Cl2Config {
         nodeCount = 1
@@ -33,6 +34,8 @@ CL2_CONFIGS: {str: Cl2Config} = {
         nodeCount = 6
         driverCount = 6
         memoryRequest = "32Gi"
+        qps = 1000
+        burst = 100
     }
 }
 
@@ -142,8 +145,9 @@ makeBenchmarkingJob = lambda size: str -> job.Job {
                     "node-lease-duration-seconds": "60"
                     "validate-success-threshold": "0.9"
                     "log-level": "WARNING"
-                    # Allow for parallel creation of kwok  nodes at ~18 nodes/s: 15,000 nodes in ~14 min.
+                    # Preserve the experiment's shared create-attempt rate across workers.
                     "node-create-workers": "8"
+                    "node-create-qps": "20"
                 }),
             steps.Bash {
                 displayName = "Render CL2 manifest"
@@ -153,6 +157,8 @@ set -euo pipefail
 sed \\
     -e 's/__CL2_DRIVER_COUNT__/${cl2Config.driverCount}/g' \\
     -e 's/__CL2_MEMORY_REQUEST__/${cl2Config.memoryRequest}/g' \\
+    -e 's/__CL2_QPS__/${cl2Config.qps}/g' \\
+    -e 's/__CL2_BURST__/${cl2Config.burst}/g' \\
     cl2.yaml > cl2-rendered.yaml
 
 if grep -q '__CL2_[A-Z_]*__' cl2-rendered.yaml; then

@@ -193,14 +193,14 @@ stages:
     - script: |-
         set -exo pipefail
         export PYTHONPATH=$PYTHONPATH:$(pwd)
-        python3 kwok/kwok.py   --action create   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8
+        python3 kwok/kwok.py   --action create   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8 --node-create-qps 20
       workingDirectory: modules/python
       continueOnError: true
       displayName: Create KWOK Nodes
     - script: |-
         set -exo pipefail
         export PYTHONPATH=$PYTHONPATH:$(pwd)
-        python3 kwok/kwok.py   --action validate   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8
+        python3 kwok/kwok.py   --action validate   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8 --node-create-qps 20
       workingDirectory: modules/python
       displayName: Validate KWOK Nodes
     - bash: |
@@ -208,6 +208,8 @@ stages:
         sed \
             -e 's/__CL2_DRIVER_COUNT__/2/g' \
             -e 's/__CL2_MEMORY_REQUEST__/24Gi/g' \
+            -e 's/__CL2_QPS__/4000/g' \
+            -e 's/__CL2_BURST__/8000/g' \
             cl2.yaml > cl2-rendered.yaml
 
         if grep -q '__CL2_[A-Z_]*__' cl2-rendered.yaml; then
@@ -481,14 +483,14 @@ stages:
     - script: |-
         set -exo pipefail
         export PYTHONPATH=$PYTHONPATH:$(pwd)
-        python3 kwok/kwok.py   --action create   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8
+        python3 kwok/kwok.py   --action create   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8 --node-create-qps 20
       workingDirectory: modules/python
       continueOnError: true
       displayName: Create KWOK Nodes
     - script: |-
         set -exo pipefail
         export PYTHONPATH=$PYTHONPATH:$(pwd)
-        python3 kwok/kwok.py   --action validate   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8
+        python3 kwok/kwok.py   --action validate   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8 --node-create-qps 20
       workingDirectory: modules/python
       displayName: Validate KWOK Nodes
     - bash: |
@@ -496,6 +498,8 @@ stages:
         sed \
             -e 's/__CL2_DRIVER_COUNT__/4/g' \
             -e 's/__CL2_MEMORY_REQUEST__/24Gi/g' \
+            -e 's/__CL2_QPS__/4000/g' \
+            -e 's/__CL2_BURST__/8000/g' \
             cl2.yaml > cl2-rendered.yaml
 
         if grep -q '__CL2_[A-Z_]*__' cl2-rendered.yaml; then
@@ -769,14 +773,14 @@ stages:
     - script: |-
         set -exo pipefail
         export PYTHONPATH=$PYTHONPATH:$(pwd)
-        python3 kwok/kwok.py   --action create   --node-count 18000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8
+        python3 kwok/kwok.py   --action create   --node-count 18000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8 --node-create-qps 20
       workingDirectory: modules/python
       continueOnError: true
       displayName: Create KWOK Nodes
     - script: |-
         set -exo pipefail
         export PYTHONPATH=$PYTHONPATH:$(pwd)
-        python3 kwok/kwok.py   --action validate   --node-count 18000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8
+        python3 kwok/kwok.py   --action validate   --node-count 18000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8 --node-create-qps 20
       workingDirectory: modules/python
       displayName: Validate KWOK Nodes
     - bash: |
@@ -784,6 +788,8 @@ stages:
         sed \
             -e 's/__CL2_DRIVER_COUNT__/6/g' \
             -e 's/__CL2_MEMORY_REQUEST__/32Gi/g' \
+            -e 's/__CL2_QPS__/1000/g' \
+            -e 's/__CL2_BURST__/100/g' \
             cl2.yaml > cl2-rendered.yaml
 
         if grep -q '__CL2_[A-Z_]*__' cl2-rendered.yaml; then
