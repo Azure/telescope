@@ -60,7 +60,6 @@ kubectl delete namespace "$(RUN_ID)-r${rate}" \\
 echo "Namespace cleanup completed for ${rate}/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 """
             displayName = "Delete namespace from ${rate}/sec run"
-            condition = "not(canceled())"
             continueOnError = True
             timeoutInMinutes = 15
         },
@@ -72,7 +71,6 @@ sleep 300
 echo "Finished pause after ${rate}/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 """
             displayName = "Pause 5 minutes after kperf run"
-            condition = "not(canceled())"
             timeoutInMinutes = 6
         },
     ]
@@ -96,7 +94,6 @@ output = ap.Pipeline {
             job = "benchmark"
             displayName = "Baseline Run: 100/150/200/250 RPS"
             timeoutInMinutes = 240
-            cancelTimeoutInMinutes = 25
             variables = {
                 RESOURCE_GROUP = "$(RUN_ID)"
                 CLUSTER = "wi-webhook"

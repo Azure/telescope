@@ -11,7 +11,6 @@ jobs:
 - job: benchmark
   displayName: 'Baseline Run: 100/150/200/250 RPS'
   timeoutInMinutes: 240
-  cancelTimeoutInMinutes: 25
   variables:
     RESOURCE_GROUP: $(RUN_ID)
     CLUSTER: wi-webhook
@@ -216,7 +215,6 @@ jobs:
         --ignore-not-found=true \
         --wait=true
       echo "Namespace cleanup completed for 100/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    condition: not(canceled())
     continueOnError: true
     displayName: Delete namespace from 100/sec run
     timeoutInMinutes: 15
@@ -225,7 +223,6 @@ jobs:
       echo "Starting five-minute pause after 100/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
       sleep 300
       echo "Finished pause after 100/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    condition: not(canceled())
     displayName: Pause 5 minutes after kperf run
     timeoutInMinutes: 6
   - bash: |
@@ -317,7 +314,6 @@ jobs:
         --ignore-not-found=true \
         --wait=true
       echo "Namespace cleanup completed for 150/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    condition: not(canceled())
     continueOnError: true
     displayName: Delete namespace from 150/sec run
     timeoutInMinutes: 15
@@ -326,7 +322,6 @@ jobs:
       echo "Starting five-minute pause after 150/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
       sleep 300
       echo "Finished pause after 150/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    condition: not(canceled())
     displayName: Pause 5 minutes after kperf run
     timeoutInMinutes: 6
   - bash: |
@@ -418,7 +413,6 @@ jobs:
         --ignore-not-found=true \
         --wait=true
       echo "Namespace cleanup completed for 200/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    condition: not(canceled())
     continueOnError: true
     displayName: Delete namespace from 200/sec run
     timeoutInMinutes: 15
@@ -427,7 +421,6 @@ jobs:
       echo "Starting five-minute pause after 200/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
       sleep 300
       echo "Finished pause after 200/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    condition: not(canceled())
     displayName: Pause 5 minutes after kperf run
     timeoutInMinutes: 6
   - bash: |
@@ -519,7 +512,6 @@ jobs:
         --ignore-not-found=true \
         --wait=true
       echo "Namespace cleanup completed for 250/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    condition: not(canceled())
     continueOnError: true
     displayName: Delete namespace from 250/sec run
     timeoutInMinutes: 15
@@ -528,7 +520,6 @@ jobs:
       echo "Starting five-minute pause after 250/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
       sleep 300
       echo "Finished pause after 250/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    condition: not(canceled())
     displayName: Pause 5 minutes after kperf run
     timeoutInMinutes: 6
   - task: AzureCLI@2
