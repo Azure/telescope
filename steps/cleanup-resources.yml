@@ -50,7 +50,13 @@ steps:
     echo "##vso[task.logissue type=error;] Resource group $RUN_ID was not deleted within $TIMEOUT seconds."
     exit 1
   displayName: "Destroy Resource Group"
-  condition: and(${{ eq(parameters.cloud, 'azure') }}, ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true'))
+  condition: |
+    and(
+      always(),
+      ${{ eq(parameters.cloud, 'azure') }},
+      ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true'),
+      ne(variables['RUN_ID'], '')
+    )
   env:
     BUILD_REASON: $(Build.Reason)
 

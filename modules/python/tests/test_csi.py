@@ -23,10 +23,23 @@ with patch("clients.kubernetes_client.config.load_kube_config") as mock_load_kub
     # Now import the module where the global KUBERNETERS_CLIENT is defined
     from csi.csi import (
         wait_for_condition, calculate_percentiles, log_duration,
-        create_statefulset, collect_attach_detach
+        create_statefulset, collect_attach_detach, execute_attach_detach
     )
 
 class TestCSI(unittest.TestCase):
+
+    @patch.dict("os.environ", {"CSI_NAMESPACE_FILE": "/tmp/csi-namespace"})
+    @patch("csi.csi.os.path.exists", return_value=True)
+    @patch("csi.csi.time.time_ns", return_value=12345)
+    @patch("csi.csi.KUBERNETERS_CLIENT")
+    @patch("csi.csi.create_statefulset", side_effect=RuntimeError("creation failed"))
+    @patch("builtins.open", new_callable=mock_open)
+    def test_records_namespace_before_statefulset_creation(
+            self, mock_file, _mock_create, _mock_client, _mock_time, _mock_exists):
+        with self.assertRaisesRegex(RuntimeError, "creation failed"):
+            execute_attach_detach(200, "default", 300, "/tmp/results")
+        mock_file.assert_called_once_with("/tmp/csi-namespace", "w", encoding="utf-8")
+        mock_file().write.assert_called_once_with("test-12345")
 
     def test_calculate_percentiles(self):
         disk_numbers = [300, 1000]

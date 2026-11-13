@@ -73,6 +73,8 @@ locals {
 
   azapi_config_map = { for c in var.azapi_config_list : c.aks_name => c }
 
+  qad_config_map = { for c in var.qad_config_list : c.role => c }
+
   key_vault_config_map = { for kv in var.key_vault_config_list : kv.name => kv }
 
   vm_config_map = { for vm in var.vm_config_list : vm.role => vm }
@@ -276,6 +278,18 @@ module "azapi" {
   depends_on          = [module.route_table, module.virtual_network, module.disk_encryption_set]
 }
 
+module "qad" {
+  for_each = local.qad_config_map
+
+  source              = "./qad"
+  resource_group_name = local.run_id
+  location            = local.region
+  qad_config          = each.value
+  tags                = local.tags
+
+  depends_on = [module.route_table, module.virtual_network, module.disk_encryption_set]
+}
+
 module "aks-cli" {
   for_each = local.aks_cli_config_map
 
@@ -318,5 +332,5 @@ module "virtual_machine" {
   nics_map            = local.all_nics
 
   # Ensure AKS cluster is created before VM tries to look it up for RBAC
-  depends_on = [module.aks, module.aks-cli, module.azapi]
+  depends_on = [module.aks, module.aks-cli, module.azapi, module.qad]
 }
