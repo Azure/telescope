@@ -6,8 +6,6 @@ pool:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: image-pull-n1000
-  ACR_PULL_USERNAME: williamjcuseuap1
-  ACR_PULL_PASSWORD: 8sVITQD5aqXJjtkuXTv6EtS67uEhFUuonpkF8WlJnuCVbrIEZeE8JQQJ99CKACKUOXLEqg7NAAACAZCR9P5n
 
 stages:
   - stage: azure_centraluseuap_image_pull
@@ -42,7 +40,7 @@ stages:
               kubernetes_version: "1.34"
               aad_enabled: "true"
               pod_startup_latency_threshold: 10m
-              anonymous_pull: False
+              anonymous_pull: True
           max_parallel: 1
           credential_type: service_connection
           ssh_key_enabled: false
