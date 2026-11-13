@@ -902,7 +902,7 @@ stages:
         sed \
             -e 's/__CL2_DRIVER_COUNT__/6/g' \
             -e 's/__CL2_MEMORY_REQUEST__/32Gi/g' \
-            -e 's/__CL2_QPS__/1000/g' \
+            -e 's/__CL2_QPS__/1500/g' \
             -e 's/__CL2_BURST__/100/g' \
             cl2.yaml > cl2-rendered.yaml
 

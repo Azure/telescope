@@ -34,7 +34,7 @@ CL2_CONFIGS: {str: Cl2Config} = {
         nodeCount = 6
         driverCount = 6
         memoryRequest = "32Gi"
-        qps = 1000
+        qps = 1500
         burst = 100
     }
 }
