@@ -22,20 +22,6 @@ def group(state="Deleting", name="group"):
     }
 
 
-def delete_failure(name="node-group", timestamp="2026-01-01T00:01:00Z"):
-    return {
-        "resourceId": group(name=name)["id"],
-        "operationName": {"value": "Microsoft.Resources/subscriptions/resourcegroups/delete"},
-        "eventTimestamp": timestamp,
-        "status": {"value": "Failed"},
-        "properties": {"statusMessage": json.dumps({"error": {
-            "code": "ResourceGroupDeletionBlocked",
-            "message": "Microsoft.Compute/virtualMachineScaleSets/aks-pool could not be deleted",
-            "details": [{"code": "OperationNotAllowed", "message": "Rolling Upgrade in progress"}],
-        }})},
-    }
-
-
 class CleanupTest(unittest.TestCase):
     def setUp(self):
         self.output = io.StringIO()
@@ -186,7 +172,7 @@ class RollingUpgradeTests(CleanupTest):
     @patch("resource_group.get_upgrade")
     def test_active_manual_policy_upgrade_uses_cli_cancellation_waiter(self, get):
         get.return_value = upgrade()
-        self.assertTrue(cleanup.cancel_active_vmss_rolling_upgrades(self.cli, ["group", "group"]))
+        cleanup.cancel_active_vmss_rolling_upgrades(self.cli, ["group", "group"])
         self.cli.get_optional.assert_called_once()
         self.cli.run.assert_called_once_with(
             "vmss", "rolling-upgrade", "cancel", "--ids", "vmss-id",
@@ -197,9 +183,7 @@ class RollingUpgradeTests(CleanupTest):
         for status in ["Completed", "Cancelled", "Faulted", None]:
             with self.subTest(status=status):
                 get.return_value = upgrade(status) if status else None
-                self.assertFalse(cleanup.cancel_active_vmss_rolling_upgrades(
-                    self.cli, ["group"],
-                ))
+                cleanup.cancel_active_vmss_rolling_upgrades(self.cli, ["group"])
         self.cli.run.assert_not_called()
 
     @patch("resource_group.get_upgrade", return_value=upgrade("Unknown"))
@@ -212,9 +196,10 @@ class RollingUpgradeTests(CleanupTest):
     def test_upgrade_completes_between_inspection_and_cancel(self, get):
         get.side_effect = [upgrade(), upgrade("Completed")]
         self.cli.run.side_effect = cleanup.AzureCliError([], "ERROR: (OperationNotAllowed) Finished")
-        self.assertTrue(cleanup.cancel_active_vmss_rolling_upgrades(
-            self.cli, ["group"],
-        ))
+        cleanup.cancel_active_vmss_rolling_upgrades(self.cli, ["group"])
+        self.cli.run.assert_called_once_with(
+            "vmss", "rolling-upgrade", "cancel", "--ids", "vmss-id",
+        )
 
     @patch("resource_group.get_upgrade", return_value=upgrade())
     def test_cancel_failure_while_still_active_is_not_ignored(self, _get):
@@ -232,14 +217,15 @@ class RollingUpgradeTests(CleanupTest):
     def test_vmss_disappears_during_cancellation(self, get):
         get.side_effect = [upgrade(), None]
         self.cli.run.side_effect = cleanup.AzureCliError([], "ERROR: (ResourceNotFound) Gone")
-        self.assertTrue(cleanup.cancel_active_vmss_rolling_upgrades(self.cli, ["group"]))
+        cleanup.cancel_active_vmss_rolling_upgrades(self.cli, ["group"])
+        self.cli.run.assert_called_once_with(
+            "vmss", "rolling-upgrade", "cancel", "--ids", "vmss-id",
+        )
 
     def test_no_vmss_or_missing_group(self):
         for value in [[], None]:
             self.cli.get_optional.return_value = value
-            self.assertFalse(cleanup.cancel_active_vmss_rolling_upgrades(
-                self.cli, ["group"],
-            ))
+            cleanup.cancel_active_vmss_rolling_upgrades(self.cli, ["group"])
         self.cli.run.assert_not_called()
 
     @patch("resource_group.get_upgrade", return_value=upgrade())
@@ -269,93 +255,27 @@ class DiscoveryTests(CleanupTest):
         for state, eligible in [("Succeeded", False), ("Failed", False), ("Deleting", True)]:
             cli.get_optional.return_value = {"properties": {"provisioningState": state}}
             self.assertEqual(cleanup.owners_allow_upgrade_cancellation(
-                cli, ["cluster"], group(name="node-group"), group(), "2026-01-01T00:00:00Z",
+                cli, ["cluster"],
             ), eligible)
         cli.get_optional.return_value = None
         self.assertTrue(cleanup.owners_allow_upgrade_cancellation(
-            cli, ["cluster"], group(name="node-group"), group(), "2026-01-01T00:00:00Z",
+            cli, ["cluster"],
         ))
         self.assertEqual(cli.get_optional.call_args.args, ("resource", "show", "--ids", "cluster"))
 
-    def test_failed_owner_requires_exact_fresh_blocker_and_deleting_parent(self):
-        for state, node_name, parent, events, eligible in [
-            ("Failed", "node-group", group(), [delete_failure()], True),
-            ("Failed", "other-group", group(), [delete_failure()], False),
-            ("Succeeded", "node-group", group(), [delete_failure()], False),
-            ("Failed", "node-group", group("Succeeded"), [delete_failure()], False),
-            ("Failed", "node-group", group("Failed"), [delete_failure()], False),
-            ("Failed", "node-group", None, [delete_failure()], False),
-            ("Failed", "node-group", group(), [], False),
-            ("Failed", "node-group", group(), [delete_failure("other-group")], False),
-            ("Failed", "node-group", group(), [
-                delete_failure(timestamp="2025-12-31T23:59:59Z"),
-            ], False),
-            ("Failed", "node-group", group(), [
-                delete_failure(timestamp="2026-01-01T00:00:00Z"),
-            ], False),
-            ("Failed", "node-group", group(), [
-                dict(delete_failure(), properties={"statusMessage": "Unrelated failure"}),
-            ], False),
-            ("Failed", "node-group", group(), [
-                delete_failure(),
-                dict(delete_failure(timestamp="2026-01-01T00:02:00Z"), status={"value": "Started"}),
-            ], False),
-        ]:
-            with self.subTest(state=state, node_name=node_name, parent=parent, events=events):
+    def test_all_owners_must_be_deleting_or_absent(self):
+        for state, eligible in [("Deleting", True), ("Succeeded", False), ("Failed", False)]:
+            with self.subTest(state=state):
                 cli = Mock()
-                cli.get_optional.return_value = {"properties": {
-                    "provisioningState": state, "nodeResourceGroup": node_name,
-                }}
-                cli.run.return_value = events
+                cli.get_optional.side_effect = [
+                    None,
+                    {"properties": {"provisioningState": "Deleting"}},
+                    {"properties": {"provisioningState": state}},
+                ]
                 self.assertEqual(cleanup.owners_allow_upgrade_cancellation(
-                    cli, ["cluster"], group("Succeeded", "node-group"), parent,
-                    "2026-01-01T00:00:00+00:00",
+                    cli, ["absent-cluster", "deleting-cluster", "other-cluster"],
                 ), eligible)
-
-    def test_one_failed_delete_owner_does_not_allow_another_live_owner(self):
-        cli = Mock()
-        cli.get_optional.side_effect = [
-            {"properties": {"provisioningState": "Failed", "nodeResourceGroup": "node-group"}},
-            {"properties": {"provisioningState": "Succeeded", "nodeResourceGroup": "node-group"}},
-        ]
-        cli.run.return_value = [delete_failure()]
-        self.assertFalse(cleanup.owners_allow_upgrade_cancellation(
-            cli, ["failed-cluster", "live-cluster"], group("Succeeded", "node-group"), group(),
-            "2026-01-01T00:00:00Z",
-        ))
-        cli.run.assert_not_called()
-
-    def test_failed_owner_requires_every_part_of_the_vmss_delete_blocker(self):
-        for token in (
-            "ResourceGroupDeletionBlocked", "Microsoft.Compute/virtualMachineScaleSets/",
-            "OperationNotAllowed", "Rolling Upgrade in progress",
-        ):
-            with self.subTest(missing=token):
-                cli = Mock()
-                cli.get_optional.return_value = {"properties": {
-                    "provisioningState": "Failed", "nodeResourceGroup": "node-group",
-                }}
-                failure = delete_failure()
-                failure["properties"]["statusMessage"] = (
-                    failure["properties"]["statusMessage"].replace(token, "Unrelated")
-                )
-                cli.run.return_value = [failure]
-                self.assertFalse(cleanup.owners_allow_upgrade_cancellation(
-                    cli, ["cluster"], group("Succeeded", "node-group"), group(),
-                    "2026-01-01T00:00:00Z",
-                ))
-
-    def test_only_latest_scoped_delete_event_counts(self):
-        cli = Mock()
-        failed = delete_failure("group")
-        started = dict(failed, eventTimestamp="2026-01-01T00:02:00Z", status={"value": "Started"})
-        resource_id = group()["id"]
-        since = "2026-01-01T00:00:00Z"
-        cli.run.return_value = [failed, started]
-        self.assertIsNone(cleanup.latest_delete_failure(cli, resource_id, since))
-        cli.run.return_value = [failed]
-        self.assertEqual(cleanup.latest_delete_failure(cli, resource_id, since), failed)
-        self.assertIn(resource_id, cli.run.call_args.args)
+                self.assertEqual(cli.get_optional.call_count, 3)
 
 
 class OrchestrationTests(CleanupTest):
@@ -366,14 +286,11 @@ class OrchestrationTests(CleanupTest):
         for name in (
             "get_group", "discover_node_groups", "submit_delete",
             "cancel_active_vmss_rolling_upgrades", "owners_allow_upgrade_cancellation",
-            "latest_delete_failure",
         ):
             patcher = patch(f"resource_group.{name}")
             self.patches[name] = patcher.start()
             self.addCleanup(patcher.stop)
         self.patches["discover_node_groups"].return_value = {}
-        self.patches["latest_delete_failure"].return_value = None
-        self.patches["cancel_active_vmss_rolling_upgrades"].return_value = False
         self.patches["owners_allow_upgrade_cancellation"].return_value = True
         self.clock = patch("resource_group.time.monotonic", return_value=100).start()
         self.addCleanup(patch.stopall)
@@ -416,41 +333,10 @@ class OrchestrationTests(CleanupTest):
             self.patches["cancel_active_vmss_rolling_upgrades"].call_args.args[1], ["group"],
         )
 
-    def test_failed_delete_retried_only_after_recovery(self):
-        self.patches["get_group"].side_effect = [group(), group("Succeeded"), None]
-        self.patches["cancel_active_vmss_rolling_upgrades"].return_value = True
-        self.patches["latest_delete_failure"].return_value = {"status": "Failed"}
-        self.run_cleanup()
-        self.assertEqual(self.patches["submit_delete"].call_count, 2)
-
-    def test_unrelated_failure_is_not_retried(self):
-        self.patches["get_group"].return_value = group("Succeeded")
-        self.patches["latest_delete_failure"].return_value = {"status": "Failed"}
-        with self.assertRaisesRegex(cleanup.CleanupError, "without further recovery"):
-            self.run_cleanup()
-        self.patches["submit_delete"].assert_called_once()
-
     def test_recovery_does_not_resubmit_inflight_delete(self):
         self.patches["get_group"].side_effect = [group(), group(), None]
-        self.patches["cancel_active_vmss_rolling_upgrades"].return_value = True
         self.run_cleanup()
         self.patches["submit_delete"].assert_called_once()
-
-    def test_failed_event_does_not_resubmit_while_parent_is_still_deleting(self):
-        self.patches["get_group"].side_effect = [group(), group(), None]
-        self.patches["cancel_active_vmss_rolling_upgrades"].return_value = True
-        self.patches["latest_delete_failure"].return_value = {"status": "Failed"}
-        self.run_cleanup()
-        self.patches["submit_delete"].assert_called_once()
-
-    def test_retries_are_bounded(self):
-        self.clock.side_effect = range(100, 1000, 10)
-        self.patches["get_group"].return_value = group("Succeeded")
-        self.patches["cancel_active_vmss_rolling_upgrades"].return_value = True
-        self.patches["latest_delete_failure"].return_value = {"status": "Failed"}
-        with self.assertRaises(cleanup.CleanupError):
-            self.run_cleanup()
-        self.assertEqual(self.patches["submit_delete"].call_count, 3)
 
     def test_timeout_does_not_claim_success(self):
         self.patches["get_group"].return_value = group()
@@ -476,9 +362,7 @@ class CommandLineTests(CleanupTest):
 
         with patch("resource_group.sys.argv", arguments), \
                 patch("resource_group.run_command", side_effect=run), \
-                patch("resource_group.datetime", wraps=cleanup.datetime) as date, \
                 patch("resource_group.time.sleep"), redirect_stderr(self.output):
-            date.now.return_value = date.fromisoformat("2026-01-01T00:00:00+00:00")
             result = cleanup.main()
         return result, commands
 
@@ -492,7 +376,6 @@ class CommandLineTests(CleanupTest):
             [],  # No VMSS in parent RG.
             [{"id": "vmss-id", "upgradePolicy": {"mode": "Manual"}}],
             upgrade(), None,  # CLI waits for cancellation.
-            [],  # No failed delete in Activity Log.
             "ResourceGroupNotFound", "ResourceGroupNotFound",
         ])
         result, commands = self.run_script(responses)
@@ -508,28 +391,23 @@ class CommandLineTests(CleanupTest):
             ["vmss", "list", "--resource-group", "node-group"],
             ["vmss", "rolling-upgrade", "get-latest", "--ids", "vmss-id"],
             ["vmss", "rolling-upgrade", "cancel", "--ids", "vmss-id"],
-            [
-                "monitor", "activity-log", "list", "--resource-id",
-                "/subscriptions/sub/resourceGroups/group", "--start-time",
-                "2026-01-01T00:00:00+00:00", "--max-events", "100",
-            ],
             ["group", "show", "--name", "group"],
             ["group", "show", "--name", "node-group"],
         ])
         self.assertIn("associated node groups deleted", self.output.getvalue())
 
-    def test_failed_aks_delete_recovers_node_upgrades_without_resubmitting_parent(self):
+    def test_failed_cluster_skips_node_group_until_cluster_disappears(self):
         result, commands = self.run_script(iter([
             group(),
             [{"id": "cluster-id", "nodeResourceGroup": "node-group"}],
             None,
             group(), group("Succeeded", "node-group"),
             {"properties": {"provisioningState": "Failed", "nodeResourceGroup": "node-group"}},
-            [delete_failure()],
             [],
+            None, group("Succeeded", "node-group"),
+            "ResourceNotFound",
             [{"id": "vmss-id", "upgradePolicy": {"mode": "Manual"}}],
             upgrade(), None,
-            [],
             "ResourceGroupNotFound", "ResourceGroupNotFound",
         ]))
         self.assertEqual(result, 0)
@@ -540,23 +418,38 @@ class CommandLineTests(CleanupTest):
             ["group", "show", "--name", "group"],
             ["group", "show", "--name", "node-group"],
             ["resource", "show", "--ids", "cluster-id"],
-            [
-                "monitor", "activity-log", "list", "--resource-id",
-                "/subscriptions/sub/resourceGroups/node-group", "--start-time",
-                "2026-01-01T00:00:00+00:00", "--max-events", "100",
-            ],
             ["vmss", "list", "--resource-group", "group"],
+            ["group", "show", "--name", "group"],
+            ["group", "show", "--name", "node-group"],
+            ["resource", "show", "--ids", "cluster-id"],
             ["vmss", "list", "--resource-group", "node-group"],
             ["vmss", "rolling-upgrade", "get-latest", "--ids", "vmss-id"],
             ["vmss", "rolling-upgrade", "cancel", "--ids", "vmss-id"],
-            [
-                "monitor", "activity-log", "list", "--resource-id",
-                "/subscriptions/sub/resourceGroups/group", "--start-time",
-                "2026-01-01T00:00:00+00:00", "--max-events", "100",
-            ],
             ["group", "show", "--name", "group"],
             ["group", "show", "--name", "node-group"],
         ])
+
+    def test_stalled_delete_after_cancellation_times_out_without_resubmission(self):
+        def responses():
+            yield from [
+                group(), [], None,
+                group("Failed"), [{"id": "vmss-id"}], upgrade(), None,
+            ]
+            while True:
+                yield group("Failed")
+                yield []
+
+        with patch("resource_group.time.monotonic", side_effect=range(0, 1000)):
+            result, commands = self.run_script(responses(), timeout="20")
+        self.assertEqual(result, 1)
+        self.assertEqual(commands.count([
+            "group", "delete", "--name", "group", "--yes", "--no-wait",
+        ]), 1)
+        self.assertIn(
+            ["vmss", "rolling-upgrade", "cancel", "--ids", "vmss-id"], commands,
+        )
+        self.assertIn("RESOURCE GROUP CLEANUP FAILED", self.output.getvalue())
+        self.assertIn("deadline exceeded", self.output.getvalue())
 
     def test_permission_error_exits_nonzero(self):
         result, commands = self.run_script(iter(["AuthorizationFailed"]))

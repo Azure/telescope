@@ -1,7 +1,6 @@
 """Submit resource-group deletion, then poll and cancel blocking VMSS upgrades."""
 
 import argparse
-from datetime import datetime, timezone
 import json
 import os
 import re
@@ -132,8 +131,7 @@ def upgrade_is_active(upgrade) -> bool:
     raise CleanupError(f"Unrecognized rolling upgrade status: {status}")
 
 
-def cancel_active_vmss_rolling_upgrades(cli: AzureCli, resource_groups: list[str]) -> bool:
-    recovered = False
+def cancel_active_vmss_rolling_upgrades(cli: AzureCli, resource_groups: list[str]):
     for group in dict.fromkeys(resource_groups):
         scale_sets = cli.get_optional(
             "vmss", "list", "--resource-group", group,
@@ -157,8 +155,6 @@ def cancel_active_vmss_rolling_upgrades(cli: AzureCli, resource_groups: list[str
                     raise
                 print(f"Upgrade ended before cancellation: {vmss_id}", flush=True)
             print(f"Upgrade cancellation finished: {vmss_id}", flush=True)
-            recovered = True
-    return recovered
 
 
 def discover_node_groups(cli: AzureCli, name: str) -> dict[str, list[str]]:
@@ -175,10 +171,7 @@ def discover_node_groups(cli: AzureCli, name: str) -> dict[str, list[str]]:
     return node_groups
 
 
-def owners_allow_upgrade_cancellation(
-    cli: AzureCli, owners: list[str], node_group: dict, parent_group, since: str,
-) -> bool:
-    has_failed_owner = False
+def owners_allow_upgrade_cancellation(cli: AzureCli, owners: list[str]) -> bool:
     for owner in owners:
         cluster = cli.get_optional(
             "resource", "show", "--ids", owner,
@@ -186,70 +179,25 @@ def owners_allow_upgrade_cancellation(
         )
         if cluster is None or cluster["properties"]["provisioningState"] == "Deleting":
             continue
-        if (
-            cluster["properties"]["provisioningState"] == "Failed"
-            and cluster["properties"].get("nodeResourceGroup", "").lower()
-            == node_group["id"].rsplit("/", 1)[-1].lower()
-        ):
-            has_failed_owner = True
-            continue
         print(f"Not cancelling upgrades for owner not deleting: {owner}", flush=True)
         return False
-    if has_failed_owner:
-        if parent_group is None or parent_group["properties"]["provisioningState"] != "Deleting":
-            return False
-        failure = latest_delete_failure(cli, node_group["id"], since)
-        if failure is None:
-            return False
-        # Failed alone is not deletion intent. Require this node group's fresh,
-        # explicit VMSS rolling-upgrade deletion blocker while its parent deletes.
-        message = json.dumps(failure.get("properties", {}).get("statusMessage", "")).lower()
-        return (
-            "resourcegroupdeletionblocked" in message
-            and "microsoft.compute/virtualmachinescalesets/" in message
-            and "operationnotallowed" in message
-            and "rolling upgrade in progress" in message
-        )
     return True
 
 
-def latest_delete_failure(cli: AzureCli, resource_id: str, since: str):
-    events = cli.run(
-        "monitor", "activity-log", "list", "--resource-id", resource_id,
-        "--start-time", since, "--max-events", "100",
-    )
-    deletes = [
-        event for event in events
-        if event["operationName"]["value"].lower()
-        == "microsoft.resources/subscriptions/resourcegroups/delete"
-        and event.get("resourceId", "").lower() == resource_id.lower()
-        and datetime.fromisoformat(event["eventTimestamp"].replace("Z", "+00:00"))
-        > datetime.fromisoformat(since.replace("Z", "+00:00"))
-    ]
-    if not deletes:
-        return None
-    latest = max(deletes, key=lambda event: event["eventTimestamp"])
-    return latest if latest["status"]["value"] == "Failed" else None
-
-
 def delete_resource_group(cli: AzureCli, name: str, poll_interval_seconds: int):
-    target = get_group(cli, name)
-    if target is None:
+    if get_group(cli, name) is None:
         print(f"Resource group already absent: {name}", flush=True)
         return
     # Capture ownership before AKS disappears; never derive node groups from MC_* names.
     node_groups = discover_node_groups(cli, name)
     print(f"Associated node groups: {json.dumps(node_groups)}", flush=True)
-    submitted_at = datetime.now(timezone.utc).isoformat()
     submit_delete(cli, name)
-    recovered_since_submission = False
-    retries = 0
     while True:
         cli.remaining()
-        remaining = {
-            group: snapshot for group in [name, *node_groups]
-            if (snapshot := get_group(cli, group)) is not None
-        }
+        remaining = [
+            group for group in [name, *node_groups]
+            if get_group(cli, group) is not None
+        ]
         if not remaining:
             print(f"Resource group and associated node groups deleted: {name}", flush=True)
             return
@@ -257,23 +205,9 @@ def delete_resource_group(cli: AzureCli, name: str, poll_interval_seconds: int):
         eligible = [name] if name in remaining else []
         eligible.extend(
             group for group, owners in node_groups.items()
-            if group in remaining and owners_allow_upgrade_cancellation(
-                cli, owners, remaining[group], remaining.get(name), submitted_at,
-            )
+            if group in remaining and owners_allow_upgrade_cancellation(cli, owners)
         )
-        recovered = cancel_active_vmss_rolling_upgrades(cli, eligible)
-        recovered_since_submission = recovered_since_submission or recovered
-        if name in remaining:
-            failure = latest_delete_failure(cli, target["id"], submitted_at)
-            if failure is not None and remaining[name]["properties"]["provisioningState"] != "Deleting":
-                print(f"Resource-group deletion failed: {json.dumps(failure)}", flush=True)
-                if not recovered_since_submission or retries >= 2:
-                    raise CleanupError(f"Deletion failed without further recovery available: {name}")
-                # A failed ARM operation does not resume when its blocker is removed.
-                submitted_at = datetime.now(timezone.utc).isoformat()
-                submit_delete(cli, name)
-                retries += 1
-                recovered_since_submission = False
+        cancel_active_vmss_rolling_upgrades(cli, eligible)
         cli.sleep(poll_interval_seconds)
 
 
