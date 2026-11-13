@@ -522,12 +522,13 @@ variable "arm_endpoint" {
 }
 
 variable "azapi_config_list" {
-  description = "List of AKS cluster configurations to create via Azure REST API (AzAPI provider)"
+  description = "List of AKS cluster configurations to create via Azure REST API (AzAPI provider). Optional per-cluster tags override global tags; role is set from the cluster configuration."
   type = list(object({
     role        = string
     aks_name    = string
     dns_prefix  = string
     api_version = optional(string, "2025-10-01")
+    tags        = optional(map(string), {})
 
     sku = optional(object({
       name = optional(string, "Base")

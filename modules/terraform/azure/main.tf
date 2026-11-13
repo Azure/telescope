@@ -272,7 +272,7 @@ module "azapi" {
   resource_group_name = local.run_id
   location            = local.region
   azapi_config        = each.value
-  tags                = local.tags
+  tags                = merge(local.tags, each.value.tags)
   depends_on          = [module.route_table, module.virtual_network, module.disk_encryption_set]
 }
 
