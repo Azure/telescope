@@ -42,6 +42,8 @@ class FakeCoreV1Api:
         self.all_namespace_pods = [to_model(pod, "V1Pod") for pod in all_namespace_pods]
         self.metrics_text = metrics_text
         self.created_namespaces = []
+        # Reads of the default service account that return 404 before it exists.
+        self.service_account_missing_reads = 0
         self.created_pods = []
         self.deleted_pods = []
         self.api_client = None
@@ -101,6 +103,12 @@ class FakeCoreV1Api:
 
     def read_namespace(self, name):
         raise client.rest.ApiException(status=404, reason=f"namespace {name} not found")
+
+    def read_namespaced_service_account(self, name, namespace):
+        if self.service_account_missing_reads > 0:
+            self.service_account_missing_reads -= 1
+            raise client.rest.ApiException(status=404, reason=f"serviceaccount {namespace}/{name} not found")
+        return SimpleNamespace(metadata=SimpleNamespace(name=name, namespace=namespace))
 
     def create_namespace(self, body):
         self.created_namespaces.append(body.metadata.name)
