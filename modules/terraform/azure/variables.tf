@@ -524,11 +524,12 @@ variable "arm_endpoint" {
 variable "azapi_config_list" {
   description = "List of AKS cluster configurations to create via Azure REST API (AzAPI provider). aad_enabled opts into managed Microsoft Entra ID integration and Azure RBAC for Kubernetes authorization."
   type = list(object({
-    role        = string
-    aks_name    = string
-    dns_prefix  = string
-    api_version = optional(string, "2025-10-01")
-    aad_enabled = optional(bool, false)
+    role                   = string
+    aks_name               = string
+    dns_prefix             = string
+    api_version            = optional(string, "2025-10-01")
+    aad_enabled            = optional(bool, false)
+    metrics_reader_enabled = optional(bool, false)
 
     sku = optional(object({
       name = optional(string, "Base")

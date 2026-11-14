@@ -5,12 +5,13 @@ owner          = "aks"
 
 azapi_config_list = [
   {
-    role               = "client"
-    aks_name           = "ccp-provisioning-H8"
-    dns_prefix         = "ccp-provisioning-H8"
-    kubernetes_version = "1.36.0"
-    api_version        = "2026-01-02-preview"
-    aad_enabled        = true
+    role                   = "client"
+    aks_name               = "ccp-provisioning-H8"
+    dns_prefix             = "ccp-provisioning-H8"
+    kubernetes_version     = "1.36.0"
+    api_version            = "2026-01-02-preview"
+    aad_enabled            = true
+    metrics_reader_enabled = true
 
     default_node_pool = {
       name    = "systempool1"

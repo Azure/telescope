@@ -20,7 +20,19 @@ steps:
 
 - script: |
     echo "Checking API server GOMAXPROCS (max CPU cores available)..."
-    GOMAXPROCS_LINE=$(kubectl get --raw /metrics | grep '^go_sched_gomaxprocs_threads')
+    for attempt in $(seq 1 11); do
+      if METRICS=$(kubectl get --raw /metrics 2>&1); then
+        break
+      fi
+      if [ "$CLOUD" != "azure" ] || [[ "$METRICS" != *"Forbidden"* ]] || [ "$attempt" -eq 11 ]; then
+        echo "$METRICS"
+        echo "##vso[task.logissue type=error]Failed to retrieve API server metrics"
+        exit 1
+      fi
+      echo "Metrics access is forbidden; waiting for Azure RBAC propagation (attempt $attempt of 11)..."
+      sleep 30
+    done
+    GOMAXPROCS_LINE=$(printf '%s\n' "$METRICS" | grep '^go_sched_gomaxprocs_threads')
     echo "Raw metric line:"
     echo "$GOMAXPROCS_LINE"
     GOMAXPROCS=$(echo "$GOMAXPROCS_LINE" | awk '{print $2}')
@@ -73,3 +85,4 @@ steps:
   displayName: 'Validate API Server CPU Cores'
   env:
     CCP_TIER: $(ccp_tier)
+    CLOUD: ${{ parameters.cloud }}
