@@ -12,6 +12,12 @@ steps:
     role: client
     region: ${{ parameters.regions[0] }}
 
+- ${{ if eq(parameters.cloud, 'azure') }}:
+  - template: /steps/cloud/azure/install-kubelogin.yml
+    parameters:
+      cloud: ${{ parameters.cloud }}
+      region: ${{ parameters.regions[0] }}
+
 - script: |
     echo "Checking API server GOMAXPROCS (max CPU cores available)..."
     GOMAXPROCS_LINE=$(kubectl get --raw /metrics | grep '^go_sched_gomaxprocs_threads')
