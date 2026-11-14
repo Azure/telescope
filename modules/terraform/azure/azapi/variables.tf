@@ -17,11 +17,12 @@ variable "tags" {
 variable "azapi_config" {
   description = "Configuration for creating an AKS cluster via Azure REST API (AzAPI provider). aad_enabled opts into managed Microsoft Entra ID integration and Azure RBAC for Kubernetes authorization."
   type = object({
-    role        = string
-    aks_name    = string
-    dns_prefix  = string
-    api_version = optional(string, "2025-10-01")
-    aad_enabled = optional(bool, false)
+    role                   = string
+    aks_name               = string
+    dns_prefix             = string
+    api_version            = optional(string, "2025-10-01")
+    aad_enabled            = optional(bool, false)
+    metrics_reader_enabled = optional(bool, false)
 
     sku = optional(object({
       name = optional(string, "Base")
@@ -49,4 +50,9 @@ variable "azapi_config" {
       scaling_size = string
     }), null)
   })
+
+  validation {
+    condition     = !var.azapi_config.metrics_reader_enabled || var.azapi_config.aad_enabled
+    error_message = "metrics_reader_enabled requires aad_enabled."
+  }
 }

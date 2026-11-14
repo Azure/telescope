@@ -73,3 +73,25 @@ resource "azapi_resource" "aks_cluster" {
     create = "60m"
   }
 }
+
+resource "azurerm_role_definition" "metrics_reader" {
+  count = var.azapi_config.metrics_reader_enabled ? 1 : 0
+
+  name        = "${var.resource_group_name}-${local.name}-metrics-reader"
+  scope       = "/subscriptions/${data.azurerm_client_config.current.subscription_id}/resourceGroups/${var.resource_group_name}"
+  description = "Read the AKS API server metrics endpoint."
+
+  permissions {
+    data_actions = ["Microsoft.ContainerService/managedClusters/metrics/read"]
+  }
+
+  assignable_scopes = ["/subscriptions/${data.azurerm_client_config.current.subscription_id}/resourceGroups/${var.resource_group_name}"]
+}
+
+resource "azurerm_role_assignment" "metrics_reader" {
+  count = var.azapi_config.metrics_reader_enabled ? 1 : 0
+
+  scope              = azapi_resource.aks_cluster.id
+  role_definition_id = azurerm_role_definition.metrics_reader[0].role_definition_resource_id
+  principal_id       = data.azurerm_client_config.current.object_id
+}
