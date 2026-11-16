@@ -17,7 +17,7 @@ Measures containerd image pulling throughput (MB/s) and network plugin operation
 | Outbound | NAT gateway with 5 public IPs (avoids package repository rate limiting from a single IP at 1000 nodes) |
 | Default Node Pool | 3 x Standard_D4ds_v5 |
 | Prometheus Pool | 1 x Standard_D64_v3 (larger size required for 1000 nodes - needs more memory and CPU for Prometheus) |
-| User Pool | 1000 x Standard_D4ds_v5 |
+| User Pool | 300 x Standard_D4ds_v5 (current branch's warm-test configuration) |
 
 ## Test Workload
 
