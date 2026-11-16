@@ -1164,7 +1164,7 @@ class TestKwokPipeline(unittest.TestCase):
                     arguments = shlex.split(step["script"])
                     for option, expected in {
                         "--action": action,
-                        "--node-count": "18000" if stage["stage"] == "H8" else "15000",
+                        "--node-count": "16000" if stage["stage"] == "H8" else "15000",
                         "--validate-success-threshold": "0.9",
                         "--node-create-workers": "8",
                         "--node-create-qps": "20",
