@@ -136,7 +136,7 @@ makeBenchmarkingJob = lambda size: str -> job.Job {
                 SUBSCRIPTION_ID,
                 KWOK_POOL),
             *k8s.CreateKwokNodes(
-                18000 if size == "H8" else 15000,
+                16000 if size == "H8" else 15000,
                 continueOnError = True,
                 params = {
                     "node-manifest-path": "$(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml"
