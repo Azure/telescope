@@ -28,3 +28,10 @@ CreateKwokNodes = lambda nodeCount: int, continueOnError: bool = Undefined, para
         _runKwok("validate", "Validate KWOK Nodes", nodeCount, extraArgs),
     ]
 }
+
+# Pass the same nodes-per-controller override as creation, if one was used.
+DeleteKwokNodes = lambda nodeCount: int, params: {str:str} = {} -> steps.Step {
+    extraArgs = " ".join(["--${k} ${v}" for k, v in params])
+    assert "node-count" not in params, "node-count should be passed as a separate argument, not in params"
+    _runKwok("tear_down", "Delete KWOK Nodes and controllers", nodeCount, extraArgs)
+}

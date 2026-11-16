@@ -1,0 +1,188 @@
+name: Hyperscale etcd Nodes partition sizing
+pool: AKS-Telescope-Airlock
+trigger: none
+jobs:
+- job: node_etcd_partition_resizing
+  timeoutInMinutes: 360
+  steps:
+  - bash: |-
+      set -exo pipefail
+      pip3 install --upgrade "pip<24"
+      pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
+    displayName: Install Python dependencies
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+        az config set defaults.location="eastasia"
+        az account show
+    displayName: Login to Azure
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |+
+        set -exo pipefail
+
+        az group create \
+          --name "rg-node-$(Build.BuildId)-$(System.JobAttempt)" \
+          --location "eastasia" \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+
+    displayName: Create resource group in eastasia (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az extension add --name aks-preview --version 20.0.0b6 --allow-preview true --yes
+
+        az aks create \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --resource-group "rg-node-$(Build.BuildId)-$(System.JobAttempt)" \
+          --name "node-$(Build.BuildId)-$(System.JobAttempt)" \
+          --location "eastasia" \
+          --kubernetes-version 1.35.0 \
+          --tier standard \
+          --generate-ssh-keys \
+          --nodepool-name systempool \
+          --node-count 6 \
+          --node-vm-size Standard_D8s_v3 \
+          --tags SkipAKSCluster=true \
+          --control-plane-scaling-size H8 \
+          --yes
+    displayName: Create AKS cluster (etcd)
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        while true; do
+          STATE=$(az aks show \
+            --name "node-$(Build.BuildId)-$(System.JobAttempt)" \
+            --resource-group "rg-node-$(Build.BuildId)-$(System.JobAttempt)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --query "provisioningState" \
+            --output tsv)
+          echo "Cluster provisioning state: $STATE"
+          if [ "$STATE" = "Succeeded" ]; then
+            echo "Cluster is ready."
+            break
+          elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
+            echo "Cluster failed with state: $STATE."
+            exit 1
+          else
+            echo "Provisioning state: $STATE. Retry in 30 seconds"
+          fi
+          sleep 30
+        done
+    displayName: Wait for cluster to succeed
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az aks get-credentials \
+          --name "node-$(Build.BuildId)-$(System.JobAttempt)" \
+          --resource-group "rg-node-$(Build.BuildId)-$(System.JobAttempt)" \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --overwrite-existing
+    displayName: Get credentials for node-$(Build.BuildId)-$(System.JobAttempt)
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: "set -exo pipefail\n\n\ncreate_node_pool() {\n  local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds\n  deadline=$(($(date +%s) + 600))\n  while :; do\n    attempt=$((attempt + 1))\n    if output=$(az aks nodepool add \"$@\" 2>&1); then\n      rc=0\n    else\n      rc=$?\n    fi\n    echo \"$output\"\n    if [ \"$rc\" -eq 0 ]; then\n      return 0\n    fi\n    if echo \"$output\" | grep -qiE \"OperationNotAllowed\"; then\n      now=$(date +%s)\n      if [ \"$now\" -ge \"$deadline\" ]; then\n        echo \"Retriable error persisted past 600s retry window ($attempt attempts); giving up.\"\n        return \"$rc\"\n      fi\n      remaining_retry_seconds=$((deadline - now))\n      echo \"Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining_retry_seconds seconds remain in retry window).\"\n      sleep \"$sleep_between\"\n    else\n      echo \"Non-retriable error (rc=$rc); giving up after attempt $attempt.\"\n      return \"$rc\"\n    fi\n  done\n}\n\n\ncreate_node_pool \\\n  --cluster-name \"node-$(Build.BuildId)-$(System.JobAttempt)\" \\\n  --resource-group \"rg-node-$(Build.BuildId)-$(System.JobAttempt)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"workerpool\" \\\n  --node-count 150 \\\n  --node-vm-size \"Standard_D8_v3\" \\\n  --mode User \\\n  \n"
+    displayName: Create node pool workerpool
+  - bash: |2
+
+      set -exo pipefail
+      TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+      echo "BENCHMARK_START: $TIMESTAMP"
+      echo "##vso[task.setvariable variable=BENCHMARK_START]$TIMESTAMP"
+    displayName: Record current time as BENCHMARK_START
+  - script: |2-
+
+      set -exo pipefail
+      export PYTHONPATH=$PYTHONPATH:$(pwd)
+      python3 kwok/kwok.py   --action create   --node-count 30000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --node-create-workers 30
+    workingDirectory: modules/python
+    displayName: Create KWOK Nodes
+  - script: |2-
+
+      set -exo pipefail
+      export PYTHONPATH=$PYTHONPATH:$(pwd)
+      python3 kwok/kwok.py   --action validate   --node-count 30000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --node-create-workers 30
+    workingDirectory: modules/python
+    displayName: Validate KWOK Nodes
+  - bash: sleep 3600
+    displayName: Wait 60 minutes for default KWOK updates
+  - script: "\nset -exo pipefail\nexport PYTHONPATH=$PYTHONPATH:$(pwd)\npython3 kwok/kwok.py   --action tear_down   --node-count 30000   "
+    workingDirectory: modules/python
+    displayName: Delete KWOK Nodes and controllers
+  - bash: sleep 600
+    displayName: Wait 10 minutes after deletion
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        RESOURCE_UID=$(az aks show \
+          --resource-group "rg-node-$(Build.BuildId)-$(System.JobAttempt)" \
+          --name "node-$(Build.BuildId)-$(System.JobAttempt)" \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --query "resourceUid" -o tsv)
+
+        if [ -z "$RESOURCE_UID" ]; then
+          echo "##[warning]Failed to fetch resourceUid, skipping ASI URL"
+          exit 1
+        fi
+
+        END_TIME=""
+        if [ -z "$END_TIME" ]; then
+          END_TIME=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+        fi
+
+        FROM_ENCODED=$(echo "$(BENCHMARK_START)" | sed 's/:/%3A/g')
+        TO_ENCODED=$(echo "$END_TIME" | sed 's/:/%3A/g')
+
+        echo "============================================"
+        echo "ASI Managed Cluster Dashboard URL:"
+        echo "https://asi.azure.ms/services/AKS/pages/Managed%20Cluster?clusterVersion=$RESOURCE_UID&globalFrom=$FROM_ENCODED&globalTo=$TO_ENCODED"
+        echo ""
+        echo "ASI API Server Analyzer URL:"
+        echo "https://asi.azure.ms/services/AKS/pages/API%20Server%20Analyzer?clusterVersion=$RESOURCE_UID&globalFrom=$FROM_ENCODED&globalTo=$TO_ENCODED"
+        echo "============================================"
+    condition: always()
+    continueOnError: true
+    displayName: Print ASI dashboard URL
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az group delete --name "rg-node-$(Build.BuildId)-$(System.JobAttempt)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
+    condition: always()
+    displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
