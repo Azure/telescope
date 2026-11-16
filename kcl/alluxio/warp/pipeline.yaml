@@ -43,9 +43,9 @@ jobs:
         }
         trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
         trap 'rm -f -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/blob.bin" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/helm-registry.json"' EXIT
-        acr_resource_id="/subscriptions/REPLACE_ME_SUBSCRIPTION_ID/resourceGroups/REPLACE_ME_RESOURCE_GROUP/providers/Microsoft.ContainerRegistry/registries/REPLACE_ME_REGISTRY"
-        alluxio_image="REPLACE_ME.azurecr.io/alluxio-enterprise"
-        operator_image="REPLACE_ME.azurecr.io/alluxio-operator"
+        acr_resource_id="/subscriptions/137f0351-8235-42a6-ac7a-6b46be2d21c7/resourceGroups/telescope/providers/Microsoft.ContainerRegistry/registries/telescope"
+        alluxio_image="telescope.azurecr.io/alluxio-enterprise"
+        operator_image="telescope.azurecr.io/alluxio-operator"
         subscription="b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
         resource_group="alluxio-$(RUN_ID)-$(System.JobAttempt)"
         cluster="alluxio-warp"
@@ -58,7 +58,7 @@ jobs:
             if [[ "$image" == "$operator_image" ]]; then tag="3.7.6"; fi
             digest="$(az acr repository show \
                 --name "$registry_name" \
-                --subscription "REPLACE_ME_SUBSCRIPTION_ID" \
+                --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" \
                 --image "${image#*/}:$tag" | jq -er '.digest')"
             images="$(jq --arg image "$image:$tag" --arg digest "$digest" '. + {($image): $digest}' <<< "$images")"
         done
@@ -68,12 +68,12 @@ jobs:
         [[ "$exists" == false ]] || fail "Resource group already exists or could not be verified; refusing to provision into it"
 
         jq -n \
-            --arg acr_resource_id "$acr_resource_id" --arg acr_subscription "REPLACE_ME_SUBSCRIPTION_ID" \
+            --arg acr_resource_id "$acr_resource_id" --arg acr_subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" \
             --arg alluxio_image "$alluxio_image" --arg operator_image "$operator_image" \
             --arg resource_group "$resource_group" --arg subscription "$subscription" \
             --arg cluster "$cluster" --arg location "$location" --arg storage_account "alx$(Build.BuildId)a$(System.JobAttempt)" \
             --argjson image_digests "$images" \
-            --arg operator_chart "oci://REPLACE_ME.azurecr.io/helm/alluxio-operator" \
+            --arg operator_chart "oci://telescope.azurecr.io/helm/alluxio-operator" \
             --arg operator_version "3.7.6" --arg warp_version "1.3.1" \
             '$ARGS.named + {
                 worker_cache: "8Gi", worker_cache_reserved: "1Gi",
@@ -251,7 +251,7 @@ jobs:
             --resource-group "alluxio-$(RUN_ID)-$(System.JobAttempt)" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" | jq -er '.identityProfile.kubeletidentity.objectId')"
         role_name="$(cat /proc/sys/kernel/random/uuid)"
-        role_id="/subscriptions/REPLACE_ME_SUBSCRIPTION_ID/resourceGroups/REPLACE_ME_RESOURCE_GROUP/providers/Microsoft.ContainerRegistry/registries/REPLACE_ME_REGISTRY/providers/Microsoft.Authorization/roleAssignments/$role_name"
+        role_id="/subscriptions/137f0351-8235-42a6-ac7a-6b46be2d21c7/resourceGroups/telescope/providers/Microsoft.ContainerRegistry/registries/telescope/providers/Microsoft.Authorization/roleAssignments/$role_name"
         # Record ownership before creation so uncertain CLI results remain recoverable.
         printf '##vso[task.setvariable variable=ALLUXIO_ACR_ROLE_ASSIGNMENT_ID]%s\n' "$role_id"
         az role assignment create \
@@ -259,8 +259,8 @@ jobs:
             --assignee-object-id "$identity" \
             --assignee-principal-type ServicePrincipal \
             --role AcrPull \
-            --scope "/subscriptions/REPLACE_ME_SUBSCRIPTION_ID/resourceGroups/REPLACE_ME_RESOURCE_GROUP/providers/Microsoft.ContainerRegistry/registries/REPLACE_ME_REGISTRY" \
-            --subscription "REPLACE_ME_SUBSCRIPTION_ID" > /dev/null
+            --scope "/subscriptions/137f0351-8235-42a6-ac7a-6b46be2d21c7/resourceGroups/telescope/providers/Microsoft.ContainerRegistry/registries/telescope" \
+            --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" > /dev/null
     displayName: Grant this cluster image pull access
     name: alluxio_acr_grant
   - task: AzureCLI@2
@@ -379,12 +379,12 @@ jobs:
         require_secret() {
             [[ -n "${!1:-}" && "${!1}" != '$('* ]] || fail "Required secret pipeline variable $1 is missing"
         }
-        registry="$(az acr show --ids "/subscriptions/REPLACE_ME_SUBSCRIPTION_ID/resourceGroups/REPLACE_ME_RESOURCE_GROUP/providers/Microsoft.ContainerRegistry/registries/REPLACE_ME_REGISTRY")"
+        registry="$(az acr show --ids "/subscriptions/137f0351-8235-42a6-ac7a-6b46be2d21c7/resourceGroups/telescope/providers/Microsoft.ContainerRegistry/registries/telescope")"
         registry_name="$(jq -er '.name' <<< "$registry")"
         login_server="$(jq -er '.loginServer' <<< "$registry")"
         registry_token="$(private_command az acr login \
             --name "$registry_name" \
-            --subscription "REPLACE_ME_SUBSCRIPTION_ID" \
+            --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" \
             --expose-token --query accessToken --output tsv)"
         printf '%s' "$registry_token" |
             private_command helm registry login "$login_server" \
@@ -392,9 +392,9 @@ jobs:
                 --password-stdin --registry-config "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/helm-registry.json" > /dev/null
         unset registry_token
         kubectl create namespace alx-ns
-        jq -n --arg image "REPLACE_ME.azurecr.io/alluxio-operator" --arg tag "3.7.6" \
+        jq -n --arg image "telescope.azurecr.io/alluxio-operator" --arg tag "3.7.6" \
             '{global: {image: $image, imageTag: $tag}}' > "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/operator-values.json"
-        helm install operator "oci://REPLACE_ME.azurecr.io/helm/alluxio-operator" \
+        helm install operator "oci://telescope.azurecr.io/helm/alluxio-operator" \
             --version "3.7.6" \
             --registry-config "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/helm-registry.json" \
             --namespace alluxio-operator \
@@ -453,7 +453,7 @@ jobs:
           done
       }
       require_secret ALLUXIO_LICENSE_STRING
-      patch="$(jq -n --arg image "REPLACE_ME.azurecr.io/alluxio-enterprise" --arg tag "AI-3.8-15.1.28" \
+      patch="$(jq -n --arg image "telescope.azurecr.io/alluxio-enterprise" --arg tag "AI-3.8-15.1.28" \
           '{spec: {image: $image, imageTag: $tag}}')"
       cluster="$(kubectl patch --local --type=merge -f "$(Build.SourcesDirectory)/kcl/alluxio/warp/cluster.yaml" -p "$patch" -o yaml)"
       printf '%s\n' "$cluster" | kubectl create --dry-run=server --validate=strict -f - > /dev/null
@@ -834,13 +834,13 @@ jobs:
             exit 0
         fi
         roles="$(az role assignment list \
-            --scope "/subscriptions/REPLACE_ME_SUBSCRIPTION_ID/resourceGroups/REPLACE_ME_RESOURCE_GROUP/providers/Microsoft.ContainerRegistry/registries/REPLACE_ME_REGISTRY" \
-            --subscription "REPLACE_ME_SUBSCRIPTION_ID")"
+            --scope "/subscriptions/137f0351-8235-42a6-ac7a-6b46be2d21c7/resourceGroups/telescope/providers/Microsoft.ContainerRegistry/registries/telescope" \
+            --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7")"
         jq -e 'type == "array" and all(.[]; .id | type == "string" and length > 0)' <<< "$roles" > /dev/null
         if jq -e --arg id "$role_id" 'any(.[]; (.id | ascii_downcase) == ($id | ascii_downcase))' <<< "$roles" > /dev/null; then
             az role assignment delete \
                 --ids "$role_id" \
-                --subscription "REPLACE_ME_SUBSCRIPTION_ID"
+                --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7"
         fi
         echo '##vso[task.setvariable variable=ALLUXIO_ACR_ROLE_ASSIGNMENT_ID]'
     condition: always()

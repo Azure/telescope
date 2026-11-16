@@ -7,12 +7,12 @@ import lib.steps.azure
 import lib.steps.common
 import lib.steps.k8s
 
-# Replace these constants with the existing registry and staged image/chart repositories.
-ACR_RESOURCE_ID = "/subscriptions/REPLACE_ME_SUBSCRIPTION_ID/resourceGroups/REPLACE_ME_RESOURCE_GROUP/providers/Microsoft.ContainerRegistry/registries/REPLACE_ME_REGISTRY"
+# Images and the OCI Helm chart are staged in the existing Telescope registry.
+ACR_RESOURCE_ID = "/subscriptions/137f0351-8235-42a6-ac7a-6b46be2d21c7/resourceGroups/telescope/providers/Microsoft.ContainerRegistry/registries/telescope"
 ACR_SUBSCRIPTION_ID = ACR_RESOURCE_ID.split("/")[2]
-ALLUXIO_IMAGE_REPOSITORY = "REPLACE_ME.azurecr.io/alluxio-enterprise"
-OPERATOR_IMAGE_REPOSITORY = "REPLACE_ME.azurecr.io/alluxio-operator"
-OPERATOR_CHART_REPOSITORY = "oci://REPLACE_ME.azurecr.io/helm/alluxio-operator"
+ALLUXIO_IMAGE_REPOSITORY = "telescope.azurecr.io/alluxio-enterprise"
+OPERATOR_IMAGE_REPOSITORY = "telescope.azurecr.io/alluxio-operator"
+OPERATOR_CHART_REPOSITORY = "oci://telescope.azurecr.io/helm/alluxio-operator"
 LOCATION = "westeurope"
 RESOURCE_GROUP = "alluxio-$(RUN_ID)-$(System.JobAttempt)"
 CLUSTER = "alluxio-warp"
