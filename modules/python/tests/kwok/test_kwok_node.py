@@ -1,7 +1,13 @@
-"""Tests for KWOK node functionality."""
+"""Tests for KWOK node functionality."""  # pylint: disable=too-many-lines
 import json
 import os
+import shlex
+import subprocess
+import sys
+import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor, wait
+from threading import Barrier, Event, Lock, get_ident
 from unittest.mock import MagicMock, call, patch
 
 import yaml
@@ -9,7 +15,8 @@ from kubernetes import client
 
 # Mock kubernetes config before importing
 with patch('kubernetes.config.load_kube_config'):
-    from kwok.kwok import Node
+    from clients.kubernetes_client import AuthSynchronizedApiClient, KubernetesClient
+    from kwok.kwok import Node, NodeCreatePacer, main
 
 
 def make_mock_node(name, **kwargs):
@@ -661,6 +668,514 @@ class TestNodeValidation(unittest.TestCase):
             with self.subTest(threshold=bad_value):
                 with self.assertRaises(ValueError):
                     self.node._validate_kwok_nodes(success_threshold=bad_value)
+
+
+class TestNodeCreation(unittest.TestCase):
+    """Exercise scheduling through creation with only external boundaries mocked."""
+
+    def setUp(self):
+        self.k8s_client = MagicMock()
+        self.k8s_client.get_config_map.return_value = None
+        self.k8s_client.get_deployment.return_value = make_ready_deployment("controller")
+        self.k8s_client.create_template.side_effect = self.render_template
+        deployment = client.ApiClient().sanitize_for_serialization(make_base_controller_deployment())
+        deployment.update(apiVersion="apps/v1", kind="Deployment")
+        response = MagicMock(text=yaml.safe_dump(deployment))
+        self.addCleanup(patch.stopall)
+        patch("kwok.kwok.requests.get", return_value=response).start()
+        self.sleep = patch("kwok.kwok.time.sleep").start()
+        self.output = patch("builtins.print").start()
+
+    @staticmethod
+    def render_template(path, replacements):
+        if path == "kwok/config/kwok-config.yaml":
+            return make_rendered_config_map()
+        return dict(replacements)
+
+    def make_node(self, **kwargs):
+        return Node(kwok_release="v0.7.0", k8s_client=self.k8s_client, **kwargs)
+
+    def test_sequential_defaults_and_dra_order(self):
+        node = self.make_node(node_count=3, enable_dra=True, node_create_qps=0.1)
+        order = []
+        self.k8s_client.create_node.side_effect = lambda body: order.append(body["node_name"])
+        self.sleep.side_effect = lambda seconds: order.append(seconds)
+        self.k8s_client.create_resource_slice.side_effect = (
+            lambda body: order.append(body["resource_slice_name"])
+        )
+        node.create()
+        self.assertEqual(node.node_create_workers, 1)
+        self.assertEqual(order, [
+            "kwok-node-0", 0.05, "kwok-resource-slice-0",
+            "kwok-node-1", 0.05, "kwok-resource-slice-1",
+            "kwok-node-2", "kwok-resource-slice-2",
+        ])
+        self.assertEqual(Node(k8s_client=self.k8s_client).node_create_qps, 20)
+
+    def test_invalid_configuration(self):
+        for workers in (0, -1):
+            with self.subTest(workers=workers), self.assertRaisesRegex(ValueError, "greater than zero"):
+                self.make_node(node_create_workers=workers)
+        for qps in (0, -1, float("nan"), float("inf"), float("-inf")):
+            with self.subTest(qps=qps), self.assertRaisesRegex(ValueError, "finite and greater than zero"):
+                self.make_node(node_create_qps=qps)
+        self.k8s_client.create_node.assert_not_called()
+
+    def test_parallel_exact_workload_and_bounded_submission(self):
+        node = self.make_node(
+            node_count=6, nodes_per_controller=2, node_create_workers=3,
+            node_create_qps=1000, enable_dra=True,
+        )
+        barrier = Barrier(3)
+        lock = Lock()
+        submitted = 0
+        completed = []
+        seen = {}
+        first_node_released = Event()
+        created = set()
+
+        def create(body):
+            name = body["node_name"]
+            with lock:
+                self.assertNotIn(name, seen)
+                seen[name] = body
+            barrier.wait(timeout=5)
+            if name == "kwok-node-0":
+                self.assertTrue(first_node_released.wait(5))
+            with lock:
+                created.add(name)
+
+        def resource_slice(body):
+            with lock:
+                self.assertIn(body["node_name"], created)
+                completed.append(body["node_name"])
+                if body["node_name"] == "kwok-node-1":
+                    first_node_released.set()
+
+        original_submit = ThreadPoolExecutor.submit
+
+        def submit(executor, *args, **kwargs):
+            nonlocal submitted
+            with lock:
+                submitted += 1
+                self.assertLessEqual(submitted - len(completed), 3)
+            return original_submit(executor, *args, **kwargs)
+
+        self.k8s_client.create_node.side_effect = create
+        self.k8s_client.create_resource_slice.side_effect = resource_slice
+        with patch("kwok.kwok.ThreadPoolExecutor.submit", autospec=True, side_effect=submit):
+            node.create()
+        self.assertEqual(submitted, 6)
+        self.assertEqual(sorted(completed), [f"kwok-node-{index}" for index in range(6)])
+        self.assertLess(completed.index("kwok-node-1"), completed.index("kwok-node-0"))
+        self.assertEqual(seen, {
+            f"kwok-node-{index}": {
+                "node_name": f"kwok-node-{index}",
+                "node_ip": f"10.0.0.{10 + index}",
+                "node_cpu": "32", "node_memory": "256Gi", "node_pods": "110", "node_gpu": "0",
+                "controller_group": str(index // 2),
+            }
+            for index in range(6)
+        })
+        self.k8s_client.apply_manifest_from_file.assert_any_call("kwok/config/device-class.yaml")
+        self.assertEqual(
+            self.k8s_client.apply_manifest_from_file.call_args_list.count(call("kwok/config/device-class.yaml")), 1,
+        )
+        self.assertEqual(self.k8s_client.create_node.call_count, 6)
+        self.assertEqual(
+            sorted(
+                item.args[0] for item in self.output.call_args_list
+                if item.args[0].startswith("Creating resource slice ")
+            ),
+            [
+                f"Creating resource slice kwok-resource-slice-{index} for node kwok-node-{index}"
+                for index in range(6)
+            ],
+        )
+        self.sleep.assert_not_called()
+
+    def test_retry_attempts_are_paced_without_extra_retries(self):
+        clock = [0.0]
+        stopped = MagicMock(spec=Event)
+        stopped.is_set.return_value = False
+        stopped.wait.side_effect = lambda delay: clock.__setitem__(0, clock[0] + delay)
+        self.k8s_client.create_node.side_effect = [RuntimeError("busy"), RuntimeError("busy"), None]
+        with patch("kwok.kwok.Event", return_value=stopped), patch(
+            "kwok.kwok.time.monotonic", side_effect=lambda: clock[0],
+        ):
+            self.make_node(node_count=1, node_create_workers=2, node_create_qps=4).create()
+        self.assertEqual(self.k8s_client.create_node.call_count, 3)
+        self.assertEqual(stopped.wait.call_args_list, [call(0.25), call(0.25)])
+        self.assertEqual(self.sleep.call_args_list, [call(10), call(20)])
+
+    def test_failure_stops_waiting_workers_and_reports_identity(self):
+        stopped = Event()
+        first_wait = Event()
+        first_started = Event()
+        original_wait = stopped.wait
+
+        def wait_for_stop(delay):
+            first_wait.set()
+            return original_wait(delay)
+
+        def create(_body):
+            first_started.set()
+            self.assertTrue(first_wait.wait(5))
+
+        def render(path, replacements):
+            if replacements.get("node_name") == "kwok-node-1":
+                self.assertTrue(first_started.wait(5))
+            return self.render_template(path, replacements)
+
+        self.k8s_client.create_template.side_effect = render
+        self.k8s_client.create_node.side_effect = create
+        self.k8s_client.create_resource_slice.side_effect = RuntimeError("DRA unavailable")
+        # A long permit interval guarantees the other worker is waiting, not issuing a request.
+        with patch("kwok.kwok.Event", return_value=stopped), patch.object(
+            stopped, "wait", side_effect=wait_for_stop,
+        ), self.assertRaisesRegex(RuntimeError, "kwok-node-0: DRA unavailable"):
+            self.make_node(
+                node_count=5, node_create_workers=2, node_create_qps=0.001, enable_dra=True,
+            ).create()
+        self.assertTrue(stopped.is_set())
+        self.assertEqual(self.k8s_client.create_node.call_count, 1)
+        self.assertEqual(self.k8s_client.create_resource_slice.call_count, 3)
+        rendered_nodes = [
+            item.args[1]["node_name"] for item in self.k8s_client.create_template.call_args_list
+            if item.args[0] == "kwok/config/kwok-node.yaml"
+        ]
+        self.assertEqual(sorted(rendered_nodes), ["kwok-node-0", "kwok-node-1"])
+        self.assertFalse(any("Successfully created" in str(item) for item in self.output.call_args_list))
+
+    def test_exhausted_node_retries_reach_caller(self):
+        self.k8s_client.create_node.side_effect = [RuntimeError("API unavailable")] * 3
+        with self.assertRaisesRegex(RuntimeError, "kwok-node-0: API unavailable"):
+            self.make_node(node_count=1, node_create_workers=2, node_create_qps=1000).create()
+        self.assertEqual(self.k8s_client.create_node.call_count, 3)
+        self.assertFalse(any("Successfully created" in str(item) for item in self.output.call_args_list))
+
+    def test_failure_waits_for_in_flight_requests(self):
+        stopped = Event()
+        both_started = Barrier(2)
+        attempts = 0
+
+        def create(body):
+            nonlocal attempts
+            if body["node_name"] == "kwok-node-0":
+                attempts += 1
+                if attempts == 1:
+                    both_started.wait(timeout=5)
+                raise RuntimeError("node failure")
+            both_started.wait(timeout=5)
+            self.assertTrue(stopped.wait(5))
+
+        self.k8s_client.create_node.side_effect = create
+        with patch("kwok.kwok.Event", return_value=stopped), self.assertRaisesRegex(
+            RuntimeError, "kwok-node-0: node failure",
+        ):
+            self.make_node(node_count=5, node_create_workers=2, node_create_qps=1000).create()
+        names = [item.args[0]["node_name"] for item in self.k8s_client.create_node.call_args_list]
+        self.assertEqual(sorted(names), ["kwok-node-0"] * 3 + ["kwok-node-1"])
+        self.assertTrue(any("Created 1/5 virtual nodes; pending-tasks=0" in str(item)
+                            for item in self.output.call_args_list))
+
+    def test_progress_distinguishes_node_success_from_dra_failure(self):
+        self.k8s_client.create_resource_slice.side_effect = RuntimeError("DRA unavailable")
+        with self.assertRaisesRegex(RuntimeError, "kwok-node-0: DRA unavailable"):
+            self.make_node(node_count=1, node_create_workers=2, enable_dra=True).create()
+        self.assertEqual(self.k8s_client.create_node.call_count, 1)
+        self.assertEqual(self.k8s_client.create_resource_slice.call_count, 3)
+        messages = [str(item.args[0]) for item in self.output.call_args_list]
+        self.assertTrue(any("Created 1/1 virtual nodes" in message for message in messages))
+        self.assertFalse(any("node-plus-resource-slice" in message for message in messages))
+        self.assertFalse(any("Successfully created" in message for message in messages))
+
+    def test_progress_reports_while_requests_are_in_flight(self):
+        clock = [0.0]
+        request_started = Event()
+        release_request = Event()
+
+        def create(_body):
+            request_started.set()
+            self.assertTrue(release_request.wait(5))
+
+        def wait_for_tasks(futures, **kwargs):
+            self.assertTrue(request_started.wait(5))
+            if clock[0] == 0:
+                clock[0] = 10.0
+                return set(), set(futures)
+            release_request.set()
+            return wait(futures, **kwargs)
+
+        self.k8s_client.create_node.side_effect = create
+        with patch("kwok.kwok.wait", side_effect=wait_for_tasks), patch(
+            "kwok.kwok.time.monotonic", side_effect=lambda: clock[0],
+        ):
+            self.make_node(node_count=1, node_create_workers=2).create()
+        self.output.assert_any_call(
+            "Created 0/1 virtual nodes; pending-tasks=1; elapsed=10.0s; completed-rate=0.0 nodes/s",
+            flush=True,
+        )
+        self.output.assert_any_call(
+            "Created 1/1 virtual nodes; pending-tasks=0; elapsed=10.0s; completed-rate=0.1 nodes/s",
+            flush=True,
+        )
+
+    def test_validate_accepts_creation_options_without_changing_validation(self):
+        self.k8s_client.get_config_map.return_value = MagicMock()
+        self.k8s_client.get_nodes.return_value = [
+            make_mock_node("kwok-node-0", allocatable={"cpu": "32"}, capacity={"cpu": "32"}),
+        ]
+        with patch("sys.argv", [
+            "kwok", "--action", "validate", "--node-create-workers", "8",
+            "--node-create-qps", "20", "--log-level", "WARNING",
+        ]), patch.multiple(
+            Node.k8s_client,
+            get_config_map=self.k8s_client.get_config_map,
+            get_deployment=self.k8s_client.get_deployment,
+            get_nodes=self.k8s_client.get_nodes,
+            create_node=self.k8s_client.create_node,
+        ):
+            main()
+        self.k8s_client.create_node.assert_not_called()
+        self.k8s_client.get_config_map.assert_called_once_with("kwok", "kube-system")
+        self.k8s_client.get_deployment.assert_called_once_with("kwok-controller-0", "kube-system")
+        self.k8s_client.get_nodes.assert_called_once_with()
+
+    def test_cli_rejects_invalid_creation_options(self):
+        for option, value, error in [
+            ("--node-create-workers", "0", ValueError),
+            ("--node-create-workers", "-2", ValueError),
+            ("--node-create-workers", "1.5", SystemExit),
+            ("--node-create-qps", "0", ValueError),
+            ("--node-create-qps", "-1", ValueError),
+            ("--node-create-qps", "nan", ValueError),
+            ("--node-create-qps", "inf", ValueError),
+            ("--node-create-qps", "-inf", ValueError),
+            ("--node-create-qps", "invalid", SystemExit),
+        ]:
+            with self.subTest(option=option, value=value), patch(
+                "sys.argv", ["kwok", "--action", "create", f"{option}={value}"],
+            ), self.assertRaises(error):
+                main()
+        self.k8s_client.create_node.assert_not_called()
+
+
+class TestKwokEntryPoint(unittest.TestCase):
+    def test_help_runs_as_script_and_module(self):
+        module_directory = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        with tempfile.TemporaryDirectory() as directory:
+            kubeconfig_path = os.path.join(directory, "config")
+            with open(kubeconfig_path, "w", encoding="utf-8") as kubeconfig_file:
+                yaml.safe_dump({
+                    "apiVersion": "v1",
+                    "kind": "Config",
+                    "clusters": [{"name": "test", "cluster": {"server": "https://127.0.0.1:9"}}],
+                    "contexts": [{"name": "test", "context": {"cluster": "test", "user": "test"}}],
+                    "current-context": "test",
+                    "users": [{"name": "test", "user": {}}],
+                }, kubeconfig_file)
+            environment = {
+                **os.environ,
+                "KUBECONFIG": kubeconfig_path,
+                "PYTHONPATH": f":{module_directory}",
+            }
+            for arguments in (["kwok/kwok.py"], ["-m", "kwok.kwok"]):
+                with self.subTest(arguments=arguments):
+                    result = subprocess.run(
+                        [sys.executable, *arguments, "--help"],
+                        cwd=module_directory,
+                        env=environment,
+                        capture_output=True,
+                        text=True,
+                        timeout=15,
+                        check=False,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertIn("--node-create-workers", result.stdout)
+                    self.assertIn("--node-create-qps", result.stdout)
+
+
+class TestNodeCreatePacer(unittest.TestCase):
+    def test_shared_budget_no_catch_up_and_cancellation(self):
+        clock = [0.0]
+        stopped = MagicMock(spec=Event)
+        stopped.is_set.return_value = False
+        stopped.wait.side_effect = lambda delay: clock.__setitem__(0, clock[0] + delay)
+        barrier = Barrier(4)
+        with patch("kwok.kwok.time.monotonic", side_effect=lambda: clock[0]):
+            pacer = NodeCreatePacer(4, stopped)
+
+            def acquire():
+                barrier.wait(timeout=5)
+                return pacer.acquire()
+
+            with ThreadPoolExecutor(max_workers=4) as executor:
+                futures = [executor.submit(acquire) for _ in range(4)]
+                self.assertEqual([future.result() for future in futures], [True] * 4)
+            self.assertEqual(stopped.wait.call_args_list, [call(0.25)] * 3)
+            clock[0] = 10
+            self.assertTrue(pacer.acquire())
+            self.assertTrue(pacer.acquire())
+            self.assertEqual(clock[0], 10.25)
+            stopped.is_set.return_value = True
+            self.assertFalse(pacer.acquire())
+            self.assertEqual(stopped.wait.call_count, 4)
+
+
+class TestNodeCreationClient(unittest.TestCase):
+    def setUp(self):
+        with patch("kubernetes.config.load_kube_config"):
+            self.k8s_client = KubernetesClient()
+        self.api_client = self.k8s_client.api.api_client
+        self.configuration = self.api_client.configuration
+        self.configuration.api_key = {"authorization": "static-token"}
+        self.configuration.refresh_api_key_hook = None
+        self.addCleanup(self.api_client.close)
+        self.addCleanup(self.api_client.rest_client.pool_manager.clear)
+
+    @staticmethod
+    def node_template(index):
+        return yaml.safe_dump({"kind": "Node", "metadata": {"name": f"kwok-node-{index}"}})
+
+    @staticmethod
+    def node_response(body):
+        return MagicMock(data=json.dumps(body), status=201)
+
+    def test_shared_authentication_is_serialized_while_requests_overlap(self):
+        second_attempted_auth = Event()
+        requests_started = Barrier(2)
+        refresh_lock = Lock()
+        attempts_lock = Lock()
+        attempts = 0
+        tokens = []
+        auth_threads = set()
+
+        def enter_auth():
+            nonlocal attempts
+            with attempts_lock:
+                attempts += 1
+                if attempts == 2:
+                    second_attempted_auth.set()
+            self.assertTrue(refresh_lock.acquire(timeout=5))  # pylint: disable=consider-using-with
+            with attempts_lock:
+                auth_threads.add(get_ident())
+
+        def exit_auth(*_args):
+            with attempts_lock:
+                auth_threads.remove(get_ident())
+            refresh_lock.release()
+
+        observed_lock = MagicMock()
+        observed_lock.__enter__.side_effect = enter_auth
+        observed_lock.__exit__.side_effect = exit_auth
+        self.api_client.auth_lock = observed_lock
+
+        def refresh(configuration):
+            self.assertTrue(refresh_lock.locked())
+            tokens.append(f"token-{len(tokens) + 1}")
+            configuration.api_key["authorization"] = tokens[-1]
+            configuration.refresh_api_key_hook = refresh
+            self.assertTrue(second_attempted_auth.wait(5))
+
+        initial_refresh = MagicMock(side_effect=refresh)
+        self.configuration.refresh_api_key_hook = initial_refresh
+
+        def request(_method, _url, **kwargs):
+            with attempts_lock:
+                self.assertNotIn(get_ident(), auth_threads)
+            token = kwargs["headers"]["authorization"]
+            requests_started.wait(timeout=5)
+            self.assertEqual(kwargs["headers"]["authorization"], token)
+            return self.node_response(kwargs["body"])
+
+        with patch.object(self.api_client, "request", side_effect=request) as requests:
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                futures = [
+                    executor.submit(self.k8s_client.create_node, self.node_template(index))
+                    for index in range(2)
+                ]
+                self.assertEqual([future.result(timeout=10) for future in futures],
+                                 ["kwok-node-0", "kwok-node-1"])
+        self.assertEqual(tokens, ["token-1", "token-2"])
+        self.assertEqual(attempts, 2)
+        initial_refresh.assert_called_once_with(self.configuration)
+        self.assertIs(self.configuration.refresh_api_key_hook, refresh)
+        self.assertEqual(sorted(
+            item.kwargs["headers"]["authorization"] for item in requests.call_args_list
+        ), ["token-1", "token-2"])
+
+    def test_refresh_failure_releases_authentication_lock(self):
+        refresh = MagicMock(side_effect=RuntimeError("refresh failed"))
+        self.configuration.refresh_api_key_hook = refresh
+        with self.assertRaisesRegex(RuntimeError, "refresh failed"):
+            self.k8s_client.create_node(self.node_template(0))
+        self.assertFalse(self.api_client.auth_lock.locked())
+        self.configuration.refresh_api_key_hook = None
+        with patch.object(self.api_client, "request", return_value=self.node_response({
+            "metadata": {"name": "kwok-node-1"},
+        })) as request:
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(self.k8s_client.create_node, self.node_template(1))
+                self.assertEqual(future.result(timeout=5), "kwok-node-1")
+        self.assertEqual(request.call_args.kwargs["headers"]["authorization"], "static-token")
+
+    def test_dra_uses_shared_api_client_with_static_credentials(self):
+        body = {"metadata": {"name": "slice"}}
+        with patch.object(self.api_client, "request", return_value=self.node_response(body)) as request:
+            self.assertEqual(self.k8s_client.create_resource_slice(
+                "kind: ResourceSlice\napiVersion: resource.k8s.io/v1beta1\nmetadata:\n  name: slice",
+            ), "slice")
+        self.assertEqual(request.call_args.kwargs["headers"]["authorization"], "static-token")
+        self.assertEqual(request.call_args.args,
+                         ("POST", self.configuration.host + "/apis/resource.k8s.io/v1beta1/resourceslices"))
+
+    def test_context_switch_reinitializes_synchronized_core_client(self):
+        self.assertIsInstance(self.api_client, AuthSynchronizedApiClient)
+        self.assertFalse(self.api_client.auth_lock.locked())
+        with patch("kubernetes.config.load_kube_config") as load_config:
+            self.k8s_client.set_context("other-context")
+        replacement = self.k8s_client.api.api_client
+        self.addCleanup(replacement.close)
+        self.addCleanup(replacement.rest_client.pool_manager.clear)
+        self.assertIsInstance(replacement, AuthSynchronizedApiClient)
+        self.assertIsNot(replacement, self.api_client)
+        self.assertIs(replacement.auth_lock, self.api_client.auth_lock)
+        load_config.assert_called_once_with(config_file=None, context="other-context")
+
+
+class TestKwokPipeline(unittest.TestCase):
+    def test_all_tiers_use_parallel_creation_and_strict_validation(self):
+        pipeline_path = os.path.join(
+            os.path.dirname(__file__), "..", "..", "..", "..", "kcl", "ccp_team",
+            "hyperscale_apiserver_executing_seats", "pipeline.yaml",
+        )
+        with open(pipeline_path, encoding="utf-8") as pipeline_file:
+            stages = yaml.safe_load(pipeline_file)["stages"]
+        self.assertEqual([stage["stage"] for stage in stages], ["H2", "H4", "H8"])
+        for stage in stages:
+            with self.subTest(stage=stage["stage"]):
+                steps = {step["displayName"]: step for step in stage["jobs"][0]["steps"]}
+                create = steps["Create KWOK Nodes"]
+                validate = steps["Validate KWOK Nodes"]
+                self.assertTrue(create["continueOnError"])
+                self.assertNotIn("continueOnError", validate)
+                for step, action in [(create, "create"), (validate, "validate")]:
+                    arguments = shlex.split(step["script"])
+                    self.assertFalse(any(
+                        argument == "--node-create-qps" or argument.startswith("--node-create-qps=")
+                        for argument in arguments
+                    ))
+                    for option, expected in {
+                        "--action": action,
+                        "--node-count": "15000",
+                        "--validate-success-threshold": "0.9",
+                        "--node-create-workers": "8",
+                    }.items():
+                        with self.subTest(action=action, option=option):
+                            self.assertEqual(arguments.count(option), 1)
+                            index = arguments.index(option)
+                            self.assertEqual(arguments[index + 1:index + 2], [expected])
 
 
 if __name__ == "__main__":

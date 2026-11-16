@@ -49,7 +49,7 @@ done
 
 # RunKperfRunnerGroup runs `kperf rg run` with the specified runner image, runner
 # group manifest, optional flow control setting, and optional affinity selector.
-RunKperfRunnerGroup = lambda runnerImage: str, runnerGroup: str, flowcontrol: str = "", affinity: str = "", target: str = Undefined -> steps.Step {
+RunKperfRunnerGroup = lambda runnerImage: str, runnerGroup: str, flowcontrol: str = "", affinity: str = "", target: str = Undefined, displayName: str = "Run kperf runner group" -> steps.Step {
     steps.Script {
         script = """
 set -euo pipefail
@@ -94,7 +94,7 @@ until run_rg; do
   sleep 120
 done
 """
-        displayName = "Run kperf runner group"
+        displayName = displayName
         target = target
     }
 }

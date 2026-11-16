@@ -192,14 +192,14 @@ stages:
     - script: |-
         set -exo pipefail
         export PYTHONPATH=$PYTHONPATH:$(pwd)
-        python3 kwok/kwok.py   --action create   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING
+        python3 kwok/kwok.py   --action create   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8
       workingDirectory: modules/python
       continueOnError: true
       displayName: Create KWOK Nodes
     - script: |-
         set -exo pipefail
         export PYTHONPATH=$PYTHONPATH:$(pwd)
-        python3 kwok/kwok.py   --action validate   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING
+        python3 kwok/kwok.py   --action validate   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8
       workingDirectory: modules/python
       displayName: Validate KWOK Nodes
     - bash: |
@@ -484,14 +484,14 @@ stages:
     - script: |-
         set -exo pipefail
         export PYTHONPATH=$PYTHONPATH:$(pwd)
-        python3 kwok/kwok.py   --action create   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING
+        python3 kwok/kwok.py   --action create   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8
       workingDirectory: modules/python
       continueOnError: true
       displayName: Create KWOK Nodes
     - script: |-
         set -exo pipefail
         export PYTHONPATH=$PYTHONPATH:$(pwd)
-        python3 kwok/kwok.py   --action validate   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING
+        python3 kwok/kwok.py   --action validate   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8
       workingDirectory: modules/python
       displayName: Validate KWOK Nodes
     - bash: |
@@ -776,14 +776,14 @@ stages:
     - script: |-
         set -exo pipefail
         export PYTHONPATH=$PYTHONPATH:$(pwd)
-        python3 kwok/kwok.py   --action create   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING
+        python3 kwok/kwok.py   --action create   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8
       workingDirectory: modules/python
       continueOnError: true
       displayName: Create KWOK Nodes
     - script: |-
         set -exo pipefail
         export PYTHONPATH=$PYTHONPATH:$(pwd)
-        python3 kwok/kwok.py   --action validate   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING
+        python3 kwok/kwok.py   --action validate   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8
       workingDirectory: modules/python
       displayName: Validate KWOK Nodes
     - bash: |
