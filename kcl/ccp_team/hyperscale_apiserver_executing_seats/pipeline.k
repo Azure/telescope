@@ -202,13 +202,23 @@ fi
             azure.DeleteResourceGroupAsync(
                 const.DEFAULT_SERVICE_CONNECTION,
                 RESOURCE_GROUP,
-                SUBSCRIPTION_ID)
+                SUBSCRIPTION_ID,
+                condition = "and(always(), not(\${{ parameters.keep_cluster }}))")
         ]
     }
 }
 
 output = ap.Pipeline {
     name = "Hyperscale API Server Executing Seats"
+
+    parameters = [
+        ap.Parameter {
+            name = "keep_cluster"
+            displayName = "Keep cluster after benchmark"
+            type = "boolean"
+            default = False
+        }
+    ]
 
     # One stage per scaling size; all three run in a single pipeline execution.
     stages = [
