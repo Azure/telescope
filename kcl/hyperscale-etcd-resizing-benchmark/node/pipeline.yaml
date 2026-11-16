@@ -17,7 +17,6 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
-
         az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
         az config set defaults.location="eastasia"
         az account show
@@ -29,7 +28,6 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |+
         set -exo pipefail
-
         az group create \
           --name "rg-node-$(Build.BuildId)-$(System.JobAttempt)" \
           --location "eastasia" \
@@ -43,7 +41,6 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
-
         az extension add --name aks-preview --version 20.0.0b6 --allow-preview true --yes
 
         az aks create \
@@ -68,7 +65,6 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
-
         while true; do
           STATE=$(az aks show \
             --name "node-$(Build.BuildId)-$(System.JobAttempt)" \
@@ -96,7 +92,6 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
-
         az aks get-credentials \
           --name "node-$(Build.BuildId)-$(System.JobAttempt)" \
           --resource-group "rg-node-$(Build.BuildId)-$(System.JobAttempt)" \
@@ -108,24 +103,21 @@ jobs:
       azureSubscription: Azure-for-Telescope-internal
       scriptType: bash
       scriptLocation: inlineScript
-      inlineScript: "set -exo pipefail\n\n\ncreate_node_pool() {\n  local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds\n  deadline=$(($(date +%s) + 600))\n  while :; do\n    attempt=$((attempt + 1))\n    if output=$(az aks nodepool add \"$@\" 2>&1); then\n      rc=0\n    else\n      rc=$?\n    fi\n    echo \"$output\"\n    if [ \"$rc\" -eq 0 ]; then\n      return 0\n    fi\n    if echo \"$output\" | grep -qiE \"OperationNotAllowed\"; then\n      now=$(date +%s)\n      if [ \"$now\" -ge \"$deadline\" ]; then\n        echo \"Retriable error persisted past 600s retry window ($attempt attempts); giving up.\"\n        return \"$rc\"\n      fi\n      remaining_retry_seconds=$((deadline - now))\n      echo \"Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining_retry_seconds seconds remain in retry window).\"\n      sleep \"$sleep_between\"\n    else\n      echo \"Non-retriable error (rc=$rc); giving up after attempt $attempt.\"\n      return \"$rc\"\n    fi\n  done\n}\n\n\ncreate_node_pool \\\n  --cluster-name \"node-$(Build.BuildId)-$(System.JobAttempt)\" \\\n  --resource-group \"rg-node-$(Build.BuildId)-$(System.JobAttempt)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"workerpool\" \\\n  --node-count 150 \\\n  --node-vm-size \"Standard_D8s_v3\" \\\n  --mode User \\\n  \n"
+      inlineScript: "set -exo pipefail\ncreate_node_pool() {\n  local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds\n  deadline=$(($(date +%s) + 600))\n  while :; do\n    attempt=$((attempt + 1))\n    if output=$(az aks nodepool add \"$@\" 2>&1); then\n      rc=0\n    else\n      rc=$?\n    fi\n    echo \"$output\"\n    if [ \"$rc\" -eq 0 ]; then\n      return 0\n    fi\n    if echo \"$output\" | grep -qiE \"OperationNotAllowed\"; then\n      now=$(date +%s)\n      if [ \"$now\" -ge \"$deadline\" ]; then\n        echo \"Retriable error persisted past 600s retry window ($attempt attempts); giving up.\"\n        return \"$rc\"\n      fi\n      remaining_retry_seconds=$((deadline - now))\n      echo \"Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining_retry_seconds seconds remain in retry window).\"\n      sleep \"$sleep_between\"\n    else\n      echo \"Non-retriable error (rc=$rc); giving up after attempt $attempt.\"\n      return \"$rc\"\n    fi\n  done\n}\n\n\ncreate_node_pool \\\n  --cluster-name \"node-$(Build.BuildId)-$(System.JobAttempt)\" \\\n  --resource-group \"rg-node-$(Build.BuildId)-$(System.JobAttempt)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"workerpool\" \\\n  --node-count 150 \\\n  --node-vm-size \"Standard_D8s_v3\" \\\n  --mode User \\\n  \n"
     displayName: Create node pool workerpool
-  - bash: |2
-
+  - bash: |
       set -exo pipefail
       TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
       echo "BENCHMARK_START: $TIMESTAMP"
       echo "##vso[task.setvariable variable=BENCHMARK_START]$TIMESTAMP"
     displayName: Record current time as BENCHMARK_START
-  - script: |2-
-
+  - script: |-
       set -exo pipefail
       export PYTHONPATH=$PYTHONPATH:$(pwd)
       python3 kwok/kwok.py   --action create   --node-count 30000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --node-create-workers 30
     workingDirectory: modules/python
     displayName: Create KWOK Nodes
-  - script: |2-
-
+  - script: |-
       set -exo pipefail
       export PYTHONPATH=$PYTHONPATH:$(pwd)
       python3 kwok/kwok.py   --action validate   --node-count 30000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --node-create-workers 30
@@ -133,7 +125,7 @@ jobs:
     displayName: Validate KWOK Nodes
   - bash: sleep 3600
     displayName: Wait 60 minutes for default KWOK updates
-  - script: "\nset -exo pipefail\nexport PYTHONPATH=$PYTHONPATH:$(pwd)\npython3 kwok/kwok.py   --action tear_down   --node-count 30000   "
+  - script: "set -exo pipefail\nexport PYTHONPATH=$PYTHONPATH:$(pwd)\npython3 kwok/kwok.py   --action tear_down   --node-count 30000   "
     workingDirectory: modules/python
     displayName: Delete KWOK Nodes and controllers
   - bash: sleep 600
@@ -145,7 +137,6 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
-
         RESOURCE_UID=$(az aks show \
           --resource-group "rg-node-$(Build.BuildId)-$(System.JobAttempt)" \
           --name "node-$(Build.BuildId)-$(System.JobAttempt)" \
@@ -182,7 +173,6 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
-
         az group delete --name "rg-node-$(Build.BuildId)-$(System.JobAttempt)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
     condition: always()
     displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
