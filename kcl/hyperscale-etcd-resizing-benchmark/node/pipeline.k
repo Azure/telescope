@@ -71,7 +71,7 @@ output = ap.Pipeline {
                     const.DEFAULT_SUBSCRIPTION_ID,
                     azure.NodePool {
                         name = "workerpool"
-                        sku = "Standard_D8_v3"
+                        sku = "Standard_D8s_v3"
                         count = 150
                     }),
                 common.RecordCurrentTime("BENCHMARK_START"),
