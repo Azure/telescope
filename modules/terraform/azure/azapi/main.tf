@@ -74,6 +74,9 @@ resource "azapi_resource" "aks_cluster" {
   }
 }
 
+# This administrator-created role grants Microsoft.ContainerService/managedClusters/metrics/read
+# to read the Kubernetes API server /metrics endpoint without granting cluster-admin access.
+# The assignment below grants it to the Terraform identity only on the benchmark cluster.
 data "azurerm_role_definition" "metrics_reader" {
   count = var.azapi_config.metrics_reader_enabled ? 1 : 0
 
