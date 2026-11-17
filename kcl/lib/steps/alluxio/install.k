@@ -18,9 +18,8 @@ printf '%s' "$registry_token" |
         --username 00000000-0000-0000-0000-000000000000 \\
         --password-stdin --registry-config "${workDir}/helm-registry.json" > /dev/null
 unset registry_token
-kubectl create namespace alx-ns
 jq -n --arg image "${operatorImage}" --arg tag "${OPERATOR_TAG}" \\
-    '{global: {image: $image, imageTag: $tag}}' > "${workDir}/operator-values.json"
+    '{global: {image: $image, imageTag: $tag, imagePullSecrets: ["alluxio-acr"]}}' > "${workDir}/operator-values.json"
 helm install operator "${operatorChart}" \\
     --version "${OPERATOR_TAG}" \\
     --registry-config "${workDir}/helm-registry.json" \\

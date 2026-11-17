@@ -1,53 +1,39 @@
 import azure_pipelines.ap.steps
 import lib.steps.azure
 
-GrantImagePullAccess = lambda serviceConnection: str, registryId: str, registrySubscription: str, subscription: str, resourceGroup: str, cluster: str, workDir: str, resultDir: str -> steps.Step {
+ConfigureImagePullAccess = lambda serviceConnection: str, registryId: str, registrySubscription: str, workDir: str, resultDir: str -> steps.Step {
     azure.AzCli(
         serviceConnection
-        "Grant this cluster image pull access"
-        ShellSetup(workDir, resultDir) + """
-identity="$(az aks show \\
-    --name "${cluster}" \\
-    --resource-group "${resourceGroup}" \\
-    --subscription "${subscription}" | jq -er '.identityProfile.kubeletidentity.objectId')"
-role_name="$(cat /proc/sys/kernel/random/uuid)"
-role_id="${registryId}/providers/Microsoft.Authorization/roleAssignments/$role_name"
-# Record ownership before creation so uncertain CLI results remain recoverable.
-printf '##vso[task.setvariable variable=ALLUXIO_ACR_ROLE_ASSIGNMENT_ID]%s\\n' "$role_id"
-az role assignment create \\
-    --name "$role_name" \\
-    --assignee-object-id "$identity" \\
-    --assignee-principal-type ServicePrincipal \\
-    --role AcrPull \\
-    --scope "${registryId}" \\
-    --subscription "${registrySubscription}" > /dev/null
+        "Configure short-lived ACR image pull credentials"
+        ShellSetup(workDir, resultDir) + SecretCommands(workDir) + """
+# The shared registry has a delete lock; keep credentials inside the disposable cluster instead of creating RBAC grants.
+registry="$(az acr show --name "${registryId.split("/")[-1]}" --subscription "${registrySubscription}")"
+login_server="$(jq -er '.loginServer' <<< "$registry")"
+REGISTRY_TOKEN="$(private_command az acr login \\
+    --name "${registryId.split("/")[-1]}" \\
+    --subscription "${registrySubscription}" \\
+    --expose-token --query accessToken --output tsv)"
+export REGISTRY_TOKEN
+for namespace in alx-ns alluxio-operator; do
+    kubectl create namespace "$namespace"
+    pull_secret="$(jq -n --arg server "$login_server" --arg namespace "$namespace" '{
+        apiVersion: "v1", kind: "Secret",
+        metadata: {name: "alluxio-acr", namespace: $namespace},
+        type: "kubernetes.io/dockerconfigjson",
+        stringData: {".dockerconfigjson": ({
+            auths: {($server): {
+                username: "00000000-0000-0000-0000-000000000000",
+                password: env.REGISTRY_TOKEN,
+                auth: ("00000000-0000-0000-0000-000000000000:" + env.REGISTRY_TOKEN | @base64)
+            }}
+        } | tojson)}
+    }')"
+    printf '%s\\n' "$pull_secret" |
+        private_command kubectl create --dry-run=server --validate=strict -f - > /dev/null
+    printf '%s\\n' "$pull_secret" | private_command kubectl create -f - > /dev/null
+done
+unset REGISTRY_TOKEN pull_secret
 """
-        stepName = "alluxio_acr_grant"
-    )
-}
-
-RemoveImagePullAccess = lambda serviceConnection: str, registryId: str, registrySubscription: str, workDir: str, resultDir: str -> steps.Step {
-    azure.AzCli(
-        serviceConnection
-        "Remove this run's ACR pull grant"
-        ShellSetup(workDir, resultDir) + """
-role_id="\${ALLUXIO_ACR_ROLE_ASSIGNMENT_ID:-}"
-if [[ -z "$role_id" ]]; then
-    echo "No registry grant was created by this run"
-    exit 0
-fi
-roles="$(az role assignment list \\
-    --scope "${registryId}" \\
-    --subscription "${registrySubscription}")"
-jq -e 'type == "array" and all(.[]; .id | type == "string" and length > 0)' <<< "$roles" > /dev/null
-if jq -e --arg id "$role_id" 'any(.[]; (.id | ascii_downcase) == ($id | ascii_downcase))' <<< "$roles" > /dev/null; then
-    az role assignment delete \\
-        --ids "$role_id" \\
-        --subscription "${registrySubscription}"
-fi
-echo '##vso[task.setvariable variable=ALLUXIO_ACR_ROLE_ASSIGNMENT_ID]'
-"""
-        stepName = "alluxio_acr_cleanup"
-        condition = "always()"
+        stepName = "alluxio_acr_credentials"
     )
 }

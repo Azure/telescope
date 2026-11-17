@@ -250,23 +250,45 @@ jobs:
         }
         trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
         trap 'rm -f -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/blob.bin" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/helm-registry.json"' EXIT
-        identity="$(az aks show \
-            --name "alluxio-warp" \
-            --resource-group "alluxio-$(RUN_ID)-$(System.JobAttempt)" \
-            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" | jq -er '.identityProfile.kubeletidentity.objectId')"
-        role_name="$(cat /proc/sys/kernel/random/uuid)"
-        role_id="/subscriptions/137f0351-8235-42a6-ac7a-6b46be2d21c7/resourceGroups/telescope/providers/Microsoft.ContainerRegistry/registries/telescope/providers/Microsoft.Authorization/roleAssignments/$role_name"
-        # Record ownership before creation so uncertain CLI results remain recoverable.
-        printf '##vso[task.setvariable variable=ALLUXIO_ACR_ROLE_ASSIGNMENT_ID]%s\n' "$role_id"
-        az role assignment create \
-            --name "$role_name" \
-            --assignee-object-id "$identity" \
-            --assignee-principal-type ServicePrincipal \
-            --role AcrPull \
-            --scope "/subscriptions/137f0351-8235-42a6-ac7a-6b46be2d21c7/resourceGroups/telescope/providers/Microsoft.ContainerRegistry/registries/telescope" \
-            --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" > /dev/null
-    displayName: Grant this cluster image pull access
-    name: alluxio_acr_grant
+        private_command() {
+            if "$@" > "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" 2> "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err"; then
+                cat "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out"
+            else
+                fail "$1 failed; secret-bearing output withheld"
+            fi
+        }
+        require_secret() {
+            [[ -n "${!1:-}" && "${!1}" != '$('* ]] || fail "Required secret pipeline variable $1 is missing"
+        }
+        # The shared registry has a delete lock; keep credentials inside the disposable cluster instead of creating RBAC grants.
+        registry="$(az acr show --name "telescope" --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7")"
+        login_server="$(jq -er '.loginServer' <<< "$registry")"
+        REGISTRY_TOKEN="$(private_command az acr login \
+            --name "telescope" \
+            --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" \
+            --expose-token --query accessToken --output tsv)"
+        export REGISTRY_TOKEN
+        for namespace in alx-ns alluxio-operator; do
+            kubectl create namespace "$namespace"
+            pull_secret="$(jq -n --arg server "$login_server" --arg namespace "$namespace" '{
+                apiVersion: "v1", kind: "Secret",
+                metadata: {name: "alluxio-acr", namespace: $namespace},
+                type: "kubernetes.io/dockerconfigjson",
+                stringData: {".dockerconfigjson": ({
+                    auths: {($server): {
+                        username: "00000000-0000-0000-0000-000000000000",
+                        password: env.REGISTRY_TOKEN,
+                        auth: ("00000000-0000-0000-0000-000000000000:" + env.REGISTRY_TOKEN | @base64)
+                    }}
+                } | tojson)}
+            }')"
+            printf '%s\n' "$pull_secret" |
+                private_command kubectl create --dry-run=server --validate=strict -f - > /dev/null
+            printf '%s\n' "$pull_secret" | private_command kubectl create -f - > /dev/null
+        done
+        unset REGISTRY_TOKEN pull_secret
+    displayName: Configure short-lived ACR image pull credentials
+    name: alluxio_acr_credentials
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
@@ -397,9 +419,8 @@ jobs:
                 --username 00000000-0000-0000-0000-000000000000 \
                 --password-stdin --registry-config "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/helm-registry.json" > /dev/null
         unset registry_token
-        kubectl create namespace alx-ns
         jq -n --arg image "telescope.azurecr.io/alluxio-operator" --arg tag "3.7.6" \
-            '{global: {image: $image, imageTag: $tag}}' > "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/operator-values.json"
+            '{global: {image: $image, imageTag: $tag, imagePullSecrets: ["alluxio-acr"]}}' > "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/operator-values.json"
         helm install operator "oci://telescope.azurecr.io/helm/alluxio-operator" \
             --version "3.7.6" \
             --registry-config "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/helm-registry.json" \
@@ -826,44 +847,6 @@ jobs:
       artifact: alluxio-warp-$(System.JobAttempt)
     condition: always()
     displayName: Publish Warp results and diagnostics
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: Azure-for-Telescope-internal
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
-        set +x
-        set -Eeuo pipefail
-        umask 077
-        mkdir -p -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)" "$(Build.ArtifactStagingDirectory)/alluxio-warp"
-        chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
-        export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
-        export KUBECONFIG="$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/kubeconfig"
-        fail() {
-            echo "ALLUXIO WARP FAILED: $*" >&2
-            exit 1
-        }
-        trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
-        trap 'rm -f -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/blob.bin" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/helm-registry.json"' EXIT
-        role_id="${ALLUXIO_ACR_ROLE_ASSIGNMENT_ID:-}"
-        if [[ -z "$role_id" ]]; then
-            echo "No registry grant was created by this run"
-            exit 0
-        fi
-        roles="$(az role assignment list \
-            --scope "/subscriptions/137f0351-8235-42a6-ac7a-6b46be2d21c7/resourceGroups/telescope/providers/Microsoft.ContainerRegistry/registries/telescope" \
-            --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7")"
-        jq -e 'type == "array" and all(.[]; .id | type == "string" and length > 0)' <<< "$roles" > /dev/null
-        if jq -e --arg id "$role_id" 'any(.[]; (.id | ascii_downcase) == ($id | ascii_downcase))' <<< "$roles" > /dev/null; then
-            az role assignment delete \
-                --ids "$role_id" \
-                --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7"
-        fi
-        echo '##vso[task.setvariable variable=ALLUXIO_ACR_ROLE_ASSIGNMENT_ID]'
-    condition: always()
-    displayName: Remove this run's ACR pull grant
-    name: alluxio_acr_cleanup
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal

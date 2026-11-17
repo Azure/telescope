@@ -108,13 +108,10 @@ az aks create \\
                 const.DEFAULT_SUBSCRIPTION_ID
                 file = "${WORK_DIR}/kubeconfig"
             )
-            alluxio.GrantImagePullAccess(
+            alluxio.ConfigureImagePullAccess(
                 const.DEFAULT_SERVICE_CONNECTION
                 ACR_RESOURCE_ID
                 ACR_SUBSCRIPTION_ID
-                const.DEFAULT_SUBSCRIPTION_ID
-                RESOURCE_GROUP
-                CLUSTER
                 WORK_DIR
                 RESULT_DIR
             )
@@ -208,13 +205,6 @@ jq -s 'add' "${WORK_DIR}/diagnostics-alx-ns.json" "${WORK_DIR}/diagnostics-allux
                     artifact = "alluxio-warp-$(System.JobAttempt)"
                 }
             }
-            alluxio.RemoveImagePullAccess(
-                const.DEFAULT_SERVICE_CONNECTION
-                ACR_RESOURCE_ID
-                ACR_SUBSCRIPTION_ID
-                WORK_DIR
-                RESULT_DIR
-            )
             azure.DeleteResourceGroup(
                 const.DEFAULT_SERVICE_CONNECTION
                 RESOURCE_GROUP
