@@ -41,9 +41,9 @@ jq -n \\
     --arg operator_version "${OPERATOR_TAG}" --arg warp_version "1.3.1" \\
     '$ARGS.named + {
         worker_cache: "8Gi", worker_cache_reserved: "1Gi",
-        support_nodes: {count: 2, sku: "Standard_D8s_v5"},
-        worker_nodes: {count: 1, sku: "Standard_D16s_v5"},
-        client_nodes: {count: 1, sku: "Standard_D8s_v5"}
+        support_nodes: {count: 3, sku: "Standard_D8s_v6"},
+        worker_nodes: {count: 1, sku: "Standard_D16s_v6"},
+        client_nodes: {count: 1, sku: "Standard_D8s_v6"}
     }' > "${resultDir}/configuration.json"
 """
     )

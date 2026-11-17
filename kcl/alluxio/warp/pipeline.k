@@ -67,7 +67,7 @@ az aks create \\
   --kubernetes-version "1.36" \\
   --nodepool-name systempool \\
   --node-count 3 \\
-  --node-vm-size Standard_D8s_v5 \\
+  --node-vm-size Standard_D8s_v6 \\
   --network-plugin azure \\
   --network-plugin-mode overlay \\
   --enable-managed-identity \\
@@ -84,7 +84,7 @@ az aks create \\
                 const.DEFAULT_SUBSCRIPTION_ID
                 azure.NodePool {
                     name = "workerpool"
-                    sku = "Standard_D16s_v5"
+                    sku = "Standard_D16s_v6"
                     count = 1
                     taintPrefix = "alluxio"
                 }
@@ -96,7 +96,7 @@ az aks create \\
                 const.DEFAULT_SUBSCRIPTION_ID
                 azure.NodePool {
                     name = "clientpool"
-                    sku = "Standard_D8s_v5"
+                    sku = "Standard_D8s_v6"
                     count = 1
                     taintPrefix = "warp"
                 }
