@@ -21,6 +21,10 @@ jobs:
       pip3 install --upgrade "pip<24"
       pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
     displayName: Install Python dependencies
+  - task: KubeloginInstaller@0
+    inputs:
+      kubeloginVersion: latest
+    displayName: Install kubelogin
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
@@ -72,6 +76,9 @@ jobs:
           --outbound-type managedNATGateway \
           --nat-gateway-managed-outbound-ip-count 10 \
           --enable-managed-identity \
+          --enable-aad \
+          --enable-azure-rbac \
+          --disable-local-accounts \
           --generate-ssh-keys
     displayName: Create cluster
   - task: AzureCLI@2
@@ -135,17 +142,36 @@ jobs:
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --overwrite-existing
     displayName: Get credentials for example-yaolei
-  - script: |-
-      set -exo pipefail
-      export PYTHONPATH=$PYTHONPATH:$(pwd)
-      python3 kwok/kwok.py   --action create   --node-count 100   --node-manifest-path $(Pipeline.Workspace)/s/kcl/example_pipeline/kwok-node.yaml
-    workingDirectory: modules/python
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |-
+        set -exo pipefail
+        kubelogin convert-kubeconfig -l azurecli
+    displayName: Convert kubeconfig to Entra ID login
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |-
+        set -exo pipefail
+        cd modules/python
+        export PYTHONPATH=$PYTHONPATH:$(pwd)
+        python3 kwok/kwok.py   --action create   --node-count 100   --node-manifest-path $(Pipeline.Workspace)/s/kcl/example_pipeline/kwok-node.yaml
     displayName: Create KWOK Nodes
-  - script: |-
-      set -exo pipefail
-      export PYTHONPATH=$PYTHONPATH:$(pwd)
-      python3 kwok/kwok.py   --action validate   --node-count 100   --node-manifest-path $(Pipeline.Workspace)/s/kcl/example_pipeline/kwok-node.yaml
-    workingDirectory: modules/python
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |-
+        set -exo pipefail
+        cd modules/python
+        export PYTHONPATH=$PYTHONPATH:$(pwd)
+        python3 kwok/kwok.py   --action validate   --node-count 100   --node-manifest-path $(Pipeline.Workspace)/s/kcl/example_pipeline/kwok-node.yaml
     displayName: Validate KWOK Nodes
   - task: AzureCLI@2
     inputs:

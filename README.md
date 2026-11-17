@@ -103,6 +103,11 @@ The `lib/` directory provides reusable steps you can compose into your pipeline:
 
 For a complete working example, see [`kcl/example_pipeline/pipeline.k`](kcl/example_pipeline/pipeline.k).
 
+The example pipeline disables local AKS accounts and logs in through Microsoft
+Entra ID with kubelogin, so Kubernetes steps run in authenticated `AzureCLI@2`
+tasks. Its service connection identity needs the "Azure Kubernetes Service RBAC
+Cluster Admin" role, granted once out of band, for example at subscription scope.
+
 ## Generate Pipeline YAML
 
 Once your `.k` file is ready, generate the Azure DevOps YAML with the `/generate-yaml` skill, defined in the `.agent` folder.
