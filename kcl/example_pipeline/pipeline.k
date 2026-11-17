@@ -37,6 +37,7 @@ az aks create \\
   --outbound-type managedNATGateway \\
   --nat-gateway-managed-outbound-ip-count 10 \\
   --enable-managed-identity \\
+  --enable-aad \\
   --generate-ssh-keys
 """
 

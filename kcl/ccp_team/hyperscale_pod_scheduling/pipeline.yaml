@@ -189,6 +189,7 @@ stages:
             --name "stg-H2-hyperscale-pod-scheduling-rate" \
             --resource-group "$(RUN_ID)" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --admin \
             --overwrite-existing
       displayName: Get credentials for stg-H2-hyperscale-pod-scheduling-rate
     - task: AzureCLI@2
@@ -512,6 +513,7 @@ stages:
             --name "stg-H4-hyperscale-pod-scheduling-rate" \
             --resource-group "$(RUN_ID)" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --admin \
             --overwrite-existing
       displayName: Get credentials for stg-H4-hyperscale-pod-scheduling-rate
     - task: AzureCLI@2
@@ -835,6 +837,7 @@ stages:
             --name "stg-H8-hyperscale-pod-scheduling-rate" \
             --resource-group "$(RUN_ID)" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --admin \
             --overwrite-existing
       displayName: Get credentials for stg-H8-hyperscale-pod-scheduling-rate
     - task: AzureCLI@2

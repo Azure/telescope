@@ -86,6 +86,7 @@ stages:
             --name "configmaps100" \
             --resource-group "$(RUN_ID)" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --admin \
             --overwrite-existing \
             -f $(Pipeline.Workspace)/kubeconfig
       displayName: Get credentials for configmaps100
@@ -272,6 +273,7 @@ stages:
             --name "configmaps100" \
             --resource-group "$(RUN_ID)" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --admin \
             --overwrite-existing \
             -f $(Pipeline.Workspace)/kubeconfig
       displayName: Get credentials for configmaps100

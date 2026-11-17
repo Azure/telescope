@@ -131,6 +131,7 @@ stages:
             --name "nodevalidation-$(Build.BuildId)-eastasia-nodes1000-$(System.JobAttempt)" \
             --resource-group "nodevalidation-$(Build.BuildId)-eastasia-nodes1000-$(System.JobAttempt)" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --admin \
             --overwrite-existing \
             -f $(Agent.TempDirectory)/$(System.JobId)-kubeconfig
       displayName: Get credentials for nodevalidation-$(Build.BuildId)-eastasia-nodes1000-$(System.JobAttempt)
@@ -271,6 +272,7 @@ stages:
             --name "nodevalidation-$(Build.BuildId)-westus2-nodes1000-$(System.JobAttempt)" \
             --resource-group "nodevalidation-$(Build.BuildId)-westus2-nodes1000-$(System.JobAttempt)" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --admin \
             --overwrite-existing \
             -f $(Agent.TempDirectory)/$(System.JobId)-kubeconfig
       displayName: Get credentials for nodevalidation-$(Build.BuildId)-westus2-nodes1000-$(System.JobAttempt)

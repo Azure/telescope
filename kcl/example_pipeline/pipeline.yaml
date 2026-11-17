@@ -72,6 +72,7 @@ jobs:
           --outbound-type managedNATGateway \
           --nat-gateway-managed-outbound-ip-count 10 \
           --enable-managed-identity \
+          --enable-aad \
           --generate-ssh-keys
     displayName: Create cluster
   - task: AzureCLI@2
@@ -133,6 +134,7 @@ jobs:
           --name "example-yaolei" \
           --resource-group "$(RUN_ID)" \
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --admin \
           --overwrite-existing
     displayName: Get credentials for example-yaolei
   - script: |-

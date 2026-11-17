@@ -6,6 +6,7 @@ az aks get-credentials \\
   --name "${cluster}" \\
   --resource-group "${resourceGroup}" \\
   --subscription "${subscription}" \\
+  --admin \\
   --overwrite-existing"""
     script += " \\\n  -f ${file}\n" if file else "\n"
     AzCli(serviceConnection, "Get credentials for ${cluster}", script)

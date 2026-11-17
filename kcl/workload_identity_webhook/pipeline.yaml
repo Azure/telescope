@@ -104,6 +104,7 @@ jobs:
           --name "$(CLUSTER)" \
           --resource-group "$(RESOURCE_GROUP)" \
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --admin \
           --overwrite-existing
     displayName: Get credentials for $(CLUSTER)
   - script: |
