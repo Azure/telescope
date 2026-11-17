@@ -180,7 +180,6 @@ fi
             },
             k8s.RunClusterLoader2(
                 const.DEFAULT_SERVICE_CONNECTION,
-                "clusterloader2",
                 manifest = "${cl2Directory}/cl2-rendered.yaml"),
             k8s.PrintCl2PodLogs(
                 const.DEFAULT_SERVICE_CONNECTION,

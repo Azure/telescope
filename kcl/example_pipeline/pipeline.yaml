@@ -7,7 +7,8 @@ jobs:
   displayName: Benchmarking
   timeoutInMinutes: 1440
   steps:
-  - bash: |
+  - bash: |2
+
       set -eo pipefail
 
       job_id="$(System.JobId)"
@@ -32,6 +33,7 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
+
         az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
         az config set defaults.location="westus2"
         az account show
@@ -43,6 +45,7 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |+
         set -exo pipefail
+
         az group create \
           --name "$(RUN_ID)" \
           --location "westus2" \
@@ -56,6 +59,7 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
+
         az aks create \
           --name "example-yaolei" \
           --resource-group "$(RUN_ID)" \
@@ -88,6 +92,8 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
+
+
         create_node_pool() {
           local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds
           deadline=$(($(date +%s) + 600))
@@ -136,6 +142,7 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
+
         az aks get-credentials \
           --name "example-yaolei" \
           --resource-group "$(RUN_ID)" \
@@ -150,6 +157,7 @@ jobs:
       inlineScript: |-
         set -exo pipefail
         cd modules/python
+
         export PYTHONPATH=$PYTHONPATH:$(pwd)
         python3 kwok/kwok.py   --action create   --node-count 100   --node-manifest-path $(Pipeline.Workspace)/s/kcl/example_pipeline/kwok-node.yaml
     displayName: Create KWOK Nodes
@@ -161,6 +169,7 @@ jobs:
       inlineScript: |-
         set -exo pipefail
         cd modules/python
+
         export PYTHONPATH=$PYTHONPATH:$(pwd)
         python3 kwok/kwok.py   --action validate   --node-count 100   --node-manifest-path $(Pipeline.Workspace)/s/kcl/example_pipeline/kwok-node.yaml
     displayName: Validate KWOK Nodes
@@ -171,21 +180,34 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
+
         set +eo pipefail
-        kubectl create namespace "clusterloader2" || true
-        kubectl apply -f $(Pipeline.Workspace)/s/kcl/example_pipeline/cl2.yaml || exit 1
+        manifest_path="$(Pipeline.Workspace)/s/kcl/example_pipeline/cl2.yaml"
+        job_details="$(kubectl create --dry-run=client --validate=false -f "$manifest_path" -o go-template='{{if eq .kind "Job"}}{{if .metadata.name}}{{.metadata.name}}{{end}} {{if .metadata.namespace}}{{.metadata.namespace}}{{end}}{{"\n"}}{{end}}')" || exit 1
+        mapfile -t jobs < <(printf '%s' "$job_details")
+        if [ "${#jobs[@]}" -ne 1 ]; then
+          echo "Expected exactly one CL2 Job in $manifest_path, found ${#jobs[@]}" >&2
+          exit 1
+        fi
+        read -r job_name namespace <<< "${jobs[0]}"
+        if [ -z "$job_name" ] || [ -z "$namespace" ]; then
+          echo "CL2 Job must have metadata.name and metadata.namespace" >&2
+          exit 1
+        fi
+        kubectl create namespace "$namespace" || true
+        kubectl apply -f "$manifest_path" || exit 1
         # Wait
         consecutive_errors=0
         while true; do
           # Under consistent API server errors, we would want to exit early instead of waiting for the entire timeout duration.
-          conditions="$(kubectl get job cl2 --namespace="clusterloader2" -o jsonpath='{range .status.conditions[?(@.status=="True")]}{.type}{" "}{.reason}{" "}{.message}{"\n"}{end}' 2>/tmp/kubectl_err)"
+          conditions="$(kubectl get job "$job_name" --namespace="$namespace" -o jsonpath='{range .status.conditions[?(@.status=="True")]}{.type}{"\n"}{end}' 2>/tmp/kubectl_err)"
           kubectl_exit_code=$?
           if [ $kubectl_exit_code -ne 0 ]; then
             consecutive_errors=$((consecutive_errors + 1))
-            echo "kubectl get job cl2 failed (exit_code=$kubectl_exit_code, consecutive=$consecutive_errors/20):"
+            echo "kubectl get job $job_name failed (exit_code=$kubectl_exit_code, consecutive=$consecutive_errors/20):"
             cat /tmp/kubectl_err
             if [ "$consecutive_errors" -ge "20" ]; then
-              echo "Unable to read cl2 Job for $consecutive_errors consecutive polls; aborting."
+              echo "Unable to read CL2 Job $job_name for $consecutive_errors consecutive polls; aborting."
               exit 1
             fi
             sleep 30
@@ -193,20 +215,21 @@ jobs:
           fi
           consecutive_errors=0
 
-          while read -r condition reason message; do
+          while IFS= read -r condition; do
             case "$condition" in
               Failed)
-                echo "cl2 Job failed: $reason $message"
+                echo "CL2 Job $job_name failed"
+                kubectl get job "$job_name" --namespace="$namespace" -o yaml || echo "Unable to fetch CL2 Job $job_name failure details."
                 exit 1
                 ;;
               Complete)
-                echo "cl2 Job completed successfully"
+                echo "CL2 Job $job_name completed successfully"
                 exit 0
                 ;;
             esac
           done <<< "$conditions"
 
-          kubectl get pods --namespace="clusterloader2" -l job-name=cl2 -o wide || echo "Unable to list cl2 pods; retrying on the next poll."
+          kubectl get pods --namespace="$namespace" -l "job-name=$job_name" -o wide || echo "Unable to list CL2 pods; retrying on the next poll."
           sleep 30
         done
     displayName: Run cluster loader 2
@@ -217,6 +240,7 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
+
         for pod in $(kubectl get pods --namespace="clusterloader2" -l job-name=cl2 -o jsonpath='{.items[*].metadata.name}'); do
           echo "===== Logs for pod: $pod ====="
           kubectl logs --namespace="clusterloader2" "$pod" || true
@@ -229,6 +253,7 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
+
         TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
         STATUS="succeeded"
 
@@ -239,6 +264,7 @@ jobs:
         fi
 
         cat > /tmp/run-result.json << EOF
+
         {
           "timestamp": "${TIMESTAMP}",
           "run_id": "$(RUN_ID)",
@@ -259,6 +285,7 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
+
         az storage blob upload \
           --account-name "telescopev2" \
           --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" \
@@ -274,6 +301,7 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
+
         for NODE_RG in $(az aks list \
           --resource-group "$(RUN_ID)" \
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
