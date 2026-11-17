@@ -266,6 +266,27 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
+        for NODE_RG in $(az aks list \
+          --resource-group "$(RUN_ID)" \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --query "[].nodeResourceGroup" \
+          --output tsv); do
+          echo "Checking VMSS rolling upgrades in node resource group: $NODE_RG"
+          for VMSS in $(az vmss list \
+            --resource-group "$NODE_RG" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --query "[].name" \
+            --output tsv); do
+            echo "Attempting to cancel rolling upgrade for VMSS: $VMSS"
+            az vmss rolling-upgrade cancel \
+              --resource-group "$NODE_RG" \
+              --name "$VMSS" \
+              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              && echo "Cancelled rolling upgrade for $VMSS." \
+              || echo "No active rolling upgrade to cancel for $VMSS (or cancel not applicable)."
+          done
+        done
+
         az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
     condition: always()
     displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
