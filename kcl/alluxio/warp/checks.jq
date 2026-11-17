@@ -18,8 +18,8 @@ def cache_counts:
       failed: "Failed files count"
     }
   | with_entries(
-      .value as $label
-      | .value = ($report | capture("(?m)^\\s*" + $label + ":\\s*(?<count>[0-9]+)\\s*$").count | tonumber)
+      .value as $field_name
+      | .value = ($report | capture("(?m)^\\s*" + $field_name + ":\\s*(?<count>[0-9]+)\\s*$").count | tonumber)
     )
   | if length == 6 and .total == 16 and .failed == 0
        and (.all + .one + .partial + .uncached) == .total
