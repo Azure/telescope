@@ -846,7 +846,7 @@ stages:
             --resource-group "$(RUN_ID)" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --name "cl2pool" \
-            --node-count 6 \
+            --node-count 8 \
             --node-vm-size "Standard_D16dS_v4" \
             --mode User \
             --node-taints cl2pool=true:NoSchedule
@@ -931,9 +931,9 @@ stages:
 
         set -euo pipefail
         sed \
-            -e 's/__CL2_DRIVER_COUNT__/6/g' \
+            -e 's/__CL2_DRIVER_COUNT__/4/g' \
             -e 's/__CL2_MEMORY_REQUEST__/32Gi/g' \
-            -e 's/__CL2_QPS__/1500/g' \
+            -e 's/__CL2_QPS__/3000/g' \
             -e 's/__CL2_BURST__/100/g' \
             cl2.yaml > cl2-rendered.yaml
 

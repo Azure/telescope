@@ -18,7 +18,7 @@ schema Cl2Config:
     burst: int = 8000
 
 # Preserve per-tier concurrency; H2/H4 fit two drivers per runner node.
-# H8 uses dedicated runners and a lower action rate and burst for debugging.
+# H8 reserves runner capacity for a second manually launched CL2 Job.
 CL2_CONFIGS: {str: Cl2Config} = {
     "H2": Cl2Config {
         nodeCount = 1
@@ -31,10 +31,10 @@ CL2_CONFIGS: {str: Cl2Config} = {
         memoryRequest = "24Gi"
     }
     "H8": Cl2Config {
-        nodeCount = 6
-        driverCount = 6
+        nodeCount = 8
+        driverCount = 4
         memoryRequest = "32Gi"
-        qps = 1500
+        qps = 3000
         burst = 100
     }
 }
