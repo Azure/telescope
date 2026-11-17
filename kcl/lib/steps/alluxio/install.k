@@ -56,7 +56,7 @@ printf '%s\\n' "$license" |
 printf '%s\\n' "$license" | kubectl create -f - > /dev/null 2> >(redact >&2)
 unset license
 wait_phase license alluxio-license phase Completed
-wait_phase alluxiocluster alluxio clusterPhase Ready
+wait_phase alluxiocluster alluxio phase Ready
 for pod in alluxio-coordinator-0 alluxio-worker-0; do
     kubectl wait -n alx-ns --for=condition=Ready "pod/$pod" --timeout=600s
 done
