@@ -106,6 +106,7 @@ az aks create \\
                 CLUSTER
                 RESOURCE_GROUP
                 const.DEFAULT_SUBSCRIPTION_ID
+                file = "${WORK_DIR}/kubeconfig"
             )
             alluxio.GrantImagePullAccess(
                 const.DEFAULT_SERVICE_CONNECTION
@@ -179,6 +180,10 @@ az aks create \\
                 displayName = "Collect safe deployment diagnostics"
                 condition = "always()"
                 bash = alluxio.ShellSetup(WORK_DIR, RESULT_DIR) + """
+if [[ ! -s "$KUBECONFIG" ]]; then
+    echo '{"cluster_access":"not established"}' > "${RESULT_DIR}/diagnostics.json"
+    exit 0
+fi
 for namespace in alx-ns alluxio-operator; do
     kubectl get pods -n "$namespace" -o json |
         jq --arg namespace "$namespace" '{
@@ -214,6 +219,7 @@ jq -s 'add' "${WORK_DIR}/diagnostics-alx-ns.json" "${WORK_DIR}/diagnostics-allux
                 const.DEFAULT_SERVICE_CONNECTION
                 RESOURCE_GROUP
                 const.DEFAULT_SUBSCRIPTION_ID
+                condition = "and(always(), eq(variables['ALLUXIO_READY_FOR_PROVISIONING'], 'true'))"
             )
         ]
     }]

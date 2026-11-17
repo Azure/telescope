@@ -6,7 +6,7 @@ InstallOperator = lambda serviceConnection: str, registryId: str, registrySubscr
         serviceConnection
         "Install the Alluxio operator"
         ShellSetup(workDir, resultDir) + SecretCommands(workDir) + """
-registry="$(az acr show --ids "${registryId}")"
+registry="$(az acr show --name "${registryId.split("/")[-1]}" --subscription "${registrySubscription}")"
 registry_name="$(jq -er '.name' <<< "$registry")"
 login_server="$(jq -er '.loginServer' <<< "$registry")"
 registry_token="$(private_command az acr login \\

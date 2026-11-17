@@ -13,7 +13,7 @@ subscription="${subscription}"
 resource_group="${resourceGroup}"
 cluster="${cluster}"
 location="${location}"
-registry="$(az acr show --ids "$acr_resource_id")"
+registry="$(az acr show --name "${registryId.split("/")[-1]}" --subscription "${registrySubscription}")"
 registry_name="$(jq -er '.name' <<< "$registry")"
 images='{}'
 for image in "$alluxio_image" "$operator_image"; do
@@ -29,6 +29,7 @@ exists="$(az group exists \\
     --name "$resource_group" \\
     --subscription "$subscription")"
 [[ "$exists" == false ]] || fail "Resource group already exists or could not be verified; refusing to provision into it"
+echo '##vso[task.setvariable variable=ALLUXIO_READY_FOR_PROVISIONING]true'
 
 jq -n \\
     --arg acr_resource_id "$acr_resource_id" --arg acr_subscription "${registrySubscription}" \\

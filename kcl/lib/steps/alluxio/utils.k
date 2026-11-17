@@ -10,6 +10,7 @@ umask 077
 mkdir -p -- "${workDir}" "${resultDir}"
 chmod 700 "${workDir}"
 export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
+export KUBECONFIG="${workDir}/kubeconfig"
 fail() {
     echo "ALLUXIO WARP FAILED: $*" >&2
     exit 1
