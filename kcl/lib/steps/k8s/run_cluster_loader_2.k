@@ -12,7 +12,7 @@ kubectl apply -f $(Pipeline.Workspace)/s/${manifest} || exit 1
 consecutive_errors=0
 while true; do
   # Under consistent API server errors, we would want to exit early instead of waiting for the entire timeout duration.
-  conditions="$(kubectl get job cl2 --namespace="${namespace}" -o jsonpath='{range .status.conditions[?(@.status=="True")]}{.type}{" "}{.reason}{" "}{.message}{"\\n"}{end}' 2>/tmp/kubectl_err)"
+  conditions="$(kubectl get job cl2 --namespace="${namespace}" -o jsonpath='{range .status.conditions[?(@.status=="True")]}{.type}{"\\n"}{end}' 2>/tmp/kubectl_err)"
   kubectl_exit_code=$?
   if [ $kubectl_exit_code -ne 0 ]; then
     consecutive_errors=$((consecutive_errors + 1))
@@ -27,10 +27,11 @@ while true; do
   fi
   consecutive_errors=0
 
-  while read -r condition reason message; do
+  while IFS= read -r condition; do
     case "$condition" in
       Failed)
-        echo "cl2 Job failed: $reason $message"
+        echo "cl2 Job failed"
+        kubectl get job cl2 --namespace="${namespace}" -o yaml || echo "Unable to fetch cl2 Job failure details."
         exit 1
         ;;
       Complete)
