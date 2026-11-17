@@ -38,6 +38,8 @@ jobs:
         chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
         export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
         export KUBECONFIG="$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/kubeconfig"
+        # Avoid WebSocket stream closures during long-running AKS exec commands.
+        export KUBECTL_REMOTE_COMMAND_WEBSOCKETS=false
         fail() {
             echo "ALLUXIO WARP FAILED: $*" >&2
             exit 1
@@ -244,6 +246,8 @@ jobs:
         chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
         export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
         export KUBECONFIG="$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/kubeconfig"
+        # Avoid WebSocket stream closures during long-running AKS exec commands.
+        export KUBECTL_REMOTE_COMMAND_WEBSOCKETS=false
         fail() {
             echo "ALLUXIO WARP FAILED: $*" >&2
             exit 1
@@ -303,6 +307,8 @@ jobs:
         chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
         export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
         export KUBECONFIG="$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/kubeconfig"
+        # Avoid WebSocket stream closures during long-running AKS exec commands.
+        export KUBECTL_REMOTE_COMMAND_WEBSOCKETS=false
         fail() {
             echo "ALLUXIO WARP FAILED: $*" >&2
             exit 1
@@ -391,6 +397,8 @@ jobs:
         chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
         export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
         export KUBECONFIG="$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/kubeconfig"
+        # Avoid WebSocket stream closures during long-running AKS exec commands.
+        export KUBECTL_REMOTE_COMMAND_WEBSOCKETS=false
         fail() {
             echo "ALLUXIO WARP FAILED: $*" >&2
             exit 1
@@ -442,6 +450,8 @@ jobs:
       chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
       export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
       export KUBECONFIG="$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/kubeconfig"
+      # Avoid WebSocket stream closures during long-running AKS exec commands.
+      export KUBECTL_REMOTE_COMMAND_WEBSOCKETS=false
       fail() {
           echo "ALLUXIO WARP FAILED: $*" >&2
           exit 1
@@ -510,6 +520,8 @@ jobs:
       chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
       export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
       export KUBECONFIG="$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/kubeconfig"
+      # Avoid WebSocket stream closures during long-running AKS exec commands.
+      export KUBECTL_REMOTE_COMMAND_WEBSOCKETS=false
       fail() {
           echo "ALLUXIO WARP FAILED: $*" >&2
           exit 1
@@ -573,6 +585,8 @@ jobs:
       chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
       export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
       export KUBECONFIG="$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/kubeconfig"
+      # Avoid WebSocket stream closures during long-running AKS exec commands.
+      export KUBECTL_REMOTE_COMMAND_WEBSOCKETS=false
       fail() {
           echo "ALLUXIO WARP FAILED: $*" >&2
           exit 1
@@ -600,6 +614,8 @@ jobs:
       chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
       export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
       export KUBECONFIG="$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/kubeconfig"
+      # Avoid WebSocket stream closures during long-running AKS exec commands.
+      export KUBECTL_REMOTE_COMMAND_WEBSOCKETS=false
       fail() {
           echo "ALLUXIO WARP FAILED: $*" >&2
           exit 1
@@ -677,6 +693,8 @@ jobs:
       chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
       export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
       export KUBECONFIG="$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/kubeconfig"
+      # Avoid WebSocket stream closures during long-running AKS exec commands.
+      export KUBECTL_REMOTE_COMMAND_WEBSOCKETS=false
       fail() {
           echo "ALLUXIO WARP FAILED: $*" >&2
           exit 1
@@ -732,6 +750,8 @@ jobs:
       chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
       export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
       export KUBECONFIG="$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/kubeconfig"
+      # Avoid WebSocket stream closures during long-running AKS exec commands.
+      export KUBECTL_REMOTE_COMMAND_WEBSOCKETS=false
       fail() {
           echo "ALLUXIO WARP FAILED: $*" >&2
           exit 1
@@ -815,6 +835,8 @@ jobs:
       chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
       export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
       export KUBECONFIG="$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/kubeconfig"
+      # Avoid WebSocket stream closures during long-running AKS exec commands.
+      export KUBECTL_REMOTE_COMMAND_WEBSOCKETS=false
       fail() {
           echo "ALLUXIO WARP FAILED: $*" >&2
           exit 1
