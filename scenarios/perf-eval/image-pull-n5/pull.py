@@ -1,12 +1,10 @@
-"""Coordinate verified layer downloads from pinned registry-selected replicas."""
+"""Coordinate verified layer downloads from anonymous registry-selected replicas."""
 
 import argparse
-import base64
 from datetime import datetime
 import hashlib
 import http.client
 import json
-import os
 from pathlib import Path
 import re
 import subprocess
@@ -44,7 +42,7 @@ SECRET_PROPAGATION_SECONDS = 180
 
 def kubectl(*arguments, payload=None):
     operation = "kubectl " + " ".join(arguments)
-    secrets = [os.environ.get("ACR_PULL_PASSWORD", "")]
+    secrets = []
     if payload is not None:
         operation += f" [{payload.get('kind', 'object')}/{payload.get('metadata', {}).get('name', '')}]"
         if payload.get("kind") == "Secret":
@@ -81,13 +79,12 @@ def parse_image(image):
     return match.groups()
 
 
-def resolve_layer(image, username, password):
+def resolve_layer(image):
     registry, repository, manifest_digest = parse_image(image)
     token_url = f"https://{registry}/oauth2/token?" + urllib.parse.urlencode({
         "service": registry, "scope": f"repository:{repository}:pull",
     })
-    basic = base64.b64encode(f"{username}:{password}".encode()).decode()
-    with open_request(urllib.request.Request(token_url, headers={"Authorization": "Basic " + basic})) as response:
+    with open_request(urllib.request.Request(token_url)) as response:
         token_response = json.load(response)
     token = token_response.get("token") or token_response.get("access_token")
     if not isinstance(token, str) or not token:
@@ -144,8 +141,8 @@ def schedule_targets(targets, *, start_immediately=False):
     return targets
 
 
-def resolve_target(image, username, password, *, start_immediately=False):
-    target = resolve_redirect(*resolve_layer(image, username, password))
+def resolve_target(image, *, start_immediately=False):
+    target = resolve_redirect(*resolve_layer(image))
     return schedule_targets([target], start_immediately=start_immediately)[0]
 
 
@@ -203,11 +200,11 @@ def validate_warm_traffic(size, scale_in_threshold_bytes, scale_out_threshold_by
 
 
 def resolve_warm_targets(
-    image, username, password, *, start_immediately=False,
+    image, *, start_immediately=False,
     scale_in_threshold_bytes=DEFAULT_SCALE_IN_THRESHOLD_BYTES,
     scale_out_threshold_bytes=DEFAULT_SCALE_OUT_THRESHOLD_BYTES,
 ):
-    layer = resolve_layer(image, username, password)
+    layer = resolve_layer(image)
     validate_warm_traffic(layer[3], scale_in_threshold_bytes, scale_out_threshold_bytes)
     targets = {}
     for _ in range(MAX_ACCOUNT_SELECTION_ATTEMPTS):
@@ -273,7 +270,7 @@ def collect_snapshot(result, pods, target=None, *, targets_by_pod=None):
     unexpected = set(pods) - {pull["pod"] for pull in result["pulls"]}
     if unexpected:
         errors.append("Unexpected workload Pods in the test namespace: " + ", ".join(sorted(unexpected)))
-    secrets = [os.environ.get("ACR_PULL_PASSWORD", "")]
+    secrets = []
     if target:
         secrets.append(target["url"])
     if targets_by_pod:
@@ -437,10 +434,6 @@ def run(
             server_validation_required=True,
         )
     try:
-        username = os.environ.get("ACR_PULL_USERNAME", "")
-        password = os.environ.get("ACR_PULL_PASSWORD", "")
-        if primary_bundle is None and any(not value or value.startswith("$(") for value in (username, password)):
-            raise DownloadError("Set ACR_PULL_USERNAME and secret ACR_PULL_PASSWORD")
         if primary_bundle is not None and (warm_traffic or node_count != 1):
             raise DownloadError("Primary downloads require a single local node and cannot use warm-traffic mode")
         parse_image(args.image)
@@ -500,12 +493,12 @@ def run(
                 )]
             elif warm_traffic:
                 selected = resolve_warm_targets(
-                    args.image, username, password, start_immediately=start_immediately,
+                    args.image, start_immediately=start_immediately,
                     scale_in_threshold_bytes=scale_in_threshold_bytes,
                     scale_out_threshold_bytes=scale_out_threshold_bytes,
                 )
             else:
-                selected = [resolve_target(args.image, username, password, start_immediately=start_immediately)]
+                selected = [resolve_target(args.image, start_immediately=start_immediately)]
             ensure_schedule_fits(selected[0], deadline, pull_count=pull_count)
             return selected
 

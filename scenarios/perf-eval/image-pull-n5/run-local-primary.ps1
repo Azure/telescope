@@ -31,7 +31,7 @@ if ($SetupOnly) {
 $imageReference = "$Registry/$Image"
 $raw = & docker manifest inspect $imageReference
 if ($LASTEXITCODE -ne 0) {
-    throw "Cannot read the pinned manifest. Authenticate Docker to the registry first."
+    throw "Cannot read the pinned manifest. Verify the image reference and anonymous pull access."
 }
 $manifest = $raw | ConvertFrom-Json
 $layers = @($manifest.layers)

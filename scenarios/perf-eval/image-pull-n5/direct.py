@@ -3,7 +3,6 @@
 from concurrent.futures import CancelledError, ThreadPoolExecutor, as_completed
 import http.client
 import json
-import os
 from pathlib import Path
 import socket
 import threading
@@ -39,7 +38,7 @@ def run(
     cancel = threading.Event()
     executor = None
     futures = {}
-    sensitive = [os.environ.get("ACR_PULL_PASSWORD", "")]
+    sensitive = []
     try:
         pull.parse_image(args.image)
         if warm_traffic:
@@ -53,17 +52,14 @@ def run(
                 args.image, primary_bundle, start_immediately=start_immediately,
             )]
         else:
-            username, password = os.environ.get("ACR_PULL_USERNAME", ""), os.environ.get("ACR_PULL_PASSWORD", "")
-            if any(not value or value.startswith("$(") for value in (username, password)):
-                raise DownloadError("Set ACR_PULL_USERNAME and secret ACR_PULL_PASSWORD")
             if warm_traffic:
                 targets = pull.resolve_warm_targets(
-                    args.image, username, password, start_immediately=start_immediately,
+                    args.image, start_immediately=start_immediately,
                     scale_in_threshold_bytes=scale_in_threshold_bytes,
                     scale_out_threshold_bytes=scale_out_threshold_bytes,
                 )
             else:
-                targets = [pull.resolve_target(args.image, username, password, start_immediately=start_immediately)]
+                targets = [pull.resolve_target(args.image, start_immediately=start_immediately)]
         sensitive.extend(target["url"] for target in targets)
         pull.ensure_schedule_fits(targets[0], deadline, pull_count=pull_count)
         result.update(

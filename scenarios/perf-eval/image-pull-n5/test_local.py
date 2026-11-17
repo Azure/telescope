@@ -35,9 +35,13 @@ class TestSavedTarget(unittest.TestCase):
 
     def test_launchers_do_not_embed_passwords(self):
         scenario = Path(__file__).resolve().parent
-        launcher = (scenario / "run-local.ps1").read_text(encoding="utf-8")
-        self.assertIn("[string]$Password = $env:ACR_PULL_PASSWORD", launcher)
-        self.assertNotRegex(launcher, r'\[string\]\$Password\s*=\s*"[^"]+"')
+        for path in scenario.glob("run-local*.ps1"):
+            with self.subTest(launcher=path.name):
+                launcher = path.read_text(encoding="utf-8")
+                self.assertNotIn("$Username", launcher)
+                self.assertNotIn("$Password", launcher)
+                self.assertNotIn("--username", launcher)
+                self.assertNotIn("--password-stdin", launcher)
         warm = (scenario / "run-local-warm-traffic.ps1").read_text(encoding="utf-8")
         self.assertIn('@PSBoundParameters -WarmTraffic', warm)
         self.assertNotIn("sha256:", warm)
@@ -60,7 +64,7 @@ class TestLocalLauncher(unittest.TestCase):
         self.addCleanup(patcher.stop)
         self.args = argparse.Namespace(
             registry="registry.azurecr.io", image="image@sha256:" + "a" * 64,
-            username="reader", setup_only=False, password_stdin=True, start_immediately=True,
+            setup_only=False, start_immediately=True,
             two_batches=False, pull_count=5, warm_traffic=False,
             primary_target_stdin=False,
             direct=False,
@@ -96,7 +100,7 @@ class TestLocalLauncher(unittest.TestCase):
         self.assertEqual(command.call_count, 1)
         self.assertEqual(command.call_args.args[1], "get")
 
-    def test_repeated_runs_use_unique_reports_and_restore_credentials(self):
+    def test_repeated_anonymous_runs_use_unique_reports_and_preserve_environment(self):
         reports = []
 
         def run(args, **kwargs):
@@ -105,7 +109,7 @@ class TestLocalLauncher(unittest.TestCase):
                 "node_count": 1, "region": "local", "registry_resource_group": None,
                 "start_immediately": True, "pull_count": 5,
             })
-            self.assertEqual(os.environ["ACR_PULL_PASSWORD"], "temporary-password")
+            self.assertEqual(os.environ["ACR_PULL_PASSWORD"], "original-password")
             reports.append(args.result_file)
             return 0
 
@@ -114,36 +118,32 @@ class TestLocalLauncher(unittest.TestCase):
                 with patch.object(self.launcher, "command", return_value=""):
                     with patch.object(self.launcher.pull, "run", side_effect=run):
                         for _ in range(2):
-                            with patch("sys.stdin", io.StringIO("temporary-password\n")):
+                            with patch("sys.stdin.readline", side_effect=AssertionError("Anonymous runs must not read stdin")):
                                 with contextlib.redirect_stdout(io.StringIO()):
                                     self.assertEqual(self.launcher.execute(self.args), 0)
             self.assertEqual(os.environ["ACR_PULL_PASSWORD"], "original-password")
             self.assertEqual(os.environ["ACR_PULL_USERNAME"], "original-user")
         self.assertEqual(len(set(reports)), 2)
 
-    def test_interactive_run_prompts_without_saving_the_password(self):
-        self.args.password_stdin = False
+    def test_anonymous_run_needs_no_input_or_saved_credentials(self):
         output = io.StringIO()
-        with patch.dict(os.environ, {"ACR_PULL_PASSWORD": ""}):
+        with patch.dict(os.environ, {}, clear=True):
             with patch.object(self.launcher, "prepare_cluster", return_value="local-node"):
                 with patch.object(self.launcher, "command", return_value=""):
                     with patch.object(self.launcher.pull, "run", return_value=0):
-                        with patch("sys.stdin.isatty", return_value=True):
-                            with patch.object(self.launcher.getpass, "getpass", return_value="prompted-password") as prompt:
-                                with contextlib.redirect_stdout(output):
-                                    self.assertEqual(self.launcher.execute(self.args), 0)
-            self.assertEqual(os.environ["ACR_PULL_PASSWORD"], "")
-        prompt.assert_called_once()
-        self.assertIn(self.args.registry, prompt.call_args.args[0])
-        self.assertNotIn("prompted-password", output.getvalue())
-        self.assertFalse(any("prompted-password" in path.read_text() for path in self.state.rglob("*") if path.is_file()))
+                        with patch("sys.stdin.readline", side_effect=AssertionError("Anonymous runs must not read stdin")):
+                            with contextlib.redirect_stdout(output):
+                                self.assertEqual(self.launcher.execute(self.args), 0)
+            self.assertNotIn("ACR_PULL_USERNAME", os.environ)
+            self.assertNotIn("ACR_PULL_PASSWORD", os.environ)
+        self.assertNotIn("password", output.getvalue().lower())
 
     def test_four_download_dispatch_and_setup_use_requested_count(self):
         self.args.pull_count = 4
         with patch.object(self.launcher, "prepare_cluster", return_value="local-node"):
             with patch.object(self.launcher, "command", return_value=""):
                 with patch.object(self.launcher.pull, "run", return_value=0) as run:
-                    with patch("sys.stdin", io.StringIO("synthetic-password\n")):
+                    with patch("sys.stdin.readline", side_effect=AssertionError("Anonymous runs must not read stdin")):
                         with contextlib.redirect_stdout(io.StringIO()):
                             self.assertEqual(self.launcher.execute(self.args), 0)
         self.assertEqual(run.call_args.kwargs["pull_count"], 4)
@@ -168,7 +168,7 @@ class TestLocalLauncher(unittest.TestCase):
         with patch.object(self.launcher, "prepare_cluster", return_value="local-node"):
             with patch.object(self.launcher, "command", return_value=""):
                 with patch.object(self.launcher.pull, "run", return_value=0) as run:
-                    with patch("sys.stdin", io.StringIO("synthetic-password\n")):
+                    with patch("sys.stdin.readline", side_effect=AssertionError("Anonymous runs must not read stdin")):
                         with contextlib.redirect_stdout(io.StringIO()):
                             self.assertEqual(self.launcher.execute(self.args), 0)
         self.assertEqual(run.call_args.kwargs, {
@@ -179,25 +179,20 @@ class TestLocalLauncher(unittest.TestCase):
 
     def test_primary_dispatch_uses_bundle_without_registry_credentials(self):
         self.args.primary_target_stdin = True
-        self.args.password_stdin = False
-        self.args.username = ""
         bundle = {"image": "synthetic-image", "url": "https://example.test/?sig=PRIVATE"}
         output = io.StringIO()
         with patch.object(self.launcher, "prepare_cluster", return_value="local-node"):
             with patch.object(self.launcher, "command", return_value=""):
                 with patch.object(self.launcher.pull, "run", return_value=0) as run:
                     with patch("sys.stdin", io.StringIO(json.dumps(bundle) + "\n")):
-                        with patch.object(self.launcher.getpass, "getpass") as prompt:
-                            with contextlib.redirect_stdout(output):
-                                self.assertEqual(self.launcher.execute(self.args), 0)
+                        with contextlib.redirect_stdout(output):
+                            self.assertEqual(self.launcher.execute(self.args), 0)
         self.assertEqual(run.call_args.kwargs["primary_bundle"], bundle)
         self.assertEqual(run.call_args.kwargs["pull_count"], 5)
-        prompt.assert_not_called()
         self.assertNotIn("PRIVATE", output.getvalue())
 
     def test_primary_setup_needs_neither_target_nor_credentials(self):
         self.args.primary_target_stdin = True
-        self.args.password_stdin = False
         self.args.setup_only = True
         with patch.object(self.launcher, "prepare_cluster", return_value="local-node"):
             with patch.object(self.launcher, "check_workers") as check:
@@ -207,8 +202,7 @@ class TestLocalLauncher(unittest.TestCase):
 
     def test_primary_rejects_conflicting_modes_before_setup(self):
         self.args.primary_target_stdin = True
-        self.args.password_stdin = False
-        for field in ("two_batches", "warm_traffic", "password_stdin"):
+        for field in ("two_batches", "warm_traffic"):
             with self.subTest(field=field):
                 setattr(self.args, field, True)
                 with patch.object(self.launcher, "prepare_cluster") as prepare:
@@ -225,14 +219,13 @@ class TestLocalLauncher(unittest.TestCase):
         with patch("sys.argv", arguments), patch.object(self.launcher, "execute", return_value=0) as execute:
             self.assertEqual(self.launcher.main(), 0)
         self.assertTrue(execute.call_args.args[0].primary_target_stdin)
-        self.assertEqual(execute.call_args.args[0].username, "")
 
     def test_direct_mode_skips_cluster_and_namespace_operations(self):
         self.args.direct = True
         with patch.object(self.launcher, "prepare_cluster") as prepare:
             with patch.object(self.launcher, "command") as command:
                 with patch.object(self.launcher.direct, "run", return_value=0) as run:
-                    with patch("sys.stdin", io.StringIO("temporary-password\n")):
+                    with patch("sys.stdin.readline", side_effect=AssertionError("Anonymous runs must not read stdin")):
                         with contextlib.redirect_stdout(io.StringIO()):
                             self.assertEqual(self.launcher.execute(self.args), 0)
         prepare.assert_not_called()
@@ -263,18 +256,17 @@ class TestLocalLauncher(unittest.TestCase):
     def test_direct_cli_flag_is_forwarded(self):
         arguments = [
             "local.py", "--registry", self.args.registry, "--image", self.args.image,
-            "--username", self.args.username, "--direct",
+            "--direct",
         ]
         with patch("sys.argv", arguments), patch.object(self.launcher, "execute", return_value=0) as execute:
             self.assertEqual(self.launcher.main(), 0)
         self.assertTrue(execute.call_args.args[0].direct)
 
-    def test_replica_cli_still_requires_username(self):
+    def test_replica_cli_accepts_anonymous_pull(self):
         arguments = ["local.py", "--registry", self.args.registry, "--image", self.args.image]
-        with patch("sys.argv", arguments), contextlib.redirect_stderr(io.StringIO()):
-            with self.assertRaises(SystemExit) as error:
-                self.launcher.main()
-        self.assertEqual(error.exception.code, 2)
+        with patch("sys.argv", arguments), patch.object(self.launcher, "execute", return_value=0) as execute:
+            self.assertEqual(self.launcher.main(), 0)
+        self.assertEqual(execute.call_args.args[0].registry, self.args.registry)
 
     def test_warm_setup_only_checks_six_workers_without_credentials(self):
         self.args.warm_traffic = True
@@ -282,11 +274,10 @@ class TestLocalLauncher(unittest.TestCase):
         with patch.object(self.launcher, "prepare_cluster", return_value="local-node"):
             with patch.object(self.launcher, "check_workers") as check:
                 with patch.object(self.launcher.pull, "run") as run:
-                    with patch.object(self.launcher.getpass, "getpass") as prompt:
+                    with patch("sys.stdin.readline", side_effect=AssertionError("Setup must not read stdin")):
                         self.assertEqual(self.launcher.execute(self.args), 0)
         check.assert_called_once_with("local-node", pull_count=6)
         run.assert_not_called()
-        prompt.assert_not_called()
 
     def test_warm_mode_rejects_conflicting_workloads_before_setup(self):
         self.args.warm_traffic = True
@@ -302,7 +293,7 @@ class TestLocalLauncher(unittest.TestCase):
     def test_warm_cli_accepts_explicit_thresholds(self):
         arguments = [
             "local.py", "--registry", self.args.registry, "--image", self.args.image,
-            "--username", self.args.username, "--warm-traffic",
+            "--warm-traffic",
             "--scale-in-threshold-bytes", "4294967296",
             "--scale-out-threshold-bytes", "5368709120",
         ]
@@ -325,7 +316,7 @@ class TestLocalLauncher(unittest.TestCase):
             with self.subTest(count=count):
                 arguments = [
                     "local.py", "--registry", self.args.registry, "--image", self.args.image,
-                    "--username", self.args.username, "--pull-count", str(count),
+                    "--pull-count", str(count),
                 ]
                 with patch("sys.argv", arguments), patch.object(self.launcher, "execute", return_value=0) as execute:
                     if count == 3:
@@ -391,7 +382,8 @@ class TestLocalLauncher(unittest.TestCase):
         def launch(arguments, **kwargs):
             self.assertEqual(waits, [])
             self.assertEqual(kwargs, {"stdin": subprocess.DEVNULL, "start_new_session": True})
-            self.assertNotIn("synthetic-password", arguments)
+            self.assertNotIn("--username", arguments)
+            self.assertNotIn("--password-stdin", arguments)
             launches.append((clock, arguments))
             return Process(len(launches))
 
@@ -399,7 +391,7 @@ class TestLocalLauncher(unittest.TestCase):
             nonlocal clock
             clock += seconds
 
-        with patch.dict(os.environ, {"ACR_PULL_PASSWORD": "synthetic-password"}):
+        with patch.dict(os.environ, {}, clear=True):
             with patch.object(self.launcher.subprocess, "Popen", side_effect=launch):
                 with patch.object(self.launcher.time, "monotonic", side_effect=lambda: clock):
                     with patch.object(self.launcher.time, "sleep", side_effect=sleep):
@@ -442,7 +434,7 @@ class TestLocalLauncher(unittest.TestCase):
         process.wait.assert_called_once_with(timeout=60)
         process.kill.assert_not_called()
 
-    def test_two_batch_dispatch_reuses_credentials_and_checks_namespaces(self):
+    def test_two_batch_dispatch_is_anonymous_and_checks_namespaces(self):
         self.args.two_batches = True
         calls = []
 
@@ -452,7 +444,6 @@ class TestLocalLauncher(unittest.TestCase):
 
         def run(image, run_id):
             self.assertEqual(image, f"{self.args.registry}/{self.args.image}")
-            self.assertEqual(os.environ["ACR_PULL_PASSWORD"], "synthetic-password")
             self.assertTrue(run_id)
             return 0
 
@@ -460,7 +451,7 @@ class TestLocalLauncher(unittest.TestCase):
             with patch.object(self.launcher, "command", side_effect=command):
                 with patch.object(self.launcher, "run_two_batches", side_effect=run) as batches:
                     with patch.object(self.launcher.pull, "run") as single:
-                        with patch("sys.stdin", io.StringIO("synthetic-password\n")):
+                        with patch("sys.stdin.readline", side_effect=AssertionError("Anonymous runs must not read stdin")):
                             with contextlib.redirect_stdout(io.StringIO()):
                                 self.assertEqual(self.launcher.execute(self.args), 0)
         batches.assert_called_once()

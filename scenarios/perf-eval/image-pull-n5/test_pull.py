@@ -81,7 +81,6 @@ class TestCoordinator(unittest.TestCase):
             "status": {"conditions": [{"type": "Ready", "status": "True"}]},
         } for index in range(5)]
         for patcher in (
-            patch.dict(os.environ, {"ACR_PULL_USERNAME": "williamjcusaue1", "ACR_PULL_PASSWORD": "secret-value"}),
             patch("pull.subprocess.run", side_effect=self.command),
             patch("urllib.request.OpenerDirector.open", side_effect=self.http),
             patch("time.monotonic", side_effect=lambda: self.clock),
@@ -100,11 +99,13 @@ class TestCoordinator(unittest.TestCase):
         if "/oauth2/token?" in request.full_url:
             if self.mode == "unauthorized":
                 raise urllib.error.HTTPError(request.full_url, 401, "unauthorized", {}, None)
-            self.assertTrue(request.get_header("Authorization").startswith("Basic "))
+            self.assertIsNone(request.get_header("Authorization"))
             return Response(json.dumps({"access_token": "private-token"}).encode())
         if "/manifests/" in request.full_url:
+            self.assertEqual(request.get_header("Authorization"), "Bearer private-token")
             return Response(self.manifest if self.mode != "wrong-manifest" else b"bad-manifest")
         if "/blobs/" in request.full_url:
+            self.assertEqual(request.get_header("Authorization"), "Bearer private-token")
             self.sleep(self.resolution_delay)
             if self.mode == "proxy":
                 return Response()
@@ -268,12 +269,21 @@ class TestCoordinator(unittest.TestCase):
             self.assertNotIn("PRIVATE-SAS", " ".join(arguments))
         self.assertEqual(self.calls[-1][0], ["delete", "namespace", "acr-five-pulls", "--wait=false"])
 
-    def test_missing_password_fails_before_any_network(self):
-        with patch.dict(os.environ, {"ACR_PULL_PASSWORD": "$(ACR_PULL_PASSWORD)"}):
-            code, _ = self.execute()
-        self.assertEqual(code, 1)
-        self.assertEqual(self.calls, [])
-        self.assertEqual(self.requests, [])
+    def test_anonymous_pull_requires_no_registry_credentials(self):
+        with patch.dict(os.environ, {}, clear=True):
+            code, report = self.execute()
+        self.assertEqual(code, 0)
+        self.assertEqual(report["successful_pulls"], 5)
+        self.assertIsNone(self.requests[0].get_header("Authorization"))
+
+    def test_anonymous_pull_ignores_inherited_registry_credentials(self):
+        with patch.dict(os.environ, {
+            "ACR_PULL_USERNAME": "unused-user", "ACR_PULL_PASSWORD": "$(ACR_PULL_PASSWORD)",
+        }):
+            code, report = self.execute()
+        self.assertEqual(code, 0)
+        self.assertEqual(report["successful_pulls"], 5)
+        self.assertIsNone(self.requests[0].get_header("Authorization"))
 
     def test_mutable_tag_rejected(self):
         self.args.image = "williamjcusaue1.azurecr-test.io/test1gb:latest"
@@ -623,7 +633,7 @@ class TestCoordinator(unittest.TestCase):
         for offset in (0, 119, 120, 121, 299):
             with self.subTest(offset=offset):
                 self.epoch = BASE_TIME + offset
-                selected = pull.resolve_target(IMAGE, "williamjcusaue1", "secret-value")
+                selected = pull.resolve_target(IMAGE)
                 self.assertGreaterEqual(selected["start"] - self.epoch, 180)
                 self.assertEqual(selected["start"] % 300, 0)
                 self.assertEqual(selected["end"] - selected["start"], 300)
@@ -632,7 +642,7 @@ class TestCoordinator(unittest.TestCase):
         for offset in (0, 119, 120, 121, 299):
             with self.subTest(offset=offset):
                 self.epoch = BASE_TIME + offset
-                selected = pull.resolve_target(IMAGE, "williamjcusaue1", "secret-value", start_immediately=True)
+                selected = pull.resolve_target(IMAGE, start_immediately=True)
                 self.assertEqual(selected["start"], self.epoch)
                 self.assertEqual(selected["end"], self.epoch + 300)
                 self.assertEqual(selected["start_mode"], "immediate")

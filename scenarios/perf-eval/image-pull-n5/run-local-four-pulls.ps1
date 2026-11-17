@@ -1,8 +1,6 @@
 param(
     [string]$Registry,
     [string]$Image,
-    [string]$Username,
-    [string]$Password,
     [switch]$SetupOnly
 )
 
