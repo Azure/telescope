@@ -16,6 +16,10 @@ schema Cl2Config:
     memoryRequest: str
     qps: int = 4000
     burst: int = 8000
+    podsPerNode: int = 4
+    bigGroupSize: int = 1
+    mediumGroupSize: int = 1
+    smallGroupSize: int = 1
 
 # Preserve per-tier concurrency; H2/H4 fit two drivers per runner node.
 # H8 reserves runner capacity for a second manually launched CL2 Job.
@@ -34,8 +38,13 @@ CL2_CONFIGS: {str: Cl2Config} = {
         nodeCount = 8
         driverCount = 4
         memoryRequest = "32Gi"
-        qps = 3000
+        qps = 1500
         burst = 100
+        # Eight drivers across two Jobs target ~3M load pods and ~553k Deployments.
+        podsPerNode = 25
+        bigGroupSize = 7
+        mediumGroupSize = 5
+        smallGroupSize = 5
     }
 }
 
@@ -159,6 +168,9 @@ makeBenchmarkingJob = lambda size: str -> job.Job {
                     # Preserve the experiment's shared create-attempt rate across workers.
                     "node-create-workers": "8"
                     "node-create-qps": "20"
+                    if size == "H8":
+                        # 15k nodes need more than 200 slots each for ~3M pods plus other workloads.
+                        "node-pods": "250"
                 }),
             steps.Bash {
                 displayName = "Render CL2 manifest"
@@ -170,6 +182,10 @@ sed \\
     -e 's/__CL2_MEMORY_REQUEST__/${cl2Config.memoryRequest}/g' \\
     -e 's/__CL2_QPS__/${cl2Config.qps}/g' \\
     -e 's/__CL2_BURST__/${cl2Config.burst}/g' \\
+    -e 's/__CL2_PODS_PER_NODE__/${cl2Config.podsPerNode}/g' \\
+    -e 's/__CL2_BIG_GROUP_SIZE__/${cl2Config.bigGroupSize}/g' \\
+    -e 's/__CL2_MEDIUM_GROUP_SIZE__/${cl2Config.mediumGroupSize}/g' \\
+    -e 's/__CL2_SMALL_GROUP_SIZE__/${cl2Config.smallGroupSize}/g' \\
     cl2.yaml > cl2-rendered.yaml
 
 if grep -q '__CL2_[A-Z_]*__' cl2-rendered.yaml; then
