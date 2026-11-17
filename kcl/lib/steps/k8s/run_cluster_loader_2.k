@@ -3,23 +3,36 @@ import lib.steps.azure
 
 MAX_CONSECUTIVE_APISERVER_ERRORS = 20
 
-RunClusterLoader2 = lambda serviceConnection: str, namespace: str, manifest: str -> steps.Step {
+# The manifest must identify exactly one Job by name and namespace.
+RunClusterLoader2 = lambda serviceConnection: str, manifest: str -> steps.Step {
     script = """
 set +eo pipefail
-kubectl create namespace "${namespace}" || true
-kubectl apply -f $(Pipeline.Workspace)/s/${manifest} || exit 1
+manifest_path="$(Pipeline.Workspace)/s/${manifest}"
+job_details="$(kubectl create --dry-run=client --validate=false -f "$manifest_path" -o go-template='{{if eq .kind "Job"}}{{if .metadata.name}}{{.metadata.name}}{{end}} {{if .metadata.namespace}}{{.metadata.namespace}}{{end}}{{"\\n"}}{{end}}')" || exit 1
+mapfile -t jobs < <(printf '%s' "$job_details")
+if [ "\${#jobs[@]}" -ne 1 ]; then
+  echo "Expected exactly one CL2 Job in $manifest_path, found \${#jobs[@]}" >&2
+  exit 1
+fi
+read -r job_name namespace <<< "\${jobs[0]}"
+if [ -z "$job_name" ] || [ -z "$namespace" ]; then
+  echo "CL2 Job must have metadata.name and metadata.namespace" >&2
+  exit 1
+fi
+kubectl create namespace "$namespace" || true
+kubectl apply -f "$manifest_path" || exit 1
 # Wait
 consecutive_errors=0
 while true; do
   # Under consistent API server errors, we would want to exit early instead of waiting for the entire timeout duration.
-  conditions="$(kubectl get job cl2 --namespace="${namespace}" -o jsonpath='{range .status.conditions[?(@.status=="True")]}{.type}{"\\n"}{end}' 2>/tmp/kubectl_err)"
+  conditions="$(kubectl get job "$job_name" --namespace="$namespace" -o jsonpath='{range .status.conditions[?(@.status=="True")]}{.type}{"\\n"}{end}' 2>/tmp/kubectl_err)"
   kubectl_exit_code=$?
   if [ $kubectl_exit_code -ne 0 ]; then
     consecutive_errors=$((consecutive_errors + 1))
-    echo "kubectl get job cl2 failed (exit_code=$kubectl_exit_code, consecutive=$consecutive_errors/${MAX_CONSECUTIVE_APISERVER_ERRORS}):"
+    echo "kubectl get job $job_name failed (exit_code=$kubectl_exit_code, consecutive=$consecutive_errors/${MAX_CONSECUTIVE_APISERVER_ERRORS}):"
     cat /tmp/kubectl_err
     if [ "$consecutive_errors" -ge "${MAX_CONSECUTIVE_APISERVER_ERRORS}" ]; then
-      echo "Unable to read cl2 Job for $consecutive_errors consecutive polls; aborting."
+      echo "Unable to read CL2 Job $job_name for $consecutive_errors consecutive polls; aborting."
       exit 1
     fi
     sleep 30
@@ -30,18 +43,18 @@ while true; do
   while IFS= read -r condition; do
     case "$condition" in
       Failed)
-        echo "cl2 Job failed"
-        kubectl get job cl2 --namespace="${namespace}" -o yaml || echo "Unable to fetch cl2 Job failure details."
+        echo "CL2 Job $job_name failed"
+        kubectl get job "$job_name" --namespace="$namespace" -o yaml || echo "Unable to fetch CL2 Job $job_name failure details."
         exit 1
         ;;
       Complete)
-        echo "cl2 Job completed successfully"
+        echo "CL2 Job $job_name completed successfully"
         exit 0
         ;;
     esac
   done <<< "$conditions"
 
-  kubectl get pods --namespace="${namespace}" -l job-name=cl2 -o wide || echo "Unable to list cl2 pods; retrying on the next poll."
+  kubectl get pods --namespace="$namespace" -l "job-name=$job_name" -o wide || echo "Unable to list CL2 pods; retrying on the next poll."
   sleep 30
 done
 """
