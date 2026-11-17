@@ -939,7 +939,7 @@ stages:
 
         set -euo pipefail
         sed \
-            -e 's/__CL2_DRIVER_COUNT__/4/g' \
+            -e 's/__CL2_DRIVER_COUNT__/8/g' \
             -e 's/__CL2_MEMORY_REQUEST__/32Gi/g' \
             -e 's/__CL2_QPS__/1500/g' \
             -e 's/__CL2_BURST__/100/g' \

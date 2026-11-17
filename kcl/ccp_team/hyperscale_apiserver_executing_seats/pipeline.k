@@ -22,7 +22,7 @@ schema Cl2Config:
     smallGroupSize: int = 1
 
 # Preserve per-tier concurrency; H2/H4 fit two drivers per runner node.
-# H8 reserves runner capacity for a second manually launched CL2 Job.
+# H8 runs eight drivers together on dedicated runner nodes.
 CL2_CONFIGS: {str: Cl2Config} = {
     "H2": Cl2Config {
         nodeCount = 1
@@ -36,11 +36,11 @@ CL2_CONFIGS: {str: Cl2Config} = {
     }
     "H8": Cl2Config {
         nodeCount = 8
-        driverCount = 4
+        driverCount = 8
         memoryRequest = "32Gi"
         qps = 1500
         burst = 100
-        # Eight drivers across two Jobs target ~3M load pods and ~553k Deployments.
+        # Eight drivers target ~3M load pods and ~553k Deployments.
         podsPerNode = 25
         bigGroupSize = 7
         mediumGroupSize = 5
