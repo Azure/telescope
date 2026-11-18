@@ -40,7 +40,7 @@ CL2_CONFIGS: {str: Cl2Config} = {
         memoryRequest = "32Gi"
         qps = 700
         burst = 100
-        podsPerNode = 20
+        podsPerNode = 30
     }
 }
 
