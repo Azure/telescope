@@ -95,7 +95,7 @@ The `lib/` directory provides reusable steps you can compose into your pipeline:
 | | `azure.GetCredentials(...)` | Download kubeconfig for a cluster |
 | | `azure.WaitForClusterSucceeded(...)` | Poll until cluster is provisioned |
 | | `azure.WaitForNodePoolSucceeded(...)` | Poll until node pool is provisioned |
-| **Kubernetes** | `k8s.CreateKwokNodes(...)` | Create simulated nodes with KWOK |
+| **Kubernetes** | `k8s.CreateKwokNodes(serviceConnection, nodeCount, ...)` | Create and validate simulated nodes with KWOK using an Azure service connection |
 | | `k8s.RunClusterLoader2(...)` | Deploy and run ClusterLoader2 workload |
 | | `k8s.PrintCl2PodLogs(...)` | Print logs from CL2 pods |
 | **Utilities** | `util.formatResult(resultJson)` | Wrap results in the Telescope ADX schema |

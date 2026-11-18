@@ -149,15 +149,6 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |-
         set -exo pipefail
-        kubelogin convert-kubeconfig -l azurecli
-    displayName: Convert kubeconfig to Entra ID login
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: Azure-for-Telescope-internal
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |-
-        set -exo pipefail
         cd modules/python
         export PYTHONPATH=$PYTHONPATH:$(pwd)
         python3 kwok/kwok.py   --action create   --node-count 100   --node-manifest-path $(Pipeline.Workspace)/s/kcl/example_pipeline/kwok-node.yaml

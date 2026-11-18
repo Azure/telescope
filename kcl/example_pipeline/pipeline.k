@@ -99,13 +99,9 @@ output = ap.Pipeline {
                     CLUSTER,
                     RESOURCE_GROUP,
                     SUBSCRIPTION_ID),
-                azure.AzCli(
-                    const.DEFAULT_SERVICE_CONNECTION,
-                    "Convert kubeconfig to Entra ID login",
-                    "kubelogin convert-kubeconfig -l azurecli"),
                 *k8s.CreateKwokNodes(
+                    const.DEFAULT_SERVICE_CONNECTION,
                     KWOK_NODE_COUNT,
-                    serviceConnection = const.DEFAULT_SERVICE_CONNECTION,
                     params = {
                         "node-manifest-path": "$(Pipeline.Workspace)/s/kcl/example_pipeline/kwok-node.yaml"
                     }),

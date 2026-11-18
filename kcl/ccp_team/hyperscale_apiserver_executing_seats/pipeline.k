@@ -131,6 +131,7 @@ makeBenchmarkingJob = lambda size: str -> job.Job {
                 SUBSCRIPTION_ID,
                 KWOK_POOL),
             *k8s.CreateKwokNodes(
+                const.DEFAULT_SERVICE_CONNECTION,
                 15000,
                 continueOnError = True,
                 params = {
