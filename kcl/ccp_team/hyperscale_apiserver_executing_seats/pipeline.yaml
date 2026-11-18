@@ -246,6 +246,7 @@ stages:
     - bash: |2
 
         set -euo pipefail
+        # Keep the default pacing throughput for H8; H2/H4 remain unpaced.
         sed \
             -e 's/__CL2_DRIVER_COUNT__/2/g' \
             -e 's/__CL2_MEMORY_REQUEST__/24Gi/g' \
@@ -255,6 +256,7 @@ stages:
             -e 's/__CL2_BIG_GROUP_SIZE__/1/g' \
             -e 's/__CL2_MEDIUM_GROUP_SIZE__/1/g' \
             -e 's/__CL2_SMALL_GROUP_SIZE__/1/g' \
+            -e 's/__CL2_RATE_LIMIT_POD_CREATION__/false/g' \
             cl2.yaml > cl2-rendered.yaml
 
         if grep -q '__CL2_[A-Z_]*__' cl2-rendered.yaml; then
@@ -592,6 +594,7 @@ stages:
     - bash: |2
 
         set -euo pipefail
+        # Keep the default pacing throughput for H8; H2/H4 remain unpaced.
         sed \
             -e 's/__CL2_DRIVER_COUNT__/4/g' \
             -e 's/__CL2_MEMORY_REQUEST__/24Gi/g' \
@@ -601,6 +604,7 @@ stages:
             -e 's/__CL2_BIG_GROUP_SIZE__/1/g' \
             -e 's/__CL2_MEDIUM_GROUP_SIZE__/1/g' \
             -e 's/__CL2_SMALL_GROUP_SIZE__/1/g' \
+            -e 's/__CL2_RATE_LIMIT_POD_CREATION__/false/g' \
             cl2.yaml > cl2-rendered.yaml
 
         if grep -q '__CL2_[A-Z_]*__' cl2-rendered.yaml; then
@@ -938,6 +942,7 @@ stages:
     - bash: |2
 
         set -euo pipefail
+        # Keep the default pacing throughput for H8; H2/H4 remain unpaced.
         sed \
             -e 's/__CL2_DRIVER_COUNT__/8/g' \
             -e 's/__CL2_MEMORY_REQUEST__/32Gi/g' \
@@ -947,6 +952,7 @@ stages:
             -e 's/__CL2_BIG_GROUP_SIZE__/1/g' \
             -e 's/__CL2_MEDIUM_GROUP_SIZE__/1/g' \
             -e 's/__CL2_SMALL_GROUP_SIZE__/1/g' \
+            -e 's/__CL2_RATE_LIMIT_POD_CREATION__/true/g' \
             cl2.yaml > cl2-rendered.yaml
 
         if grep -q '__CL2_[A-Z_]*__' cl2-rendered.yaml; then

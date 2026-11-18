@@ -173,6 +173,7 @@ makeBenchmarkingJob = lambda size: str -> job.Job {
                 workingDirectory = "$(Pipeline.Workspace)/s/${cl2Directory}"
                 bash = """
 set -euo pipefail
+# Keep the default pacing throughput for H8; H2/H4 remain unpaced.
 sed \\
     -e 's/__CL2_DRIVER_COUNT__/${cl2Config.driverCount}/g' \\
     -e 's/__CL2_MEMORY_REQUEST__/${cl2Config.memoryRequest}/g' \\
@@ -182,6 +183,7 @@ sed \\
     -e 's/__CL2_BIG_GROUP_SIZE__/${cl2Config.bigGroupSize}/g' \\
     -e 's/__CL2_MEDIUM_GROUP_SIZE__/${cl2Config.mediumGroupSize}/g' \\
     -e 's/__CL2_SMALL_GROUP_SIZE__/${cl2Config.smallGroupSize}/g' \\
+    -e 's/__CL2_RATE_LIMIT_POD_CREATION__/${"true" if size == "H8" else "false"}/g' \\
     cl2.yaml > cl2-rendered.yaml
 
 if grep -q '__CL2_[A-Z_]*__' cl2-rendered.yaml; then
