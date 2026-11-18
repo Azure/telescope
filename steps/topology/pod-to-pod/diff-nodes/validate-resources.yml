@@ -12,6 +12,11 @@ steps:
       role: pod2pod
       region: ${{ parameters.regions[0] }}
       alias: pod-diff-node
+  - ${{ if eq(parameters.cloud, 'azure') }}:
+      - template: /steps/cloud/azure/install-kubelogin.yml
+        parameters:
+          cloud: ${{ parameters.cloud }}
+          region: ${{ parameters.regions[0] }}
   - template: /steps/engine/iperf3/configure-mtu.yml
     parameters:
       cloud: ${{ parameters.cloud }}

@@ -26,9 +26,6 @@ steps:
         exit 1
     fi
     az aks get-credentials -n $aks_name -g $aks_rg
-    context=$(kubectl config current-context)
-    : "${context:?No current context after fetching AKS credentials}"
-    kubelogin convert-kubeconfig -l azurecli --context "$context"
 
     nodepools=$(az aks nodepool list --cluster-name $aks_name --resource-group $aks_rg -o json)
     usernodepools=$(echo $nodepools | jq -r '.[] | select(.mode == "User" and .name != "promnodepool") | .name')
