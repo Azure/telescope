@@ -46,13 +46,13 @@ while true; do
         echo "CL2 Job $job_name failed"
         kubectl get job "$job_name" --namespace="$namespace" -o yaml || echo "Unable to fetch CL2 Job $job_name failure details."
         set +x
-        echo "##vso[task.setvariable variable=cl2JobStatus]failed"
+        echo "##vso[task.setvariable variable=cl2JobStatus;isOutput=true]failed"
         exit 1
         ;;
       Complete)
         echo "CL2 Job $job_name completed successfully"
         set +x
-        echo "##vso[task.setvariable variable=cl2JobStatus]succeeded"
+        echo "##vso[task.setvariable variable=cl2JobStatus;isOutput=true]succeeded"
         exit 0
         ;;
     esac
@@ -62,5 +62,5 @@ while true; do
   sleep 30
 done
 """
-    azure.AzCli(serviceConnection, "Run cluster loader 2", script)
+    azure.AzCli(serviceConnection, "Run cluster loader 2", script, stepName = "runClusterLoader2")
 }

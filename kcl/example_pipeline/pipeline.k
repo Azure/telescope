@@ -15,7 +15,7 @@ CL2_POOL = "cl2pool"
 CL2_TAINT_PREFIX = "cl2pool"
 CL2_NAMESPACE = "clusterloader2"
 KWOK_NODE_COUNT = 100
-cl2JobFinishedCondition = "in(variables['cl2JobStatus'], 'succeeded', 'failed')"
+cl2JobFinishedCondition = "in(variables['runClusterLoader2.cl2JobStatus'], 'succeeded', 'failed')"
 
 # SkipAKSCluster disables Gatekeeper on ephemeral clusters
 createClusterScript = """
@@ -46,7 +46,7 @@ az aks create \\
 """
 
 cl2ResultJson = """{
-    "cl2_status": "$CL2JOBSTATUS",
+    "cl2_status": "$(runClusterLoader2.cl2JobStatus)",
     "region": "${LOCATION}"
   }"""
 
