@@ -1,5 +1,6 @@
 import azure_pipelines.ap
 import azure_pipelines.ap.jobs.job
+import azure_pipelines.ap.steps
 import lib.const
 import lib.steps.azure
 import lib.steps.common
@@ -13,6 +14,7 @@ POD_NAME = "pause-sandbox"
 RUNTIME_CLASS = "kata-vm-isolation"
 PAUSE_IMAGE = "mcr.microsoft.com/oss/kubernetes/pause:3.6"
 
+# The subscription's AKS authentication policy requires Microsoft Entra ID.
 createClusterScript = """
 az aks create \\
   --name "${CLUSTER}" \\
@@ -25,6 +27,10 @@ az aks create \\
   --node-count 3 \\
   --node-vm-size ${NODE_SKU} \\
   --network-plugin azure \\
+  --enable-managed-identity \\
+  --enable-aad \\
+  --enable-azure-rbac \\
+  --disable-local-accounts \\
   --tier standard
 """
 
@@ -62,6 +68,11 @@ output = ap.Pipeline {
             timeoutInMinutes = 90
             steps = [
                 common.SetRunId(),
+                steps.Task {
+                    task = "KubeloginInstaller@0"
+                    displayName = "Install kubelogin"
+                    inputs.kubeloginVersion = "latest"
+                },
                 azure.Login(
                     const.DEFAULT_SERVICE_CONNECTION,
                     const.DEFAULT_SUBSCRIPTION_ID,
