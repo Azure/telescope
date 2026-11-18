@@ -38,7 +38,7 @@ steps:
       regional_config=$REGIONAL_CONFIG
       PUBLIC_KEY_PATH=${SSH_PUBLIC_KEY_PATH:-}
       for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
-        if [ -z "$INPUT_VARIABLES" ] || [ "$INPUT_VARIABLES" = "{}" ]; then
+        if [ -z "$INPUT_VARIABLES" ]; then
           echo "Set input variables for region $REGION"
           INPUT_VARIABLES=$(jq -n \
                 --arg run_id $RUN_ID \

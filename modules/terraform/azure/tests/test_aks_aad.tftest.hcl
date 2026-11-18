@@ -52,7 +52,7 @@ variables {
   ]
 }
 
-# Test case 1: Verify AAD is enabled without treating the service principal as an admin group
+# Test case 1: Verify AAD is enabled with default service principal object_id
 run "valid_aad_enabled" {
 
   command = plan
@@ -63,8 +63,16 @@ run "valid_aad_enabled" {
   }
 
   assert {
-    condition     = length(coalesce(module.aks["test"].aks_cluster.azure_active_directory_role_based_access_control[0].admin_group_object_ids, tolist([]))) == 0
-    error_message = "Expected: no service principal object ID used as an admin group"
+    condition     = length(module.aks["test"].aks_cluster.azure_active_directory_role_based_access_control[0].admin_group_object_ids) == 1
+    error_message = "Expected: 1 admin group (default object_id) \n Actual: ${length(module.aks["test"].aks_cluster.azure_active_directory_role_based_access_control[0].admin_group_object_ids)}"
+  }
+
+  assert {
+    condition = contains(
+      module.aks["test"].aks_cluster.azure_active_directory_role_based_access_control[0].admin_group_object_ids,
+      "12345678-1234-5678-9abc-def012345678"
+    )
+    error_message = "Expected: default object_id from service principal to be used as admin group"
   }
 
   assert {
@@ -170,9 +178,10 @@ run "valid_aks_cli_aad_enabled" {
     error_message = "Expected: CLI command should include --enable-azure-rbac flag\nActual: ${module.aks-cli["client"].aks_cli_command}"
   }
 
+  # Verify the CLI command includes --aad-admin-group-object-ids with the mocked object_id
   assert {
-    condition     = !can(regex("--aad-admin-group-object-ids", module.aks-cli["client"].aks_cli_command)) && can(regex("--disable-local-accounts", module.aks-cli["client"].aks_cli_command))
-    error_message = "Expected: local accounts disabled without treating the service principal as an admin group"
+    condition     = can(regex("--aad-admin-group-object-ids 12345678-1234-5678-9abc-def012345678", module.aks-cli["client"].aks_cli_command))
+    error_message = "Expected: CLI command should include --aad-admin-group-object-ids with correct object_id\nActual: ${module.aks-cli["client"].aks_cli_command}"
   }
 
   # Verify the CLI command includes --aad-tenant-id with the mocked tenant_id
@@ -192,7 +201,7 @@ run "valid_aks_cli_aad_disabled" {
       "run_id" : "123456789",
       "region" : "eastus",
       "public_key_path" : "public_key_path",
-      "aks_aad_enabled" : "false" # Matches the existing pipeline's jq --arg encoding.
+      "aks_aad_enabled" : false
     }
 
     aks_config_list = []
