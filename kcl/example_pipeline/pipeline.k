@@ -15,6 +15,7 @@ CL2_POOL = "cl2pool"
 CL2_TAINT_PREFIX = "cl2pool"
 CL2_NAMESPACE = "clusterloader2"
 KWOK_NODE_COUNT = 100
+cl2JobFinishedCondition = "in(variables['cl2JobStatus'], 'succeeded', 'failed')"
 
 # SkipAKSCluster disables Gatekeeper on ephemeral clusters
 createClusterScript = """
@@ -45,7 +46,7 @@ az aks create \\
 """
 
 cl2ResultJson = """{
-    "cl2_status": "\${STATUS}",
+    "cl2_status": "$CL2JOBSTATUS",
     "region": "${LOCATION}"
   }"""
 
@@ -113,27 +114,21 @@ output = ap.Pipeline {
                     CL2_NAMESPACE),
                 azure.AzCli(
                     const.DEFAULT_SERVICE_CONNECTION,
-                    "Collect cl2 pods status",
+                    "Write CL2 benchmark result",
                     """
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-STATUS="succeeded"
-
-# Check if any cl2 pod failed
-FAILED=$(kubectl get pods --namespace="${CL2_NAMESPACE}" -l job-name=cl2 -o jsonpath='{range .items[*]}{.status.phase}{"\\n"}{end}' | grep -c "^Failed$" || true)
-if [ "$FAILED" -gt 0 ]; then
-  STATUS="failed"
-fi
 
 cat > /tmp/run-result.json << EOF
 ${util.formatResult(cl2ResultJson)}
 EOF
 cat /tmp/run-result.json
-"""),
+""", condition = cl2JobFinishedCondition),
                 common.UploadResult(
                     const.DEFAULT_SERVICE_CONNECTION,
                     const.DEFAULT_STORAGE_ACCOUNT,
                     const.DEFAULT_STORAGE_SUBSCRIPTION_ID,
-                    const.DEFAULT_STORAGE_CONTAINER),
+                    const.DEFAULT_STORAGE_CONTAINER,
+                    condition = cl2JobFinishedCondition),
                 azure.DeleteResourceGroup(
                     const.DEFAULT_SERVICE_CONNECTION,
                     RESOURCE_GROUP,

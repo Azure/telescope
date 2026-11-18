@@ -8,5 +8,5 @@ for pod in $(kubectl get pods --namespace="${namespace}" -l job-name=cl2 -o json
   kubectl logs --namespace="${namespace}" "$pod" || true
 done
 """
-    azure.AzCli(serviceConnection, "Print cl2 pod logs", script)
+    azure.AzCli(serviceConnection, "Print cl2 pod logs", script, condition = "succeededOrFailed()")
 }

@@ -45,10 +45,14 @@ while true; do
       Failed)
         echo "CL2 Job $job_name failed"
         kubectl get job "$job_name" --namespace="$namespace" -o yaml || echo "Unable to fetch CL2 Job $job_name failure details."
+        set +x
+        echo "##vso[task.setvariable variable=cl2JobStatus]failed"
         exit 1
         ;;
       Complete)
         echo "CL2 Job $job_name completed successfully"
+        set +x
+        echo "##vso[task.setvariable variable=cl2JobStatus]succeeded"
         exit 0
         ;;
     esac

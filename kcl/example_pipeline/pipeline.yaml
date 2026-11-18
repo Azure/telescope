@@ -210,10 +210,14 @@ jobs:
               Failed)
                 echo "CL2 Job $job_name failed"
                 kubectl get job "$job_name" --namespace="$namespace" -o yaml || echo "Unable to fetch CL2 Job $job_name failure details."
+                set +x
+                echo "##vso[task.setvariable variable=cl2JobStatus]failed"
                 exit 1
                 ;;
               Complete)
                 echo "CL2 Job $job_name completed successfully"
+                set +x
+                echo "##vso[task.setvariable variable=cl2JobStatus]succeeded"
                 exit 0
                 ;;
             esac
@@ -234,6 +238,7 @@ jobs:
           echo "===== Logs for pod: $pod ====="
           kubectl logs --namespace="clusterloader2" "$pod" || true
         done
+    condition: succeededOrFailed()
     displayName: Print cl2 pod logs
   - task: AzureCLI@2
     inputs:
@@ -243,13 +248,6 @@ jobs:
       inlineScript: |
         set -exo pipefail
         TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-        STATUS="succeeded"
-
-        # Check if any cl2 pod failed
-        FAILED=$(kubectl get pods --namespace="clusterloader2" -l job-name=cl2 -o jsonpath='{range .items[*]}{.status.phase}{"\n"}{end}' | grep -c "^Failed$" || true)
-        if [ "$FAILED" -gt 0 ]; then
-          STATUS="failed"
-        fi
 
         cat > /tmp/run-result.json << EOF
         {
@@ -258,13 +256,14 @@ jobs:
           "run_url": "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)",
           "pipeline": "$(Build.DefinitionName)",
           "result": {
-            "cl2_status": "${STATUS}",
+            "cl2_status": "$CL2JOBSTATUS",
             "region": "westus2"
           }
         }
         EOF
         cat /tmp/run-result.json
-    displayName: Collect cl2 pods status
+    condition: in(variables['cl2JobStatus'], 'succeeded', 'failed')
+    displayName: Write CL2 benchmark result
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
@@ -279,6 +278,7 @@ jobs:
           --name "$(RUN_ID)/run-result.json" \
           --file /tmp/run-result.json \
           --auth-mode key
+    condition: in(variables['cl2JobStatus'], 'succeeded', 'failed')
     displayName: Upload result to storage account
   - task: AzureCLI@2
     inputs:
