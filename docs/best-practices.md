@@ -64,20 +64,6 @@ This guide provides comprehensive best practices and guidelines for creating, mo
 - Clean up any temporary data after tests
 - Follow organization data retention policies
 
-### AKS authentication
-
-The shared AzureRM (`aks`), Azure CLI (`aks-cli`) and AzAPI creation paths
-default to managed Microsoft Entra ID and Azure RBAC, with local accounts
-disabled. Omitted or null AAD settings enable this behavior. Explicit
-`aks_aad_enabled = false` (`AAD_ENABLED` in pipeline inputs), or AzAPI
-`aad_enabled = false`, retains the previous non-AAD/local-account behavior.
-
-The common Azure kubeconfig step refreshes the existing Azure CLI login,
-installs `kubelogin` before client use, retrieves **user** credentials (never
-`--admin`), and runs `kubelogin convert-kubeconfig -l azurecli --context <fetched-context>`
-after each retrieval, before validation and workloads. Other contexts and
-non-Entra entries are unchanged.
-
 ## Code Quality Standards
 
 ### 1. **Documentation**

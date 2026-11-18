@@ -10,7 +10,7 @@ locals {
   aks_custom_headers                = lookup(var.json_input, "aks_custom_headers", [])
   k8s_machine_type                  = lookup(var.json_input, "k8s_machine_type", null)
   k8s_os_disk_type                  = lookup(var.json_input, "k8s_os_disk_type", null)
-  aks_aad_enabled                   = var.json_input.aks_aad_enabled
+  aks_aad_enabled                   = lookup(var.json_input, "aks_aad_enabled", true)
   enable_apiserver_vnet_integration = lookup(var.json_input, "enable_apiserver_vnet_integration", false)
   public_key_path                   = lookup(var.json_input, "public_key_path", null)
   ssh_public_key                    = local.public_key_path != null ? (fileexists(local.public_key_path) ? file(local.public_key_path) : null) : null

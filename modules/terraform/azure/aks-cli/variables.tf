@@ -45,7 +45,6 @@ variable "aks_aad_enabled" {
   description = "Indicates whether Azure Active Directory integration is enabled for AKS"
   type        = bool
   default     = true
-  nullable    = false
 }
 
 variable "acr_pull_scopes_map" {
@@ -119,4 +118,3 @@ variable "aks_cli_config" {
     disk_encryption_set_name = optional(string, null) # Name of the Disk Encryption Set to use for OS disk encryption
   })
 }
-

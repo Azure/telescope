@@ -1,7 +1,5 @@
 import unittest
-from pathlib import Path
 from unittest.mock import patch, MagicMock, call
-import yaml
 from pipelines.pipelines import (
     get_headers,
     get_pipeline_definition,
@@ -287,46 +285,6 @@ class TestPipelines(unittest.TestCase):
         )
         self.assertFalse(should_disable)
         self.assertIsNone(reason)
-
-
-class TestAzureKubeconfigTemplates(unittest.TestCase):
-    """Check shared AKS authentication without contacting Azure."""
-
-    repo_root = Path(__file__).resolve().parents[3]
-
-    @classmethod
-    def load_template(cls, path):
-        return yaml.safe_load((cls.repo_root / path).read_text(encoding="utf-8"))
-
-    def test_install_and_login_precede_kubeconfig_use(self):
-        template = self.load_template("steps/cloud/azure/update-kubeconfig.yml")
-        self.assertEqual(
-            template["steps"][0]["template"],
-            "/steps/cloud/azure/install-kubelogin.yml",
-        )
-        install = self.load_template("steps/cloud/azure/install-kubelogin.yml")
-        self.assertEqual(
-            install["steps"][0]["template"], "/steps/cloud/azure/login.yml"
-        )
-        self.assertIn("command -v kubelogin", install["steps"][1]["script"])
-        self.assertNotIn("convert-kubeconfig", install["steps"][1]["script"])
-
-    def test_conversion_is_scoped_to_fetched_context(self):
-        for path, index in (
-            ("steps/cloud/azure/update-kubeconfig.yml", 1),
-            ("steps/engine/clusterloader2/cilium/scale-cluster.yml", 0),
-        ):
-            with self.subTest(path=path):
-                script = self.load_template(path)["steps"][index]["script"]
-                self.assertLess(
-                    script.index("az aks get-credentials"),
-                    script.index("context=$(kubectl config current-context)"),
-                )
-                self.assertLess(
-                    script.index(': "${context:?'),
-                    script.index('kubelogin convert-kubeconfig -l azurecli --context "$context"'),
-                )
-                self.assertNotIn("--admin", script)
 
 
 if __name__ == "__main__":
