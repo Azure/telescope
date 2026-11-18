@@ -140,13 +140,13 @@ resource "azurerm_kubernetes_cluster" "aks" {
   workload_identity_enabled = var.aks_config.workload_identity_enabled
   kubernetes_version        = var.aks_config.kubernetes_version
   edge_zone                 = var.aks_config.edge_zone
+  local_account_disabled    = var.aks_aad_enabled
 
   dynamic "azure_active_directory_role_based_access_control" {
     for_each = var.aks_aad_enabled == true ? [1] : []
     content {
-      tenant_id              = data.azurerm_client_config.current.tenant_id
-      admin_group_object_ids = [data.azurerm_client_config.current.object_id]
-      azure_rbac_enabled     = true
+      tenant_id          = data.azurerm_client_config.current.tenant_id
+      azure_rbac_enabled = true
     }
   }
 

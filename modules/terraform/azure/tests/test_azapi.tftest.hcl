@@ -5,6 +5,7 @@ mock_provider "azurerm" {
     defaults = {
       tenant_id       = "00000000-0000-0000-0000-000000000000"
       subscription_id = "12345678-1234-1234-1234-123456789012"
+      object_id       = "12345678-1234-5678-9abc-def012345678"
     }
   }
 }
@@ -62,6 +63,18 @@ run "azapi_with_control_plane_scaling" {
     condition     = module.azapi["test-azapi-h2"].resource_body.properties.controlPlaneScalingProfile.scalingSize == "H2"
     error_message = "controlPlaneScalingProfile.scalingSize should be 'H2'"
   }
+
+  assert {
+    condition = (
+      module.azapi["test-azapi-h2"].resource_body.properties.enableRBAC &&
+      module.azapi["test-azapi-h2"].resource_body.properties.aadProfile.managed &&
+      module.azapi["test-azapi-h2"].resource_body.properties.aadProfile.enableAzureRBAC &&
+      module.azapi["test-azapi-h2"].resource_body.properties.aadProfile.tenantID == "00000000-0000-0000-0000-000000000000" &&
+      module.azapi["test-azapi-h2"].resource_body.properties.disableLocalAccounts &&
+      !contains(keys(module.azapi["test-azapi-h2"].resource_body.properties.aadProfile), "adminGroupObjectIDs")
+    )
+    error_message = "AzAPI must default to managed Entra ID and Azure RBAC with local accounts disabled."
+  }
 }
 
 # Test case 2: Verify AzAPI resource works without controlPlaneScalingProfile
@@ -80,6 +93,7 @@ run "azapi_without_control_plane_scaling" {
         role               = "client"
         aks_name           = "test-azapi-std"
         dns_prefix         = "test-azapi-std"
+        aad_enabled        = false
         kubernetes_version = "1.33.0"
         default_node_pool = {
           name    = "systempool1"
@@ -112,6 +126,15 @@ run "azapi_without_control_plane_scaling" {
     condition     = !contains(keys(module.azapi["test-azapi-std"].resource_body.properties), "controlPlaneScalingProfile")
     error_message = "controlPlaneScalingProfile should not be present when not specified"
   }
+
+  assert {
+    condition = (
+      !contains(keys(module.azapi["test-azapi-std"].resource_body.properties), "aadProfile") &&
+      !contains(keys(module.azapi["test-azapi-std"].resource_body.properties), "enableRBAC") &&
+      !module.azapi["test-azapi-std"].resource_body.properties.disableLocalAccounts
+    )
+    error_message = "Explicit AAD false must retain non-AAD and local-account behavior."
+  }
 }
 
 # Test case 3: Verify empty azapi_config_list produces no resources
@@ -140,5 +163,64 @@ run "azapi_empty_config" {
   assert {
     condition     = length(local.azapi_config_map) == 0
     error_message = "azapi_config_map should be empty when no azapi configs are provided"
+  }
+}
+
+run "azapi_does_not_grant_metrics_implicitly" {
+  command = plan
+
+  module {
+    source = "./azapi"
+  }
+
+  variables {
+    resource_group_name = "test-rg"
+    location            = "eastus"
+    azapi_config = {
+      role              = "client"
+      aks_name          = "test-aks"
+      dns_prefix        = "test-aks"
+      default_node_pool = {}
+    }
+  }
+
+  assert {
+    condition     = length(azurerm_role_assignment.metrics_reader) == 0
+    error_message = "Entra integration must not implicitly enable a metrics role assignment."
+  }
+}
+
+run "azapi_metrics_reader_remains_explicit_opt_in" {
+  command = plan
+
+  module {
+    source = "./azapi"
+  }
+
+  variables {
+    resource_group_name = "test-rg"
+    location            = "eastus"
+    azapi_config = {
+      role                   = "client"
+      aks_name               = "test-aks"
+      dns_prefix             = "test-aks"
+      default_node_pool      = {}
+      aad_enabled            = null
+      metrics_reader_enabled = true
+    }
+  }
+
+  assert {
+    condition = (
+      length(azurerm_role_assignment.metrics_reader) == 1 &&
+      data.azurerm_role_definition.metrics_reader[0].name == "Telescope AKS Metrics Reader" &&
+      azurerm_role_assignment.metrics_reader[0].principal_id == "12345678-1234-5678-9abc-def012345678"
+    )
+    error_message = "The existing metrics-reader opt-in must retain only its dedicated role assignment."
+  }
+
+  assert {
+    condition     = output.resource_body.properties.aadProfile.enableAzureRBAC && output.resource_body.properties.disableLocalAccounts
+    error_message = "Explicit null must use the enabled AAD default for direct AzAPI callers."
   }
 }

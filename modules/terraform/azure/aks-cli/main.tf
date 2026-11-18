@@ -149,8 +149,7 @@ locals {
   aad_parameter = (
     var.aks_aad_enabled == true ?
     format(
-      "--enable-aad --enable-azure-rbac --aad-admin-group-object-ids %s --aad-tenant-id %s",
-      data.azurerm_client_config.current.object_id,
+      "--enable-aad --enable-azure-rbac --aad-tenant-id %s --disable-local-accounts",
       data.azurerm_client_config.current.tenant_id
     )
     : ""

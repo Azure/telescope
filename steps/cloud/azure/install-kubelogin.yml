@@ -49,7 +49,4 @@ steps:
       fi
     fi
 
-    echo "Converting kubeconfig for Azure CLI authentication..."
-    kubelogin convert-kubeconfig -l azurecli -v 99
-    kubectl config view --kubeconfig /home/AzDevOps/.kube/config
-  displayName: 'Install kubelogin and convert kubeconfig'
+  displayName: 'Install kubelogin'

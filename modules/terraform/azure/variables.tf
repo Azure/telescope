@@ -7,7 +7,7 @@ variable "json_input" {
     aks_kubernetes_version            = optional(string, null)
     aks_network_policy                = optional(string, null)
     aks_network_dataplane             = optional(string, null)
-    aks_aad_enabled                   = optional(bool, null)
+    aks_aad_enabled                   = optional(bool, true)
     aks_custom_headers                = optional(list(string), [])
     k8s_machine_type                  = optional(string, null)
     k8s_os_disk_type                  = optional(string, null)
@@ -522,13 +522,13 @@ variable "arm_endpoint" {
 }
 
 variable "azapi_config_list" {
-  description = "List of AKS cluster configurations to create via Azure REST API (AzAPI provider). aad_enabled opts into managed Microsoft Entra ID integration and Azure RBAC for Kubernetes authorization."
+  description = "List of AKS cluster configurations to create via Azure REST API (AzAPI provider). aad_enabled defaults to managed Microsoft Entra ID integration and Azure RBAC for Kubernetes authorization."
   type = list(object({
     role                   = string
     aks_name               = string
     dns_prefix             = string
     api_version            = optional(string, "2025-10-01")
-    aad_enabled            = optional(bool, false)
+    aad_enabled            = optional(bool, true)
     metrics_reader_enabled = optional(bool, false)
 
     sku = optional(object({

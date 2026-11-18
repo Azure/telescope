@@ -63,7 +63,8 @@ variable "network_dataplane" {
 variable "aks_aad_enabled" {
   description = "Indicates whether Azure Active Directory integration is enabled for AKS"
   type        = bool
-  default     = false
+  default     = true
+  nullable    = false
 }
 
 variable "key_vaults" {
