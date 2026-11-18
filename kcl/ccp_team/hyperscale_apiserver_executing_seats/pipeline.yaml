@@ -941,12 +941,12 @@ stages:
         sed \
             -e 's/__CL2_DRIVER_COUNT__/8/g' \
             -e 's/__CL2_MEMORY_REQUEST__/32Gi/g' \
-            -e 's/__CL2_QPS__/1500/g' \
-            -e 's/__CL2_BURST__/100/g' \
-            -e 's/__CL2_PODS_PER_NODE__/25/g' \
-            -e 's/__CL2_BIG_GROUP_SIZE__/7/g' \
-            -e 's/__CL2_MEDIUM_GROUP_SIZE__/5/g' \
-            -e 's/__CL2_SMALL_GROUP_SIZE__/5/g' \
+            -e 's/__CL2_QPS__/2000/g' \
+            -e 's/__CL2_BURST__/2000/g' \
+            -e 's/__CL2_PODS_PER_NODE__/10/g' \
+            -e 's/__CL2_BIG_GROUP_SIZE__/1/g' \
+            -e 's/__CL2_MEDIUM_GROUP_SIZE__/1/g' \
+            -e 's/__CL2_SMALL_GROUP_SIZE__/1/g' \
             cl2.yaml > cl2-rendered.yaml
 
         if grep -q '__CL2_[A-Z_]*__' cl2-rendered.yaml; then

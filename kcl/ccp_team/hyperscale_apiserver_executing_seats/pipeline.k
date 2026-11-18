@@ -38,13 +38,9 @@ CL2_CONFIGS: {str: Cl2Config} = {
         nodeCount = 8
         driverCount = 8
         memoryRequest = "32Gi"
-        qps = 1500
-        burst = 100
-        # Eight drivers target ~3M load pods and ~553k Deployments.
-        podsPerNode = 25
-        bigGroupSize = 7
-        mediumGroupSize = 5
-        smallGroupSize = 5
+        qps = 2000
+        burst = 2000
+        podsPerNode = 10
     }
 }
 
@@ -169,7 +165,7 @@ makeBenchmarkingJob = lambda size: str -> job.Job {
                     "node-create-workers": "8"
                     "node-create-qps": "20"
                     if size == "H8":
-                        # 15k nodes need more than 200 slots each for ~3M pods plus other workloads.
+                        # Reserve scheduling headroom for high-density workloads.
                         "node-pods": "250"
                 }),
             steps.Bash {
