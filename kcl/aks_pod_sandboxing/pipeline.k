@@ -36,6 +36,10 @@ az aks create \\
 
 scheduleAndMeasureScript = """
 export KUBECONFIG="$(Pipeline.Workspace)/kubeconfig"
+# Exec-plugin kubeconfigs can still use device-code login; reuse this AzureCLI@2
+# task's signed-in identity to avoid interactive browser prompts in CI.
+kubelogin convert-kubeconfig -l azurecli
+
 export POD_NAME="${POD_NAME}"
 export CLUSTER="${CLUSTER}"
 export RUNTIME_CLASS="${RUNTIME_CLASS}"

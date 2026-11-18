@@ -95,6 +95,10 @@ stages:
         inlineScript: |
           set -exo pipefail
           export KUBECONFIG="$(Pipeline.Workspace)/kubeconfig"
+          # Exec-plugin kubeconfigs can still use device-code login; reuse this AzureCLI@2
+          # task's signed-in identity to avoid interactive browser prompts in CI.
+          kubelogin convert-kubeconfig -l azurecli
+
           export POD_NAME="pause-sandbox"
           export CLUSTER="kata-pod-startup"
           export RUNTIME_CLASS="kata-vm-isolation"
