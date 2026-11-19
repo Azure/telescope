@@ -71,6 +71,7 @@ az aks create \\
   --network-plugin azure \\
   --network-plugin-mode overlay \\
   --enable-managed-identity \\
+  --enable-aad \\
   --no-ssh-key \\
   --tier standard \\
   --yes
@@ -107,6 +108,7 @@ az aks create \\
                 RESOURCE_GROUP
                 const.DEFAULT_SUBSCRIPTION_ID
                 file = "${WORK_DIR}/kubeconfig"
+                useAdminCredentials = True
             )
             alluxio.ConfigureImagePullAccess(
                 const.DEFAULT_SERVICE_CONNECTION
