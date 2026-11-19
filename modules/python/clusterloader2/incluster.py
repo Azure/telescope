@@ -135,16 +135,13 @@ exit 124
             raise TimeoutError("CL2 Job timed out")
     finally:
         if pod:
-            for suffix, args in [("log", ("logs", pod)), ("pod.json", ("get", "pod", pod, "-o", "json"))]:
-                try:
-                    with (report_dir / f"{name}.{suffix}").open("wb") as output:
-                        result = kubectl(*args, stdout=output, check=False)
-                    if result.returncode:
-                        print(f"CL2 diagnostic collection failed: {result.stderr.decode(errors='replace')}")
-                        exit_code = exit_code or 1
-                except (OSError, subprocess.TimeoutExpired) as error:
-                    print(f"CL2 diagnostic collection failed: {error}")
-                    exit_code = exit_code or 1
+            try:
+                with (report_dir / f"{name}.log").open("wb") as output:
+                    result = kubectl("logs", pod, stdout=output, check=False)
+                if result.returncode:
+                    print(f"Warning: CL2 log collection failed: {result.stderr.decode(errors='replace')}")
+            except (OSError, subprocess.TimeoutExpired) as error:
+                print(f"Warning: CL2 log collection failed: {error}")
         if created:
             try:
                 kubectl("delete", "namespace,clusterrole,clusterrolebinding", name,

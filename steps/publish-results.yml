@@ -48,10 +48,8 @@ steps:
         elif (( code != 0 && status == 0 )); then
           status=$code
         fi
-        for suffix in log pod.json; do
-          artifact="${file%.exit-code}.$suffix"
-          if [[ -f "$artifact" ]]; then echo "##vso[task.uploadfile]$artifact"; fi
-        done
+        artifact="${file%.exit-code}.log"
+        if [[ -f "$artifact" ]]; then echo "##vso[task.uploadfile]$artifact"; fi
       done < <(find "$(Pipeline.Workspace)/s/modules/python/clusterloader2" -name 'cl2-driver-*.exit-code' -print0)
       if [[ "$found" == false ]]; then echo "CL2 Job exit status missing" >&2; exit 1; fi
       exit "$status"
