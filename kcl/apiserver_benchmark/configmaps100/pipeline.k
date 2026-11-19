@@ -47,9 +47,7 @@ makeBenchmarkJob = lambda flowcontrol: str, flowcontrolLabel: str -> job.Job {
             steps.Task {
                 task = "KubeloginInstaller@0"
                 displayName = "Install kubelogin"
-                inputs.kubeloginVersion = "latest"
             },
-            kperf.InstallRunkperf(RUNNER_IMAGE),
             azure.Login(
                 const.DEFAULT_SERVICE_CONNECTION,
                 SUBSCRIPTION_ID,
@@ -85,6 +83,7 @@ makeBenchmarkJob = lambda flowcontrol: str, flowcontrolLabel: str -> job.Job {
                     sku = "Standard_D16s_v3"
                     count = 3
                 }),
+            kperf.InstallRunkperf(RUNNER_IMAGE),
             kperf.RunKperfBenchmark(
                 const.DEFAULT_SERVICE_CONNECTION,
                 "list_configmaps",
