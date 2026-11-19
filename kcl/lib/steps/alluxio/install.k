@@ -63,14 +63,18 @@ done
     )
 }
 
-MountBlobStorage = lambda serviceConnection: str, storageAccount: str, manifest: str, workDir: str, resultDir: str -> steps.Step {
+MountBlobStorage = lambda serviceConnection: str, storageAccount: str, container: str, sasVariable: str, mountPath: str, manifest: str, workDir: str, resultDir: str -> steps.Step {
+    # The UFS resource is named after the mount path: /blob becomes alluxio-blob.
+    ufsName = "alluxio" + mountPath.replace("/", "-")
     azure.AzCli(
         serviceConnection
-        "Mount Azure Blob in Alluxio"
+        "Mount Azure Blob at ${mountPath}"
         ShellSetup(workDir, resultDir) + ResourceCommands(workDir) + REDACT_OUTPUT + """
 require_secret BLOB_SAS
 ufs="$(jq -n --arg account "${storageAccount}" '{
-    spec: {path: ("abfs://" + $account + ".blob.core.windows.net/warp-data/"),
+    metadata: {name: "${ufsName}"},
+    spec: {mountPath: "${mountPath}",
+           path: ("abfs://" + $account + ".blob.core.windows.net/${container}/"),
            mountOptions: {"alluxio.underfs.abfs.sas.token": env.BLOB_SAS}}
 }' | kubectl patch --local --type=merge -f "${manifest}" \\
     --patch-file /dev/stdin -o yaml 2> >(redact >&2))"
@@ -78,11 +82,12 @@ printf '%s\\n' "$ufs" |
     kubectl create --dry-run=server --validate=strict -f - > /dev/null 2> >(redact >&2)
 printf '%s\\n' "$ufs" | kubectl create -f - > /dev/null 2> >(redact >&2)
 unset ufs
-wait_phase ufs alluxio-blob phase Ready
+wait_phase ufs ${ufsName} phase Ready
 kubectl exec -n alx-ns alluxio-coordinator-0 \\
-    -c alluxio-coordinator -- alluxio fs ls /blob | redact
+    -c alluxio-coordinator -- alluxio fs ls ${mountPath} | redact
 """
-        stepName = "alluxio_mount"
-        env = {BLOB_SAS = "$(BLOB_SAS)"}
+        stepName = "alluxio_mount" + mountPath.replace("/", "_")
+        # Mapped to BLOB_SAS so the script and redact() handle every mount's token alike.
+        env = {BLOB_SAS = "$(${sasVariable})"}
     )
 }
