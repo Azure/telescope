@@ -244,6 +244,28 @@ class TestBeginCreateOrUpdateWithRetry(unittest.TestCase):
             )
 
     @mock.patch("utils.provisioning_instrumentation.time")
+    def test_timeout_honors_explicit_timeout_seconds(self, mock_time):
+        """An explicit timeout_seconds overrides the module default TIMEOUT_SECONDS."""
+        mock_time.sleep = mock.MagicMock()
+
+        mock_poller = mock.MagicMock()
+        mock_poller.done.return_value = False
+        mock_poller.result.return_value = None
+
+        sdk_client = mock.MagicMock()
+        sdk_client.agent_pools.begin_create_or_update.return_value = mock_poller
+
+        with self.assertRaises(TimeoutError):
+            begin_create_or_update_with_retry(
+                aks_sdk_client=sdk_client,
+                resource_group="rg",
+                cluster_name="cluster1",
+                node_pool_name="pool1",
+                parameters={},
+                timeout_seconds=0,
+            )
+
+    @mock.patch("utils.provisioning_instrumentation.time")
     def test_post_accept_failure_attaches_request_started_at(self, mock_time):
         """An accepted op that then fails carries the accept time on the exception."""
         mock_time.time.return_value = 500

@@ -34,6 +34,7 @@ from utils.azure_node_pool_cli import (
 )
 from utils.provisioning_instrumentation import (
     instrument_nodepool_provisioning,
+    TIMEOUT_SECONDS as DEFAULT_ARM_LRO_TIMEOUT_SECONDS,
 )
 from .kubernetes_client import KubernetesClient
 
@@ -148,6 +149,12 @@ class AKSClient:
             raise ValueError(error_msg)
         self.result_dir = result_dir or get_env_vars("RESULT_DIR")
         self.operation_timeout_minutes = operation_timeout_minutes
+        # Cap the ARM long-running-operation poll at the per-step timeout so it
+        # tracks the K8s readiness wait (both derive from --step-timeout). Floor
+        # it at the historical default so non-GPU callers keep today's behavior.
+        self.arm_operation_timeout_seconds = max(
+            int(operation_timeout_minutes * 60), DEFAULT_ARM_LRO_TIMEOUT_SECONDS
+        )
 
         # Initialize Kubernetes client if provided or if kubeconfig is available
         try:
@@ -451,6 +458,7 @@ class AKSClient:
                     node_count,
                     vm_size,
                     self.aks_client,
+                    timeout_seconds=self.arm_operation_timeout_seconds,
                 )
 
                 logger.info(
@@ -643,6 +651,7 @@ class AKSClient:
                     node_pool_name,
                     node_count,
                     self.aks_client,
+                    timeout_seconds=self.arm_operation_timeout_seconds,
                 )
 
                 logger.info(f"Scaling node pool {node_pool_name} to {node_count} nodes")
@@ -885,6 +894,7 @@ class AKSClient:
                         step,
                         self.aks_client,
                         label=f"step {step} ",
+                        timeout_seconds=self.arm_operation_timeout_seconds,
                     )
 
                     # Run ARM and K8s readiness concurrently to capture both timings
