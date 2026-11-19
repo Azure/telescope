@@ -95,13 +95,18 @@ The `lib/` directory provides reusable steps you can compose into your pipeline:
 | | `azure.GetCredentials(...)` | Download kubeconfig for a cluster |
 | | `azure.WaitForClusterSucceeded(...)` | Poll until cluster is provisioned |
 | | `azure.WaitForNodePoolSucceeded(...)` | Poll until node pool is provisioned |
-| **Kubernetes** | `k8s.CreateKwokNodes(...)` | Create simulated nodes with KWOK |
+| **Kubernetes** | `k8s.CreateKwokNodes(serviceConnection, nodeCount, ...)` | Create and validate simulated nodes with KWOK using an Azure service connection |
 | | `k8s.RunClusterLoader2(...)` | Deploy and run ClusterLoader2 workload |
 | | `k8s.PrintCl2PodLogs(...)` | Print logs from CL2 pods |
 | **Utilities** | `util.formatResult(resultJson)` | Wrap results in the Telescope ADX schema |
 | | `util.escapeStr(s)` | Escape backslashes and quotes for shell embedding |
 
 For a complete working example, see [`kcl/example_pipeline/pipeline.k`](kcl/example_pipeline/pipeline.k).
+
+The example pipeline disables local AKS accounts and logs in through Microsoft
+Entra ID with kubelogin, so Kubernetes steps run in authenticated `AzureCLI@2`
+tasks. Its service connection identity needs the "Azure Kubernetes Service RBAC
+Cluster Admin" role, granted once out of band, for example at subscription scope.
 
 ## Generate Pipeline YAML
 

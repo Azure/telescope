@@ -1,5 +1,6 @@
 import azure_pipelines.ap
 import azure_pipelines.ap.jobs.job
+import azure_pipelines.ap.steps
 import lib.const
 import lib.steps.azure
 import lib.steps.common
@@ -37,6 +38,9 @@ az aks create \\
   --outbound-type managedNATGateway \\
   --nat-gateway-managed-outbound-ip-count 10 \\
   --enable-managed-identity \\
+  --enable-aad \\
+  --enable-azure-rbac \\
+  --disable-local-accounts \\
   --generate-ssh-keys
 """
 
@@ -60,6 +64,11 @@ output = ap.Pipeline {
             steps = [
                 common.SetRunId(),
                 common.InstallPythonDependencies(),
+                steps.Task {
+                    task = "KubeloginInstaller@0"
+                    displayName = "Install kubelogin"
+                    inputs.kubeloginVersion = "latest"
+                },
                 azure.Login(
                     const.DEFAULT_SERVICE_CONNECTION,
                     SUBSCRIPTION_ID,
@@ -91,10 +100,11 @@ output = ap.Pipeline {
                     RESOURCE_GROUP,
                     SUBSCRIPTION_ID),
                 *k8s.CreateKwokNodes(
-                  KWOK_NODE_COUNT,
-                  params = {
-                    "node-manifest-path": "$(Pipeline.Workspace)/s/kcl/example_pipeline/kwok-node.yaml"
-                  }),
+                    const.DEFAULT_SERVICE_CONNECTION,
+                    KWOK_NODE_COUNT,
+                    params = {
+                        "node-manifest-path": "$(Pipeline.Workspace)/s/kcl/example_pipeline/kwok-node.yaml"
+                    }),
                 k8s.RunClusterLoader2(
                     const.DEFAULT_SERVICE_CONNECTION,
                     CL2_NAMESPACE,
