@@ -131,6 +131,7 @@ az rest \\
                 SUBSCRIPTION_ID,
                 kwokPool),
             *k8s.CreateKwokNodes(
+              const.DEFAULT_SERVICE_CONNECTION,
               nodeCount,
               params = {
                 "node-manifest-path": "$(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/kwok-node.yaml"
