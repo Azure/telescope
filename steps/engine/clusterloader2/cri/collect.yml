@@ -39,3 +39,6 @@ steps:
       PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/cri.py
       CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/results
     displayName: "Collect Results"
+  - script: exit "$CL2_PILOT_EXIT_CODE"
+    displayName: "Return CL2 pilot exit status after collection"
+    condition: and(always(), eq(variables['CL2_RUN_FROM_CLUSTER'], 'true'))

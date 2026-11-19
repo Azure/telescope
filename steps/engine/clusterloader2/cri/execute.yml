@@ -31,6 +31,13 @@ steps:
         --host_network ${HOST_NETWORK:-True} \
         ${MEMORY_REQUEST_OVERRIDE:+--memory_request_override "$MEMORY_REQUEST_OVERRIDE"} \
         --cl2_override_file ${CL2_CONFIG_DIR}/overrides.yaml
+      if [[ "${CL2_RUN_FROM_CLUSTER,,}" == true ]]; then
+        code=0
+        bash ../../steps/engine/clusterloader2/cri/pilot.sh || code=$?
+        echo "CL2 pilot exited $code; returning this status after Collect Results."
+        echo "##vso[task.setvariable variable=CL2_PILOT_EXIT_CODE;]$code"
+        exit 0
+      fi
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
         --cl2_image ${CL2_IMAGE} \
         --cl2_config_dir ${CL2_CONFIG_DIR} \
@@ -38,8 +45,7 @@ steps:
         --kubeconfig ${HOME}/.kube/config \
         --provider $CLOUD \
         --scrape_kubelets ${SCRAPE_KUBELETS:-False} \
-        --scrape_containerd ${SCRAPE_CONTAINERD:-False} \
-        --run_from_cluster ${CL2_RUN_FROM_CLUSTER:-False}
+        --scrape_containerd ${SCRAPE_CONTAINERD:-False}
     workingDirectory: modules/python
     env:
       ${{ if eq(parameters.cloud, 'azure') }}:
