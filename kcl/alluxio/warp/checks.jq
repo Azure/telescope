@@ -30,29 +30,6 @@ def cache_counts:
 def positive_metric:
   type == "number" and isfinite and . > 0;
 
-def cold_summary(timing; responses):
-  if (timing | type == "array" and length == 1)
-     and (responses | type == "array" and length == 16)
-     and all(responses[]; .ContentLength == 67108864)
-     and timing[0].request_count == 16
-     and (timing[0].end_unix_ns - timing[0].start_unix_ns) > 0
-  then ((timing[0].end_unix_ns - timing[0].start_unix_ns) / 1000000000) as $elapsed_seconds
-    | {
-        elapsed_seconds: $elapsed_seconds,
-        bytes_per_second: (1073741824 / $elapsed_seconds),
-        operations_per_second: (16 / $elapsed_seconds),
-        concurrency: 16,
-        objects_read: 16,
-        dataset_bytes: 1073741824,
-        errors: 0
-      }
-  else error("Cold read must fetch each of the 16 objects exactly once")
-  end
-  | if ([.elapsed_seconds, .bytes_per_second, .operations_per_second] | all(.[]; positive_metric))
-    then .
-    else error("Cold read produced invalid timing metrics")
-    end;
-
 def warp_summary:
   if (.operations | type == "array" and length == 1) and .operations[0].type == "GET"
   then .operations[0]

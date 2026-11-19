@@ -32,7 +32,7 @@ spec:
         - {name: tools, mountPath: /tools}
   containers:
     - name: warp
-      image: public.ecr.aws/aws-cli/aws-cli:2.27.0
+      image: debian:12.9-slim
       command: [sh, -c, "sleep 10800"]
       resources:
         requests: {cpu: "4", memory: 8Gi}
