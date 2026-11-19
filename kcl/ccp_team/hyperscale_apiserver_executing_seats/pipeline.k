@@ -57,6 +57,9 @@ az aks create \\
     --dns-name-prefix "${cluster}-dns" \\
     --tier standard \\
     --enable-managed-identity \\
+    --enable-aad \\
+    --enable-azure-rbac \\
+    --disable-local-accounts \\
     --generate-ssh-keys \\
     --nodepool-name systempool \\
     --node-count 3 \\
@@ -98,6 +101,10 @@ makeBenchmarkingJob = lambda size: str -> job.Job {
         steps = [
             common.SetRunId(),
             common.InstallPythonDependencies(),
+            steps.Task {
+                task = "KubeloginInstaller@0"
+                displayName = "Install kubelogin"
+            },
             azure.Login(
                 const.DEFAULT_SERVICE_CONNECTION,
                 SUBSCRIPTION_ID,
@@ -118,6 +125,10 @@ makeBenchmarkingJob = lambda size: str -> job.Job {
                 cluster,
                 RESOURCE_GROUP,
                 SUBSCRIPTION_ID),
+            azure.AzCli(
+                const.DEFAULT_SERVICE_CONNECTION,
+                "Convert kubeconfig to Entra ID login",
+                "kubelogin convert-kubeconfig -l azurecli"),
             azure.CreateNodePool(
                 const.DEFAULT_SERVICE_CONNECTION,
                 cluster,
