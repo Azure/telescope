@@ -71,6 +71,7 @@ def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provi
         if provider == "aks" and any(value is not None for value in identity):
             kubelogin = shutil.which("kubelogin")
             environment = {name: os.environ[name] for name in ("SYSTEM_ACCESSTOKEN", "SYSTEM_OIDCREQUESTURI")}
+            environment["AZURE_CLIENT_ID"] = identity[0]
             if not all(identity) or not all(environment.values()) or not kubelogin:
                 raise ValueError("CL2 Azure Pipelines authentication requires client ID, tenant ID, service connection, pipeline credentials and host kubelogin")
             auth_dir = tempfile.TemporaryDirectory(prefix="cl2-auth-", dir=os.environ["AGENT_TEMPDIRECTORY"])
