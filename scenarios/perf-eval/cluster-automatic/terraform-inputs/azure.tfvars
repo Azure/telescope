@@ -16,6 +16,10 @@ aks_cli_config_list = [
       {
         name  = "zones"
         value = "1 2 3" # Must add all zones since: Managed cluster 'Automatic' SKU should enable 'AvailabilityZones' feature with recommended values
+      },
+      {
+        name  = "aks-custom-headers"
+        value = "AKSHTTPCustomFeatures=Microsoft.ContainerService/AKSHTTPCustomFeatures,BootstrappingMethodTestOnly=bootstrappingclient"
       }
     ]
   }
