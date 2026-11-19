@@ -1,7 +1,7 @@
 import azure_pipelines.ap.steps
 import lib.steps.azure
 
-# RunKperfBenchmark uses the supplied kubeconfig as-is.
+# RunKperfBenchmark runs runkperf bench with the given subcommand and flow control settings.
 # Results are written to resultPath (default /tmp/tmp_results.json) for collection by CollectKperfResult.
 RunKperfBenchmark = lambda serviceConnection: str, benchmarkSubcmd: str, benchmarkSubcmdArgs: str, flowcontrol: str, kubeconfig: str, runnerImage: str, resultPath: str = "/tmp/tmp_results.json" -> steps.Step {
     azure.AzCli(
