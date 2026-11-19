@@ -23,7 +23,7 @@ locals {
       agentPoolProfiles    = local.agent_pool_profiles
       networkProfile       = local.network_profile
       enableRBAC           = var.azapi_config.aad_enabled ? true : null
-      disableLocalAccounts = var.azapi_config.aad_enabled
+      disableLocalAccounts = true
       aadProfile = var.azapi_config.aad_enabled ? {
         managed         = true
         enableAzureRBAC = true

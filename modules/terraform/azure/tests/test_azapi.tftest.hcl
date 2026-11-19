@@ -129,9 +129,9 @@ run "azapi_without_control_plane_scaling" {
     condition = (
       !contains(keys(module.azapi["test-azapi-std"].resource_body.properties), "aadProfile") &&
       !contains(keys(module.azapi["test-azapi-std"].resource_body.properties), "enableRBAC") &&
-      !module.azapi["test-azapi-std"].resource_body.properties.disableLocalAccounts
+      module.azapi["test-azapi-std"].resource_body.properties.disableLocalAccounts
     )
-    error_message = "Explicit AAD false must retain non-AAD and local-account behavior."
+    error_message = "Explicit AAD false must omit AAD settings but keep local accounts disabled."
   }
 }
 

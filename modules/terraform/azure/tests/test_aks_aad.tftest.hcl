@@ -125,8 +125,8 @@ run "valid_aad_explicitly_disabled" {
   }
 
   assert {
-    condition     = length(module.aks["test"].aks_cluster.azure_active_directory_role_based_access_control) == 0 && !module.aks["test"].aks_cluster.local_account_disabled
-    error_message = "Expected: AAD absent and local accounts retained when explicitly disabled"
+    condition     = length(module.aks["test"].aks_cluster.azure_active_directory_role_based_access_control) == 0 && module.aks["test"].aks_cluster.local_account_disabled
+    error_message = "Expected: AAD absent but local accounts always disabled"
   }
 }
 
@@ -231,8 +231,8 @@ run "valid_aks_cli_aad_disabled" {
 
   # Verify the CLI command does NOT include any AAD-related flags
   assert {
-    condition     = !can(regex("--aad-", module.aks-cli["client"].aks_cli_command)) && !can(regex("--disable-local-accounts", module.aks-cli["client"].aks_cli_command))
-    error_message = "Expected: no AAD flags or local-account disabling when AAD is disabled"
+    condition     = !can(regex("--aad-", module.aks-cli["client"].aks_cli_command)) && can(regex("--disable-local-accounts", module.aks-cli["client"].aks_cli_command))
+    error_message = "Expected: no AAD flags but local accounts always disabled"
   }
 }
 
