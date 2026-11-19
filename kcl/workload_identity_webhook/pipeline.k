@@ -45,13 +45,13 @@ fi
             displayName = "Prepare ${rate}/sec runner group"
         },
         kperf.RunKperfRunnerGroup(
+            const.DEFAULT_SERVICE_CONNECTION,
             RUNNER_IMAGE,
             "file://$(Agent.TempDirectory)/$(RUN_ID)-r${rate}-runner-group.yaml",
             affinity="agentpool=runner",
-            serviceConnection=const.DEFAULT_SERVICE_CONNECTION,
             displayName="Run kperf runner group at ${rate} CREATEs/sec"),
         kperf.FetchKperfRunnerGroupResult(
-            serviceConnection=const.DEFAULT_SERVICE_CONNECTION,
+            const.DEFAULT_SERVICE_CONNECTION,
             displayName="Wait for ${rate}/sec runner group result"),
         azure.AzCli(
             const.DEFAULT_SERVICE_CONNECTION,

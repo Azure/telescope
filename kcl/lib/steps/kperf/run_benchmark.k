@@ -25,9 +25,12 @@ runkperf -v 3 bench \\
 
 # Tune initialDelaySeconds based on the known workload duration to minimise exposure
 # to network disruption while fetching results over a port-forward connection.
-FetchKperfRunnerGroupResult = lambda displayName: str = "Fetch kperf runner group result", resultPath: str = "", initialDelaySeconds: int = 0, timeoutInMinutes: int = 15, serviceConnection: str = Undefined -> steps.Step {
+FetchKperfRunnerGroupResult = lambda serviceConnection: str, displayName: str = "Fetch kperf runner group result", resultPath: str = "", initialDelaySeconds: int = 0, timeoutInMinutes: int = 15 -> steps.Step {
     assert initialDelaySeconds >= 0, "initialDelaySeconds must be non-negative"
-    script = """
+    azure.AzCli(
+        serviceConnection,
+        displayName,
+        """
 set -euo pipefail
 sleep ${initialDelaySeconds}
 attempt=0
@@ -40,20 +43,18 @@ until kperf rg result --wait${' | tee "' + resultPath + '"' if resultPath else "
   echo "attempt $attempt failed; retry in 10s" >&2
   sleep 10
 done
-"""
-    azure.AzCli(serviceConnection, displayName, script, continueOnError=True, timeoutInMinutes=timeoutInMinutes) if serviceConnection else steps.Bash {
-        bash = script
-        displayName = displayName
-        continueOnError = True
-        timeoutInMinutes = timeoutInMinutes
-    }
+""",
+        continueOnError=True,
+        timeoutInMinutes=timeoutInMinutes)
 }
 
 # RunKperfRunnerGroup runs `kperf rg run` with the specified runner image, runner
 # group manifest, optional flow control setting, and optional affinity selector.
-RunKperfRunnerGroup = lambda runnerImage: str, runnerGroup: str, flowcontrol: str = "", affinity: str = "", target: str = Undefined, displayName: str = "Run kperf runner group", serviceConnection: str = Undefined -> steps.Step {
-    assert not (target and serviceConnection), "Authenticated runner groups must run on the agent"
-    script = """
+RunKperfRunnerGroup = lambda serviceConnection: str, runnerImage: str, runnerGroup: str, flowcontrol: str = "", affinity: str = "", displayName: str = "Run kperf runner group" -> steps.Step {
+    azure.AzCli(
+        serviceConnection,
+        displayName,
+        """
 set -euo pipefail
 set -x
 
@@ -95,10 +96,5 @@ until run_rg; do
   echo "attempt $attempt failed; cleaning up and retrying in 120s" >&2
   sleep 120
 done
-"""
-    azure.AzCli(serviceConnection, displayName, script) if serviceConnection else steps.Script {
-        script = script
-        displayName = displayName
-        target = target
-    }
+""")
 }
