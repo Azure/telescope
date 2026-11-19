@@ -12,6 +12,7 @@ LOCATION = "uksouth"
 CLUSTER = "configmaps100"
 RUNNER_IMAGE = "ghcr.io/azure/kperf:0.3.4"
 BENCHMARK_ARGS = "--total 10000 --size=1024 --group-size=10 --configmap-amount=100"
+KUBECONFIG_PATH = "$(Pipeline.Workspace)/kubeconfig"
 RESULT_PATH = "$(Pipeline.Workspace)/tmp_results.json"
 
 # SkipAKSCluster disables Gatekeeper on ephemeral benchmark clusters
@@ -69,7 +70,11 @@ makeBenchmarkJob = lambda flowcontrol: str, flowcontrolLabel: str -> job.Job {
                 CLUSTER,
                 RESOURCE_GROUP,
                 SUBSCRIPTION_ID,
-                "$(Pipeline.Workspace)/kubeconfig"),
+                KUBECONFIG_PATH),
+            steps.Script {
+                displayName = "Convert kubeconfig for Azure CLI login"
+                script = 'kubelogin convert-kubeconfig -l azurecli --kubeconfig "${KUBECONFIG_PATH}"'
+            },
             azure.CreateNodePool(
                 const.DEFAULT_SERVICE_CONNECTION,
                 CLUSTER,
@@ -85,7 +90,7 @@ makeBenchmarkJob = lambda flowcontrol: str, flowcontrolLabel: str -> job.Job {
                 "list_configmaps",
                 BENCHMARK_ARGS,
                 flowcontrol,
-                "$(Pipeline.Workspace)/kubeconfig",
+                KUBECONFIG_PATH,
                 RUNNER_IMAGE,
                 RESULT_PATH),
             kperf.CollectKperfResult(

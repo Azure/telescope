@@ -1,8 +1,7 @@
 import azure_pipelines.ap.steps
 import lib.steps.azure
 
-# RunKperfBenchmark uses the service connection's Azure CLI login for Entra authentication.
-# InstallRunkperf and kubelogin must be installed on the agent first.
+# RunKperfBenchmark uses the supplied kubeconfig as-is.
 # Results are written to resultPath (default /tmp/tmp_results.json) for collection by CollectKperfResult.
 RunKperfBenchmark = lambda serviceConnection: str, benchmarkSubcmd: str, benchmarkSubcmdArgs: str, flowcontrol: str, kubeconfig: str, runnerImage: str, resultPath: str = "/tmp/tmp_results.json" -> steps.Step {
     azure.AzCli(
@@ -10,9 +9,6 @@ RunKperfBenchmark = lambda serviceConnection: str, benchmarkSubcmd: str, benchma
         "Run kperf benchmark (${benchmarkSubcmd}, flowcontrol=${flowcontrol})",
         """
 set -euo pipefail
-
-export KUBECONFIG="${kubeconfig}"
-kubelogin convert-kubeconfig -l azurecli
 
 runkperf -v 3 bench \\
   --kubeconfig="${kubeconfig}" \\

@@ -105,6 +105,8 @@ stages:
             --overwrite-existing \
             -f $(Pipeline.Workspace)/kubeconfig
       displayName: Get credentials for configmaps100
+    - script: kubelogin convert-kubeconfig -l azurecli --kubeconfig "$(Pipeline.Workspace)/kubeconfig"
+      displayName: Convert kubeconfig for Azure CLI login
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -120,9 +122,6 @@ stages:
         inlineScript: |
           set -exo pipefail
           set -euo pipefail
-
-          export KUBECONFIG="$(Pipeline.Workspace)/kubeconfig"
-          kubelogin convert-kubeconfig -l azurecli
 
           runkperf -v 3 bench \
             --kubeconfig="$(Pipeline.Workspace)/kubeconfig" \
@@ -318,6 +317,8 @@ stages:
             --overwrite-existing \
             -f $(Pipeline.Workspace)/kubeconfig
       displayName: Get credentials for configmaps100
+    - script: kubelogin convert-kubeconfig -l azurecli --kubeconfig "$(Pipeline.Workspace)/kubeconfig"
+      displayName: Convert kubeconfig for Azure CLI login
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -333,9 +334,6 @@ stages:
         inlineScript: |
           set -exo pipefail
           set -euo pipefail
-
-          export KUBECONFIG="$(Pipeline.Workspace)/kubeconfig"
-          kubelogin convert-kubeconfig -l azurecli
 
           runkperf -v 3 bench \
             --kubeconfig="$(Pipeline.Workspace)/kubeconfig" \
