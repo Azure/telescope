@@ -1,5 +1,5 @@
 {
     "run_id": "123456789",
-    "region": "eastus",
+    "region": "swedencentral",
     "aks_aad_enabled": true
 }

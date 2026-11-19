@@ -17,7 +17,7 @@ mock_provider "local" {}
 
 variables {
   resource_group_name = "test-rg"
-  location            = "eastus"
+  location            = "swedencentral"
   tags                = {}
   aks_aad_enabled     = true
   aks_config = {
@@ -32,7 +32,7 @@ variables {
     default_node_pool = {
       name                         = "system"
       node_count                   = 5
-      vm_size                      = "Standard_D8_v3"
+      vm_size                      = "Standard_D8s_v5"
       only_critical_addons_enabled = true
       temporary_name_for_rotation  = "systemtmp"
     }
