@@ -11,13 +11,14 @@ parameters:
 # * We should have helper to update-kubeconfig for each cluster.
 # * Maybe we should pass region information to /steps/execute-tests.yml
 steps:
-- template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
-  parameters:
-    role: client
-    region: ${{ parameters.regions[0] }}
+- ${{ if ne(parameters.cloud, 'azure') }}:
+  - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
+    parameters:
+      role: client
+      region: ${{ parameters.regions[0] }}
 
 - ${{ if eq(parameters.cloud, 'azure') }}:
-  - template: /steps/cloud/azure/install-kubelogin.yml
+  - template: /steps/cloud/azure/setup-kubeconfig.yml
     parameters:
-      cloud: ${{ parameters.cloud }}
+      role: client
       region: ${{ parameters.regions[0] }}

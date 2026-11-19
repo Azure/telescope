@@ -7,14 +7,15 @@ parameters:
     type: object
 
 steps:
-  - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
-    parameters:
-      role: netpol-scale # role value passed here is ignored by update-kubeconfig.yml
-      region: ${{ parameters.regions[0] }}
-  - ${{ if eq(parameters.cloud, 'azure') }}:
-      - template: /steps/cloud/azure/install-kubelogin.yml
+  - ${{ if ne(parameters.cloud, 'azure') }}:
+      - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
         parameters:
-          cloud: ${{ parameters.cloud }}
+          role: netpol-scale # role value passed here is ignored by update-kubeconfig.yml
+          region: ${{ parameters.regions[0] }}
+  - ${{ if eq(parameters.cloud, 'azure') }}:
+      - template: /steps/cloud/azure/setup-kubeconfig.yml
+        parameters:
+          role: netpol-scale
           region: ${{ parameters.regions[0] }}
   - template: /steps/engine/clusterloader2/large-cluster/validate.yml
     parameters:

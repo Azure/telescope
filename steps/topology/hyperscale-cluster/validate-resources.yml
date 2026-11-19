@@ -7,15 +7,16 @@ parameters:
   type: object
 
 steps:
-- template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
-  parameters:
-    role: client
-    region: ${{ parameters.regions[0] }}
+- ${{ if ne(parameters.cloud, 'azure') }}:
+  - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
+    parameters:
+      role: client
+      region: ${{ parameters.regions[0] }}
 
 - ${{ if eq(parameters.cloud, 'azure') }}:
-  - template: /steps/cloud/azure/install-kubelogin.yml
+  - template: /steps/cloud/azure/setup-kubeconfig.yml
     parameters:
-      cloud: ${{ parameters.cloud }}
+      role: client
       region: ${{ parameters.regions[0] }}
 
 - script: |
