@@ -1,7 +1,9 @@
+def dataset_keys:
+  [range(0; 16) | "object-" + (if . < 10 then "0" else "" end) + tostring + ".bin"];
+
 def validate_dataset:
-  [range(0; 16) | "object-" + (if . < 10 then "0" else "" end) + tostring + ".bin"] as $names
-  | if type == "array" and length == 16
-       and (map(.name) | sort) == $names
+  if type == "array" and length == 16
+       and (map(.name) | sort) == dataset_keys
        and all(.[]; .properties.contentLength == 67108864)
     then .
     else error("Blob dataset must contain exactly 16 objects of 64 MiB (1 GiB total)")
@@ -29,6 +31,31 @@ def cache_counts:
 
 def positive_metric:
   type == "number" and isfinite and . > 0;
+
+def cold_warp_summary:
+  # The cold clients use UTC. Warp timestamps can have a variable-length fractional second.
+  def seconds:
+    (capture("^(?<whole>[^.Z]+)(?<fraction>\\.[0-9]+)?Z$") // error("Expected UTC Warp timestamp"))
+    | ((.whole + "Z" | fromdateiso8601) + ("0" + (.fraction // "") | tonumber));
+  split("\n") | map(select(length > 0 and (startswith("#") | not)) | split("\t"))
+  | .[0] as $header | .[1:] | map([$header, .] | transpose | map({(.[0]): .[1]}) | add)
+  | if (map(.file) | sort) != dataset_keys or
+       any(.[]; .op != "GET" or .error != "" or .bytes != "67108864" or .n_objects != "1" or
+                (.duration_ns | tonumber) <= 0)
+    then error("Cold Warp run must record exactly one successful 64 MiB GET per dataset key") else . end
+  # Use the observed transfer interval, not the configured window or the sum of overlapping GET times.
+  | (min_by(.start | seconds).start) as $start | (max_by(.end | seconds).end) as $end
+  | (($end | seconds) - ($start | seconds)) as $elapsed
+  | if ($elapsed | positive_metric) then . else error("Invalid cold Warp measurement interval") end
+  | (map(.duration_ns | tonumber / 1000000) | sort) as $latencies
+  | {
+      phase: "cold-start", concurrency: length, objects_read: length, errors: 0,
+      dataset_bytes: (map(.bytes | tonumber) | add),
+      elapsed_seconds: $elapsed, measurement_start: $start, measurement_end: $end,
+      operations_per_second: (length / $elapsed),
+      latency_avg_ms: ($latencies | add / length),
+      latency_p50_ms: (($latencies[7] + $latencies[8]) / 2), latency_p99_ms: $latencies[-1]
+    } | .bytes_per_second = (.dataset_bytes / $elapsed);
 
 def warp_summary:
   if (.operations | type == "array" and length == 1) and .operations[0].type == "GET"

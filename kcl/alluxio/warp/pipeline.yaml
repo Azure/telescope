@@ -649,40 +649,32 @@ jobs:
           fail "$phase requires the expected cache state for all 16 objects"
       host="$(kubectl get pod alluxio-worker-0 -n alx-ns -o json |
           jq -er '.status.podIP'):29998"
-      start="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-      status=0
-      client_exec /tools/warp get \
-          "--host=$host" \
-          --bucket=blob \
-          --access-key=warp \
-          --secret-key=benchmark \
-          --region=us-east-1 \
-          --lookup=path \
-          --list-existing \
-          --noclear \
-          --concurrent=16 \
-          --duration=60s \
-          --obj.size=67108864 \
-          --full \
-          --json \
-          "--benchdata=/results/$phase" > "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase.log" 2>&1 || status=$?
-      end="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-      jq -n --arg phase "$phase" --arg command_start "$start" --arg command_end "$end" \
-          '$ARGS.named' > "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-timing.json"
-      (( status == 0 )) || fail "Warp $phase command failed with status $status; see its log"
-      client_exec cat "/results/$phase.csv.zst" > "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase.csv.zst"
-      [[ -s "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase.csv.zst" ]] || fail "Warp raw data is empty for $phase"
-      client_exec /tools/warp analyze --full --json "/results/$phase.csv.zst" > "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-analysis.json"
-      jq -e -L "$(Build.SourcesDirectory)/kcl/alluxio/warp" \
-          --slurpfile timing "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-timing.json" \
-          'include "checks"; warp_summary + $timing[0] +
-           {concurrency: 16, requested_duration_seconds: 60, dataset_bytes: 1073741824}' \
-          "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-analysis.json" > "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-summary.json"
-      if [[ "$phase" == warm-cache ]]; then
-          counts="$(cache_report after-warm)"
-          [[ "$(jq -r '.all' <<< "$counts")" == 16 ]] || fail "Dataset was not fully cached after the warm phase"
-      fi
-    displayName: Run cold-start Warp GET
+      warp_get=(/tools/warp get "--host=$host" --bucket=blob --access-key=warp --secret-key=benchmark
+          --region=us-east-1 --lookup=path --list-existing --noclear --full --json)
+      command -v zstd >/dev/null || fail "zstd is required to read the raw Warp operations"
+      client_exec bash -eu -c '
+          cd /results
+          mkdir cold-start
+          export TZ=UTC
+          sync_start="$(date -d "+90 seconds" +%H:%M)"
+          pids=()
+          for key in object-{00..15}.bin; do
+              # Warp GET samples with replacement. Give each reader one unique key and a common start.
+              # The first GET is immediate; the next token is 100s away, beyond the 10s start window.
+              "$@" --prefix="$key" --objects=1 --concurrent=1 --rps-limit=0.01 --duration=10s \
+                  --syncstart="$sync_start" --benchdata="cold-start/$key" > "cold-start/$key.log" 2>&1 &
+              pids+=("$!")
+          done
+          status=0
+          for pid in "${pids[@]}"; do wait "$pid" || status=1; done
+          if (( status )); then cat cold-start/*.log >&2; exit 1; fi
+          /tools/warp merge --benchdata=cold-start cold-start/object-{00..15}.bin.csv.zst
+      ' _ "${warp_get[@]}" > "$(Build.ArtifactStagingDirectory)/alluxio-warp/cold-start.log" 2>&1 ||
+          fail "Cold Warp readers or merge failed; see cold-start.log"
+      client_exec cat /results/cold-start.csv.zst > "$(Build.ArtifactStagingDirectory)/alluxio-warp/cold-start.csv.zst"
+      zstd -dc "$(Build.ArtifactStagingDirectory)/alluxio-warp/cold-start.csv.zst" |
+          jq -Rse -L "$(Build.SourcesDirectory)/kcl/alluxio/warp" 'include "checks"; cold_warp_summary' > "$(Build.ArtifactStagingDirectory)/alluxio-warp/cold-start-summary.json"
+    displayName: Run single-pass cold-start Warp GET
     env:
       BLOB_SAS: $(BLOB_SAS)
   - bash: |
@@ -785,22 +777,14 @@ jobs:
           fail "$phase requires the expected cache state for all 16 objects"
       host="$(kubectl get pod alluxio-worker-0 -n alx-ns -o json |
           jq -er '.status.podIP'):29998"
+      warp_get=(/tools/warp get "--host=$host" --bucket=blob --access-key=warp --secret-key=benchmark
+          --region=us-east-1 --lookup=path --list-existing --noclear --full --json)
       start="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
       status=0
-      client_exec /tools/warp get \
-          "--host=$host" \
-          --bucket=blob \
-          --access-key=warp \
-          --secret-key=benchmark \
-          --region=us-east-1 \
-          --lookup=path \
-          --list-existing \
-          --noclear \
+      client_exec "${warp_get[@]}" \
           --concurrent=16 \
           --duration=60s \
           --obj.size=67108864 \
-          --full \
-          --json \
           "--benchdata=/results/$phase" > "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase.log" 2>&1 || status=$?
       end="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
       jq -n --arg phase "$phase" --arg command_start "$start" --arg command_end "$end" \
@@ -814,10 +798,8 @@ jobs:
           'include "checks"; warp_summary + $timing[0] +
            {concurrency: 16, requested_duration_seconds: 60, dataset_bytes: 1073741824}' \
           "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-analysis.json" > "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-summary.json"
-      if [[ "$phase" == warm-cache ]]; then
-          counts="$(cache_report after-warm)"
-          [[ "$(jq -r '.all' <<< "$counts")" == 16 ]] || fail "Dataset was not fully cached after the warm phase"
-      fi
+      counts="$(cache_report after-warm)"
+      [[ "$(jq -r '.all' <<< "$counts")" == 16 ]] || fail "Dataset was not fully cached after the warm phase"
     displayName: Run warm-cache Warp GET
     env:
       BLOB_SAS: $(BLOB_SAS)
