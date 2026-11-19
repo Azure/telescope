@@ -41,9 +41,10 @@ jq -n \\
     --arg operator_version "${OPERATOR_TAG}" --arg warp_version "1.3.1" \\
     '$ARGS.named + {
         worker_cache: "8Gi", worker_cache_reserved: "1Gi",
-        support_nodes: {count: 3, sku: "Standard_D8s_v6"},
-        worker_nodes: {count: 1, sku: "Standard_D16s_v6"},
-        client_nodes: {count: 1, sku: "Standard_D8s_v6"}
+        # Published per-VM limit across all NICs: https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/general-purpose/dsv6-series#tab/sizenetwork
+        support_nodes: {count: 3, sku: "Standard_D8s_v6", max_egress_mbps_per_vm: 12500},
+        worker_nodes: {count: 1, sku: "Standard_D16s_v6", max_egress_mbps_per_vm: 12500},
+        client_nodes: {count: 1, sku: "Standard_D8s_v6", max_egress_mbps_per_vm: 12500}
     }' > "${resultDir}/configuration.json"
 """
     )
