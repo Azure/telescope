@@ -156,6 +156,9 @@ az aks create \\
             alluxio.MountBlobStorage(
                 const.DEFAULT_SERVICE_CONNECTION
                 STORAGE_ACCOUNT
+                "warp-data"
+                "BLOB_SAS"
+                "/blob"
                 "${CHECKS_DIR}/ufs.yaml"
                 WORK_DIR
                 RESULT_DIR
@@ -192,30 +195,10 @@ kubectl exec -n alx-ns warp-client -c warp \\
                 CHECKS_DIR
             )
             common.RecordCurrentTime("BENCHMARK_END_TIME")
-            azure.AzCli(
+            alluxio.CollectDiagnostics(
                 const.DEFAULT_SERVICE_CONNECTION
-                "Collect safe deployment diagnostics"
-                alluxio.ShellSetup(WORK_DIR, RESULT_DIR) + """
-if [[ ! -s "$KUBECONFIG" ]]; then
-    echo '{"cluster_access":"not established"}' > "${RESULT_DIR}/diagnostics.json"
-    exit 0
-fi
-for namespace in alx-ns alluxio-operator; do
-    kubectl get pods -n "$namespace" -o json |
-        jq --arg namespace "$namespace" '{
-            ($namespace): [.items[] | {
-                name: .metadata.name, node: .spec.nodeName, phase: .status.phase,
-                containers: [(.status.containerStatuses // []) + (.status.initContainerStatuses // []) | .[] |
-                    {name, ready, restarts: .restartCount,
-                     state: (.state | with_entries(.value |= {reason, exitCode}))}]
-            }]
-        }' > "${WORK_DIR}/diagnostics-$namespace.json"
-done
-jq -s 'add' "${WORK_DIR}/diagnostics-alx-ns.json" "${WORK_DIR}/diagnostics-alluxio-operator.json" \\
-    > "${RESULT_DIR}/diagnostics.json"
-"""
-                condition = "always()"
-                stepName = "alluxio_diagnostics"
+                WORK_DIR
+                RESULT_DIR
             )
             steps.Task {
                 task = "PublishPipelineArtifact@1"
