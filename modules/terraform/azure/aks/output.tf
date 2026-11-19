@@ -11,6 +11,7 @@ output "aks_cluster_kubeconfig_path" {
 output "aks_cluster" {
   description = "Used for unit tests"
   value       = azurerm_kubernetes_cluster.aks
+  sensitive   = true
 }
 
 output "aks_cluster_nood_pools" {

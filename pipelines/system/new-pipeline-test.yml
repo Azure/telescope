@@ -6,6 +6,7 @@ pool:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: csi-autoscale-5k
+  AAD_ENABLED: 'true'
 
 stages:
 - stage: azure_eastus_csi_scale

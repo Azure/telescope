@@ -332,8 +332,9 @@ variable "aks_config_list" {
       mode      = string
       revisions = list(string)
     }))
-    sku_tier     = string
-    support_plan = optional(string, "KubernetesOfficial")
+    sku_tier                           = string
+    support_plan                       = optional(string, "KubernetesOfficial")
+    grant_current_client_cluster_admin = optional(bool, false)
     default_node_pool = object({
       name                         = string
       subnet_name                  = optional(string)

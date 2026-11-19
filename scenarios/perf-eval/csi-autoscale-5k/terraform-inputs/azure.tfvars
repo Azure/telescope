@@ -5,11 +5,12 @@ owner          = "storage"
 
 aks_config_list = [
   {
-    role        = "cas"
-    aks_name    = "csi-autoscale-5k"
-    dns_prefix  = "csiscale"
-    subnet_name = "aks-network"
-    sku_tier    = "Standard"
+    role                               = "cas"
+    aks_name                           = "csi-autoscale-5k"
+    dns_prefix                         = "csiscale"
+    subnet_name                        = "aks-network"
+    sku_tier                           = "Standard"
+    grant_current_client_cluster_admin = true
     network_profile = {
       network_plugin      = "azure"
       network_plugin_mode = "overlay"

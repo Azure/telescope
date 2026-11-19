@@ -43,6 +43,11 @@ This module provisions an Azure Kubernetes Service (AKS) cluster. It allows you 
   - `dns_prefix`: DNS prefix for the AKS cluster
   - `subnet_name`: Name of the subnet
   - `sku_tier`: The type of pricing tiers
+  - `grant_current_client_cluster_admin`: Defaults to `false`. When enabled with
+    `aks_aad_enabled = true`, grants the Terraform identity the Azure Kubernetes
+    Service RBAC Cluster Admin role on this cluster only. The identity running
+    Terraform must be permitted to create and delete role assignments. Use this
+    only when that identity also needs administrative Kubernetes access.
   - `network_profile `: Network profile for the AKS cluster
     - `network_plugin`: Network plugin used by the AKS cluster
     - `network_policy`: Network policy used by the AKS cluster

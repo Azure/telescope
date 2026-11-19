@@ -12,8 +12,29 @@ steps:
     role: cas
     region: ${{ parameters.regions[0] }}
 
+- template: /steps/cloud/azure/install-kubelogin.yml
+  parameters:
+    cloud: ${{ parameters.cloud }}
+    region: ${{ parameters.regions[0] }}
+
 - script: |
     set -euo pipefail
+
+    authorized=false
+    for attempt in $(seq 1 30); do
+      if kubectl auth can-i '*' '*' --all-namespaces; then
+        authorized=true
+        break
+      fi
+      echo "Waiting for AKS RBAC propagation (attempt $attempt/30)."
+      if [ "$attempt" -lt 30 ]; then
+        sleep 10
+      fi
+    done
+    if [ "$authorized" != true ]; then
+      echo "##vso[task.logissue type=error;] Pipeline identity lacks cluster-admin access after waiting for AKS RBAC propagation."
+      exit 1
+    fi
 
     provisioner=$(kubectl get storageclass "$STORAGE_CLASS" -o jsonpath='{.provisioner}')
     if [ "$provisioner" != "disk.csi.azure.com" ]; then

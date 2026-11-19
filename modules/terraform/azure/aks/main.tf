@@ -158,6 +158,21 @@ resource "azurerm_kubernetes_cluster" "aks" {
   }
 }
 
+resource "azurerm_role_assignment" "current_client_cluster_admin" {
+  count = var.aks_config.grant_current_client_cluster_admin ? 1 : 0
+
+  scope                = azurerm_kubernetes_cluster.aks.id
+  role_definition_name = "Azure Kubernetes Service RBAC Cluster Admin"
+  principal_id         = data.azurerm_client_config.current.object_id
+
+  lifecycle {
+    precondition {
+      condition     = var.aks_aad_enabled
+      error_message = "Granting the current client cluster-admin access requires aks_aad_enabled = true."
+    }
+  }
+}
+
 resource "azurerm_role_assignment" "dns_zone_contributor" {
   count                = try(length(var.aks_config.web_app_routing.dns_zone_names), 0)
   role_definition_name = "DNS Zone Contributor"

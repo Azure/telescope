@@ -96,9 +96,12 @@ once per completed stage rather than issuing one read request per pod.
   usable addresses, plus operational headroom.
 - Plan for 19,980 workload data disks and 5,000 managed OS disks. Verify disk
   quotas, storage-class disk type, provisioning throughput, and cleanup time.
-- Microsoft Entra ID integration and pipeline-identity Kubernetes access must
-  satisfy subscription policy. The region/SKU change does not enable Entra ID;
-  a subscription requiring it will still reject a noncompliant cluster.
+- Both pipelines enable Microsoft Entra ID integration with `AAD_ENABLED: 'true'`.
+  The scenario opts into a cluster-scoped Azure Kubernetes Service RBAC Cluster
+  Admin assignment for the Terraform identity, which must also be permitted to
+  create and delete role assignments. Validation configures kubelogin for Azure
+  CLI authentication and waits up to five minutes for Kubernetes authorization
+  to propagate before checking storage and workload nodes.
 - Confirm regional Kubernetes-version availability and qualify a small run
   before attempting the full cluster.
 

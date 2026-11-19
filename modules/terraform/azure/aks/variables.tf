@@ -80,12 +80,13 @@ variable "disk_encryption_sets" {
 
 variable "aks_config" {
   type = object({
-    role         = string
-    aks_name     = string
-    dns_prefix   = string
-    subnet_name  = optional(string, null)
-    sku_tier     = string
-    support_plan = optional(string, "KubernetesOfficial")
+    role                               = string
+    aks_name                           = string
+    dns_prefix                         = string
+    subnet_name                        = optional(string, null)
+    sku_tier                           = string
+    support_plan                       = optional(string, "KubernetesOfficial")
+    grant_current_client_cluster_admin = optional(bool, false)
     network_profile = optional(object({
       network_plugin      = optional(string, null)
       network_plugin_mode = optional(string, null)
