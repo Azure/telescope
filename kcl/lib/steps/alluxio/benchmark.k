@@ -14,14 +14,80 @@ kubectl exec -n alx-ns warp-client -c warp \\
     }
 }
 
-RunWarpGet = lambda phase: "cold-start" | "warm-cache", workDir: str, resultDir: str, checksDir: str -> steps.Bash {
+RunColdGet = lambda workDir: str, resultDir: str, checksDir: str -> steps.Bash {
     steps.Bash {
-        displayName = "Run ${phase} Warp GET"
+        name = "alluxio_cold"
+        displayName = "Run one cold pass over all 16 objects"
         bash = ShellSetup(workDir, resultDir) + AlluxioCommands(checksDir, resultDir) + """
-phase="${phase}"
-counts="$(cache_report "${"before-cold" if phase == "cold-start" else "before-warm"}")"
-[[ "$(jq -r --arg field "${"uncached" if phase == "cold-start" else "all"}" '.[$field]' <<< "$counts")" == 16 ]] ||
-    fail "$phase requires the expected cache state for all 16 objects"
+counts="$(cache_report before-cold)"
+[[ "$(jq -r '.uncached' <<< "$counts")" == 16 ]] ||
+    fail "Cold-start requires all 16 objects to be uncached"
+host="$(kubectl get pod alluxio-worker-0 -n alx-ns -o json |
+    jq -er '.status.podIP'):29998"
+start="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+status=0
+kubectl exec -n alx-ns warp-client -c s3 -- env HOST="$host" sh -c '
+    set -u
+    start_ns="$(date +%s%N)"
+    pids=""
+    for index in $(seq 0 15); do
+        key="$(printf "object-%02d.bin" "$index")"
+        (
+            AWS_ACCESS_KEY_ID=warp \\
+            AWS_SECRET_ACCESS_KEY=benchmark \\
+            AWS_EC2_METADATA_DISABLED=true \\
+            AWS_MAX_ATTEMPTS=1 \\
+            AWS_PAGER= \\
+            aws --endpoint-url "http://$HOST" --region us-east-1 --no-cli-pager \\
+                s3api get-object --bucket blob --key "$key" /dev/null \\
+                > "/results/cold-start-$key.json" \\
+                2> "/results/cold-start-$key.err"
+        ) &
+        pids="$pids $!"
+    done
+    command_status=0
+    for process_id in $pids; do
+        wait "$process_id" || command_status=1
+    done
+    end_ns="$(date +%s%N)"
+    printf "{\\"start_unix_ns\\":%s,\\"end_unix_ns\\":%s,\\"request_count\\":16}\\n" \\
+        "$start_ns" "$end_ns" > /results/cold-start-client-timing.json
+    exit "$command_status"
+' > "${resultDir}/cold-start.log" 2>&1 || status=$?
+end="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+jq -n --arg phase cold-start --arg command_start "$start" --arg command_end "$end" \\
+    '$ARGS.named' > "${resultDir}/cold-start-timing.json"
+kubectl exec -n alx-ns warp-client -c s3 -- sh -c 'cat /results/cold-start-*.err' \\
+    >> "${resultDir}/cold-start.log" || true
+(( status == 0 )) || fail "Cold-start S3 GETs failed with status $status; see its log"
+kubectl exec -n alx-ns warp-client -c s3 -- cat /results/cold-start-client-timing.json \\
+    > "${workDir}/cold-start-client-timing.json"
+kubectl exec -n alx-ns warp-client -c s3 -- sh -c 'cat /results/cold-start-object-*.json' \\
+    > "${workDir}/cold-start-responses.json"
+jq -e -n -L "${checksDir}" \\
+    --slurpfile timing "${workDir}/cold-start-client-timing.json" \\
+    --slurpfile responses "${workDir}/cold-start-responses.json" \\
+    --slurpfile command_timing "${resultDir}/cold-start-timing.json" \\
+    'include "checks"; cold_summary($timing; $responses) + $command_timing[0]' \\
+    > "${resultDir}/cold-start-summary.json"
+counts="$(cache_report after-cold)"
+[[ "$(jq -r '.all' <<< "$counts")" == 16 ]] || fail "Cold-start did not cache all 16 objects"
+"""
+        env = {
+            BLOB_SAS = "$(BLOB_SAS)"
+        }
+    }
+}
+
+RunWarmGet = lambda workDir: str, resultDir: str, checksDir: str -> steps.Bash {
+    steps.Bash {
+        name = "alluxio_warm"
+        displayName = "Run warm-cache Warp GET"
+        bash = ShellSetup(workDir, resultDir) + AlluxioCommands(checksDir, resultDir) + """
+phase=warm-cache
+counts="$(cache_report before-warm)"
+[[ "$(jq -r '.all' <<< "$counts")" == 16 ]] ||
+    fail "Warm-cache requires all 16 objects to be cached"
 host="$(kubectl get pod alluxio-worker-0 -n alx-ns -o json |
     jq -er '.status.podIP'):29998"
 start="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -53,10 +119,8 @@ jq -e -L "${checksDir}" \\
     'include "checks"; warp_summary + $timing[0] +
      {concurrency: 16, requested_duration_seconds: 60, dataset_bytes: 1073741824}' \\
     "${resultDir}/$phase-analysis.json" > "${resultDir}/$phase-summary.json"
-if [[ "$phase" == warm-cache ]]; then
-    counts="$(cache_report after-warm)"
-    [[ "$(jq -r '.all' <<< "$counts")" == 16 ]] || fail "Dataset was not fully cached after the warm phase"
-fi
+counts="$(cache_report after-warm)"
+[[ "$(jq -r '.all' <<< "$counts")" == 16 ]] || fail "Dataset was not fully cached after the warm phase"
 """
         env = {
             BLOB_SAS = "$(BLOB_SAS)"

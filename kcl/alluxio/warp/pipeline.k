@@ -154,8 +154,7 @@ az aks create \\
                 RESULT_DIR
             )
             common.RecordCurrentTime("BENCHMARK_START_TIME")
-            alluxio.RunWarpGet(
-                "cold-start"
+            alluxio.RunColdGet(
                 WORK_DIR
                 RESULT_DIR
                 CHECKS_DIR
@@ -165,8 +164,7 @@ az aks create \\
                 RESULT_DIR
                 CHECKS_DIR
             )
-            alluxio.RunWarpGet(
-                "warm-cache"
+            alluxio.RunWarmGet(
                 WORK_DIR
                 RESULT_DIR
                 CHECKS_DIR

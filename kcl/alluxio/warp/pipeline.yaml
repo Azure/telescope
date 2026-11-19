@@ -643,48 +643,63 @@ jobs:
               redact > "$(Build.ArtifactStagingDirectory)/alluxio-warp/cache-$1.txt"
           jq -Rse -L "$(Build.SourcesDirectory)/kcl/alluxio/warp" 'include "checks"; cache_counts' "$(Build.ArtifactStagingDirectory)/alluxio-warp/cache-$1.txt"
       }
-      phase="cold-start"
-      counts="$(cache_report "before-cold")"
-      [[ "$(jq -r --arg field "uncached" '.[$field]' <<< "$counts")" == 16 ]] ||
-          fail "$phase requires the expected cache state for all 16 objects"
+      counts="$(cache_report before-cold)"
+      [[ "$(jq -r '.uncached' <<< "$counts")" == 16 ]] ||
+          fail "Cold-start requires all 16 objects to be uncached"
       host="$(kubectl get pod alluxio-worker-0 -n alx-ns -o json |
           jq -er '.status.podIP'):29998"
       start="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
       status=0
-      client_exec /tools/warp get \
-          "--host=$host" \
-          --bucket=blob \
-          --access-key=warp \
-          --secret-key=benchmark \
-          --region=us-east-1 \
-          --lookup=path \
-          --list-existing \
-          --noclear \
-          --concurrent=16 \
-          --duration=60s \
-          --obj.size=67108864 \
-          --full \
-          --json \
-          "--benchdata=/results/$phase" > "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase.log" 2>&1 || status=$?
+      kubectl exec -n alx-ns warp-client -c s3 -- env HOST="$host" sh -c '
+          set -u
+          start_ns="$(date +%s%N)"
+          pids=""
+          for index in $(seq 0 15); do
+              key="$(printf "object-%02d.bin" "$index")"
+              (
+                  AWS_ACCESS_KEY_ID=warp \
+                  AWS_SECRET_ACCESS_KEY=benchmark \
+                  AWS_EC2_METADATA_DISABLED=true \
+                  AWS_MAX_ATTEMPTS=1 \
+                  AWS_PAGER= \
+                  aws --endpoint-url "http://$HOST" --region us-east-1 --no-cli-pager \
+                      s3api get-object --bucket blob --key "$key" /dev/null \
+                      > "/results/cold-start-$key.json" \
+                      2> "/results/cold-start-$key.err"
+              ) &
+              pids="$pids $!"
+          done
+          command_status=0
+          for process_id in $pids; do
+              wait "$process_id" || command_status=1
+          done
+          end_ns="$(date +%s%N)"
+          printf "{\"start_unix_ns\":%s,\"end_unix_ns\":%s,\"request_count\":16}\n" \
+              "$start_ns" "$end_ns" > /results/cold-start-client-timing.json
+          exit "$command_status"
+      ' > "$(Build.ArtifactStagingDirectory)/alluxio-warp/cold-start.log" 2>&1 || status=$?
       end="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-      jq -n --arg phase "$phase" --arg command_start "$start" --arg command_end "$end" \
-          '$ARGS.named' > "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-timing.json"
-      (( status == 0 )) || fail "Warp $phase command failed with status $status; see its log"
-      client_exec cat "/results/$phase.csv.zst" > "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase.csv.zst"
-      [[ -s "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase.csv.zst" ]] || fail "Warp raw data is empty for $phase"
-      client_exec /tools/warp analyze --full --json "/results/$phase.csv.zst" > "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-analysis.json"
-      jq -e -L "$(Build.SourcesDirectory)/kcl/alluxio/warp" \
-          --slurpfile timing "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-timing.json" \
-          'include "checks"; warp_summary + $timing[0] +
-           {concurrency: 16, requested_duration_seconds: 60, dataset_bytes: 1073741824}' \
-          "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-analysis.json" > "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-summary.json"
-      if [[ "$phase" == warm-cache ]]; then
-          counts="$(cache_report after-warm)"
-          [[ "$(jq -r '.all' <<< "$counts")" == 16 ]] || fail "Dataset was not fully cached after the warm phase"
-      fi
-    displayName: Run cold-start Warp GET
+      jq -n --arg phase cold-start --arg command_start "$start" --arg command_end "$end" \
+          '$ARGS.named' > "$(Build.ArtifactStagingDirectory)/alluxio-warp/cold-start-timing.json"
+      kubectl exec -n alx-ns warp-client -c s3 -- sh -c 'cat /results/cold-start-*.err' \
+          >> "$(Build.ArtifactStagingDirectory)/alluxio-warp/cold-start.log" || true
+      (( status == 0 )) || fail "Cold-start S3 GETs failed with status $status; see its log"
+      kubectl exec -n alx-ns warp-client -c s3 -- cat /results/cold-start-client-timing.json \
+          > "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/cold-start-client-timing.json"
+      kubectl exec -n alx-ns warp-client -c s3 -- sh -c 'cat /results/cold-start-object-*.json' \
+          > "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/cold-start-responses.json"
+      jq -e -n -L "$(Build.SourcesDirectory)/kcl/alluxio/warp" \
+          --slurpfile timing "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/cold-start-client-timing.json" \
+          --slurpfile responses "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/cold-start-responses.json" \
+          --slurpfile command_timing "$(Build.ArtifactStagingDirectory)/alluxio-warp/cold-start-timing.json" \
+          'include "checks"; cold_summary($timing; $responses) + $command_timing[0]' \
+          > "$(Build.ArtifactStagingDirectory)/alluxio-warp/cold-start-summary.json"
+      counts="$(cache_report after-cold)"
+      [[ "$(jq -r '.all' <<< "$counts")" == 16 ]] || fail "Cold-start did not cache all 16 objects"
+    displayName: Run one cold pass over all 16 objects
     env:
       BLOB_SAS: $(BLOB_SAS)
+    name: alluxio_cold
   - bash: |
       set +x
       set -Eeuo pipefail
@@ -779,10 +794,10 @@ jobs:
               redact > "$(Build.ArtifactStagingDirectory)/alluxio-warp/cache-$1.txt"
           jq -Rse -L "$(Build.SourcesDirectory)/kcl/alluxio/warp" 'include "checks"; cache_counts' "$(Build.ArtifactStagingDirectory)/alluxio-warp/cache-$1.txt"
       }
-      phase="warm-cache"
-      counts="$(cache_report "before-warm")"
-      [[ "$(jq -r --arg field "all" '.[$field]' <<< "$counts")" == 16 ]] ||
-          fail "$phase requires the expected cache state for all 16 objects"
+      phase=warm-cache
+      counts="$(cache_report before-warm)"
+      [[ "$(jq -r '.all' <<< "$counts")" == 16 ]] ||
+          fail "Warm-cache requires all 16 objects to be cached"
       host="$(kubectl get pod alluxio-worker-0 -n alx-ns -o json |
           jq -er '.status.podIP'):29998"
       start="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -814,13 +829,12 @@ jobs:
           'include "checks"; warp_summary + $timing[0] +
            {concurrency: 16, requested_duration_seconds: 60, dataset_bytes: 1073741824}' \
           "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-analysis.json" > "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-summary.json"
-      if [[ "$phase" == warm-cache ]]; then
-          counts="$(cache_report after-warm)"
-          [[ "$(jq -r '.all' <<< "$counts")" == 16 ]] || fail "Dataset was not fully cached after the warm phase"
-      fi
+      counts="$(cache_report after-warm)"
+      [[ "$(jq -r '.all' <<< "$counts")" == 16 ]] || fail "Dataset was not fully cached after the warm phase"
     displayName: Run warm-cache Warp GET
     env:
       BLOB_SAS: $(BLOB_SAS)
+    name: alluxio_warm
   - bash: |
       set -exo pipefail
       TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
