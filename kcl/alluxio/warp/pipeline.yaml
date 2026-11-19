@@ -118,7 +118,6 @@ jobs:
           --network-plugin azure \
           --network-plugin-mode overlay \
           --enable-managed-identity \
-          --enable-aad \
           --no-ssh-key \
           --tier standard \
           --yes
@@ -231,8 +230,7 @@ jobs:
           --resource-group "alluxio-$(RUN_ID)-$(System.JobAttempt)" \
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --overwrite-existing \
-          -f $(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/kubeconfig \
-          --admin
+          -f $(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/kubeconfig
     displayName: Get credentials for alluxio-warp
   - task: AzureCLI@2
     inputs:
