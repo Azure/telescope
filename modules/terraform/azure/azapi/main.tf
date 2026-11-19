@@ -22,6 +22,12 @@ locals {
       dnsPrefix         = var.azapi_config.dns_prefix
       agentPoolProfiles = local.agent_pool_profiles
       networkProfile    = local.network_profile
+      enableRBAC        = var.azapi_config.aad_enabled ? true : null
+      aadProfile = var.azapi_config.aad_enabled ? {
+        managed         = true
+        enableAzureRBAC = true
+        tenantID        = data.azurerm_client_config.current.tenant_id
+      } : null
       controlPlaneScalingProfile = var.azapi_config.control_plane_scaling_profile != null ? {
         scalingSize = var.azapi_config.control_plane_scaling_profile.scaling_size
       } : null
@@ -66,4 +72,22 @@ resource "azapi_resource" "aks_cluster" {
   timeouts {
     create = "60m"
   }
+}
+
+# This administrator-created role grants Microsoft.ContainerService/managedClusters/metrics/read
+# to read the Kubernetes API server /metrics endpoint without granting cluster-admin access.
+# The assignment below grants it to the Terraform identity only on the benchmark cluster.
+data "azurerm_role_definition" "metrics_reader" {
+  count = var.azapi_config.metrics_reader_enabled ? 1 : 0
+
+  name  = "Telescope AKS Metrics Reader"
+  scope = "/subscriptions/${data.azurerm_client_config.current.subscription_id}"
+}
+
+resource "azurerm_role_assignment" "metrics_reader" {
+  count = var.azapi_config.metrics_reader_enabled ? 1 : 0
+
+  scope              = azapi_resource.aks_cluster.id
+  role_definition_id = data.azurerm_role_definition.metrics_reader[0].id
+  principal_id       = data.azurerm_client_config.current.object_id
 }

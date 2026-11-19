@@ -126,8 +126,13 @@ jobs:
             fi
             updated_matrix=$(echo "$module_matrix $scenario_matrix" | jq -s 'flatten | unique')
             echo "Test scenarios to run: $updated_matrix"
-            updated_matrix="${updated_matrix//$'\n'/''}"
-            matrix_combinations="{\"include\": ${updated_matrix}}"
+            matrix_size=$(echo "$updated_matrix" | jq 'length')
+            if [ "$matrix_size" -eq 0 ]; then
+              matrix_combinations=null
+            else
+              updated_matrix="${updated_matrix//$'\n'/''}"
+              matrix_combinations="{\"include\": ${updated_matrix}}"
+            fi
             echo "matrix_combinations=$matrix_combinations" >> "$GITHUB_OUTPUT"
           fi
           echo "matrix_combinations: $matrix_combinations"
