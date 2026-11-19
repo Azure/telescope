@@ -321,7 +321,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             main()
             mock_execute.assert_called_once_with(
                 "gcr.io/cl2:latest", "/configs", "/reports",
-                "/home/user/.kube/config", "gcp", True, False
+                "/home/user/.kube/config", "gcp", True, False, False
             )
 
     @patch("clusterloader2.cri.cri.collect_clusterloader2")

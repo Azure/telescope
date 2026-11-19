@@ -38,7 +38,8 @@ steps:
         --kubeconfig ${HOME}/.kube/config \
         --provider $CLOUD \
         --scrape_kubelets ${SCRAPE_KUBELETS:-False} \
-        --scrape_containerd ${SCRAPE_CONTAINERD:-False}
+        --scrape_containerd ${SCRAPE_CONTAINERD:-False} \
+        --run_from_cluster ${CL2_RUN_FROM_CLUSTER:-False}
     workingDirectory: modules/python
     env:
       ${{ if eq(parameters.cloud, 'azure') }}:

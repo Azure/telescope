@@ -5,6 +5,7 @@ import math
 
 from datetime import datetime, timezone
 from clusterloader2.utils import parse_xml_to_json, run_cl2_command, get_measurement
+from clusterloader2.cri.incluster import run_in_cluster
 from clients.kubernetes_client import KubernetesClient, client as k8s_client
 from utils.logger_config import get_logger, setup_logging
 from utils.common import str2bool
@@ -118,7 +119,13 @@ def override_config_clusterloader2(
 
     file.close()
 
-def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider, scrape_kubelets, scrape_containerd):
+def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider, scrape_kubelets, scrape_containerd, run_from_cluster=False):
+    if run_from_cluster:
+        if provider != "aks":
+            raise ValueError("In-cluster CRI execution is supported only on AKS")
+        run_in_cluster(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir,
+                       scrape_kubelets, scrape_containerd)
+        return
     run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=True, enable_prometheus=True,
                     tear_down_prometheus=False, scrape_kubelets=scrape_kubelets, scrape_containerd=scrape_containerd)
 
@@ -347,6 +354,10 @@ def main():
     )
     parser_execute.add_argument("--provider", type=str, help="Cloud provider name")
     parser_execute.add_argument(
+        "--run_from_cluster", type=str2bool, default=False,
+        help="Run on an approved disposable AKS cluster; creates temporary cluster-wide RBAC",
+    )
+    parser_execute.add_argument(
         "--scrape_kubelets",
         type=str2bool,
         choices=[True, False],
@@ -440,6 +451,7 @@ def main():
             args.provider,
             args.scrape_kubelets,
             args.scrape_containerd,
+            args.run_from_cluster,
         )
     elif args.command == "collect":
         collect_clusterloader2(
