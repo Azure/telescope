@@ -1,0 +1,2820 @@
+name: CNI AB Testing
+pool: AKS-Telescope-Airlock
+trigger: none
+parameters:
+- name: aws_service_connection
+  displayName: AWS service connection
+  type: string
+  default: AWS-for-Telescope
+- name: skip_resource_management
+  displayName: Use an existing cluster
+  type: boolean
+  default: false
+- name: skip_resource_deletion
+  displayName: Keep resources after a manual run
+  type: boolean
+  default: false
+- name: owner
+  displayName: Resource owner
+  type: string
+  default: aks
+- name: byo_azure_cluster_name
+  displayName: Existing AKS cluster name
+  type: string
+  default: ''
+- name: byo_azure_resource_group
+  displayName: Existing AKS resource group
+  type: string
+  default: ''
+- name: byo_aws_cluster_name
+  displayName: Existing EKS cluster name
+  type: string
+  default: ''
+schedules:
+- cron: '0 1-23/4 * * *'
+  displayName: Every 4 Hour (1AM start)
+  branches:
+    include:
+    - main
+  always: true
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: cni-ab-testing
+  AZURE_SERVICE_CONNECTION: Azure-for-Telescope-internal
+  AZURE_SUBSCRIPTION_ID: b8ceb4e5-f05b-4562-a9f5-14acb1f24219
+  AZURE_TELESCOPE_STORAGE_ACCOUNT_NAME: telescopev2
+stages:
+- stage: azure_swedencentral_default
+  displayName: Default-CNI custom configuration
+  dependsOn: []
+  variables:
+  - group: Default-CNI
+  jobs:
+  - job: default_n10_p300_memory
+    displayName: 'default: 10 nodes x 30 pods'
+    condition: or(eq(variables['Build.Reason'], 'Manual'), and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.SourceBranchName'], 'main')))
+    timeoutInMinutes: 120
+    variables:
+      NODE_COUNT: '10'
+      MAX_PODS: '30'
+      REPEATS: '1'
+      OPERATION_TIMEOUT: '3m'
+      LOAD_TYPE: memory
+      SCRAPE_KUBELETS: 'True'
+      HOST_NETWORK: 'False'
+    steps:
+    - bash: |
+        set -eo pipefail
+
+        job_id="$(System.JobId)"
+        RUN_ID=$(Build.BuildId)-${job_id:0:8}
+        echo "Run ID: $RUN_ID"
+
+        echo "##vso[task.setvariable variable=RUN_ID]$RUN_ID"
+      displayName: Set Run ID
+    - bash: |-
+        set -exo pipefail
+        pip3 install --upgrade "pip<24"
+        pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
+      displayName: Install Python dependencies
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az account set --subscription "$(AZURE_SUBSCRIPTION_ID)"
+          az config set defaults.location="swedencentral"
+          az account show
+      displayName: Login to Azure
+    - bash: |
+        set -euo pipefail
+        CREATION_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+        DELETION_DUE_TIME=$(date -u -d "+2 hour" +'%Y-%m-%dT%H:%M:%SZ')
+        echo "##vso[task.setvariable variable=CREATION_DATE]$CREATION_DATE"
+        echo "##vso[task.setvariable variable=DELETION_DUE_TIME]$DELETION_DUE_TIME"
+        echo "##vso[task.setvariable variable=OWNER]aks"
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Set resource lifecycle tags
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az group create   --name "$(RUN_ID)"   --location "swedencentral"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --tags "run_id=$(RUN_ID)" "scenario=perf-eval-cni-ab-testing" "owner=aks" "creation_date=$(CREATION_DATE)" "deletion_due_time=$(DELETION_DUE_TIME)" "SkipAKSCluster=1" "SkipASB_Audit=true" "cni_variant=default"
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Create benchmark resource group
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az network vnet create   --resource-group "$(RUN_ID)"   --name "cri-vnet"   --address-prefixes 10.0.0.0/9   --subscription "$(AZURE_SUBSCRIPTION_ID)"
+          az network vnet subnet create   --resource-group "$(RUN_ID)"   --vnet-name "cri-vnet"   --name "cri-subnet-1"   --address-prefixes 10.0.0.0/16   --subscription "$(AZURE_SUBSCRIPTION_ID)"
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Create CRI benchmark network
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          AKS_CUSTOM_FLAGS=()
+          ADO_CUSTOM_HEADERS_LITERAL='$'"(AKS_CLI_CUSTOM_HEADERS)"
+          if [ "${CUSTOM_HEADERS:-}" != "$ADO_CUSTOM_HEADERS_LITERAL" ] && [ -n "${CUSTOM_HEADERS:-}" ]; then
+            AKS_CUSTOM_FLAGS+=(--aks-custom-headers "$CUSTOM_HEADERS")
+          fi
+
+
+          SUBNET_ID=$(az network vnet subnet show   --resource-group "$(RUN_ID)"   --vnet-name "cri-vnet"   --name "cri-subnet-1"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --query id -o tsv)
+
+          az aks create   --name "cri-resource-consume"   --resource-group "$(RUN_ID)"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --location "swedencentral"   --kubernetes-version "1.33"   --dns-name-prefix "cri"   --tier standard   --nodepool-name default   --node-count 3   --node-vm-size "Standard_D16ds_v4"   --node-osdisk-type Ephemeral   --nodepool-taints CriticalAddonsOnly=true:NoSchedule   --max-pods 250   --network-plugin azure   --network-plugin-mode overlay   --pod-cidr 10.0.0.0/9   --service-cidr 192.168.0.0/16   --dns-service-ip 192.168.0.10   --vnet-subnet-id "$SUBNET_ID"   --enable-managed-identity   --generate-ssh-keys   --tags "run_id=$(RUN_ID)" "role=client" "scenario=perf-eval-cni-ab-testing" "cni_variant=default"   "${AKS_CUSTOM_FLAGS[@]}"   --no-wait
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Create default AKS cluster
+      env:
+        CUSTOM_HEADERS: $(AKS_CLI_CUSTOM_HEADERS)
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          while true; do
+            STATE=$(az aks show --name "cri-resource-consume" --resource-group "$(RUN_ID)" --subscription "$(AZURE_SUBSCRIPTION_ID)" --query provisioningState -o tsv)
+            echo "AKS provisioning state: $STATE"
+            case "$STATE" in
+          Succeeded) break ;;
+          Failed|Canceled) exit 1 ;;
+            esac
+            sleep 30
+          done
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Wait for AKS cluster to succeed
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          AKS_CUSTOM_HEADER_FLAGS=()
+          ADO_CUSTOM_HEADERS_LITERAL='$'"(AKS_CLI_CUSTOM_HEADERS)"
+          if [ "${CUSTOM_HEADERS:-}" != "$ADO_CUSTOM_HEADERS_LITERAL" ] && [ -n "${CUSTOM_HEADERS:-}" ]; then
+            AKS_CUSTOM_HEADER_FLAGS+=(--aks-custom-headers "$CUSTOM_HEADERS")
+          fi
+
+
+          SUBNET_ID=$(az network vnet subnet show   --resource-group "$(RUN_ID)"   --vnet-name "cri-vnet"   --name "cri-subnet-1"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --query id -o tsv)
+
+          az aks nodepool add   --cluster-name "cri-resource-consume"   --resource-group "$(RUN_ID)"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --name prompool   --node-count 1   --node-vm-size "Standard_D16ds_v4"   --node-osdisk-type Ephemeral   --mode User   --labels prometheus=true   --max-pods 250   --vnet-subnet-id "$SUBNET_ID"   "${AKS_CUSTOM_HEADER_FLAGS[@]}"
+
+          az aks nodepool add   --cluster-name "cri-resource-consume"   --resource-group "$(RUN_ID)"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --name userpool0   --node-count 10   --node-vm-size "Standard_D16ds_v4"   --node-osdisk-type Ephemeral   --mode User   --labels cri-resource-consume=true   --node-taints cri-resource-consume=true:NoSchedule,cri-resource-consume=true:NoExecute   --max-pods 250   --vnet-subnet-id "$SUBNET_ID"   "${AKS_CUSTOM_HEADER_FLAGS[@]}"
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Create CRI benchmark node pools
+      env:
+        CUSTOM_HEADERS: $(AKS_CLI_CUSTOM_HEADERS)
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          for POOL in prompool userpool0; do
+            while true; do
+          STATE=$(az aks nodepool show   --cluster-name "cri-resource-consume"   --resource-group "$(RUN_ID)"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --name "$POOL"   --query provisioningState -o tsv)
+          echo "Node pool $POOL provisioning state: $STATE"
+          case "$STATE" in
+            Succeeded) break ;;
+            Failed|Canceled) exit 1 ;;
+          esac
+          sleep 30
+            done
+          done
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Wait for AKS node pools to succeed
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az aks get-credentials   --name "cri-resource-consume"   --resource-group "$(RUN_ID)"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --overwrite-existing
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Get managed AKS credentials
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          OWNER="${{ parameters.owner }}"
+          CLUSTER_NAME="${{ parameters.byo_azure_cluster_name }}"
+          CLUSTER_RESOURCE_GROUP="${{ parameters.byo_azure_resource_group }}"
+          if [ -z "$OWNER" ]; then
+            echo "##vso[task.logissue type=error;] OWNER is not set."
+            exit 1
+          fi
+          if [ -z "$CLUSTER_NAME" ] || [ -z "$CLUSTER_RESOURCE_GROUP" ]; then
+            echo "##vso[task.logissue type=error;] BYO Azure cluster name and resource group are required."
+            exit 1
+          fi
+          echo "##vso[task.setvariable variable=OWNER]$OWNER"
+          az aks get-credentials   --name "$CLUSTER_NAME"   --resource-group "$CLUSTER_RESOURCE_GROUP"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --overwrite-existing
+      condition: ${{ parameters.skip_resource_management }}
+      displayName: Validate OWNER and get BYO AKS credentials
+    - bash: |
+        set -euo pipefail
+
+        deadline=$((SECONDS + 600))
+        while [ "$SECONDS" -lt "$deadline" ]; do
+          total=$(kubectl get nodes --no-headers 2>/dev/null | wc -l)
+          ready=$(kubectl get nodes --no-headers 2>/dev/null | awk '$2 == "Ready" {count++} END {print count+0}')
+          echo "Cluster nodes: $ready/$total Ready; expected 14"
+          if [ "$total" -eq 14 ] && [ "$ready" -eq 14 ]; then
+            kubectl get nodes -L agentpool,prometheus,cri-resource-consume
+            exit 0
+          fi
+          sleep 30
+        done
+
+        echo "Expected exactly 14 Ready nodes within 10 minutes."
+        kubectl get nodes -o wide
+        exit 1
+      displayName: Validate 14 Ready nodes
+      timeoutInMinutes: 11
+    - bash: |
+        set -euo pipefail
+
+        rm -rf "$CL2_REPORT_DIR"
+        mkdir -p "$CL2_REPORT_DIR"
+        rm -f "$TEST_RESULTS_FILE"
+
+        PYTHONPATH="$(Pipeline.Workspace)/s/modules/python:$CL2_PYTHON_ROOT" python3 "$CL2_PYTHON_ROOT/clusterloader2/cri/cri.py" override   --node_count "$NODE_COUNT"   --node_per_step "$NODE_COUNT"   --max_pods "$MAX_PODS"   --repeats "$REPEATS"   --operation_timeout "$OPERATION_TIMEOUT"   --load_type "$LOAD_TYPE"   --scale_enabled False   --pod_startup_latency_threshold 15s   --provider "aks"   --registry_endpoint "akscritelescope.azurecr.io"   --test_image e2e-test-images/resource-consumer:1.13   --os_type linux   --scrape_kubelets "$SCRAPE_KUBELETS"   --scrape_containerd False   --containerd_scrape_interval 15s   --host_network "$HOST_NETWORK"   --cl2_override_file "$CL2_CONFIG_DIR/overrides.yaml"
+
+        PYTHONPATH="$(Pipeline.Workspace)/s/modules/python:$CL2_PYTHON_ROOT" python3 "$CL2_PYTHON_ROOT/clusterloader2/cri/cri.py" execute   --cl2_image "$CL2_IMAGE"   --cl2_config_dir "$CL2_CONFIG_DIR"   --cl2_report_dir "$CL2_REPORT_DIR"   --kubeconfig "$HOME/.kube/config"   --provider "aks"   --scrape_kubelets "$SCRAPE_KUBELETS"   --scrape_containerd False
+      displayName: Run ClusterLoader2 CRI benchmark
+      env:
+        CL2_PYTHON_ROOT: $(Pipeline.Workspace)/s/kcl/perf-eval/cni-benchmark/cni-ab-testing/assets/python
+        CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/kcl/perf-eval/cni-benchmark/cni-ab-testing/assets/python/clusterloader2/cri/config
+        CL2_REPORT_DIR: $(Pipeline.Workspace)/cl2-results
+        TEST_RESULTS_FILE: $(Pipeline.Workspace)/cni-ab-results.jsonl
+        CL2_IMAGE: ghcr.io/azure/clusterloader2:v20241016
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          CLUSTER_NAME="cri-resource-consume"
+          CLUSTER_RESOURCE_GROUP="$(RUN_ID)"
+          BYO="${{ parameters.skip_resource_management }}"
+          if [ "${BYO,,}" = "true" ]; then
+            CLUSTER_NAME="${{ parameters.byo_azure_cluster_name }}"
+            CLUSTER_RESOURCE_GROUP="${{ parameters.byo_azure_resource_group }}"
+          fi
+          AKS_INFO=$(az aks show   --resource-group "$CLUSTER_RESOURCE_GROUP"   --name "$CLUSTER_NAME"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --output json)
+          CLOUD_INFO=$(echo "$AKS_INFO" | jq -c   --arg variant "default"   '{cloud:"azure", region:.location, cluster:.name, kubernetes_version:.currentKubernetesVersion, sku_tier:.sku.tier, network_profile:.networkProfile, cni_variant:$variant}')
+          echo "Cloud info: $CLOUD_INFO"
+          echo "##vso[task.setvariable variable=CLOUD_INFO]$CLOUD_INFO"
+      displayName: Collect AKS cloud info
+    - bash: |
+        set -euo pipefail
+
+        PYTHONPATH="$(Pipeline.Workspace)/s/modules/python:$CL2_PYTHON_ROOT" python3 "$CL2_PYTHON_ROOT/clusterloader2/cri/cri.py" collect   --node_count "$NODE_COUNT"   --max_pods "$MAX_PODS"   --repeats "$REPEATS"   --load_type "$LOAD_TYPE"   --cl2_report_dir "$CL2_REPORT_DIR"   --cloud_info "$CLOUD_INFO"   --run_id "$(RUN_ID)"   --run_url "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)"   --result_file "$TEST_RESULTS_FILE"   --scrape_kubelets "$SCRAPE_KUBELETS"   --registry_info ""
+      displayName: Collect ClusterLoader2 results
+      env:
+        CL2_PYTHON_ROOT: $(Pipeline.Workspace)/s/kcl/perf-eval/cni-benchmark/cni-ab-testing/assets/python
+        CL2_REPORT_DIR: $(Pipeline.Workspace)/cl2-results
+        TEST_RESULTS_FILE: $(Pipeline.Workspace)/cni-ab-results.jsonl
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          if [ -s "$(Pipeline.Workspace)/cni-ab-results.jsonl" ]; then
+            MEASUREMENTS=$(jq -s '.' "$(Pipeline.Workspace)/cni-ab-results.jsonl")
+            FAILED=$(echo "$MEASUREMENTS" | jq '[.[] | select(.status == "failure")] | length')
+          else
+            MEASUREMENTS='[]'
+            FAILED=1
+          fi
+          STATUS="succeeded"
+          if [ "$FAILED" -gt 0 ]; then
+            STATUS="failed"
+          fi
+          cat > /tmp/run-result.json << EOF
+          {
+            "timestamp": "${TIMESTAMP}",
+            "run_id": "$(RUN_ID)",
+            "run_url": "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)",
+            "pipeline": "$(Build.DefinitionName)",
+            "result": {
+              "status": "${STATUS}",
+              "scenario_type": "perf-eval",
+              "scenario_name": "cni-ab-testing",
+              "owner": "${{ parameters.owner }}",
+              "engine": "clusterloader2",
+              "topology": "cri-resource-consume",
+              "engine_input": {"image": "ghcr.io/azure/clusterloader2:v20241016"},
+              "byo_resources": "${{ parameters.skip_resource_management }}",
+              "cloud": "azure",
+              "region": "swedencentral",
+              "cni_variant": "default",
+              "node_count": 10,
+              "max_pods": $(MAX_PODS),
+              "repeats": 1,
+              "load_type": "memory",
+              "host_network": false,
+              "scrape_kubelets": true,
+              "measurements": ${MEASUREMENTS}
+            }
+          }
+          EOF
+          jq . /tmp/run-result.json
+      displayName: Build Telescope result
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az storage blob upload \
+            --account-name "telescopev2" \
+            --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" \
+            --container-name "aks" \
+            --name "$(RUN_ID)/run-result.json" \
+            --file /tmp/run-result.json \
+            --auth-mode key
+      displayName: Upload result to storage account
+    - bash: |
+        echo "##vso[task.logissue type=warning;] Resource deletion was skipped for this manual run."
+        echo "Delete manually with: az group delete --name $(RUN_ID) --subscription $(AZURE_SUBSCRIPTION_ID) --yes"
+      condition: and(always(), not(${{ parameters.skip_resource_management }}), ${{ parameters.skip_resource_deletion }}, eq(variables['Build.Reason'], 'Manual'))
+      displayName: Report skipped cleanup
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az group delete --name "$(RUN_ID)" --subscription "$(AZURE_SUBSCRIPTION_ID)" --yes
+      condition: and(always(), not(${{ parameters.skip_resource_management }}), not(and(${{ parameters.skip_resource_deletion }}, eq(variables['Build.Reason'], 'Manual'))))
+      displayName: Delete resource group ($(AZURE_SUBSCRIPTION_ID))
+  - job: default_n10_p700_memory
+    displayName: 'default: 10 nodes x 70 pods'
+    condition: or(eq(variables['Build.Reason'], 'Manual'), and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.SourceBranchName'], 'main')))
+    timeoutInMinutes: 120
+    variables:
+      NODE_COUNT: '10'
+      MAX_PODS: '70'
+      REPEATS: '1'
+      OPERATION_TIMEOUT: '7m'
+      LOAD_TYPE: memory
+      SCRAPE_KUBELETS: 'True'
+      HOST_NETWORK: 'False'
+    steps:
+    - bash: |
+        set -eo pipefail
+
+        job_id="$(System.JobId)"
+        RUN_ID=$(Build.BuildId)-${job_id:0:8}
+        echo "Run ID: $RUN_ID"
+
+        echo "##vso[task.setvariable variable=RUN_ID]$RUN_ID"
+      displayName: Set Run ID
+    - bash: |-
+        set -exo pipefail
+        pip3 install --upgrade "pip<24"
+        pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
+      displayName: Install Python dependencies
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az account set --subscription "$(AZURE_SUBSCRIPTION_ID)"
+          az config set defaults.location="swedencentral"
+          az account show
+      displayName: Login to Azure
+    - bash: |
+        set -euo pipefail
+        CREATION_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+        DELETION_DUE_TIME=$(date -u -d "+2 hour" +'%Y-%m-%dT%H:%M:%SZ')
+        echo "##vso[task.setvariable variable=CREATION_DATE]$CREATION_DATE"
+        echo "##vso[task.setvariable variable=DELETION_DUE_TIME]$DELETION_DUE_TIME"
+        echo "##vso[task.setvariable variable=OWNER]aks"
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Set resource lifecycle tags
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az group create   --name "$(RUN_ID)"   --location "swedencentral"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --tags "run_id=$(RUN_ID)" "scenario=perf-eval-cni-ab-testing" "owner=aks" "creation_date=$(CREATION_DATE)" "deletion_due_time=$(DELETION_DUE_TIME)" "SkipAKSCluster=1" "SkipASB_Audit=true" "cni_variant=default"
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Create benchmark resource group
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az network vnet create   --resource-group "$(RUN_ID)"   --name "cri-vnet"   --address-prefixes 10.0.0.0/9   --subscription "$(AZURE_SUBSCRIPTION_ID)"
+          az network vnet subnet create   --resource-group "$(RUN_ID)"   --vnet-name "cri-vnet"   --name "cri-subnet-1"   --address-prefixes 10.0.0.0/16   --subscription "$(AZURE_SUBSCRIPTION_ID)"
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Create CRI benchmark network
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          AKS_CUSTOM_FLAGS=()
+          ADO_CUSTOM_HEADERS_LITERAL='$'"(AKS_CLI_CUSTOM_HEADERS)"
+          if [ "${CUSTOM_HEADERS:-}" != "$ADO_CUSTOM_HEADERS_LITERAL" ] && [ -n "${CUSTOM_HEADERS:-}" ]; then
+            AKS_CUSTOM_FLAGS+=(--aks-custom-headers "$CUSTOM_HEADERS")
+          fi
+
+
+          SUBNET_ID=$(az network vnet subnet show   --resource-group "$(RUN_ID)"   --vnet-name "cri-vnet"   --name "cri-subnet-1"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --query id -o tsv)
+
+          az aks create   --name "cri-resource-consume"   --resource-group "$(RUN_ID)"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --location "swedencentral"   --kubernetes-version "1.33"   --dns-name-prefix "cri"   --tier standard   --nodepool-name default   --node-count 3   --node-vm-size "Standard_D16ds_v4"   --node-osdisk-type Ephemeral   --nodepool-taints CriticalAddonsOnly=true:NoSchedule   --max-pods 250   --network-plugin azure   --network-plugin-mode overlay   --pod-cidr 10.0.0.0/9   --service-cidr 192.168.0.0/16   --dns-service-ip 192.168.0.10   --vnet-subnet-id "$SUBNET_ID"   --enable-managed-identity   --generate-ssh-keys   --tags "run_id=$(RUN_ID)" "role=client" "scenario=perf-eval-cni-ab-testing" "cni_variant=default"   "${AKS_CUSTOM_FLAGS[@]}"   --no-wait
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Create default AKS cluster
+      env:
+        CUSTOM_HEADERS: $(AKS_CLI_CUSTOM_HEADERS)
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          while true; do
+            STATE=$(az aks show --name "cri-resource-consume" --resource-group "$(RUN_ID)" --subscription "$(AZURE_SUBSCRIPTION_ID)" --query provisioningState -o tsv)
+            echo "AKS provisioning state: $STATE"
+            case "$STATE" in
+          Succeeded) break ;;
+          Failed|Canceled) exit 1 ;;
+            esac
+            sleep 30
+          done
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Wait for AKS cluster to succeed
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          AKS_CUSTOM_HEADER_FLAGS=()
+          ADO_CUSTOM_HEADERS_LITERAL='$'"(AKS_CLI_CUSTOM_HEADERS)"
+          if [ "${CUSTOM_HEADERS:-}" != "$ADO_CUSTOM_HEADERS_LITERAL" ] && [ -n "${CUSTOM_HEADERS:-}" ]; then
+            AKS_CUSTOM_HEADER_FLAGS+=(--aks-custom-headers "$CUSTOM_HEADERS")
+          fi
+
+
+          SUBNET_ID=$(az network vnet subnet show   --resource-group "$(RUN_ID)"   --vnet-name "cri-vnet"   --name "cri-subnet-1"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --query id -o tsv)
+
+          az aks nodepool add   --cluster-name "cri-resource-consume"   --resource-group "$(RUN_ID)"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --name prompool   --node-count 1   --node-vm-size "Standard_D16ds_v4"   --node-osdisk-type Ephemeral   --mode User   --labels prometheus=true   --max-pods 250   --vnet-subnet-id "$SUBNET_ID"   "${AKS_CUSTOM_HEADER_FLAGS[@]}"
+
+          az aks nodepool add   --cluster-name "cri-resource-consume"   --resource-group "$(RUN_ID)"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --name userpool0   --node-count 10   --node-vm-size "Standard_D16ds_v4"   --node-osdisk-type Ephemeral   --mode User   --labels cri-resource-consume=true   --node-taints cri-resource-consume=true:NoSchedule,cri-resource-consume=true:NoExecute   --max-pods 250   --vnet-subnet-id "$SUBNET_ID"   "${AKS_CUSTOM_HEADER_FLAGS[@]}"
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Create CRI benchmark node pools
+      env:
+        CUSTOM_HEADERS: $(AKS_CLI_CUSTOM_HEADERS)
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          for POOL in prompool userpool0; do
+            while true; do
+          STATE=$(az aks nodepool show   --cluster-name "cri-resource-consume"   --resource-group "$(RUN_ID)"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --name "$POOL"   --query provisioningState -o tsv)
+          echo "Node pool $POOL provisioning state: $STATE"
+          case "$STATE" in
+            Succeeded) break ;;
+            Failed|Canceled) exit 1 ;;
+          esac
+          sleep 30
+            done
+          done
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Wait for AKS node pools to succeed
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az aks get-credentials   --name "cri-resource-consume"   --resource-group "$(RUN_ID)"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --overwrite-existing
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Get managed AKS credentials
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          OWNER="${{ parameters.owner }}"
+          CLUSTER_NAME="${{ parameters.byo_azure_cluster_name }}"
+          CLUSTER_RESOURCE_GROUP="${{ parameters.byo_azure_resource_group }}"
+          if [ -z "$OWNER" ]; then
+            echo "##vso[task.logissue type=error;] OWNER is not set."
+            exit 1
+          fi
+          if [ -z "$CLUSTER_NAME" ] || [ -z "$CLUSTER_RESOURCE_GROUP" ]; then
+            echo "##vso[task.logissue type=error;] BYO Azure cluster name and resource group are required."
+            exit 1
+          fi
+          echo "##vso[task.setvariable variable=OWNER]$OWNER"
+          az aks get-credentials   --name "$CLUSTER_NAME"   --resource-group "$CLUSTER_RESOURCE_GROUP"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --overwrite-existing
+      condition: ${{ parameters.skip_resource_management }}
+      displayName: Validate OWNER and get BYO AKS credentials
+    - bash: |
+        set -euo pipefail
+
+        deadline=$((SECONDS + 600))
+        while [ "$SECONDS" -lt "$deadline" ]; do
+          total=$(kubectl get nodes --no-headers 2>/dev/null | wc -l)
+          ready=$(kubectl get nodes --no-headers 2>/dev/null | awk '$2 == "Ready" {count++} END {print count+0}')
+          echo "Cluster nodes: $ready/$total Ready; expected 14"
+          if [ "$total" -eq 14 ] && [ "$ready" -eq 14 ]; then
+            kubectl get nodes -L agentpool,prometheus,cri-resource-consume
+            exit 0
+          fi
+          sleep 30
+        done
+
+        echo "Expected exactly 14 Ready nodes within 10 minutes."
+        kubectl get nodes -o wide
+        exit 1
+      displayName: Validate 14 Ready nodes
+      timeoutInMinutes: 11
+    - bash: |
+        set -euo pipefail
+
+        rm -rf "$CL2_REPORT_DIR"
+        mkdir -p "$CL2_REPORT_DIR"
+        rm -f "$TEST_RESULTS_FILE"
+
+        PYTHONPATH="$(Pipeline.Workspace)/s/modules/python:$CL2_PYTHON_ROOT" python3 "$CL2_PYTHON_ROOT/clusterloader2/cri/cri.py" override   --node_count "$NODE_COUNT"   --node_per_step "$NODE_COUNT"   --max_pods "$MAX_PODS"   --repeats "$REPEATS"   --operation_timeout "$OPERATION_TIMEOUT"   --load_type "$LOAD_TYPE"   --scale_enabled False   --pod_startup_latency_threshold 15s   --provider "aks"   --registry_endpoint "akscritelescope.azurecr.io"   --test_image e2e-test-images/resource-consumer:1.13   --os_type linux   --scrape_kubelets "$SCRAPE_KUBELETS"   --scrape_containerd False   --containerd_scrape_interval 15s   --host_network "$HOST_NETWORK"   --cl2_override_file "$CL2_CONFIG_DIR/overrides.yaml"
+
+        PYTHONPATH="$(Pipeline.Workspace)/s/modules/python:$CL2_PYTHON_ROOT" python3 "$CL2_PYTHON_ROOT/clusterloader2/cri/cri.py" execute   --cl2_image "$CL2_IMAGE"   --cl2_config_dir "$CL2_CONFIG_DIR"   --cl2_report_dir "$CL2_REPORT_DIR"   --kubeconfig "$HOME/.kube/config"   --provider "aks"   --scrape_kubelets "$SCRAPE_KUBELETS"   --scrape_containerd False
+      displayName: Run ClusterLoader2 CRI benchmark
+      env:
+        CL2_PYTHON_ROOT: $(Pipeline.Workspace)/s/kcl/perf-eval/cni-benchmark/cni-ab-testing/assets/python
+        CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/kcl/perf-eval/cni-benchmark/cni-ab-testing/assets/python/clusterloader2/cri/config
+        CL2_REPORT_DIR: $(Pipeline.Workspace)/cl2-results
+        TEST_RESULTS_FILE: $(Pipeline.Workspace)/cni-ab-results.jsonl
+        CL2_IMAGE: ghcr.io/azure/clusterloader2:v20241016
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          CLUSTER_NAME="cri-resource-consume"
+          CLUSTER_RESOURCE_GROUP="$(RUN_ID)"
+          BYO="${{ parameters.skip_resource_management }}"
+          if [ "${BYO,,}" = "true" ]; then
+            CLUSTER_NAME="${{ parameters.byo_azure_cluster_name }}"
+            CLUSTER_RESOURCE_GROUP="${{ parameters.byo_azure_resource_group }}"
+          fi
+          AKS_INFO=$(az aks show   --resource-group "$CLUSTER_RESOURCE_GROUP"   --name "$CLUSTER_NAME"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --output json)
+          CLOUD_INFO=$(echo "$AKS_INFO" | jq -c   --arg variant "default"   '{cloud:"azure", region:.location, cluster:.name, kubernetes_version:.currentKubernetesVersion, sku_tier:.sku.tier, network_profile:.networkProfile, cni_variant:$variant}')
+          echo "Cloud info: $CLOUD_INFO"
+          echo "##vso[task.setvariable variable=CLOUD_INFO]$CLOUD_INFO"
+      displayName: Collect AKS cloud info
+    - bash: |
+        set -euo pipefail
+
+        PYTHONPATH="$(Pipeline.Workspace)/s/modules/python:$CL2_PYTHON_ROOT" python3 "$CL2_PYTHON_ROOT/clusterloader2/cri/cri.py" collect   --node_count "$NODE_COUNT"   --max_pods "$MAX_PODS"   --repeats "$REPEATS"   --load_type "$LOAD_TYPE"   --cl2_report_dir "$CL2_REPORT_DIR"   --cloud_info "$CLOUD_INFO"   --run_id "$(RUN_ID)"   --run_url "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)"   --result_file "$TEST_RESULTS_FILE"   --scrape_kubelets "$SCRAPE_KUBELETS"   --registry_info ""
+      displayName: Collect ClusterLoader2 results
+      env:
+        CL2_PYTHON_ROOT: $(Pipeline.Workspace)/s/kcl/perf-eval/cni-benchmark/cni-ab-testing/assets/python
+        CL2_REPORT_DIR: $(Pipeline.Workspace)/cl2-results
+        TEST_RESULTS_FILE: $(Pipeline.Workspace)/cni-ab-results.jsonl
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          if [ -s "$(Pipeline.Workspace)/cni-ab-results.jsonl" ]; then
+            MEASUREMENTS=$(jq -s '.' "$(Pipeline.Workspace)/cni-ab-results.jsonl")
+            FAILED=$(echo "$MEASUREMENTS" | jq '[.[] | select(.status == "failure")] | length')
+          else
+            MEASUREMENTS='[]'
+            FAILED=1
+          fi
+          STATUS="succeeded"
+          if [ "$FAILED" -gt 0 ]; then
+            STATUS="failed"
+          fi
+          cat > /tmp/run-result.json << EOF
+          {
+            "timestamp": "${TIMESTAMP}",
+            "run_id": "$(RUN_ID)",
+            "run_url": "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)",
+            "pipeline": "$(Build.DefinitionName)",
+            "result": {
+              "status": "${STATUS}",
+              "scenario_type": "perf-eval",
+              "scenario_name": "cni-ab-testing",
+              "owner": "${{ parameters.owner }}",
+              "engine": "clusterloader2",
+              "topology": "cri-resource-consume",
+              "engine_input": {"image": "ghcr.io/azure/clusterloader2:v20241016"},
+              "byo_resources": "${{ parameters.skip_resource_management }}",
+              "cloud": "azure",
+              "region": "swedencentral",
+              "cni_variant": "default",
+              "node_count": 10,
+              "max_pods": $(MAX_PODS),
+              "repeats": 1,
+              "load_type": "memory",
+              "host_network": false,
+              "scrape_kubelets": true,
+              "measurements": ${MEASUREMENTS}
+            }
+          }
+          EOF
+          jq . /tmp/run-result.json
+      displayName: Build Telescope result
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az storage blob upload \
+            --account-name "telescopev2" \
+            --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" \
+            --container-name "aks" \
+            --name "$(RUN_ID)/run-result.json" \
+            --file /tmp/run-result.json \
+            --auth-mode key
+      displayName: Upload result to storage account
+    - bash: |
+        echo "##vso[task.logissue type=warning;] Resource deletion was skipped for this manual run."
+        echo "Delete manually with: az group delete --name $(RUN_ID) --subscription $(AZURE_SUBSCRIPTION_ID) --yes"
+      condition: and(always(), not(${{ parameters.skip_resource_management }}), ${{ parameters.skip_resource_deletion }}, eq(variables['Build.Reason'], 'Manual'))
+      displayName: Report skipped cleanup
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az group delete --name "$(RUN_ID)" --subscription "$(AZURE_SUBSCRIPTION_ID)" --yes
+      condition: and(always(), not(${{ parameters.skip_resource_management }}), not(and(${{ parameters.skip_resource_deletion }}, eq(variables['Build.Reason'], 'Manual'))))
+      displayName: Delete resource group ($(AZURE_SUBSCRIPTION_ID))
+  - job: default_n10_p1100_memory
+    displayName: 'default: 10 nodes x 110 pods'
+    condition: or(eq(variables['Build.Reason'], 'Manual'), and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.SourceBranchName'], 'main')))
+    timeoutInMinutes: 120
+    variables:
+      NODE_COUNT: '10'
+      MAX_PODS: '110'
+      REPEATS: '1'
+      OPERATION_TIMEOUT: '11m'
+      LOAD_TYPE: memory
+      SCRAPE_KUBELETS: 'True'
+      HOST_NETWORK: 'False'
+    steps:
+    - bash: |
+        set -eo pipefail
+
+        job_id="$(System.JobId)"
+        RUN_ID=$(Build.BuildId)-${job_id:0:8}
+        echo "Run ID: $RUN_ID"
+
+        echo "##vso[task.setvariable variable=RUN_ID]$RUN_ID"
+      displayName: Set Run ID
+    - bash: |-
+        set -exo pipefail
+        pip3 install --upgrade "pip<24"
+        pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
+      displayName: Install Python dependencies
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az account set --subscription "$(AZURE_SUBSCRIPTION_ID)"
+          az config set defaults.location="swedencentral"
+          az account show
+      displayName: Login to Azure
+    - bash: |
+        set -euo pipefail
+        CREATION_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+        DELETION_DUE_TIME=$(date -u -d "+2 hour" +'%Y-%m-%dT%H:%M:%SZ')
+        echo "##vso[task.setvariable variable=CREATION_DATE]$CREATION_DATE"
+        echo "##vso[task.setvariable variable=DELETION_DUE_TIME]$DELETION_DUE_TIME"
+        echo "##vso[task.setvariable variable=OWNER]aks"
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Set resource lifecycle tags
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az group create   --name "$(RUN_ID)"   --location "swedencentral"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --tags "run_id=$(RUN_ID)" "scenario=perf-eval-cni-ab-testing" "owner=aks" "creation_date=$(CREATION_DATE)" "deletion_due_time=$(DELETION_DUE_TIME)" "SkipAKSCluster=1" "SkipASB_Audit=true" "cni_variant=default"
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Create benchmark resource group
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az network vnet create   --resource-group "$(RUN_ID)"   --name "cri-vnet"   --address-prefixes 10.0.0.0/9   --subscription "$(AZURE_SUBSCRIPTION_ID)"
+          az network vnet subnet create   --resource-group "$(RUN_ID)"   --vnet-name "cri-vnet"   --name "cri-subnet-1"   --address-prefixes 10.0.0.0/16   --subscription "$(AZURE_SUBSCRIPTION_ID)"
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Create CRI benchmark network
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          AKS_CUSTOM_FLAGS=()
+          ADO_CUSTOM_HEADERS_LITERAL='$'"(AKS_CLI_CUSTOM_HEADERS)"
+          if [ "${CUSTOM_HEADERS:-}" != "$ADO_CUSTOM_HEADERS_LITERAL" ] && [ -n "${CUSTOM_HEADERS:-}" ]; then
+            AKS_CUSTOM_FLAGS+=(--aks-custom-headers "$CUSTOM_HEADERS")
+          fi
+
+
+          SUBNET_ID=$(az network vnet subnet show   --resource-group "$(RUN_ID)"   --vnet-name "cri-vnet"   --name "cri-subnet-1"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --query id -o tsv)
+
+          az aks create   --name "cri-resource-consume"   --resource-group "$(RUN_ID)"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --location "swedencentral"   --kubernetes-version "1.33"   --dns-name-prefix "cri"   --tier standard   --nodepool-name default   --node-count 3   --node-vm-size "Standard_D16ds_v4"   --node-osdisk-type Ephemeral   --nodepool-taints CriticalAddonsOnly=true:NoSchedule   --max-pods 250   --network-plugin azure   --network-plugin-mode overlay   --pod-cidr 10.0.0.0/9   --service-cidr 192.168.0.0/16   --dns-service-ip 192.168.0.10   --vnet-subnet-id "$SUBNET_ID"   --enable-managed-identity   --generate-ssh-keys   --tags "run_id=$(RUN_ID)" "role=client" "scenario=perf-eval-cni-ab-testing" "cni_variant=default"   "${AKS_CUSTOM_FLAGS[@]}"   --no-wait
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Create default AKS cluster
+      env:
+        CUSTOM_HEADERS: $(AKS_CLI_CUSTOM_HEADERS)
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          while true; do
+            STATE=$(az aks show --name "cri-resource-consume" --resource-group "$(RUN_ID)" --subscription "$(AZURE_SUBSCRIPTION_ID)" --query provisioningState -o tsv)
+            echo "AKS provisioning state: $STATE"
+            case "$STATE" in
+          Succeeded) break ;;
+          Failed|Canceled) exit 1 ;;
+            esac
+            sleep 30
+          done
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Wait for AKS cluster to succeed
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          AKS_CUSTOM_HEADER_FLAGS=()
+          ADO_CUSTOM_HEADERS_LITERAL='$'"(AKS_CLI_CUSTOM_HEADERS)"
+          if [ "${CUSTOM_HEADERS:-}" != "$ADO_CUSTOM_HEADERS_LITERAL" ] && [ -n "${CUSTOM_HEADERS:-}" ]; then
+            AKS_CUSTOM_HEADER_FLAGS+=(--aks-custom-headers "$CUSTOM_HEADERS")
+          fi
+
+
+          SUBNET_ID=$(az network vnet subnet show   --resource-group "$(RUN_ID)"   --vnet-name "cri-vnet"   --name "cri-subnet-1"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --query id -o tsv)
+
+          az aks nodepool add   --cluster-name "cri-resource-consume"   --resource-group "$(RUN_ID)"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --name prompool   --node-count 1   --node-vm-size "Standard_D16ds_v4"   --node-osdisk-type Ephemeral   --mode User   --labels prometheus=true   --max-pods 250   --vnet-subnet-id "$SUBNET_ID"   "${AKS_CUSTOM_HEADER_FLAGS[@]}"
+
+          az aks nodepool add   --cluster-name "cri-resource-consume"   --resource-group "$(RUN_ID)"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --name userpool0   --node-count 10   --node-vm-size "Standard_D16ds_v4"   --node-osdisk-type Ephemeral   --mode User   --labels cri-resource-consume=true   --node-taints cri-resource-consume=true:NoSchedule,cri-resource-consume=true:NoExecute   --max-pods 250   --vnet-subnet-id "$SUBNET_ID"   "${AKS_CUSTOM_HEADER_FLAGS[@]}"
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Create CRI benchmark node pools
+      env:
+        CUSTOM_HEADERS: $(AKS_CLI_CUSTOM_HEADERS)
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          for POOL in prompool userpool0; do
+            while true; do
+          STATE=$(az aks nodepool show   --cluster-name "cri-resource-consume"   --resource-group "$(RUN_ID)"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --name "$POOL"   --query provisioningState -o tsv)
+          echo "Node pool $POOL provisioning state: $STATE"
+          case "$STATE" in
+            Succeeded) break ;;
+            Failed|Canceled) exit 1 ;;
+          esac
+          sleep 30
+            done
+          done
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Wait for AKS node pools to succeed
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az aks get-credentials   --name "cri-resource-consume"   --resource-group "$(RUN_ID)"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --overwrite-existing
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Get managed AKS credentials
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          OWNER="${{ parameters.owner }}"
+          CLUSTER_NAME="${{ parameters.byo_azure_cluster_name }}"
+          CLUSTER_RESOURCE_GROUP="${{ parameters.byo_azure_resource_group }}"
+          if [ -z "$OWNER" ]; then
+            echo "##vso[task.logissue type=error;] OWNER is not set."
+            exit 1
+          fi
+          if [ -z "$CLUSTER_NAME" ] || [ -z "$CLUSTER_RESOURCE_GROUP" ]; then
+            echo "##vso[task.logissue type=error;] BYO Azure cluster name and resource group are required."
+            exit 1
+          fi
+          echo "##vso[task.setvariable variable=OWNER]$OWNER"
+          az aks get-credentials   --name "$CLUSTER_NAME"   --resource-group "$CLUSTER_RESOURCE_GROUP"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --overwrite-existing
+      condition: ${{ parameters.skip_resource_management }}
+      displayName: Validate OWNER and get BYO AKS credentials
+    - bash: |
+        set -euo pipefail
+
+        deadline=$((SECONDS + 600))
+        while [ "$SECONDS" -lt "$deadline" ]; do
+          total=$(kubectl get nodes --no-headers 2>/dev/null | wc -l)
+          ready=$(kubectl get nodes --no-headers 2>/dev/null | awk '$2 == "Ready" {count++} END {print count+0}')
+          echo "Cluster nodes: $ready/$total Ready; expected 14"
+          if [ "$total" -eq 14 ] && [ "$ready" -eq 14 ]; then
+            kubectl get nodes -L agentpool,prometheus,cri-resource-consume
+            exit 0
+          fi
+          sleep 30
+        done
+
+        echo "Expected exactly 14 Ready nodes within 10 minutes."
+        kubectl get nodes -o wide
+        exit 1
+      displayName: Validate 14 Ready nodes
+      timeoutInMinutes: 11
+    - bash: |
+        set -euo pipefail
+
+        rm -rf "$CL2_REPORT_DIR"
+        mkdir -p "$CL2_REPORT_DIR"
+        rm -f "$TEST_RESULTS_FILE"
+
+        PYTHONPATH="$(Pipeline.Workspace)/s/modules/python:$CL2_PYTHON_ROOT" python3 "$CL2_PYTHON_ROOT/clusterloader2/cri/cri.py" override   --node_count "$NODE_COUNT"   --node_per_step "$NODE_COUNT"   --max_pods "$MAX_PODS"   --repeats "$REPEATS"   --operation_timeout "$OPERATION_TIMEOUT"   --load_type "$LOAD_TYPE"   --scale_enabled False   --pod_startup_latency_threshold 15s   --provider "aks"   --registry_endpoint "akscritelescope.azurecr.io"   --test_image e2e-test-images/resource-consumer:1.13   --os_type linux   --scrape_kubelets "$SCRAPE_KUBELETS"   --scrape_containerd False   --containerd_scrape_interval 15s   --host_network "$HOST_NETWORK"   --cl2_override_file "$CL2_CONFIG_DIR/overrides.yaml"
+
+        PYTHONPATH="$(Pipeline.Workspace)/s/modules/python:$CL2_PYTHON_ROOT" python3 "$CL2_PYTHON_ROOT/clusterloader2/cri/cri.py" execute   --cl2_image "$CL2_IMAGE"   --cl2_config_dir "$CL2_CONFIG_DIR"   --cl2_report_dir "$CL2_REPORT_DIR"   --kubeconfig "$HOME/.kube/config"   --provider "aks"   --scrape_kubelets "$SCRAPE_KUBELETS"   --scrape_containerd False
+      displayName: Run ClusterLoader2 CRI benchmark
+      env:
+        CL2_PYTHON_ROOT: $(Pipeline.Workspace)/s/kcl/perf-eval/cni-benchmark/cni-ab-testing/assets/python
+        CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/kcl/perf-eval/cni-benchmark/cni-ab-testing/assets/python/clusterloader2/cri/config
+        CL2_REPORT_DIR: $(Pipeline.Workspace)/cl2-results
+        TEST_RESULTS_FILE: $(Pipeline.Workspace)/cni-ab-results.jsonl
+        CL2_IMAGE: ghcr.io/azure/clusterloader2:v20241016
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          CLUSTER_NAME="cri-resource-consume"
+          CLUSTER_RESOURCE_GROUP="$(RUN_ID)"
+          BYO="${{ parameters.skip_resource_management }}"
+          if [ "${BYO,,}" = "true" ]; then
+            CLUSTER_NAME="${{ parameters.byo_azure_cluster_name }}"
+            CLUSTER_RESOURCE_GROUP="${{ parameters.byo_azure_resource_group }}"
+          fi
+          AKS_INFO=$(az aks show   --resource-group "$CLUSTER_RESOURCE_GROUP"   --name "$CLUSTER_NAME"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --output json)
+          CLOUD_INFO=$(echo "$AKS_INFO" | jq -c   --arg variant "default"   '{cloud:"azure", region:.location, cluster:.name, kubernetes_version:.currentKubernetesVersion, sku_tier:.sku.tier, network_profile:.networkProfile, cni_variant:$variant}')
+          echo "Cloud info: $CLOUD_INFO"
+          echo "##vso[task.setvariable variable=CLOUD_INFO]$CLOUD_INFO"
+      displayName: Collect AKS cloud info
+    - bash: |
+        set -euo pipefail
+
+        PYTHONPATH="$(Pipeline.Workspace)/s/modules/python:$CL2_PYTHON_ROOT" python3 "$CL2_PYTHON_ROOT/clusterloader2/cri/cri.py" collect   --node_count "$NODE_COUNT"   --max_pods "$MAX_PODS"   --repeats "$REPEATS"   --load_type "$LOAD_TYPE"   --cl2_report_dir "$CL2_REPORT_DIR"   --cloud_info "$CLOUD_INFO"   --run_id "$(RUN_ID)"   --run_url "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)"   --result_file "$TEST_RESULTS_FILE"   --scrape_kubelets "$SCRAPE_KUBELETS"   --registry_info ""
+      displayName: Collect ClusterLoader2 results
+      env:
+        CL2_PYTHON_ROOT: $(Pipeline.Workspace)/s/kcl/perf-eval/cni-benchmark/cni-ab-testing/assets/python
+        CL2_REPORT_DIR: $(Pipeline.Workspace)/cl2-results
+        TEST_RESULTS_FILE: $(Pipeline.Workspace)/cni-ab-results.jsonl
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          if [ -s "$(Pipeline.Workspace)/cni-ab-results.jsonl" ]; then
+            MEASUREMENTS=$(jq -s '.' "$(Pipeline.Workspace)/cni-ab-results.jsonl")
+            FAILED=$(echo "$MEASUREMENTS" | jq '[.[] | select(.status == "failure")] | length')
+          else
+            MEASUREMENTS='[]'
+            FAILED=1
+          fi
+          STATUS="succeeded"
+          if [ "$FAILED" -gt 0 ]; then
+            STATUS="failed"
+          fi
+          cat > /tmp/run-result.json << EOF
+          {
+            "timestamp": "${TIMESTAMP}",
+            "run_id": "$(RUN_ID)",
+            "run_url": "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)",
+            "pipeline": "$(Build.DefinitionName)",
+            "result": {
+              "status": "${STATUS}",
+              "scenario_type": "perf-eval",
+              "scenario_name": "cni-ab-testing",
+              "owner": "${{ parameters.owner }}",
+              "engine": "clusterloader2",
+              "topology": "cri-resource-consume",
+              "engine_input": {"image": "ghcr.io/azure/clusterloader2:v20241016"},
+              "byo_resources": "${{ parameters.skip_resource_management }}",
+              "cloud": "azure",
+              "region": "swedencentral",
+              "cni_variant": "default",
+              "node_count": 10,
+              "max_pods": $(MAX_PODS),
+              "repeats": 1,
+              "load_type": "memory",
+              "host_network": false,
+              "scrape_kubelets": true,
+              "measurements": ${MEASUREMENTS}
+            }
+          }
+          EOF
+          jq . /tmp/run-result.json
+      displayName: Build Telescope result
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az storage blob upload \
+            --account-name "telescopev2" \
+            --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" \
+            --container-name "aks" \
+            --name "$(RUN_ID)/run-result.json" \
+            --file /tmp/run-result.json \
+            --auth-mode key
+      displayName: Upload result to storage account
+    - bash: |
+        echo "##vso[task.logissue type=warning;] Resource deletion was skipped for this manual run."
+        echo "Delete manually with: az group delete --name $(RUN_ID) --subscription $(AZURE_SUBSCRIPTION_ID) --yes"
+      condition: and(always(), not(${{ parameters.skip_resource_management }}), ${{ parameters.skip_resource_deletion }}, eq(variables['Build.Reason'], 'Manual'))
+      displayName: Report skipped cleanup
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az group delete --name "$(RUN_ID)" --subscription "$(AZURE_SUBSCRIPTION_ID)" --yes
+      condition: and(always(), not(${{ parameters.skip_resource_management }}), not(and(${{ parameters.skip_resource_deletion }}, eq(variables['Build.Reason'], 'Manual'))))
+      displayName: Delete resource group ($(AZURE_SUBSCRIPTION_ID))
+- stage: azure_swedencentral_stateless
+  displayName: Stock Azure CNI Overlay
+  dependsOn: []
+  jobs:
+  - job: stateless_n10_p300_memory
+    displayName: 'stateless: 10 nodes x 30 pods'
+    condition: or(eq(variables['Build.Reason'], 'Manual'), and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.SourceBranchName'], 'main')))
+    timeoutInMinutes: 120
+    variables:
+      NODE_COUNT: '10'
+      MAX_PODS: '30'
+      REPEATS: '1'
+      OPERATION_TIMEOUT: '3m'
+      LOAD_TYPE: memory
+      SCRAPE_KUBELETS: 'True'
+      HOST_NETWORK: 'False'
+    steps:
+    - bash: |
+        set -eo pipefail
+
+        job_id="$(System.JobId)"
+        RUN_ID=$(Build.BuildId)-${job_id:0:8}
+        echo "Run ID: $RUN_ID"
+
+        echo "##vso[task.setvariable variable=RUN_ID]$RUN_ID"
+      displayName: Set Run ID
+    - bash: |-
+        set -exo pipefail
+        pip3 install --upgrade "pip<24"
+        pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
+      displayName: Install Python dependencies
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az account set --subscription "$(AZURE_SUBSCRIPTION_ID)"
+          az config set defaults.location="swedencentral"
+          az account show
+      displayName: Login to Azure
+    - bash: |
+        set -euo pipefail
+        CREATION_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+        DELETION_DUE_TIME=$(date -u -d "+2 hour" +'%Y-%m-%dT%H:%M:%SZ')
+        echo "##vso[task.setvariable variable=CREATION_DATE]$CREATION_DATE"
+        echo "##vso[task.setvariable variable=DELETION_DUE_TIME]$DELETION_DUE_TIME"
+        echo "##vso[task.setvariable variable=OWNER]aks"
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Set resource lifecycle tags
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az group create   --name "$(RUN_ID)"   --location "swedencentral"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --tags "run_id=$(RUN_ID)" "scenario=perf-eval-cni-ab-testing" "owner=aks" "creation_date=$(CREATION_DATE)" "deletion_due_time=$(DELETION_DUE_TIME)" "SkipAKSCluster=1" "SkipASB_Audit=true" "cni_variant=stateless"
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Create benchmark resource group
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az network vnet create   --resource-group "$(RUN_ID)"   --name "cri-vnet"   --address-prefixes 10.0.0.0/9   --subscription "$(AZURE_SUBSCRIPTION_ID)"
+          az network vnet subnet create   --resource-group "$(RUN_ID)"   --vnet-name "cri-vnet"   --name "cri-subnet-1"   --address-prefixes 10.0.0.0/16   --subscription "$(AZURE_SUBSCRIPTION_ID)"
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Create CRI benchmark network
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          AKS_CUSTOM_FLAGS=()
+
+
+          SUBNET_ID=$(az network vnet subnet show   --resource-group "$(RUN_ID)"   --vnet-name "cri-vnet"   --name "cri-subnet-1"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --query id -o tsv)
+
+          az aks create   --name "cri-resource-consume"   --resource-group "$(RUN_ID)"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --location "swedencentral"   --kubernetes-version "1.33"   --dns-name-prefix "cri"   --tier standard   --nodepool-name default   --node-count 3   --node-vm-size "Standard_D16ds_v4"   --node-osdisk-type Ephemeral   --nodepool-taints CriticalAddonsOnly=true:NoSchedule   --max-pods 250   --network-plugin azure   --network-plugin-mode overlay   --pod-cidr 10.0.0.0/9   --service-cidr 192.168.0.0/16   --dns-service-ip 192.168.0.10   --vnet-subnet-id "$SUBNET_ID"   --enable-managed-identity   --generate-ssh-keys   --tags "run_id=$(RUN_ID)" "role=client" "scenario=perf-eval-cni-ab-testing" "cni_variant=stateless"   "${AKS_CUSTOM_FLAGS[@]}"   --no-wait
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Create stateless AKS cluster
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          while true; do
+            STATE=$(az aks show --name "cri-resource-consume" --resource-group "$(RUN_ID)" --subscription "$(AZURE_SUBSCRIPTION_ID)" --query provisioningState -o tsv)
+            echo "AKS provisioning state: $STATE"
+            case "$STATE" in
+          Succeeded) break ;;
+          Failed|Canceled) exit 1 ;;
+            esac
+            sleep 30
+          done
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Wait for AKS cluster to succeed
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          AKS_CUSTOM_HEADER_FLAGS=()
+
+
+          SUBNET_ID=$(az network vnet subnet show   --resource-group "$(RUN_ID)"   --vnet-name "cri-vnet"   --name "cri-subnet-1"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --query id -o tsv)
+
+          az aks nodepool add   --cluster-name "cri-resource-consume"   --resource-group "$(RUN_ID)"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --name prompool   --node-count 1   --node-vm-size "Standard_D16ds_v4"   --node-osdisk-type Ephemeral   --mode User   --labels prometheus=true   --max-pods 250   --vnet-subnet-id "$SUBNET_ID"   "${AKS_CUSTOM_HEADER_FLAGS[@]}"
+
+          az aks nodepool add   --cluster-name "cri-resource-consume"   --resource-group "$(RUN_ID)"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --name userpool0   --node-count 10   --node-vm-size "Standard_D16ds_v4"   --node-osdisk-type Ephemeral   --mode User   --labels cri-resource-consume=true   --node-taints cri-resource-consume=true:NoSchedule,cri-resource-consume=true:NoExecute   --max-pods 250   --vnet-subnet-id "$SUBNET_ID"   "${AKS_CUSTOM_HEADER_FLAGS[@]}"
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Create CRI benchmark node pools
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          for POOL in prompool userpool0; do
+            while true; do
+          STATE=$(az aks nodepool show   --cluster-name "cri-resource-consume"   --resource-group "$(RUN_ID)"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --name "$POOL"   --query provisioningState -o tsv)
+          echo "Node pool $POOL provisioning state: $STATE"
+          case "$STATE" in
+            Succeeded) break ;;
+            Failed|Canceled) exit 1 ;;
+          esac
+          sleep 30
+            done
+          done
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Wait for AKS node pools to succeed
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az aks get-credentials   --name "cri-resource-consume"   --resource-group "$(RUN_ID)"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --overwrite-existing
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Get managed AKS credentials
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          OWNER="${{ parameters.owner }}"
+          CLUSTER_NAME="${{ parameters.byo_azure_cluster_name }}"
+          CLUSTER_RESOURCE_GROUP="${{ parameters.byo_azure_resource_group }}"
+          if [ -z "$OWNER" ]; then
+            echo "##vso[task.logissue type=error;] OWNER is not set."
+            exit 1
+          fi
+          if [ -z "$CLUSTER_NAME" ] || [ -z "$CLUSTER_RESOURCE_GROUP" ]; then
+            echo "##vso[task.logissue type=error;] BYO Azure cluster name and resource group are required."
+            exit 1
+          fi
+          echo "##vso[task.setvariable variable=OWNER]$OWNER"
+          az aks get-credentials   --name "$CLUSTER_NAME"   --resource-group "$CLUSTER_RESOURCE_GROUP"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --overwrite-existing
+      condition: ${{ parameters.skip_resource_management }}
+      displayName: Validate OWNER and get BYO AKS credentials
+    - bash: |
+        set -euo pipefail
+
+        deadline=$((SECONDS + 600))
+        while [ "$SECONDS" -lt "$deadline" ]; do
+          total=$(kubectl get nodes --no-headers 2>/dev/null | wc -l)
+          ready=$(kubectl get nodes --no-headers 2>/dev/null | awk '$2 == "Ready" {count++} END {print count+0}')
+          echo "Cluster nodes: $ready/$total Ready; expected 14"
+          if [ "$total" -eq 14 ] && [ "$ready" -eq 14 ]; then
+            kubectl get nodes -L agentpool,prometheus,cri-resource-consume
+            exit 0
+          fi
+          sleep 30
+        done
+
+        echo "Expected exactly 14 Ready nodes within 10 minutes."
+        kubectl get nodes -o wide
+        exit 1
+      displayName: Validate 14 Ready nodes
+      timeoutInMinutes: 11
+    - bash: |
+        set -euo pipefail
+
+        rm -rf "$CL2_REPORT_DIR"
+        mkdir -p "$CL2_REPORT_DIR"
+        rm -f "$TEST_RESULTS_FILE"
+
+        PYTHONPATH="$(Pipeline.Workspace)/s/modules/python:$CL2_PYTHON_ROOT" python3 "$CL2_PYTHON_ROOT/clusterloader2/cri/cri.py" override   --node_count "$NODE_COUNT"   --node_per_step "$NODE_COUNT"   --max_pods "$MAX_PODS"   --repeats "$REPEATS"   --operation_timeout "$OPERATION_TIMEOUT"   --load_type "$LOAD_TYPE"   --scale_enabled False   --pod_startup_latency_threshold 15s   --provider "aks"   --registry_endpoint "akscritelescope.azurecr.io"   --test_image e2e-test-images/resource-consumer:1.13   --os_type linux   --scrape_kubelets "$SCRAPE_KUBELETS"   --scrape_containerd False   --containerd_scrape_interval 15s   --host_network "$HOST_NETWORK"   --cl2_override_file "$CL2_CONFIG_DIR/overrides.yaml"
+
+        PYTHONPATH="$(Pipeline.Workspace)/s/modules/python:$CL2_PYTHON_ROOT" python3 "$CL2_PYTHON_ROOT/clusterloader2/cri/cri.py" execute   --cl2_image "$CL2_IMAGE"   --cl2_config_dir "$CL2_CONFIG_DIR"   --cl2_report_dir "$CL2_REPORT_DIR"   --kubeconfig "$HOME/.kube/config"   --provider "aks"   --scrape_kubelets "$SCRAPE_KUBELETS"   --scrape_containerd False
+      displayName: Run ClusterLoader2 CRI benchmark
+      env:
+        CL2_PYTHON_ROOT: $(Pipeline.Workspace)/s/kcl/perf-eval/cni-benchmark/cni-ab-testing/assets/python
+        CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/kcl/perf-eval/cni-benchmark/cni-ab-testing/assets/python/clusterloader2/cri/config
+        CL2_REPORT_DIR: $(Pipeline.Workspace)/cl2-results
+        TEST_RESULTS_FILE: $(Pipeline.Workspace)/cni-ab-results.jsonl
+        CL2_IMAGE: ghcr.io/azure/clusterloader2:v20241016
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          CLUSTER_NAME="cri-resource-consume"
+          CLUSTER_RESOURCE_GROUP="$(RUN_ID)"
+          BYO="${{ parameters.skip_resource_management }}"
+          if [ "${BYO,,}" = "true" ]; then
+            CLUSTER_NAME="${{ parameters.byo_azure_cluster_name }}"
+            CLUSTER_RESOURCE_GROUP="${{ parameters.byo_azure_resource_group }}"
+          fi
+          AKS_INFO=$(az aks show   --resource-group "$CLUSTER_RESOURCE_GROUP"   --name "$CLUSTER_NAME"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --output json)
+          CLOUD_INFO=$(echo "$AKS_INFO" | jq -c   --arg variant "stateless"   '{cloud:"azure", region:.location, cluster:.name, kubernetes_version:.currentKubernetesVersion, sku_tier:.sku.tier, network_profile:.networkProfile, cni_variant:$variant}')
+          echo "Cloud info: $CLOUD_INFO"
+          echo "##vso[task.setvariable variable=CLOUD_INFO]$CLOUD_INFO"
+      displayName: Collect AKS cloud info
+    - bash: |
+        set -euo pipefail
+
+        PYTHONPATH="$(Pipeline.Workspace)/s/modules/python:$CL2_PYTHON_ROOT" python3 "$CL2_PYTHON_ROOT/clusterloader2/cri/cri.py" collect   --node_count "$NODE_COUNT"   --max_pods "$MAX_PODS"   --repeats "$REPEATS"   --load_type "$LOAD_TYPE"   --cl2_report_dir "$CL2_REPORT_DIR"   --cloud_info "$CLOUD_INFO"   --run_id "$(RUN_ID)"   --run_url "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)"   --result_file "$TEST_RESULTS_FILE"   --scrape_kubelets "$SCRAPE_KUBELETS"   --registry_info ""
+      displayName: Collect ClusterLoader2 results
+      env:
+        CL2_PYTHON_ROOT: $(Pipeline.Workspace)/s/kcl/perf-eval/cni-benchmark/cni-ab-testing/assets/python
+        CL2_REPORT_DIR: $(Pipeline.Workspace)/cl2-results
+        TEST_RESULTS_FILE: $(Pipeline.Workspace)/cni-ab-results.jsonl
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          if [ -s "$(Pipeline.Workspace)/cni-ab-results.jsonl" ]; then
+            MEASUREMENTS=$(jq -s '.' "$(Pipeline.Workspace)/cni-ab-results.jsonl")
+            FAILED=$(echo "$MEASUREMENTS" | jq '[.[] | select(.status == "failure")] | length')
+          else
+            MEASUREMENTS='[]'
+            FAILED=1
+          fi
+          STATUS="succeeded"
+          if [ "$FAILED" -gt 0 ]; then
+            STATUS="failed"
+          fi
+          cat > /tmp/run-result.json << EOF
+          {
+            "timestamp": "${TIMESTAMP}",
+            "run_id": "$(RUN_ID)",
+            "run_url": "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)",
+            "pipeline": "$(Build.DefinitionName)",
+            "result": {
+              "status": "${STATUS}",
+              "scenario_type": "perf-eval",
+              "scenario_name": "cni-ab-testing",
+              "owner": "${{ parameters.owner }}",
+              "engine": "clusterloader2",
+              "topology": "cri-resource-consume",
+              "engine_input": {"image": "ghcr.io/azure/clusterloader2:v20241016"},
+              "byo_resources": "${{ parameters.skip_resource_management }}",
+              "cloud": "azure",
+              "region": "swedencentral",
+              "cni_variant": "stateless",
+              "node_count": 10,
+              "max_pods": $(MAX_PODS),
+              "repeats": 1,
+              "load_type": "memory",
+              "host_network": false,
+              "scrape_kubelets": true,
+              "measurements": ${MEASUREMENTS}
+            }
+          }
+          EOF
+          jq . /tmp/run-result.json
+      displayName: Build Telescope result
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az storage blob upload \
+            --account-name "telescopev2" \
+            --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" \
+            --container-name "aks" \
+            --name "$(RUN_ID)/run-result.json" \
+            --file /tmp/run-result.json \
+            --auth-mode key
+      displayName: Upload result to storage account
+    - bash: |
+        echo "##vso[task.logissue type=warning;] Resource deletion was skipped for this manual run."
+        echo "Delete manually with: az group delete --name $(RUN_ID) --subscription $(AZURE_SUBSCRIPTION_ID) --yes"
+      condition: and(always(), not(${{ parameters.skip_resource_management }}), ${{ parameters.skip_resource_deletion }}, eq(variables['Build.Reason'], 'Manual'))
+      displayName: Report skipped cleanup
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az group delete --name "$(RUN_ID)" --subscription "$(AZURE_SUBSCRIPTION_ID)" --yes
+      condition: and(always(), not(${{ parameters.skip_resource_management }}), not(and(${{ parameters.skip_resource_deletion }}, eq(variables['Build.Reason'], 'Manual'))))
+      displayName: Delete resource group ($(AZURE_SUBSCRIPTION_ID))
+  - job: stateless_n10_p700_memory
+    displayName: 'stateless: 10 nodes x 70 pods'
+    condition: or(eq(variables['Build.Reason'], 'Manual'), and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.SourceBranchName'], 'main')))
+    timeoutInMinutes: 120
+    variables:
+      NODE_COUNT: '10'
+      MAX_PODS: '70'
+      REPEATS: '1'
+      OPERATION_TIMEOUT: '7m'
+      LOAD_TYPE: memory
+      SCRAPE_KUBELETS: 'True'
+      HOST_NETWORK: 'False'
+    steps:
+    - bash: |
+        set -eo pipefail
+
+        job_id="$(System.JobId)"
+        RUN_ID=$(Build.BuildId)-${job_id:0:8}
+        echo "Run ID: $RUN_ID"
+
+        echo "##vso[task.setvariable variable=RUN_ID]$RUN_ID"
+      displayName: Set Run ID
+    - bash: |-
+        set -exo pipefail
+        pip3 install --upgrade "pip<24"
+        pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
+      displayName: Install Python dependencies
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az account set --subscription "$(AZURE_SUBSCRIPTION_ID)"
+          az config set defaults.location="swedencentral"
+          az account show
+      displayName: Login to Azure
+    - bash: |
+        set -euo pipefail
+        CREATION_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+        DELETION_DUE_TIME=$(date -u -d "+2 hour" +'%Y-%m-%dT%H:%M:%SZ')
+        echo "##vso[task.setvariable variable=CREATION_DATE]$CREATION_DATE"
+        echo "##vso[task.setvariable variable=DELETION_DUE_TIME]$DELETION_DUE_TIME"
+        echo "##vso[task.setvariable variable=OWNER]aks"
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Set resource lifecycle tags
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az group create   --name "$(RUN_ID)"   --location "swedencentral"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --tags "run_id=$(RUN_ID)" "scenario=perf-eval-cni-ab-testing" "owner=aks" "creation_date=$(CREATION_DATE)" "deletion_due_time=$(DELETION_DUE_TIME)" "SkipAKSCluster=1" "SkipASB_Audit=true" "cni_variant=stateless"
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Create benchmark resource group
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az network vnet create   --resource-group "$(RUN_ID)"   --name "cri-vnet"   --address-prefixes 10.0.0.0/9   --subscription "$(AZURE_SUBSCRIPTION_ID)"
+          az network vnet subnet create   --resource-group "$(RUN_ID)"   --vnet-name "cri-vnet"   --name "cri-subnet-1"   --address-prefixes 10.0.0.0/16   --subscription "$(AZURE_SUBSCRIPTION_ID)"
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Create CRI benchmark network
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          AKS_CUSTOM_FLAGS=()
+
+
+          SUBNET_ID=$(az network vnet subnet show   --resource-group "$(RUN_ID)"   --vnet-name "cri-vnet"   --name "cri-subnet-1"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --query id -o tsv)
+
+          az aks create   --name "cri-resource-consume"   --resource-group "$(RUN_ID)"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --location "swedencentral"   --kubernetes-version "1.33"   --dns-name-prefix "cri"   --tier standard   --nodepool-name default   --node-count 3   --node-vm-size "Standard_D16ds_v4"   --node-osdisk-type Ephemeral   --nodepool-taints CriticalAddonsOnly=true:NoSchedule   --max-pods 250   --network-plugin azure   --network-plugin-mode overlay   --pod-cidr 10.0.0.0/9   --service-cidr 192.168.0.0/16   --dns-service-ip 192.168.0.10   --vnet-subnet-id "$SUBNET_ID"   --enable-managed-identity   --generate-ssh-keys   --tags "run_id=$(RUN_ID)" "role=client" "scenario=perf-eval-cni-ab-testing" "cni_variant=stateless"   "${AKS_CUSTOM_FLAGS[@]}"   --no-wait
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Create stateless AKS cluster
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          while true; do
+            STATE=$(az aks show --name "cri-resource-consume" --resource-group "$(RUN_ID)" --subscription "$(AZURE_SUBSCRIPTION_ID)" --query provisioningState -o tsv)
+            echo "AKS provisioning state: $STATE"
+            case "$STATE" in
+          Succeeded) break ;;
+          Failed|Canceled) exit 1 ;;
+            esac
+            sleep 30
+          done
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Wait for AKS cluster to succeed
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          AKS_CUSTOM_HEADER_FLAGS=()
+
+
+          SUBNET_ID=$(az network vnet subnet show   --resource-group "$(RUN_ID)"   --vnet-name "cri-vnet"   --name "cri-subnet-1"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --query id -o tsv)
+
+          az aks nodepool add   --cluster-name "cri-resource-consume"   --resource-group "$(RUN_ID)"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --name prompool   --node-count 1   --node-vm-size "Standard_D16ds_v4"   --node-osdisk-type Ephemeral   --mode User   --labels prometheus=true   --max-pods 250   --vnet-subnet-id "$SUBNET_ID"   "${AKS_CUSTOM_HEADER_FLAGS[@]}"
+
+          az aks nodepool add   --cluster-name "cri-resource-consume"   --resource-group "$(RUN_ID)"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --name userpool0   --node-count 10   --node-vm-size "Standard_D16ds_v4"   --node-osdisk-type Ephemeral   --mode User   --labels cri-resource-consume=true   --node-taints cri-resource-consume=true:NoSchedule,cri-resource-consume=true:NoExecute   --max-pods 250   --vnet-subnet-id "$SUBNET_ID"   "${AKS_CUSTOM_HEADER_FLAGS[@]}"
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Create CRI benchmark node pools
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          for POOL in prompool userpool0; do
+            while true; do
+          STATE=$(az aks nodepool show   --cluster-name "cri-resource-consume"   --resource-group "$(RUN_ID)"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --name "$POOL"   --query provisioningState -o tsv)
+          echo "Node pool $POOL provisioning state: $STATE"
+          case "$STATE" in
+            Succeeded) break ;;
+            Failed|Canceled) exit 1 ;;
+          esac
+          sleep 30
+            done
+          done
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Wait for AKS node pools to succeed
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az aks get-credentials   --name "cri-resource-consume"   --resource-group "$(RUN_ID)"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --overwrite-existing
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Get managed AKS credentials
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          OWNER="${{ parameters.owner }}"
+          CLUSTER_NAME="${{ parameters.byo_azure_cluster_name }}"
+          CLUSTER_RESOURCE_GROUP="${{ parameters.byo_azure_resource_group }}"
+          if [ -z "$OWNER" ]; then
+            echo "##vso[task.logissue type=error;] OWNER is not set."
+            exit 1
+          fi
+          if [ -z "$CLUSTER_NAME" ] || [ -z "$CLUSTER_RESOURCE_GROUP" ]; then
+            echo "##vso[task.logissue type=error;] BYO Azure cluster name and resource group are required."
+            exit 1
+          fi
+          echo "##vso[task.setvariable variable=OWNER]$OWNER"
+          az aks get-credentials   --name "$CLUSTER_NAME"   --resource-group "$CLUSTER_RESOURCE_GROUP"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --overwrite-existing
+      condition: ${{ parameters.skip_resource_management }}
+      displayName: Validate OWNER and get BYO AKS credentials
+    - bash: |
+        set -euo pipefail
+
+        deadline=$((SECONDS + 600))
+        while [ "$SECONDS" -lt "$deadline" ]; do
+          total=$(kubectl get nodes --no-headers 2>/dev/null | wc -l)
+          ready=$(kubectl get nodes --no-headers 2>/dev/null | awk '$2 == "Ready" {count++} END {print count+0}')
+          echo "Cluster nodes: $ready/$total Ready; expected 14"
+          if [ "$total" -eq 14 ] && [ "$ready" -eq 14 ]; then
+            kubectl get nodes -L agentpool,prometheus,cri-resource-consume
+            exit 0
+          fi
+          sleep 30
+        done
+
+        echo "Expected exactly 14 Ready nodes within 10 minutes."
+        kubectl get nodes -o wide
+        exit 1
+      displayName: Validate 14 Ready nodes
+      timeoutInMinutes: 11
+    - bash: |
+        set -euo pipefail
+
+        rm -rf "$CL2_REPORT_DIR"
+        mkdir -p "$CL2_REPORT_DIR"
+        rm -f "$TEST_RESULTS_FILE"
+
+        PYTHONPATH="$(Pipeline.Workspace)/s/modules/python:$CL2_PYTHON_ROOT" python3 "$CL2_PYTHON_ROOT/clusterloader2/cri/cri.py" override   --node_count "$NODE_COUNT"   --node_per_step "$NODE_COUNT"   --max_pods "$MAX_PODS"   --repeats "$REPEATS"   --operation_timeout "$OPERATION_TIMEOUT"   --load_type "$LOAD_TYPE"   --scale_enabled False   --pod_startup_latency_threshold 15s   --provider "aks"   --registry_endpoint "akscritelescope.azurecr.io"   --test_image e2e-test-images/resource-consumer:1.13   --os_type linux   --scrape_kubelets "$SCRAPE_KUBELETS"   --scrape_containerd False   --containerd_scrape_interval 15s   --host_network "$HOST_NETWORK"   --cl2_override_file "$CL2_CONFIG_DIR/overrides.yaml"
+
+        PYTHONPATH="$(Pipeline.Workspace)/s/modules/python:$CL2_PYTHON_ROOT" python3 "$CL2_PYTHON_ROOT/clusterloader2/cri/cri.py" execute   --cl2_image "$CL2_IMAGE"   --cl2_config_dir "$CL2_CONFIG_DIR"   --cl2_report_dir "$CL2_REPORT_DIR"   --kubeconfig "$HOME/.kube/config"   --provider "aks"   --scrape_kubelets "$SCRAPE_KUBELETS"   --scrape_containerd False
+      displayName: Run ClusterLoader2 CRI benchmark
+      env:
+        CL2_PYTHON_ROOT: $(Pipeline.Workspace)/s/kcl/perf-eval/cni-benchmark/cni-ab-testing/assets/python
+        CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/kcl/perf-eval/cni-benchmark/cni-ab-testing/assets/python/clusterloader2/cri/config
+        CL2_REPORT_DIR: $(Pipeline.Workspace)/cl2-results
+        TEST_RESULTS_FILE: $(Pipeline.Workspace)/cni-ab-results.jsonl
+        CL2_IMAGE: ghcr.io/azure/clusterloader2:v20241016
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          CLUSTER_NAME="cri-resource-consume"
+          CLUSTER_RESOURCE_GROUP="$(RUN_ID)"
+          BYO="${{ parameters.skip_resource_management }}"
+          if [ "${BYO,,}" = "true" ]; then
+            CLUSTER_NAME="${{ parameters.byo_azure_cluster_name }}"
+            CLUSTER_RESOURCE_GROUP="${{ parameters.byo_azure_resource_group }}"
+          fi
+          AKS_INFO=$(az aks show   --resource-group "$CLUSTER_RESOURCE_GROUP"   --name "$CLUSTER_NAME"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --output json)
+          CLOUD_INFO=$(echo "$AKS_INFO" | jq -c   --arg variant "stateless"   '{cloud:"azure", region:.location, cluster:.name, kubernetes_version:.currentKubernetesVersion, sku_tier:.sku.tier, network_profile:.networkProfile, cni_variant:$variant}')
+          echo "Cloud info: $CLOUD_INFO"
+          echo "##vso[task.setvariable variable=CLOUD_INFO]$CLOUD_INFO"
+      displayName: Collect AKS cloud info
+    - bash: |
+        set -euo pipefail
+
+        PYTHONPATH="$(Pipeline.Workspace)/s/modules/python:$CL2_PYTHON_ROOT" python3 "$CL2_PYTHON_ROOT/clusterloader2/cri/cri.py" collect   --node_count "$NODE_COUNT"   --max_pods "$MAX_PODS"   --repeats "$REPEATS"   --load_type "$LOAD_TYPE"   --cl2_report_dir "$CL2_REPORT_DIR"   --cloud_info "$CLOUD_INFO"   --run_id "$(RUN_ID)"   --run_url "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)"   --result_file "$TEST_RESULTS_FILE"   --scrape_kubelets "$SCRAPE_KUBELETS"   --registry_info ""
+      displayName: Collect ClusterLoader2 results
+      env:
+        CL2_PYTHON_ROOT: $(Pipeline.Workspace)/s/kcl/perf-eval/cni-benchmark/cni-ab-testing/assets/python
+        CL2_REPORT_DIR: $(Pipeline.Workspace)/cl2-results
+        TEST_RESULTS_FILE: $(Pipeline.Workspace)/cni-ab-results.jsonl
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          if [ -s "$(Pipeline.Workspace)/cni-ab-results.jsonl" ]; then
+            MEASUREMENTS=$(jq -s '.' "$(Pipeline.Workspace)/cni-ab-results.jsonl")
+            FAILED=$(echo "$MEASUREMENTS" | jq '[.[] | select(.status == "failure")] | length')
+          else
+            MEASUREMENTS='[]'
+            FAILED=1
+          fi
+          STATUS="succeeded"
+          if [ "$FAILED" -gt 0 ]; then
+            STATUS="failed"
+          fi
+          cat > /tmp/run-result.json << EOF
+          {
+            "timestamp": "${TIMESTAMP}",
+            "run_id": "$(RUN_ID)",
+            "run_url": "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)",
+            "pipeline": "$(Build.DefinitionName)",
+            "result": {
+              "status": "${STATUS}",
+              "scenario_type": "perf-eval",
+              "scenario_name": "cni-ab-testing",
+              "owner": "${{ parameters.owner }}",
+              "engine": "clusterloader2",
+              "topology": "cri-resource-consume",
+              "engine_input": {"image": "ghcr.io/azure/clusterloader2:v20241016"},
+              "byo_resources": "${{ parameters.skip_resource_management }}",
+              "cloud": "azure",
+              "region": "swedencentral",
+              "cni_variant": "stateless",
+              "node_count": 10,
+              "max_pods": $(MAX_PODS),
+              "repeats": 1,
+              "load_type": "memory",
+              "host_network": false,
+              "scrape_kubelets": true,
+              "measurements": ${MEASUREMENTS}
+            }
+          }
+          EOF
+          jq . /tmp/run-result.json
+      displayName: Build Telescope result
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az storage blob upload \
+            --account-name "telescopev2" \
+            --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" \
+            --container-name "aks" \
+            --name "$(RUN_ID)/run-result.json" \
+            --file /tmp/run-result.json \
+            --auth-mode key
+      displayName: Upload result to storage account
+    - bash: |
+        echo "##vso[task.logissue type=warning;] Resource deletion was skipped for this manual run."
+        echo "Delete manually with: az group delete --name $(RUN_ID) --subscription $(AZURE_SUBSCRIPTION_ID) --yes"
+      condition: and(always(), not(${{ parameters.skip_resource_management }}), ${{ parameters.skip_resource_deletion }}, eq(variables['Build.Reason'], 'Manual'))
+      displayName: Report skipped cleanup
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az group delete --name "$(RUN_ID)" --subscription "$(AZURE_SUBSCRIPTION_ID)" --yes
+      condition: and(always(), not(${{ parameters.skip_resource_management }}), not(and(${{ parameters.skip_resource_deletion }}, eq(variables['Build.Reason'], 'Manual'))))
+      displayName: Delete resource group ($(AZURE_SUBSCRIPTION_ID))
+  - job: stateless_n10_p1100_memory
+    displayName: 'stateless: 10 nodes x 110 pods'
+    condition: or(eq(variables['Build.Reason'], 'Manual'), and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.SourceBranchName'], 'main')))
+    timeoutInMinutes: 120
+    variables:
+      NODE_COUNT: '10'
+      MAX_PODS: '110'
+      REPEATS: '1'
+      OPERATION_TIMEOUT: '11m'
+      LOAD_TYPE: memory
+      SCRAPE_KUBELETS: 'True'
+      HOST_NETWORK: 'False'
+    steps:
+    - bash: |
+        set -eo pipefail
+
+        job_id="$(System.JobId)"
+        RUN_ID=$(Build.BuildId)-${job_id:0:8}
+        echo "Run ID: $RUN_ID"
+
+        echo "##vso[task.setvariable variable=RUN_ID]$RUN_ID"
+      displayName: Set Run ID
+    - bash: |-
+        set -exo pipefail
+        pip3 install --upgrade "pip<24"
+        pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
+      displayName: Install Python dependencies
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az account set --subscription "$(AZURE_SUBSCRIPTION_ID)"
+          az config set defaults.location="swedencentral"
+          az account show
+      displayName: Login to Azure
+    - bash: |
+        set -euo pipefail
+        CREATION_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+        DELETION_DUE_TIME=$(date -u -d "+2 hour" +'%Y-%m-%dT%H:%M:%SZ')
+        echo "##vso[task.setvariable variable=CREATION_DATE]$CREATION_DATE"
+        echo "##vso[task.setvariable variable=DELETION_DUE_TIME]$DELETION_DUE_TIME"
+        echo "##vso[task.setvariable variable=OWNER]aks"
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Set resource lifecycle tags
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az group create   --name "$(RUN_ID)"   --location "swedencentral"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --tags "run_id=$(RUN_ID)" "scenario=perf-eval-cni-ab-testing" "owner=aks" "creation_date=$(CREATION_DATE)" "deletion_due_time=$(DELETION_DUE_TIME)" "SkipAKSCluster=1" "SkipASB_Audit=true" "cni_variant=stateless"
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Create benchmark resource group
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az network vnet create   --resource-group "$(RUN_ID)"   --name "cri-vnet"   --address-prefixes 10.0.0.0/9   --subscription "$(AZURE_SUBSCRIPTION_ID)"
+          az network vnet subnet create   --resource-group "$(RUN_ID)"   --vnet-name "cri-vnet"   --name "cri-subnet-1"   --address-prefixes 10.0.0.0/16   --subscription "$(AZURE_SUBSCRIPTION_ID)"
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Create CRI benchmark network
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          AKS_CUSTOM_FLAGS=()
+
+
+          SUBNET_ID=$(az network vnet subnet show   --resource-group "$(RUN_ID)"   --vnet-name "cri-vnet"   --name "cri-subnet-1"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --query id -o tsv)
+
+          az aks create   --name "cri-resource-consume"   --resource-group "$(RUN_ID)"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --location "swedencentral"   --kubernetes-version "1.33"   --dns-name-prefix "cri"   --tier standard   --nodepool-name default   --node-count 3   --node-vm-size "Standard_D16ds_v4"   --node-osdisk-type Ephemeral   --nodepool-taints CriticalAddonsOnly=true:NoSchedule   --max-pods 250   --network-plugin azure   --network-plugin-mode overlay   --pod-cidr 10.0.0.0/9   --service-cidr 192.168.0.0/16   --dns-service-ip 192.168.0.10   --vnet-subnet-id "$SUBNET_ID"   --enable-managed-identity   --generate-ssh-keys   --tags "run_id=$(RUN_ID)" "role=client" "scenario=perf-eval-cni-ab-testing" "cni_variant=stateless"   "${AKS_CUSTOM_FLAGS[@]}"   --no-wait
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Create stateless AKS cluster
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          while true; do
+            STATE=$(az aks show --name "cri-resource-consume" --resource-group "$(RUN_ID)" --subscription "$(AZURE_SUBSCRIPTION_ID)" --query provisioningState -o tsv)
+            echo "AKS provisioning state: $STATE"
+            case "$STATE" in
+          Succeeded) break ;;
+          Failed|Canceled) exit 1 ;;
+            esac
+            sleep 30
+          done
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Wait for AKS cluster to succeed
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          AKS_CUSTOM_HEADER_FLAGS=()
+
+
+          SUBNET_ID=$(az network vnet subnet show   --resource-group "$(RUN_ID)"   --vnet-name "cri-vnet"   --name "cri-subnet-1"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --query id -o tsv)
+
+          az aks nodepool add   --cluster-name "cri-resource-consume"   --resource-group "$(RUN_ID)"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --name prompool   --node-count 1   --node-vm-size "Standard_D16ds_v4"   --node-osdisk-type Ephemeral   --mode User   --labels prometheus=true   --max-pods 250   --vnet-subnet-id "$SUBNET_ID"   "${AKS_CUSTOM_HEADER_FLAGS[@]}"
+
+          az aks nodepool add   --cluster-name "cri-resource-consume"   --resource-group "$(RUN_ID)"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --name userpool0   --node-count 10   --node-vm-size "Standard_D16ds_v4"   --node-osdisk-type Ephemeral   --mode User   --labels cri-resource-consume=true   --node-taints cri-resource-consume=true:NoSchedule,cri-resource-consume=true:NoExecute   --max-pods 250   --vnet-subnet-id "$SUBNET_ID"   "${AKS_CUSTOM_HEADER_FLAGS[@]}"
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Create CRI benchmark node pools
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          for POOL in prompool userpool0; do
+            while true; do
+          STATE=$(az aks nodepool show   --cluster-name "cri-resource-consume"   --resource-group "$(RUN_ID)"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --name "$POOL"   --query provisioningState -o tsv)
+          echo "Node pool $POOL provisioning state: $STATE"
+          case "$STATE" in
+            Succeeded) break ;;
+            Failed|Canceled) exit 1 ;;
+          esac
+          sleep 30
+            done
+          done
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Wait for AKS node pools to succeed
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az aks get-credentials   --name "cri-resource-consume"   --resource-group "$(RUN_ID)"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --overwrite-existing
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Get managed AKS credentials
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          OWNER="${{ parameters.owner }}"
+          CLUSTER_NAME="${{ parameters.byo_azure_cluster_name }}"
+          CLUSTER_RESOURCE_GROUP="${{ parameters.byo_azure_resource_group }}"
+          if [ -z "$OWNER" ]; then
+            echo "##vso[task.logissue type=error;] OWNER is not set."
+            exit 1
+          fi
+          if [ -z "$CLUSTER_NAME" ] || [ -z "$CLUSTER_RESOURCE_GROUP" ]; then
+            echo "##vso[task.logissue type=error;] BYO Azure cluster name and resource group are required."
+            exit 1
+          fi
+          echo "##vso[task.setvariable variable=OWNER]$OWNER"
+          az aks get-credentials   --name "$CLUSTER_NAME"   --resource-group "$CLUSTER_RESOURCE_GROUP"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --overwrite-existing
+      condition: ${{ parameters.skip_resource_management }}
+      displayName: Validate OWNER and get BYO AKS credentials
+    - bash: |
+        set -euo pipefail
+
+        deadline=$((SECONDS + 600))
+        while [ "$SECONDS" -lt "$deadline" ]; do
+          total=$(kubectl get nodes --no-headers 2>/dev/null | wc -l)
+          ready=$(kubectl get nodes --no-headers 2>/dev/null | awk '$2 == "Ready" {count++} END {print count+0}')
+          echo "Cluster nodes: $ready/$total Ready; expected 14"
+          if [ "$total" -eq 14 ] && [ "$ready" -eq 14 ]; then
+            kubectl get nodes -L agentpool,prometheus,cri-resource-consume
+            exit 0
+          fi
+          sleep 30
+        done
+
+        echo "Expected exactly 14 Ready nodes within 10 minutes."
+        kubectl get nodes -o wide
+        exit 1
+      displayName: Validate 14 Ready nodes
+      timeoutInMinutes: 11
+    - bash: |
+        set -euo pipefail
+
+        rm -rf "$CL2_REPORT_DIR"
+        mkdir -p "$CL2_REPORT_DIR"
+        rm -f "$TEST_RESULTS_FILE"
+
+        PYTHONPATH="$(Pipeline.Workspace)/s/modules/python:$CL2_PYTHON_ROOT" python3 "$CL2_PYTHON_ROOT/clusterloader2/cri/cri.py" override   --node_count "$NODE_COUNT"   --node_per_step "$NODE_COUNT"   --max_pods "$MAX_PODS"   --repeats "$REPEATS"   --operation_timeout "$OPERATION_TIMEOUT"   --load_type "$LOAD_TYPE"   --scale_enabled False   --pod_startup_latency_threshold 15s   --provider "aks"   --registry_endpoint "akscritelescope.azurecr.io"   --test_image e2e-test-images/resource-consumer:1.13   --os_type linux   --scrape_kubelets "$SCRAPE_KUBELETS"   --scrape_containerd False   --containerd_scrape_interval 15s   --host_network "$HOST_NETWORK"   --cl2_override_file "$CL2_CONFIG_DIR/overrides.yaml"
+
+        PYTHONPATH="$(Pipeline.Workspace)/s/modules/python:$CL2_PYTHON_ROOT" python3 "$CL2_PYTHON_ROOT/clusterloader2/cri/cri.py" execute   --cl2_image "$CL2_IMAGE"   --cl2_config_dir "$CL2_CONFIG_DIR"   --cl2_report_dir "$CL2_REPORT_DIR"   --kubeconfig "$HOME/.kube/config"   --provider "aks"   --scrape_kubelets "$SCRAPE_KUBELETS"   --scrape_containerd False
+      displayName: Run ClusterLoader2 CRI benchmark
+      env:
+        CL2_PYTHON_ROOT: $(Pipeline.Workspace)/s/kcl/perf-eval/cni-benchmark/cni-ab-testing/assets/python
+        CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/kcl/perf-eval/cni-benchmark/cni-ab-testing/assets/python/clusterloader2/cri/config
+        CL2_REPORT_DIR: $(Pipeline.Workspace)/cl2-results
+        TEST_RESULTS_FILE: $(Pipeline.Workspace)/cni-ab-results.jsonl
+        CL2_IMAGE: ghcr.io/azure/clusterloader2:v20241016
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          CLUSTER_NAME="cri-resource-consume"
+          CLUSTER_RESOURCE_GROUP="$(RUN_ID)"
+          BYO="${{ parameters.skip_resource_management }}"
+          if [ "${BYO,,}" = "true" ]; then
+            CLUSTER_NAME="${{ parameters.byo_azure_cluster_name }}"
+            CLUSTER_RESOURCE_GROUP="${{ parameters.byo_azure_resource_group }}"
+          fi
+          AKS_INFO=$(az aks show   --resource-group "$CLUSTER_RESOURCE_GROUP"   --name "$CLUSTER_NAME"   --subscription "$(AZURE_SUBSCRIPTION_ID)"   --output json)
+          CLOUD_INFO=$(echo "$AKS_INFO" | jq -c   --arg variant "stateless"   '{cloud:"azure", region:.location, cluster:.name, kubernetes_version:.currentKubernetesVersion, sku_tier:.sku.tier, network_profile:.networkProfile, cni_variant:$variant}')
+          echo "Cloud info: $CLOUD_INFO"
+          echo "##vso[task.setvariable variable=CLOUD_INFO]$CLOUD_INFO"
+      displayName: Collect AKS cloud info
+    - bash: |
+        set -euo pipefail
+
+        PYTHONPATH="$(Pipeline.Workspace)/s/modules/python:$CL2_PYTHON_ROOT" python3 "$CL2_PYTHON_ROOT/clusterloader2/cri/cri.py" collect   --node_count "$NODE_COUNT"   --max_pods "$MAX_PODS"   --repeats "$REPEATS"   --load_type "$LOAD_TYPE"   --cl2_report_dir "$CL2_REPORT_DIR"   --cloud_info "$CLOUD_INFO"   --run_id "$(RUN_ID)"   --run_url "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)"   --result_file "$TEST_RESULTS_FILE"   --scrape_kubelets "$SCRAPE_KUBELETS"   --registry_info ""
+      displayName: Collect ClusterLoader2 results
+      env:
+        CL2_PYTHON_ROOT: $(Pipeline.Workspace)/s/kcl/perf-eval/cni-benchmark/cni-ab-testing/assets/python
+        CL2_REPORT_DIR: $(Pipeline.Workspace)/cl2-results
+        TEST_RESULTS_FILE: $(Pipeline.Workspace)/cni-ab-results.jsonl
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          if [ -s "$(Pipeline.Workspace)/cni-ab-results.jsonl" ]; then
+            MEASUREMENTS=$(jq -s '.' "$(Pipeline.Workspace)/cni-ab-results.jsonl")
+            FAILED=$(echo "$MEASUREMENTS" | jq '[.[] | select(.status == "failure")] | length')
+          else
+            MEASUREMENTS='[]'
+            FAILED=1
+          fi
+          STATUS="succeeded"
+          if [ "$FAILED" -gt 0 ]; then
+            STATUS="failed"
+          fi
+          cat > /tmp/run-result.json << EOF
+          {
+            "timestamp": "${TIMESTAMP}",
+            "run_id": "$(RUN_ID)",
+            "run_url": "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)",
+            "pipeline": "$(Build.DefinitionName)",
+            "result": {
+              "status": "${STATUS}",
+              "scenario_type": "perf-eval",
+              "scenario_name": "cni-ab-testing",
+              "owner": "${{ parameters.owner }}",
+              "engine": "clusterloader2",
+              "topology": "cri-resource-consume",
+              "engine_input": {"image": "ghcr.io/azure/clusterloader2:v20241016"},
+              "byo_resources": "${{ parameters.skip_resource_management }}",
+              "cloud": "azure",
+              "region": "swedencentral",
+              "cni_variant": "stateless",
+              "node_count": 10,
+              "max_pods": $(MAX_PODS),
+              "repeats": 1,
+              "load_type": "memory",
+              "host_network": false,
+              "scrape_kubelets": true,
+              "measurements": ${MEASUREMENTS}
+            }
+          }
+          EOF
+          jq . /tmp/run-result.json
+      displayName: Build Telescope result
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az storage blob upload \
+            --account-name "telescopev2" \
+            --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" \
+            --container-name "aks" \
+            --name "$(RUN_ID)/run-result.json" \
+            --file /tmp/run-result.json \
+            --auth-mode key
+      displayName: Upload result to storage account
+    - bash: |
+        echo "##vso[task.logissue type=warning;] Resource deletion was skipped for this manual run."
+        echo "Delete manually with: az group delete --name $(RUN_ID) --subscription $(AZURE_SUBSCRIPTION_ID) --yes"
+      condition: and(always(), not(${{ parameters.skip_resource_management }}), ${{ parameters.skip_resource_deletion }}, eq(variables['Build.Reason'], 'Manual'))
+      displayName: Report skipped cleanup
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az group delete --name "$(RUN_ID)" --subscription "$(AZURE_SUBSCRIPTION_ID)" --yes
+      condition: and(always(), not(${{ parameters.skip_resource_management }}), not(and(${{ parameters.skip_resource_deletion }}, eq(variables['Build.Reason'], 'Manual'))))
+      displayName: Delete resource group ($(AZURE_SUBSCRIPTION_ID))
+- stage: aws_westeurope
+  displayName: AWS VPC CNI
+  dependsOn: []
+  jobs:
+  - job: aws_n10_p300_memory
+    displayName: 'aws: 10 nodes x 30 pods'
+    condition: or(eq(variables['Build.Reason'], 'Manual'), and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.SourceBranchName'], 'main')))
+    timeoutInMinutes: 120
+    variables:
+      NODE_COUNT: '10'
+      MAX_PODS: '30'
+      REPEATS: '1'
+      OPERATION_TIMEOUT: '3m'
+      LOAD_TYPE: memory
+      SCRAPE_KUBELETS: 'True'
+      HOST_NETWORK: 'False'
+    steps:
+    - bash: |
+        set -eo pipefail
+
+        job_id="$(System.JobId)"
+        RUN_ID=$(Build.BuildId)-${job_id:0:8}
+        echo "Run ID: $RUN_ID"
+
+        echo "##vso[task.setvariable variable=RUN_ID]$RUN_ID"
+      displayName: Set Run ID
+    - bash: |-
+        set -exo pipefail
+        pip3 install --upgrade "pip<24"
+        pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
+      displayName: Install Python dependencies
+    - task: AWSShellScript@1
+      inputs:
+        awsCredentials: ${{ parameters.aws_service_connection }}
+        regionName: eu-west-1
+        scriptType: inline
+        inlineScript: |
+          echo "##vso[task.setvariable variable=AWS_ACCESS_KEY_ID;issecret=true]$AWS_ACCESS_KEY_ID"
+          echo "##vso[task.setvariable variable=AWS_SECRET_ACCESS_KEY;issecret=true]$AWS_SECRET_ACCESS_KEY"
+          if [ -n "${AWS_SESSION_TOKEN:-}" ]; then
+            echo "##vso[task.setvariable variable=AWS_SESSION_TOKEN;issecret=true]$AWS_SESSION_TOKEN"
+          fi
+      displayName: Get AWS credentials
+    - bash: |
+        set -euo pipefail
+        mkdir -p "$HOME/.aws"
+        aws configure set aws_access_key_id "$AWS_ACCESS_KEY_ID"
+        aws configure set aws_secret_access_key "$AWS_SECRET_ACCESS_KEY"
+        ADO_LITERAL='$'"(AWS_SESSION_TOKEN)"
+        if [ "${AWS_SESSION_TOKEN:-}" = "$ADO_LITERAL" ]; then
+          AWS_SESSION_TOKEN=""
+        fi
+        if [ -n "${AWS_SESSION_TOKEN:-}" ]; then
+          aws configure set aws_session_token "$AWS_SESSION_TOKEN"
+        fi
+        aws configure set default.region "eu-west-1"
+        aws sts get-caller-identity
+      displayName: Configure AWS CLI
+      env:
+        AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
+        AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
+        AWS_SESSION_TOKEN: $(AWS_SESSION_TOKEN)
+    - bash: |
+        set -euo pipefail
+
+        if ! command -v eksctl >/dev/null 2>&1; then
+          version="0.215.0"
+          arch=$(uname -m)
+          case "$arch" in
+            x86_64) arch=amd64 ;;
+            aarch64) arch=arm64 ;;
+            *) echo "Unsupported architecture: $arch"; exit 1 ;;
+          esac
+          curl -fsSL "https://github.com/eksctl-io/eksctl/releases/download/v${version}/eksctl_Linux_${arch}.tar.gz" |
+            tar -xz -C /tmp
+          sudo install -m 0755 /tmp/eksctl /usr/local/bin/eksctl
+        fi
+        eksctl version
+
+        cat > "$(Pipeline.Workspace)/eksctl-cni-ab.yaml" << EOF
+        apiVersion: eksctl.io/v1alpha5
+        kind: ClusterConfig
+        metadata:
+          name: $(RUN_ID)
+          region: eu-west-1
+          version: "1.33"
+        vpc:
+          cidr: 10.0.0.0/16
+          nat:
+            gateway: Single
+        managedNodeGroups:
+          - name: default
+            instanceType: m5.4xlarge
+            desiredCapacity: 3
+            minSize: 3
+            maxSize: 3
+            amiFamily: AmazonLinux2023
+            privateNetworking: false
+          - name: prompool
+            instanceType: m5.4xlarge
+            desiredCapacity: 1
+            minSize: 1
+            maxSize: 1
+            amiFamily: AmazonLinux2023
+            privateNetworking: false
+            labels:
+              prometheus: "true"
+          - name: userpool0
+            instanceType: m5.4xlarge
+            desiredCapacity: 10
+            minSize: 10
+            maxSize: 10
+            amiFamily: AmazonLinux2023
+            privateNetworking: false
+            labels:
+              cri-resource-consume: "true"
+              agentpool: userpool0
+            taints:
+              - key: cri-resource-consume
+                value: "true"
+                effect: NoSchedule
+              - key: cri-resource-consume
+                value: "true"
+                effect: NoExecute
+        addons:
+          - name: coredns
+          - name: vpc-cni
+          - name: kube-proxy
+        EOF
+
+        eksctl create cluster --config-file "$(Pipeline.Workspace)/eksctl-cni-ab.yaml"
+        aws eks update-kubeconfig --name "$(RUN_ID)" --region "eu-west-1"
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Create EKS benchmark cluster
+    - bash: |
+        set -euo pipefail
+        OWNER="${{ parameters.owner }}"
+        CLUSTER_NAME="${{ parameters.byo_aws_cluster_name }}"
+        if [ -z "$OWNER" ]; then
+          echo "##vso[task.logissue type=error;] OWNER is not set."
+          exit 1
+        fi
+        if [ -z "$CLUSTER_NAME" ]; then
+          echo "##vso[task.logissue type=error;] BYO AWS cluster name is required."
+          exit 1
+        fi
+        echo "##vso[task.setvariable variable=OWNER]$OWNER"
+        aws eks update-kubeconfig --name "$CLUSTER_NAME" --region "eu-west-1"
+      condition: ${{ parameters.skip_resource_management }}
+      displayName: Validate OWNER and get BYO EKS credentials
+    - bash: |
+        set -euo pipefail
+
+        deadline=$((SECONDS + 600))
+        while [ "$SECONDS" -lt "$deadline" ]; do
+          total=$(kubectl get nodes --no-headers 2>/dev/null | wc -l)
+          ready=$(kubectl get nodes --no-headers 2>/dev/null | awk '$2 == "Ready" {count++} END {print count+0}')
+          echo "Cluster nodes: $ready/$total Ready; expected 14"
+          if [ "$total" -eq 14 ] && [ "$ready" -eq 14 ]; then
+            kubectl get nodes -L agentpool,prometheus,cri-resource-consume
+            exit 0
+          fi
+          sleep 30
+        done
+
+        echo "Expected exactly 14 Ready nodes within 10 minutes."
+        kubectl get nodes -o wide
+        exit 1
+      displayName: Validate 14 Ready nodes
+      timeoutInMinutes: 11
+    - bash: |
+        set -euo pipefail
+
+        rm -rf "$CL2_REPORT_DIR"
+        mkdir -p "$CL2_REPORT_DIR"
+        rm -f "$TEST_RESULTS_FILE"
+
+        PYTHONPATH="$(Pipeline.Workspace)/s/modules/python:$CL2_PYTHON_ROOT" python3 "$CL2_PYTHON_ROOT/clusterloader2/cri/cri.py" override   --node_count "$NODE_COUNT"   --node_per_step "$NODE_COUNT"   --max_pods "$MAX_PODS"   --repeats "$REPEATS"   --operation_timeout "$OPERATION_TIMEOUT"   --load_type "$LOAD_TYPE"   --scale_enabled False   --pod_startup_latency_threshold 15s   --provider "aws"   --registry_endpoint "akscritelescope.azurecr.io"   --test_image e2e-test-images/resource-consumer:1.13   --os_type linux   --scrape_kubelets "$SCRAPE_KUBELETS"   --scrape_containerd False   --containerd_scrape_interval 15s   --host_network "$HOST_NETWORK"   --cl2_override_file "$CL2_CONFIG_DIR/overrides.yaml"
+
+        PYTHONPATH="$(Pipeline.Workspace)/s/modules/python:$CL2_PYTHON_ROOT" python3 "$CL2_PYTHON_ROOT/clusterloader2/cri/cri.py" execute   --cl2_image "$CL2_IMAGE"   --cl2_config_dir "$CL2_CONFIG_DIR"   --cl2_report_dir "$CL2_REPORT_DIR"   --kubeconfig "$HOME/.kube/config"   --provider "aws"   --scrape_kubelets "$SCRAPE_KUBELETS"   --scrape_containerd False
+      displayName: Run ClusterLoader2 CRI benchmark
+      env:
+        CL2_PYTHON_ROOT: $(Pipeline.Workspace)/s/kcl/perf-eval/cni-benchmark/cni-ab-testing/assets/python
+        CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/kcl/perf-eval/cni-benchmark/cni-ab-testing/assets/python/clusterloader2/cri/config
+        CL2_REPORT_DIR: $(Pipeline.Workspace)/cl2-results
+        TEST_RESULTS_FILE: $(Pipeline.Workspace)/cni-ab-results.jsonl
+        CL2_IMAGE: ghcr.io/azure/clusterloader2:v20241016
+    - bash: |
+        set -euo pipefail
+        CLUSTER_NAME="$(RUN_ID)"
+        BYO="${{ parameters.skip_resource_management }}"
+        if [ "${BYO,,}" = "true" ]; then
+          CLUSTER_NAME="${{ parameters.byo_aws_cluster_name }}"
+        fi
+        EKS_INFO=$(aws eks describe-cluster --name "$CLUSTER_NAME" --region "eu-west-1")
+        CLOUD_INFO=$(echo "$EKS_INFO" | jq -c '{cloud:"aws", region:.cluster.arn | split(":")[3], cluster:.cluster.name, kubernetes_version:.cluster.version}')
+        echo "Cloud info: $CLOUD_INFO"
+        echo "##vso[task.setvariable variable=CLOUD_INFO]$CLOUD_INFO"
+      displayName: Collect EKS cloud info
+    - bash: |
+        set -euo pipefail
+
+        PYTHONPATH="$(Pipeline.Workspace)/s/modules/python:$CL2_PYTHON_ROOT" python3 "$CL2_PYTHON_ROOT/clusterloader2/cri/cri.py" collect   --node_count "$NODE_COUNT"   --max_pods "$MAX_PODS"   --repeats "$REPEATS"   --load_type "$LOAD_TYPE"   --cl2_report_dir "$CL2_REPORT_DIR"   --cloud_info "$CLOUD_INFO"   --run_id "$(RUN_ID)"   --run_url "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)"   --result_file "$TEST_RESULTS_FILE"   --scrape_kubelets "$SCRAPE_KUBELETS"   --registry_info ""
+      displayName: Collect ClusterLoader2 results
+      env:
+        CL2_PYTHON_ROOT: $(Pipeline.Workspace)/s/kcl/perf-eval/cni-benchmark/cni-ab-testing/assets/python
+        CL2_REPORT_DIR: $(Pipeline.Workspace)/cl2-results
+        TEST_RESULTS_FILE: $(Pipeline.Workspace)/cni-ab-results.jsonl
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          if [ -s "$(Pipeline.Workspace)/cni-ab-results.jsonl" ]; then
+            MEASUREMENTS=$(jq -s '.' "$(Pipeline.Workspace)/cni-ab-results.jsonl")
+            FAILED=$(echo "$MEASUREMENTS" | jq '[.[] | select(.status == "failure")] | length')
+          else
+            MEASUREMENTS='[]'
+            FAILED=1
+          fi
+          STATUS="succeeded"
+          if [ "$FAILED" -gt 0 ]; then
+            STATUS="failed"
+          fi
+          cat > /tmp/run-result.json << EOF
+          {
+            "timestamp": "${TIMESTAMP}",
+            "run_id": "$(RUN_ID)",
+            "run_url": "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)",
+            "pipeline": "$(Build.DefinitionName)",
+            "result": {
+              "status": "${STATUS}",
+              "scenario_type": "perf-eval",
+              "scenario_name": "cni-ab-testing",
+              "owner": "${{ parameters.owner }}",
+              "engine": "clusterloader2",
+              "topology": "cri-resource-consume",
+              "engine_input": {"image": "ghcr.io/azure/clusterloader2:v20241016"},
+              "byo_resources": "${{ parameters.skip_resource_management }}",
+              "cloud": "aws",
+              "region": "eu-west-1",
+              "cni_variant": "aws-vpc-cni",
+              "node_count": 10,
+              "max_pods": $(MAX_PODS),
+              "repeats": 1,
+              "load_type": "memory",
+              "host_network": false,
+              "scrape_kubelets": true,
+              "measurements": ${MEASUREMENTS}
+            }
+          }
+          EOF
+          jq . /tmp/run-result.json
+      displayName: Build Telescope result
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az storage blob upload \
+            --account-name "telescopev2" \
+            --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" \
+            --container-name "aks" \
+            --name "$(RUN_ID)/run-result.json" \
+            --file /tmp/run-result.json \
+            --auth-mode key
+      displayName: Upload result to storage account
+    - bash: |
+        echo "##vso[task.logissue type=warning;] EKS deletion was skipped for this manual run."
+        echo "Delete manually with: eksctl delete cluster --name $(RUN_ID) --region eu-west-1"
+      condition: and(always(), not(${{ parameters.skip_resource_management }}), ${{ parameters.skip_resource_deletion }}, eq(variables['Build.Reason'], 'Manual'))
+      displayName: Report skipped cleanup
+    - bash: |
+        set -euo pipefail
+        eksctl delete cluster --name "$(RUN_ID)" --region "eu-west-1" --wait
+      condition: and(always(), not(${{ parameters.skip_resource_management }}), not(and(${{ parameters.skip_resource_deletion }}, eq(variables['Build.Reason'], 'Manual'))))
+      displayName: Delete EKS benchmark cluster
+  - job: aws_n10_p700_memory
+    displayName: 'aws: 10 nodes x 70 pods'
+    condition: or(eq(variables['Build.Reason'], 'Manual'), and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.SourceBranchName'], 'main')))
+    timeoutInMinutes: 120
+    variables:
+      NODE_COUNT: '10'
+      MAX_PODS: '70'
+      REPEATS: '1'
+      OPERATION_TIMEOUT: '7m'
+      LOAD_TYPE: memory
+      SCRAPE_KUBELETS: 'True'
+      HOST_NETWORK: 'False'
+    steps:
+    - bash: |
+        set -eo pipefail
+
+        job_id="$(System.JobId)"
+        RUN_ID=$(Build.BuildId)-${job_id:0:8}
+        echo "Run ID: $RUN_ID"
+
+        echo "##vso[task.setvariable variable=RUN_ID]$RUN_ID"
+      displayName: Set Run ID
+    - bash: |-
+        set -exo pipefail
+        pip3 install --upgrade "pip<24"
+        pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
+      displayName: Install Python dependencies
+    - task: AWSShellScript@1
+      inputs:
+        awsCredentials: ${{ parameters.aws_service_connection }}
+        regionName: eu-west-1
+        scriptType: inline
+        inlineScript: |
+          echo "##vso[task.setvariable variable=AWS_ACCESS_KEY_ID;issecret=true]$AWS_ACCESS_KEY_ID"
+          echo "##vso[task.setvariable variable=AWS_SECRET_ACCESS_KEY;issecret=true]$AWS_SECRET_ACCESS_KEY"
+          if [ -n "${AWS_SESSION_TOKEN:-}" ]; then
+            echo "##vso[task.setvariable variable=AWS_SESSION_TOKEN;issecret=true]$AWS_SESSION_TOKEN"
+          fi
+      displayName: Get AWS credentials
+    - bash: |
+        set -euo pipefail
+        mkdir -p "$HOME/.aws"
+        aws configure set aws_access_key_id "$AWS_ACCESS_KEY_ID"
+        aws configure set aws_secret_access_key "$AWS_SECRET_ACCESS_KEY"
+        ADO_LITERAL='$'"(AWS_SESSION_TOKEN)"
+        if [ "${AWS_SESSION_TOKEN:-}" = "$ADO_LITERAL" ]; then
+          AWS_SESSION_TOKEN=""
+        fi
+        if [ -n "${AWS_SESSION_TOKEN:-}" ]; then
+          aws configure set aws_session_token "$AWS_SESSION_TOKEN"
+        fi
+        aws configure set default.region "eu-west-1"
+        aws sts get-caller-identity
+      displayName: Configure AWS CLI
+      env:
+        AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
+        AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
+        AWS_SESSION_TOKEN: $(AWS_SESSION_TOKEN)
+    - bash: |
+        set -euo pipefail
+
+        if ! command -v eksctl >/dev/null 2>&1; then
+          version="0.215.0"
+          arch=$(uname -m)
+          case "$arch" in
+            x86_64) arch=amd64 ;;
+            aarch64) arch=arm64 ;;
+            *) echo "Unsupported architecture: $arch"; exit 1 ;;
+          esac
+          curl -fsSL "https://github.com/eksctl-io/eksctl/releases/download/v${version}/eksctl_Linux_${arch}.tar.gz" |
+            tar -xz -C /tmp
+          sudo install -m 0755 /tmp/eksctl /usr/local/bin/eksctl
+        fi
+        eksctl version
+
+        cat > "$(Pipeline.Workspace)/eksctl-cni-ab.yaml" << EOF
+        apiVersion: eksctl.io/v1alpha5
+        kind: ClusterConfig
+        metadata:
+          name: $(RUN_ID)
+          region: eu-west-1
+          version: "1.33"
+        vpc:
+          cidr: 10.0.0.0/16
+          nat:
+            gateway: Single
+        managedNodeGroups:
+          - name: default
+            instanceType: m5.4xlarge
+            desiredCapacity: 3
+            minSize: 3
+            maxSize: 3
+            amiFamily: AmazonLinux2023
+            privateNetworking: false
+          - name: prompool
+            instanceType: m5.4xlarge
+            desiredCapacity: 1
+            minSize: 1
+            maxSize: 1
+            amiFamily: AmazonLinux2023
+            privateNetworking: false
+            labels:
+              prometheus: "true"
+          - name: userpool0
+            instanceType: m5.4xlarge
+            desiredCapacity: 10
+            minSize: 10
+            maxSize: 10
+            amiFamily: AmazonLinux2023
+            privateNetworking: false
+            labels:
+              cri-resource-consume: "true"
+              agentpool: userpool0
+            taints:
+              - key: cri-resource-consume
+                value: "true"
+                effect: NoSchedule
+              - key: cri-resource-consume
+                value: "true"
+                effect: NoExecute
+        addons:
+          - name: coredns
+          - name: vpc-cni
+          - name: kube-proxy
+        EOF
+
+        eksctl create cluster --config-file "$(Pipeline.Workspace)/eksctl-cni-ab.yaml"
+        aws eks update-kubeconfig --name "$(RUN_ID)" --region "eu-west-1"
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Create EKS benchmark cluster
+    - bash: |
+        set -euo pipefail
+        OWNER="${{ parameters.owner }}"
+        CLUSTER_NAME="${{ parameters.byo_aws_cluster_name }}"
+        if [ -z "$OWNER" ]; then
+          echo "##vso[task.logissue type=error;] OWNER is not set."
+          exit 1
+        fi
+        if [ -z "$CLUSTER_NAME" ]; then
+          echo "##vso[task.logissue type=error;] BYO AWS cluster name is required."
+          exit 1
+        fi
+        echo "##vso[task.setvariable variable=OWNER]$OWNER"
+        aws eks update-kubeconfig --name "$CLUSTER_NAME" --region "eu-west-1"
+      condition: ${{ parameters.skip_resource_management }}
+      displayName: Validate OWNER and get BYO EKS credentials
+    - bash: |
+        set -euo pipefail
+
+        deadline=$((SECONDS + 600))
+        while [ "$SECONDS" -lt "$deadline" ]; do
+          total=$(kubectl get nodes --no-headers 2>/dev/null | wc -l)
+          ready=$(kubectl get nodes --no-headers 2>/dev/null | awk '$2 == "Ready" {count++} END {print count+0}')
+          echo "Cluster nodes: $ready/$total Ready; expected 14"
+          if [ "$total" -eq 14 ] && [ "$ready" -eq 14 ]; then
+            kubectl get nodes -L agentpool,prometheus,cri-resource-consume
+            exit 0
+          fi
+          sleep 30
+        done
+
+        echo "Expected exactly 14 Ready nodes within 10 minutes."
+        kubectl get nodes -o wide
+        exit 1
+      displayName: Validate 14 Ready nodes
+      timeoutInMinutes: 11
+    - bash: |
+        set -euo pipefail
+
+        rm -rf "$CL2_REPORT_DIR"
+        mkdir -p "$CL2_REPORT_DIR"
+        rm -f "$TEST_RESULTS_FILE"
+
+        PYTHONPATH="$(Pipeline.Workspace)/s/modules/python:$CL2_PYTHON_ROOT" python3 "$CL2_PYTHON_ROOT/clusterloader2/cri/cri.py" override   --node_count "$NODE_COUNT"   --node_per_step "$NODE_COUNT"   --max_pods "$MAX_PODS"   --repeats "$REPEATS"   --operation_timeout "$OPERATION_TIMEOUT"   --load_type "$LOAD_TYPE"   --scale_enabled False   --pod_startup_latency_threshold 15s   --provider "aws"   --registry_endpoint "akscritelescope.azurecr.io"   --test_image e2e-test-images/resource-consumer:1.13   --os_type linux   --scrape_kubelets "$SCRAPE_KUBELETS"   --scrape_containerd False   --containerd_scrape_interval 15s   --host_network "$HOST_NETWORK"   --cl2_override_file "$CL2_CONFIG_DIR/overrides.yaml"
+
+        PYTHONPATH="$(Pipeline.Workspace)/s/modules/python:$CL2_PYTHON_ROOT" python3 "$CL2_PYTHON_ROOT/clusterloader2/cri/cri.py" execute   --cl2_image "$CL2_IMAGE"   --cl2_config_dir "$CL2_CONFIG_DIR"   --cl2_report_dir "$CL2_REPORT_DIR"   --kubeconfig "$HOME/.kube/config"   --provider "aws"   --scrape_kubelets "$SCRAPE_KUBELETS"   --scrape_containerd False
+      displayName: Run ClusterLoader2 CRI benchmark
+      env:
+        CL2_PYTHON_ROOT: $(Pipeline.Workspace)/s/kcl/perf-eval/cni-benchmark/cni-ab-testing/assets/python
+        CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/kcl/perf-eval/cni-benchmark/cni-ab-testing/assets/python/clusterloader2/cri/config
+        CL2_REPORT_DIR: $(Pipeline.Workspace)/cl2-results
+        TEST_RESULTS_FILE: $(Pipeline.Workspace)/cni-ab-results.jsonl
+        CL2_IMAGE: ghcr.io/azure/clusterloader2:v20241016
+    - bash: |
+        set -euo pipefail
+        CLUSTER_NAME="$(RUN_ID)"
+        BYO="${{ parameters.skip_resource_management }}"
+        if [ "${BYO,,}" = "true" ]; then
+          CLUSTER_NAME="${{ parameters.byo_aws_cluster_name }}"
+        fi
+        EKS_INFO=$(aws eks describe-cluster --name "$CLUSTER_NAME" --region "eu-west-1")
+        CLOUD_INFO=$(echo "$EKS_INFO" | jq -c '{cloud:"aws", region:.cluster.arn | split(":")[3], cluster:.cluster.name, kubernetes_version:.cluster.version}')
+        echo "Cloud info: $CLOUD_INFO"
+        echo "##vso[task.setvariable variable=CLOUD_INFO]$CLOUD_INFO"
+      displayName: Collect EKS cloud info
+    - bash: |
+        set -euo pipefail
+
+        PYTHONPATH="$(Pipeline.Workspace)/s/modules/python:$CL2_PYTHON_ROOT" python3 "$CL2_PYTHON_ROOT/clusterloader2/cri/cri.py" collect   --node_count "$NODE_COUNT"   --max_pods "$MAX_PODS"   --repeats "$REPEATS"   --load_type "$LOAD_TYPE"   --cl2_report_dir "$CL2_REPORT_DIR"   --cloud_info "$CLOUD_INFO"   --run_id "$(RUN_ID)"   --run_url "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)"   --result_file "$TEST_RESULTS_FILE"   --scrape_kubelets "$SCRAPE_KUBELETS"   --registry_info ""
+      displayName: Collect ClusterLoader2 results
+      env:
+        CL2_PYTHON_ROOT: $(Pipeline.Workspace)/s/kcl/perf-eval/cni-benchmark/cni-ab-testing/assets/python
+        CL2_REPORT_DIR: $(Pipeline.Workspace)/cl2-results
+        TEST_RESULTS_FILE: $(Pipeline.Workspace)/cni-ab-results.jsonl
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          if [ -s "$(Pipeline.Workspace)/cni-ab-results.jsonl" ]; then
+            MEASUREMENTS=$(jq -s '.' "$(Pipeline.Workspace)/cni-ab-results.jsonl")
+            FAILED=$(echo "$MEASUREMENTS" | jq '[.[] | select(.status == "failure")] | length')
+          else
+            MEASUREMENTS='[]'
+            FAILED=1
+          fi
+          STATUS="succeeded"
+          if [ "$FAILED" -gt 0 ]; then
+            STATUS="failed"
+          fi
+          cat > /tmp/run-result.json << EOF
+          {
+            "timestamp": "${TIMESTAMP}",
+            "run_id": "$(RUN_ID)",
+            "run_url": "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)",
+            "pipeline": "$(Build.DefinitionName)",
+            "result": {
+              "status": "${STATUS}",
+              "scenario_type": "perf-eval",
+              "scenario_name": "cni-ab-testing",
+              "owner": "${{ parameters.owner }}",
+              "engine": "clusterloader2",
+              "topology": "cri-resource-consume",
+              "engine_input": {"image": "ghcr.io/azure/clusterloader2:v20241016"},
+              "byo_resources": "${{ parameters.skip_resource_management }}",
+              "cloud": "aws",
+              "region": "eu-west-1",
+              "cni_variant": "aws-vpc-cni",
+              "node_count": 10,
+              "max_pods": $(MAX_PODS),
+              "repeats": 1,
+              "load_type": "memory",
+              "host_network": false,
+              "scrape_kubelets": true,
+              "measurements": ${MEASUREMENTS}
+            }
+          }
+          EOF
+          jq . /tmp/run-result.json
+      displayName: Build Telescope result
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az storage blob upload \
+            --account-name "telescopev2" \
+            --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" \
+            --container-name "aks" \
+            --name "$(RUN_ID)/run-result.json" \
+            --file /tmp/run-result.json \
+            --auth-mode key
+      displayName: Upload result to storage account
+    - bash: |
+        echo "##vso[task.logissue type=warning;] EKS deletion was skipped for this manual run."
+        echo "Delete manually with: eksctl delete cluster --name $(RUN_ID) --region eu-west-1"
+      condition: and(always(), not(${{ parameters.skip_resource_management }}), ${{ parameters.skip_resource_deletion }}, eq(variables['Build.Reason'], 'Manual'))
+      displayName: Report skipped cleanup
+    - bash: |
+        set -euo pipefail
+        eksctl delete cluster --name "$(RUN_ID)" --region "eu-west-1" --wait
+      condition: and(always(), not(${{ parameters.skip_resource_management }}), not(and(${{ parameters.skip_resource_deletion }}, eq(variables['Build.Reason'], 'Manual'))))
+      displayName: Delete EKS benchmark cluster
+  - job: aws_n10_p1100_memory
+    displayName: 'aws: 10 nodes x 110 pods'
+    condition: or(eq(variables['Build.Reason'], 'Manual'), and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.SourceBranchName'], 'main')))
+    timeoutInMinutes: 120
+    variables:
+      NODE_COUNT: '10'
+      MAX_PODS: '110'
+      REPEATS: '1'
+      OPERATION_TIMEOUT: '11m'
+      LOAD_TYPE: memory
+      SCRAPE_KUBELETS: 'True'
+      HOST_NETWORK: 'False'
+    steps:
+    - bash: |
+        set -eo pipefail
+
+        job_id="$(System.JobId)"
+        RUN_ID=$(Build.BuildId)-${job_id:0:8}
+        echo "Run ID: $RUN_ID"
+
+        echo "##vso[task.setvariable variable=RUN_ID]$RUN_ID"
+      displayName: Set Run ID
+    - bash: |-
+        set -exo pipefail
+        pip3 install --upgrade "pip<24"
+        pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
+      displayName: Install Python dependencies
+    - task: AWSShellScript@1
+      inputs:
+        awsCredentials: ${{ parameters.aws_service_connection }}
+        regionName: eu-west-1
+        scriptType: inline
+        inlineScript: |
+          echo "##vso[task.setvariable variable=AWS_ACCESS_KEY_ID;issecret=true]$AWS_ACCESS_KEY_ID"
+          echo "##vso[task.setvariable variable=AWS_SECRET_ACCESS_KEY;issecret=true]$AWS_SECRET_ACCESS_KEY"
+          if [ -n "${AWS_SESSION_TOKEN:-}" ]; then
+            echo "##vso[task.setvariable variable=AWS_SESSION_TOKEN;issecret=true]$AWS_SESSION_TOKEN"
+          fi
+      displayName: Get AWS credentials
+    - bash: |
+        set -euo pipefail
+        mkdir -p "$HOME/.aws"
+        aws configure set aws_access_key_id "$AWS_ACCESS_KEY_ID"
+        aws configure set aws_secret_access_key "$AWS_SECRET_ACCESS_KEY"
+        ADO_LITERAL='$'"(AWS_SESSION_TOKEN)"
+        if [ "${AWS_SESSION_TOKEN:-}" = "$ADO_LITERAL" ]; then
+          AWS_SESSION_TOKEN=""
+        fi
+        if [ -n "${AWS_SESSION_TOKEN:-}" ]; then
+          aws configure set aws_session_token "$AWS_SESSION_TOKEN"
+        fi
+        aws configure set default.region "eu-west-1"
+        aws sts get-caller-identity
+      displayName: Configure AWS CLI
+      env:
+        AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
+        AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
+        AWS_SESSION_TOKEN: $(AWS_SESSION_TOKEN)
+    - bash: |
+        set -euo pipefail
+
+        if ! command -v eksctl >/dev/null 2>&1; then
+          version="0.215.0"
+          arch=$(uname -m)
+          case "$arch" in
+            x86_64) arch=amd64 ;;
+            aarch64) arch=arm64 ;;
+            *) echo "Unsupported architecture: $arch"; exit 1 ;;
+          esac
+          curl -fsSL "https://github.com/eksctl-io/eksctl/releases/download/v${version}/eksctl_Linux_${arch}.tar.gz" |
+            tar -xz -C /tmp
+          sudo install -m 0755 /tmp/eksctl /usr/local/bin/eksctl
+        fi
+        eksctl version
+
+        cat > "$(Pipeline.Workspace)/eksctl-cni-ab.yaml" << EOF
+        apiVersion: eksctl.io/v1alpha5
+        kind: ClusterConfig
+        metadata:
+          name: $(RUN_ID)
+          region: eu-west-1
+          version: "1.33"
+        vpc:
+          cidr: 10.0.0.0/16
+          nat:
+            gateway: Single
+        managedNodeGroups:
+          - name: default
+            instanceType: m5.4xlarge
+            desiredCapacity: 3
+            minSize: 3
+            maxSize: 3
+            amiFamily: AmazonLinux2023
+            privateNetworking: false
+          - name: prompool
+            instanceType: m5.4xlarge
+            desiredCapacity: 1
+            minSize: 1
+            maxSize: 1
+            amiFamily: AmazonLinux2023
+            privateNetworking: false
+            labels:
+              prometheus: "true"
+          - name: userpool0
+            instanceType: m5.4xlarge
+            desiredCapacity: 10
+            minSize: 10
+            maxSize: 10
+            amiFamily: AmazonLinux2023
+            privateNetworking: false
+            labels:
+              cri-resource-consume: "true"
+              agentpool: userpool0
+            taints:
+              - key: cri-resource-consume
+                value: "true"
+                effect: NoSchedule
+              - key: cri-resource-consume
+                value: "true"
+                effect: NoExecute
+        addons:
+          - name: coredns
+          - name: vpc-cni
+          - name: kube-proxy
+        EOF
+
+        eksctl create cluster --config-file "$(Pipeline.Workspace)/eksctl-cni-ab.yaml"
+        aws eks update-kubeconfig --name "$(RUN_ID)" --region "eu-west-1"
+      condition: not(${{ parameters.skip_resource_management }})
+      displayName: Create EKS benchmark cluster
+    - bash: |
+        set -euo pipefail
+        OWNER="${{ parameters.owner }}"
+        CLUSTER_NAME="${{ parameters.byo_aws_cluster_name }}"
+        if [ -z "$OWNER" ]; then
+          echo "##vso[task.logissue type=error;] OWNER is not set."
+          exit 1
+        fi
+        if [ -z "$CLUSTER_NAME" ]; then
+          echo "##vso[task.logissue type=error;] BYO AWS cluster name is required."
+          exit 1
+        fi
+        echo "##vso[task.setvariable variable=OWNER]$OWNER"
+        aws eks update-kubeconfig --name "$CLUSTER_NAME" --region "eu-west-1"
+      condition: ${{ parameters.skip_resource_management }}
+      displayName: Validate OWNER and get BYO EKS credentials
+    - bash: |
+        set -euo pipefail
+
+        deadline=$((SECONDS + 600))
+        while [ "$SECONDS" -lt "$deadline" ]; do
+          total=$(kubectl get nodes --no-headers 2>/dev/null | wc -l)
+          ready=$(kubectl get nodes --no-headers 2>/dev/null | awk '$2 == "Ready" {count++} END {print count+0}')
+          echo "Cluster nodes: $ready/$total Ready; expected 14"
+          if [ "$total" -eq 14 ] && [ "$ready" -eq 14 ]; then
+            kubectl get nodes -L agentpool,prometheus,cri-resource-consume
+            exit 0
+          fi
+          sleep 30
+        done
+
+        echo "Expected exactly 14 Ready nodes within 10 minutes."
+        kubectl get nodes -o wide
+        exit 1
+      displayName: Validate 14 Ready nodes
+      timeoutInMinutes: 11
+    - bash: |
+        set -euo pipefail
+
+        rm -rf "$CL2_REPORT_DIR"
+        mkdir -p "$CL2_REPORT_DIR"
+        rm -f "$TEST_RESULTS_FILE"
+
+        PYTHONPATH="$(Pipeline.Workspace)/s/modules/python:$CL2_PYTHON_ROOT" python3 "$CL2_PYTHON_ROOT/clusterloader2/cri/cri.py" override   --node_count "$NODE_COUNT"   --node_per_step "$NODE_COUNT"   --max_pods "$MAX_PODS"   --repeats "$REPEATS"   --operation_timeout "$OPERATION_TIMEOUT"   --load_type "$LOAD_TYPE"   --scale_enabled False   --pod_startup_latency_threshold 15s   --provider "aws"   --registry_endpoint "akscritelescope.azurecr.io"   --test_image e2e-test-images/resource-consumer:1.13   --os_type linux   --scrape_kubelets "$SCRAPE_KUBELETS"   --scrape_containerd False   --containerd_scrape_interval 15s   --host_network "$HOST_NETWORK"   --cl2_override_file "$CL2_CONFIG_DIR/overrides.yaml"
+
+        PYTHONPATH="$(Pipeline.Workspace)/s/modules/python:$CL2_PYTHON_ROOT" python3 "$CL2_PYTHON_ROOT/clusterloader2/cri/cri.py" execute   --cl2_image "$CL2_IMAGE"   --cl2_config_dir "$CL2_CONFIG_DIR"   --cl2_report_dir "$CL2_REPORT_DIR"   --kubeconfig "$HOME/.kube/config"   --provider "aws"   --scrape_kubelets "$SCRAPE_KUBELETS"   --scrape_containerd False
+      displayName: Run ClusterLoader2 CRI benchmark
+      env:
+        CL2_PYTHON_ROOT: $(Pipeline.Workspace)/s/kcl/perf-eval/cni-benchmark/cni-ab-testing/assets/python
+        CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/kcl/perf-eval/cni-benchmark/cni-ab-testing/assets/python/clusterloader2/cri/config
+        CL2_REPORT_DIR: $(Pipeline.Workspace)/cl2-results
+        TEST_RESULTS_FILE: $(Pipeline.Workspace)/cni-ab-results.jsonl
+        CL2_IMAGE: ghcr.io/azure/clusterloader2:v20241016
+    - bash: |
+        set -euo pipefail
+        CLUSTER_NAME="$(RUN_ID)"
+        BYO="${{ parameters.skip_resource_management }}"
+        if [ "${BYO,,}" = "true" ]; then
+          CLUSTER_NAME="${{ parameters.byo_aws_cluster_name }}"
+        fi
+        EKS_INFO=$(aws eks describe-cluster --name "$CLUSTER_NAME" --region "eu-west-1")
+        CLOUD_INFO=$(echo "$EKS_INFO" | jq -c '{cloud:"aws", region:.cluster.arn | split(":")[3], cluster:.cluster.name, kubernetes_version:.cluster.version}')
+        echo "Cloud info: $CLOUD_INFO"
+        echo "##vso[task.setvariable variable=CLOUD_INFO]$CLOUD_INFO"
+      displayName: Collect EKS cloud info
+    - bash: |
+        set -euo pipefail
+
+        PYTHONPATH="$(Pipeline.Workspace)/s/modules/python:$CL2_PYTHON_ROOT" python3 "$CL2_PYTHON_ROOT/clusterloader2/cri/cri.py" collect   --node_count "$NODE_COUNT"   --max_pods "$MAX_PODS"   --repeats "$REPEATS"   --load_type "$LOAD_TYPE"   --cl2_report_dir "$CL2_REPORT_DIR"   --cloud_info "$CLOUD_INFO"   --run_id "$(RUN_ID)"   --run_url "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)"   --result_file "$TEST_RESULTS_FILE"   --scrape_kubelets "$SCRAPE_KUBELETS"   --registry_info ""
+      displayName: Collect ClusterLoader2 results
+      env:
+        CL2_PYTHON_ROOT: $(Pipeline.Workspace)/s/kcl/perf-eval/cni-benchmark/cni-ab-testing/assets/python
+        CL2_REPORT_DIR: $(Pipeline.Workspace)/cl2-results
+        TEST_RESULTS_FILE: $(Pipeline.Workspace)/cni-ab-results.jsonl
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          if [ -s "$(Pipeline.Workspace)/cni-ab-results.jsonl" ]; then
+            MEASUREMENTS=$(jq -s '.' "$(Pipeline.Workspace)/cni-ab-results.jsonl")
+            FAILED=$(echo "$MEASUREMENTS" | jq '[.[] | select(.status == "failure")] | length')
+          else
+            MEASUREMENTS='[]'
+            FAILED=1
+          fi
+          STATUS="succeeded"
+          if [ "$FAILED" -gt 0 ]; then
+            STATUS="failed"
+          fi
+          cat > /tmp/run-result.json << EOF
+          {
+            "timestamp": "${TIMESTAMP}",
+            "run_id": "$(RUN_ID)",
+            "run_url": "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)",
+            "pipeline": "$(Build.DefinitionName)",
+            "result": {
+              "status": "${STATUS}",
+              "scenario_type": "perf-eval",
+              "scenario_name": "cni-ab-testing",
+              "owner": "${{ parameters.owner }}",
+              "engine": "clusterloader2",
+              "topology": "cri-resource-consume",
+              "engine_input": {"image": "ghcr.io/azure/clusterloader2:v20241016"},
+              "byo_resources": "${{ parameters.skip_resource_management }}",
+              "cloud": "aws",
+              "region": "eu-west-1",
+              "cni_variant": "aws-vpc-cni",
+              "node_count": 10,
+              "max_pods": $(MAX_PODS),
+              "repeats": 1,
+              "load_type": "memory",
+              "host_network": false,
+              "scrape_kubelets": true,
+              "measurements": ${MEASUREMENTS}
+            }
+          }
+          EOF
+          jq . /tmp/run-result.json
+      displayName: Build Telescope result
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          az storage blob upload \
+            --account-name "telescopev2" \
+            --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" \
+            --container-name "aks" \
+            --name "$(RUN_ID)/run-result.json" \
+            --file /tmp/run-result.json \
+            --auth-mode key
+      displayName: Upload result to storage account
+    - bash: |
+        echo "##vso[task.logissue type=warning;] EKS deletion was skipped for this manual run."
+        echo "Delete manually with: eksctl delete cluster --name $(RUN_ID) --region eu-west-1"
+      condition: and(always(), not(${{ parameters.skip_resource_management }}), ${{ parameters.skip_resource_deletion }}, eq(variables['Build.Reason'], 'Manual'))
+      displayName: Report skipped cleanup
+    - bash: |
+        set -euo pipefail
+        eksctl delete cluster --name "$(RUN_ID)" --region "eu-west-1" --wait
+      condition: and(always(), not(${{ parameters.skip_resource_management }}), not(and(${{ parameters.skip_resource_deletion }}, eq(variables['Build.Reason'], 'Manual'))))
+      displayName: Delete EKS benchmark cluster

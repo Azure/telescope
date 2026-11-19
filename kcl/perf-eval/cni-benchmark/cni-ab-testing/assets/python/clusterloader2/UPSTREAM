@@ -1,0 +1,6 @@
+Source: https://github.com/Azure/telescope
+Commit: ec8aecd5bcdc472b76c65087ddd4fafb0f43b696
+Paths:
+- modules/python/clusterloader2/cri/cri.py
+- modules/python/clusterloader2/cri/config/
+- modules/python/clusterloader2/utils.py

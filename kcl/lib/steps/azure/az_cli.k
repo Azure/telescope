@@ -1,10 +1,18 @@
 import azure_pipelines.ap.steps
 
-AzCli = lambda serviceConnection: str, displayName: str, script: str, condition: str = Undefined, continueOnError: bool = Undefined, stepName: str = Undefined -> steps.Step {
+AzCli = lambda {
+    serviceConnection: str,
+    displayName: str,
+    script: str,
+    condition: str = Undefined,
+    continueOnError: bool = Undefined,
+    stepName: str = Undefined,
+    env: {str:str} = Undefined,
+} -> steps.Step {
     steps.Task {
         task = "AzureCLI@2"
         inputs = {
-            azureSubscription = serviceConnection,
+            azureSubscription = serviceConnection
             scriptType = "bash"
             scriptLocation = "inlineScript"
             inlineScript = "set -exo pipefail\n" + script
@@ -13,5 +21,6 @@ AzCli = lambda serviceConnection: str, displayName: str, script: str, condition:
         condition = condition
         continueOnError = continueOnError
         name = stepName
+        env = env
     }
 }
