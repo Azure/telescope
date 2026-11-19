@@ -16,11 +16,11 @@ ${"--tags " + tags if tags else ""}
 }
 
 DeleteResourceGroup = lambda serviceConnection: str, name: str, subscription: str, condition: str = "always()" -> steps.Step {
-    # Before deleting, cancel any in-progress VMSS rolling upgrades in the AKS
-    # node (MC_) resource groups. Azure platform-initiated rolling upgrades (e.g.
-    # "VM Agent Rolling Upgrade") otherwise block deletion with a 409
-    # ResourceGroupDeletionBlocked / OperationNotAllowed error. This is a no-op
-    # when the resource group contains no AKS clusters or no active upgrades.
+    # Azure platform-initiated rolling upgrades (e.g. "VM Agent Rolling Upgrade")
+    # block deletion with a 409 ResourceGroupDeletionBlocked / OperationNotAllowed
+    # error. Cancel in-progress VMSS rolling upgrades in the AKS node (MC_)
+    # resource groups before deleting. This is a no-op when the resource group
+    # contains no AKS clusters or no active upgrades.
     script = """
 for NODE_RG in $(az aks list \\
   --resource-group "${name}" \\
