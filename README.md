@@ -103,15 +103,6 @@ The `lib/` directory provides reusable steps you can compose into your pipeline:
 
 For a complete working example, see [`kcl/example_pipeline/pipeline.k`](kcl/example_pipeline/pipeline.k).
 
-The [ConfigMaps100 benchmark](kcl/apiserver_benchmark/configmaps100/pipeline.k)
-creates clusters with managed Microsoft Entra ID, Azure RBAC, and local accounts
-disabled. It installs kubelogin and the pinned runkperf binaries on the agent,
-then runs the benchmark in an authenticated `AzureCLI@2` task. Its service
-connection identity needs the `Azure Kubernetes Service RBAC Cluster Admin`
-role at a scope covering the benchmark clusters, granted out of band.
-`kperf.RunKperfBenchmark(serviceConnection, ...)` converts the supplied kubeconfig
-to Azure CLI login in that task; it no longer accepts a container target.
-
 ## Generate Pipeline YAML
 
 Once your `.k` file is ready, generate the Azure DevOps YAML with the `/generate-yaml` skill, defined in the `.agent` folder.
