@@ -648,9 +648,12 @@ jobs:
       counts="$(cache_report "before-cold")"
       [[ "$(jq -r --arg field "uncached" '.[$field]' <<< "$counts")" == 16 ]] ||
           fail "$phase requires the expected cache state for all 16 objects"
-      host="$(kubectl get pod alluxio-worker-0 -n alx-ns -o json |
-          jq -er '.status.podIP'):29998"
-      warp_get=(/tools/warp get "--host=$host" --bucket=blob --access-key=warp --secret-key=benchmark
+      hosts="$(kubectl get pods -n alx-ns -o json |
+          jq -r '[.items[] | select(.metadata.name | test("^alluxio-worker-[0-9]+$"))
+              | .status.podIP // empty | select(length > 0)
+              | (if contains(":") then "[" + . + "]" else . end) + ":29998"] | join(",")')"
+      [[ -n "$hosts" ]] || fail "No Alluxio worker pod IPs found in alx-ns"
+      warp_get=(/tools/warp get "--host=$hosts" --bucket=blob --access-key=warp --secret-key=benchmark
           --region=us-east-1 --lookup=path --list-existing --noclear --full --json)
       command -v zstd >/dev/null || fail "zstd is required to read the raw Warp operations"
       client_exec bash -eu -c '
@@ -777,9 +780,12 @@ jobs:
       counts="$(cache_report "before-warm")"
       [[ "$(jq -r --arg field "all" '.[$field]' <<< "$counts")" == 16 ]] ||
           fail "$phase requires the expected cache state for all 16 objects"
-      host="$(kubectl get pod alluxio-worker-0 -n alx-ns -o json |
-          jq -er '.status.podIP'):29998"
-      warp_get=(/tools/warp get "--host=$host" --bucket=blob --access-key=warp --secret-key=benchmark
+      hosts="$(kubectl get pods -n alx-ns -o json |
+          jq -r '[.items[] | select(.metadata.name | test("^alluxio-worker-[0-9]+$"))
+              | .status.podIP // empty | select(length > 0)
+              | (if contains(":") then "[" + . + "]" else . end) + ":29998"] | join(",")')"
+      [[ -n "$hosts" ]] || fail "No Alluxio worker pod IPs found in alx-ns"
+      warp_get=(/tools/warp get "--host=$hosts" --bucket=blob --access-key=warp --secret-key=benchmark
           --region=us-east-1 --lookup=path --list-existing --noclear --full --json)
       start="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
       status=0

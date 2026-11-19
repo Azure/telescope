@@ -20,9 +20,12 @@ phase="${phase}"
 counts="$(cache_report "${"before-cold" if phase == "cold-start" else "before-warm"}")"
 [[ "$(jq -r --arg field "${"uncached" if phase == "cold-start" else "all"}" '.[$field]' <<< "$counts")" == 16 ]] ||
     fail "$phase requires the expected cache state for all 16 objects"
-host="$(kubectl get pod alluxio-worker-0 -n alx-ns -o json |
-    jq -er '.status.podIP'):29998"
-warp_get=(/tools/warp get "--host=$host" --bucket=blob --access-key=warp --secret-key=benchmark
+hosts="$(kubectl get pods -n alx-ns -o json |
+    jq -r '[.items[] | select(.metadata.name | test("^alluxio-worker-[0-9]+$"))
+        | .status.podIP // empty | select(length > 0)
+        | (if contains(":") then "[" + . + "]" else . end) + ":29998"] | join(",")')"
+[[ -n "$hosts" ]] || fail "No Alluxio worker pod IPs found in alx-ns"
+warp_get=(/tools/warp get "--host=$hosts" --bucket=blob --access-key=warp --secret-key=benchmark
     --region=us-east-1 --lookup=path --list-existing --noclear --full --json)
 """
 }
