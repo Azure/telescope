@@ -1,0 +1,36 @@
+# Template for the S3 read client pods s3c-1 ... s3c-N, N being S3_READ_CLIENT_COUNT in
+# kcl/lib/steps/alluxio/s3_read.k. The pipeline renames
+# one copy per clientpool node; the anti-affinity rule enforces one pod per node.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: s3c
+  namespace: alx-ns
+  labels: {app: s3c}
+spec:
+  restartPolicy: Never
+  automountServiceAccountToken: false
+  nodeSelector: {agentpool: clientpool}
+  tolerations:
+    - {key: warp, operator: Equal, value: "true", effect: NoSchedule}
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector: {matchLabels: {app: s3c}}
+          topologyKey: kubernetes.io/hostname
+  volumes:
+    - {name: script, configMap: {name: s3c-script}}
+    - {name: sas, secret: {secretName: s3c-sas}}
+    # Checkpoint generation writes up to 8 parallel 2 GiB temp files per pod, so 16 GiB plus headroom.
+    - {name: scratch, emptyDir: {sizeLimit: 20Gi}}
+  containers:
+    - name: s3c
+      image: curlimages/curl:8.12.1
+      # 20000 s outlives the 240-minute (14400 s) job timeout.
+      command: [sh, -c, "sleep 20000"]
+      resources:
+        requests: {cpu: "4", memory: 4Gi}
+      volumeMounts:
+        - {name: script, mountPath: /scripts, readOnly: true}
+        - {name: sas, mountPath: /sas, readOnly: true}
+        - {name: scratch, mountPath: /scratch}
