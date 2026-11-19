@@ -142,6 +142,7 @@ az rest \\
               }),
             k8s.RunClusterLoader2(
                 const.DEFAULT_SERVICE_CONNECTION,
+                CL2_NAMESPACE,
                 manifest = cl2Manifest),
             k8s.PrintCl2PodLogs(
                 const.DEFAULT_SERVICE_CONNECTION,
