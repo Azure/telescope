@@ -164,8 +164,13 @@ fi
 """
                 }
                 kperf.RunKperfDataIngest("cm", "kperf", s.name, total=s.count, qps=50, burst=50, size=s.size, groupSize=50, batchSize=s.count)
-                kperf.RunKperfRunnerGroup("ghcr.io/xinweiwei24/kperf:20260709-pause", "file://$(Pipeline.Workspace)/s/${s.manifest}", affinity="agentpool=runner")
+                kperf.RunKperfRunnerGroup(
+                    const.DEFAULT_SERVICE_CONNECTION,
+                    "ghcr.io/xinweiwei24/kperf:20260709-pause",
+                    "file://$(Pipeline.Workspace)/s/${s.manifest}",
+                    affinity="agentpool=runner")
                 kperf.FetchKperfRunnerGroupResult(
+                    const.DEFAULT_SERVICE_CONNECTION,
                     displayName="Fetch kperf runner group result (${name})",
                     resultPath="/tmp/kperf-result-${name}.json",
                     initialDelaySeconds=300)

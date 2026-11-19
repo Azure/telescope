@@ -14,8 +14,10 @@ RATES = [100, 150, 200, 250]
 
 RunBenchmark = lambda rate: int -> [steps.Step] {
     [
-        steps.Bash {
-            bash = """
+        azure.AzCli(
+            const.DEFAULT_SERVICE_CONNECTION,
+            "Prepare WI resources for ${rate}/sec",
+            """
 set -euo pipefail
 namespace="$(RUN_ID)-r${rate}"
 kubectl create namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
@@ -25,9 +27,7 @@ kubectl --request-timeout=60s annotate serviceaccount pod-benchmark \\
   --namespace "$namespace" \\
   "azure.workload.identity/client-id=00000000-0000-4000-8000-000000000001" \\
   --overwrite
-"""
-            displayName = "Prepare WI resources for ${rate}/sec"
-        },
+"""),
         steps.Bash {
             bash = """
 set -euo pipefail
@@ -45,24 +45,26 @@ fi
             displayName = "Prepare ${rate}/sec runner group"
         },
         kperf.RunKperfRunnerGroup(
+            const.DEFAULT_SERVICE_CONNECTION,
             RUNNER_IMAGE,
             "file://$(Agent.TempDirectory)/$(RUN_ID)-r${rate}-runner-group.yaml",
             affinity="agentpool=runner",
             displayName="Run kperf runner group at ${rate} CREATEs/sec"),
         kperf.FetchKperfRunnerGroupResult(
+            const.DEFAULT_SERVICE_CONNECTION,
             displayName="Wait for ${rate}/sec runner group result"),
-        steps.Bash {
-            bash = """
+        azure.AzCli(
+            const.DEFAULT_SERVICE_CONNECTION,
+            "Delete namespace from ${rate}/sec run",
+            """
 set -euo pipefail
 kubectl delete namespace "$(RUN_ID)-r${rate}" \\
   --ignore-not-found=true \\
   --wait=true
 echo "Namespace cleanup completed for ${rate}/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-"""
-            displayName = "Delete namespace from ${rate}/sec run"
-            continueOnError = True
-            timeoutInMinutes = 15
-        },
+""",
+            continueOnError=True,
+            timeoutInMinutes=15),
         steps.Bash {
             bash = """
 set -euo pipefail
@@ -100,6 +102,10 @@ output = ap.Pipeline {
             }
             steps = [
                 common.SetRunId(),
+                steps.Task {
+                    task = "KubeloginInstaller@0"
+                    displayName = "Install kubelogin"
+                },
                 azure.Login(
                     const.DEFAULT_SERVICE_CONNECTION,
                     SUBSCRIPTION_ID,
@@ -127,6 +133,10 @@ az aks create \\
   --dns-name-prefix "$(RUN_ID)" \\
   --tier standard \\
   --control-plane-scaling-size H2 \\
+  --enable-managed-identity \\
+  --enable-aad \\
+  --enable-azure-rbac \\
+  --disable-local-accounts \\
   --enable-oidc-issuer \\
   --enable-workload-identity \\
   --generate-ssh-keys \\
@@ -160,6 +170,10 @@ az aks create \\
                     "$(RESOURCE_GROUP)",
                     SUBSCRIPTION_ID),
                 kperf.InstallRunkperf(RUNNER_IMAGE),
+                azure.AzCli(
+                    const.DEFAULT_SERVICE_CONNECTION,
+                    "Convert kubeconfig for Azure CLI login",
+                    "kubelogin convert-kubeconfig -l azurecli"),
                 common.RecordCurrentTime("BENCHMARK_START_TIME"),
                 *[step for rate in RATES for step in RunBenchmark(rate)],
                 asi_dashboard.PrintAsiDashboardUrl(

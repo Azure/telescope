@@ -1,4 +1,5 @@
 import azure_pipelines.ap.steps
+import lib.steps.azure
 
 # RunKperfBenchmark runs runkperf bench with the given subcommand and flow control settings.
 # Results are written to resultPath (default /tmp/tmp_results.json) for collection by CollectKperfResult.
@@ -24,10 +25,12 @@ runkperf -v 3 bench \\
 
 # Tune initialDelaySeconds based on the known workload duration to minimise exposure
 # to network disruption while fetching results over a port-forward connection.
-FetchKperfRunnerGroupResult = lambda displayName: str = "Fetch kperf runner group result", resultPath: str = "", initialDelaySeconds: int = 0, timeoutInMinutes: int = 15 -> steps.Step {
+FetchKperfRunnerGroupResult = lambda serviceConnection: str, displayName: str = "Fetch kperf runner group result", resultPath: str = "", initialDelaySeconds: int = 0, timeoutInMinutes: int = 15 -> steps.Step {
     assert initialDelaySeconds >= 0, "initialDelaySeconds must be non-negative"
-    steps.Bash {
-        bash = """
+    azure.AzCli(
+        serviceConnection,
+        displayName,
+        """
 set -euo pipefail
 sleep ${initialDelaySeconds}
 attempt=0
@@ -40,18 +43,18 @@ until kperf rg result --wait${' | tee "' + resultPath + '"' if resultPath else "
   echo "attempt $attempt failed; retry in 10s" >&2
   sleep 10
 done
-"""
-        displayName = displayName
-        continueOnError = True
-        timeoutInMinutes = timeoutInMinutes
-    }
+""",
+        continueOnError=True,
+        timeoutInMinutes=timeoutInMinutes)
 }
 
 # RunKperfRunnerGroup runs `kperf rg run` with the specified runner image, runner
 # group manifest, optional flow control setting, and optional affinity selector.
-RunKperfRunnerGroup = lambda runnerImage: str, runnerGroup: str, flowcontrol: str = "", affinity: str = "", target: str = Undefined, displayName: str = "Run kperf runner group" -> steps.Step {
-    steps.Script {
-        script = """
+RunKperfRunnerGroup = lambda serviceConnection: str, runnerImage: str, runnerGroup: str, flowcontrol: str = "", affinity: str = "", displayName: str = "Run kperf runner group" -> steps.Step {
+    azure.AzCli(
+        serviceConnection,
+        displayName,
+        """
 set -euo pipefail
 set -x
 
@@ -93,8 +96,5 @@ until run_rg; do
   echo "attempt $attempt failed; cleaning up and retrying in 120s" >&2
   sleep 120
 done
-"""
-        displayName = displayName
-        target = target
-    }
+""")
 }

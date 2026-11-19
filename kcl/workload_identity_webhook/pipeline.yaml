@@ -24,6 +24,8 @@ jobs:
 
       echo "##vso[task.setvariable variable=RUN_ID]$RUN_ID"
     displayName: Set Run ID
+  - task: KubeloginInstaller@0
+    displayName: Install kubelogin
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
@@ -69,6 +71,10 @@ jobs:
           --dns-name-prefix "$(RUN_ID)" \
           --tier standard \
           --control-plane-scaling-size H2 \
+          --enable-managed-identity \
+          --enable-aad \
+          --enable-azure-rbac \
+          --disable-local-accounts \
           --enable-oidc-issuer \
           --enable-workload-identity \
           --generate-ssh-keys \
@@ -120,22 +126,37 @@ jobs:
       rm -rf $temp_dir
       docker rmi ghcr.io/azure/kperf:0.3.7 2>/dev/null || true
     displayName: Install runkperf binary
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |-
+        set -exo pipefail
+        kubelogin convert-kubeconfig -l azurecli
+    displayName: Convert kubeconfig for Azure CLI login
   - bash: |
       set -exo pipefail
       TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
       echo "BENCHMARK_START_TIME: $TIMESTAMP"
       echo "##vso[task.setvariable variable=BENCHMARK_START_TIME]$TIMESTAMP"
     displayName: Record current time as BENCHMARK_START_TIME
-  - bash: |
-      set -euo pipefail
-      namespace="$(RUN_ID)-r100"
-      kubectl create namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
-      kubectl create serviceaccount pod-benchmark --namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
-      # Use a fake client ID because benchmark Pods do not access Azure resources.
-      kubectl --request-timeout=60s annotate serviceaccount pod-benchmark \
-        --namespace "$namespace" \
-        "azure.workload.identity/client-id=00000000-0000-4000-8000-000000000001" \
-        --overwrite
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        set -euo pipefail
+        namespace="$(RUN_ID)-r100"
+        kubectl create namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
+        kubectl create serviceaccount pod-benchmark --namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
+        # Use a fake client ID because benchmark Pods do not access Azure resources.
+        kubectl --request-timeout=60s annotate serviceaccount pod-benchmark \
+          --namespace "$namespace" \
+          "azure.workload.identity/client-id=00000000-0000-4000-8000-000000000001" \
+          --overwrite
     displayName: Prepare WI resources for 100/sec
   - bash: |
       set -euo pipefail
@@ -150,71 +171,89 @@ jobs:
         exit 1
       fi
     displayName: Prepare 100/sec runner group
-  - script: |
-      set -euo pipefail
-      set -x
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        set -euo pipefail
+        set -x
 
-      run_rg() {
-        args=(
-          rg run
-          --runner-image="ghcr.io/azure/kperf:0.3.7"
-          --runnergroup="file://$(Agent.TempDirectory)/$(RUN_ID)-r100-runner-group.yaml"
-        )
-        if [ -n "" ]; then
-          args+=(--runner-flowcontrol="")
-        fi
-        if [ -n "agentpool=runner" ]; then
-          args+=(--affinity="agentpool=runner")
-        fi
-        kperf "${args[@]}"
-      }
+        run_rg() {
+          args=(
+            rg run
+            --runner-image="ghcr.io/azure/kperf:0.3.7"
+            --runnergroup="file://$(Agent.TempDirectory)/$(RUN_ID)-r100-runner-group.yaml"
+          )
+          if [ -n "" ]; then
+            args+=(--runner-flowcontrol="")
+          fi
+          if [ -n "agentpool=runner" ]; then
+            args+=(--affinity="agentpool=runner")
+          fi
+          kperf "${args[@]}"
+        }
 
-      cleanup_rg() {
-        kperf rg delete || true
-        kubectl -n runnergroups-kperf-io delete pod runnergroup-server \
-          --force --grace-period=0 --ignore-not-found=true --timeout=120s || true
-      }
+        cleanup_rg() {
+          kperf rg delete || true
+          kubectl -n runnergroups-kperf-io delete pod runnergroup-server \
+            --force --grace-period=0 --ignore-not-found=true --timeout=120s || true
+        }
 
-      cleanup_rg
-
-      attempt=0
-      max_attempts=10
-      until run_rg; do
-        attempt=$((attempt + 1))
-        if [ "$attempt" -ge "$max_attempts" ]; then
-          echo "kperf rg run failed after $attempt attempts" >&2
-          kubectl -n runnergroups-kperf-io get pods -o wide || true
-          kubectl -n runnergroups-kperf-io describe pod runnergroup-server || true
-          kubectl -n runnergroups-kperf-io get events --sort-by=.lastTimestamp | tail -50 || true
-          exit 1
-        fi
         cleanup_rg
-        echo "attempt $attempt failed; cleaning up and retrying in 120s" >&2
-        sleep 120
-      done
+
+        attempt=0
+        max_attempts=10
+        until run_rg; do
+          attempt=$((attempt + 1))
+          if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf rg run failed after $attempt attempts" >&2
+            kubectl -n runnergroups-kperf-io get pods -o wide || true
+            kubectl -n runnergroups-kperf-io describe pod runnergroup-server || true
+            kubectl -n runnergroups-kperf-io get events --sort-by=.lastTimestamp | tail -50 || true
+            exit 1
+          fi
+          cleanup_rg
+          echo "attempt $attempt failed; cleaning up and retrying in 120s" >&2
+          sleep 120
+        done
     displayName: Run kperf runner group at 100 CREATEs/sec
-  - bash: |
-      set -euo pipefail
-      sleep 0
-      attempt=0
-      max_attempts=5
-      until kperf rg result --wait; do
-        attempt=$((attempt + 1))
-        if [ "$attempt" -ge "$max_attempts" ]; then
-          exit 1
-        fi
-        echo "attempt $attempt failed; retry in 10s" >&2
-        sleep 10
-      done
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        set -euo pipefail
+        sleep 0
+        attempt=0
+        max_attempts=5
+        until kperf rg result --wait; do
+          attempt=$((attempt + 1))
+          if [ "$attempt" -ge "$max_attempts" ]; then
+            exit 1
+          fi
+          echo "attempt $attempt failed; retry in 10s" >&2
+          sleep 10
+        done
     continueOnError: true
     displayName: Wait for 100/sec runner group result
     timeoutInMinutes: 15
-  - bash: |
-      set -euo pipefail
-      kubectl delete namespace "$(RUN_ID)-r100" \
-        --ignore-not-found=true \
-        --wait=true
-      echo "Namespace cleanup completed for 100/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        set -euo pipefail
+        kubectl delete namespace "$(RUN_ID)-r100" \
+          --ignore-not-found=true \
+          --wait=true
+        echo "Namespace cleanup completed for 100/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
     continueOnError: true
     displayName: Delete namespace from 100/sec run
     timeoutInMinutes: 15
@@ -225,16 +264,22 @@ jobs:
       echo "Finished pause after 100/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
     displayName: Pause 5 minutes after kperf run
     timeoutInMinutes: 6
-  - bash: |
-      set -euo pipefail
-      namespace="$(RUN_ID)-r150"
-      kubectl create namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
-      kubectl create serviceaccount pod-benchmark --namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
-      # Use a fake client ID because benchmark Pods do not access Azure resources.
-      kubectl --request-timeout=60s annotate serviceaccount pod-benchmark \
-        --namespace "$namespace" \
-        "azure.workload.identity/client-id=00000000-0000-4000-8000-000000000001" \
-        --overwrite
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        set -euo pipefail
+        namespace="$(RUN_ID)-r150"
+        kubectl create namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
+        kubectl create serviceaccount pod-benchmark --namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
+        # Use a fake client ID because benchmark Pods do not access Azure resources.
+        kubectl --request-timeout=60s annotate serviceaccount pod-benchmark \
+          --namespace "$namespace" \
+          "azure.workload.identity/client-id=00000000-0000-4000-8000-000000000001" \
+          --overwrite
     displayName: Prepare WI resources for 150/sec
   - bash: |
       set -euo pipefail
@@ -249,71 +294,89 @@ jobs:
         exit 1
       fi
     displayName: Prepare 150/sec runner group
-  - script: |
-      set -euo pipefail
-      set -x
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        set -euo pipefail
+        set -x
 
-      run_rg() {
-        args=(
-          rg run
-          --runner-image="ghcr.io/azure/kperf:0.3.7"
-          --runnergroup="file://$(Agent.TempDirectory)/$(RUN_ID)-r150-runner-group.yaml"
-        )
-        if [ -n "" ]; then
-          args+=(--runner-flowcontrol="")
-        fi
-        if [ -n "agentpool=runner" ]; then
-          args+=(--affinity="agentpool=runner")
-        fi
-        kperf "${args[@]}"
-      }
+        run_rg() {
+          args=(
+            rg run
+            --runner-image="ghcr.io/azure/kperf:0.3.7"
+            --runnergroup="file://$(Agent.TempDirectory)/$(RUN_ID)-r150-runner-group.yaml"
+          )
+          if [ -n "" ]; then
+            args+=(--runner-flowcontrol="")
+          fi
+          if [ -n "agentpool=runner" ]; then
+            args+=(--affinity="agentpool=runner")
+          fi
+          kperf "${args[@]}"
+        }
 
-      cleanup_rg() {
-        kperf rg delete || true
-        kubectl -n runnergroups-kperf-io delete pod runnergroup-server \
-          --force --grace-period=0 --ignore-not-found=true --timeout=120s || true
-      }
+        cleanup_rg() {
+          kperf rg delete || true
+          kubectl -n runnergroups-kperf-io delete pod runnergroup-server \
+            --force --grace-period=0 --ignore-not-found=true --timeout=120s || true
+        }
 
-      cleanup_rg
-
-      attempt=0
-      max_attempts=10
-      until run_rg; do
-        attempt=$((attempt + 1))
-        if [ "$attempt" -ge "$max_attempts" ]; then
-          echo "kperf rg run failed after $attempt attempts" >&2
-          kubectl -n runnergroups-kperf-io get pods -o wide || true
-          kubectl -n runnergroups-kperf-io describe pod runnergroup-server || true
-          kubectl -n runnergroups-kperf-io get events --sort-by=.lastTimestamp | tail -50 || true
-          exit 1
-        fi
         cleanup_rg
-        echo "attempt $attempt failed; cleaning up and retrying in 120s" >&2
-        sleep 120
-      done
+
+        attempt=0
+        max_attempts=10
+        until run_rg; do
+          attempt=$((attempt + 1))
+          if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf rg run failed after $attempt attempts" >&2
+            kubectl -n runnergroups-kperf-io get pods -o wide || true
+            kubectl -n runnergroups-kperf-io describe pod runnergroup-server || true
+            kubectl -n runnergroups-kperf-io get events --sort-by=.lastTimestamp | tail -50 || true
+            exit 1
+          fi
+          cleanup_rg
+          echo "attempt $attempt failed; cleaning up and retrying in 120s" >&2
+          sleep 120
+        done
     displayName: Run kperf runner group at 150 CREATEs/sec
-  - bash: |
-      set -euo pipefail
-      sleep 0
-      attempt=0
-      max_attempts=5
-      until kperf rg result --wait; do
-        attempt=$((attempt + 1))
-        if [ "$attempt" -ge "$max_attempts" ]; then
-          exit 1
-        fi
-        echo "attempt $attempt failed; retry in 10s" >&2
-        sleep 10
-      done
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        set -euo pipefail
+        sleep 0
+        attempt=0
+        max_attempts=5
+        until kperf rg result --wait; do
+          attempt=$((attempt + 1))
+          if [ "$attempt" -ge "$max_attempts" ]; then
+            exit 1
+          fi
+          echo "attempt $attempt failed; retry in 10s" >&2
+          sleep 10
+        done
     continueOnError: true
     displayName: Wait for 150/sec runner group result
     timeoutInMinutes: 15
-  - bash: |
-      set -euo pipefail
-      kubectl delete namespace "$(RUN_ID)-r150" \
-        --ignore-not-found=true \
-        --wait=true
-      echo "Namespace cleanup completed for 150/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        set -euo pipefail
+        kubectl delete namespace "$(RUN_ID)-r150" \
+          --ignore-not-found=true \
+          --wait=true
+        echo "Namespace cleanup completed for 150/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
     continueOnError: true
     displayName: Delete namespace from 150/sec run
     timeoutInMinutes: 15
@@ -324,16 +387,22 @@ jobs:
       echo "Finished pause after 150/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
     displayName: Pause 5 minutes after kperf run
     timeoutInMinutes: 6
-  - bash: |
-      set -euo pipefail
-      namespace="$(RUN_ID)-r200"
-      kubectl create namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
-      kubectl create serviceaccount pod-benchmark --namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
-      # Use a fake client ID because benchmark Pods do not access Azure resources.
-      kubectl --request-timeout=60s annotate serviceaccount pod-benchmark \
-        --namespace "$namespace" \
-        "azure.workload.identity/client-id=00000000-0000-4000-8000-000000000001" \
-        --overwrite
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        set -euo pipefail
+        namespace="$(RUN_ID)-r200"
+        kubectl create namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
+        kubectl create serviceaccount pod-benchmark --namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
+        # Use a fake client ID because benchmark Pods do not access Azure resources.
+        kubectl --request-timeout=60s annotate serviceaccount pod-benchmark \
+          --namespace "$namespace" \
+          "azure.workload.identity/client-id=00000000-0000-4000-8000-000000000001" \
+          --overwrite
     displayName: Prepare WI resources for 200/sec
   - bash: |
       set -euo pipefail
@@ -348,71 +417,89 @@ jobs:
         exit 1
       fi
     displayName: Prepare 200/sec runner group
-  - script: |
-      set -euo pipefail
-      set -x
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        set -euo pipefail
+        set -x
 
-      run_rg() {
-        args=(
-          rg run
-          --runner-image="ghcr.io/azure/kperf:0.3.7"
-          --runnergroup="file://$(Agent.TempDirectory)/$(RUN_ID)-r200-runner-group.yaml"
-        )
-        if [ -n "" ]; then
-          args+=(--runner-flowcontrol="")
-        fi
-        if [ -n "agentpool=runner" ]; then
-          args+=(--affinity="agentpool=runner")
-        fi
-        kperf "${args[@]}"
-      }
+        run_rg() {
+          args=(
+            rg run
+            --runner-image="ghcr.io/azure/kperf:0.3.7"
+            --runnergroup="file://$(Agent.TempDirectory)/$(RUN_ID)-r200-runner-group.yaml"
+          )
+          if [ -n "" ]; then
+            args+=(--runner-flowcontrol="")
+          fi
+          if [ -n "agentpool=runner" ]; then
+            args+=(--affinity="agentpool=runner")
+          fi
+          kperf "${args[@]}"
+        }
 
-      cleanup_rg() {
-        kperf rg delete || true
-        kubectl -n runnergroups-kperf-io delete pod runnergroup-server \
-          --force --grace-period=0 --ignore-not-found=true --timeout=120s || true
-      }
+        cleanup_rg() {
+          kperf rg delete || true
+          kubectl -n runnergroups-kperf-io delete pod runnergroup-server \
+            --force --grace-period=0 --ignore-not-found=true --timeout=120s || true
+        }
 
-      cleanup_rg
-
-      attempt=0
-      max_attempts=10
-      until run_rg; do
-        attempt=$((attempt + 1))
-        if [ "$attempt" -ge "$max_attempts" ]; then
-          echo "kperf rg run failed after $attempt attempts" >&2
-          kubectl -n runnergroups-kperf-io get pods -o wide || true
-          kubectl -n runnergroups-kperf-io describe pod runnergroup-server || true
-          kubectl -n runnergroups-kperf-io get events --sort-by=.lastTimestamp | tail -50 || true
-          exit 1
-        fi
         cleanup_rg
-        echo "attempt $attempt failed; cleaning up and retrying in 120s" >&2
-        sleep 120
-      done
+
+        attempt=0
+        max_attempts=10
+        until run_rg; do
+          attempt=$((attempt + 1))
+          if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf rg run failed after $attempt attempts" >&2
+            kubectl -n runnergroups-kperf-io get pods -o wide || true
+            kubectl -n runnergroups-kperf-io describe pod runnergroup-server || true
+            kubectl -n runnergroups-kperf-io get events --sort-by=.lastTimestamp | tail -50 || true
+            exit 1
+          fi
+          cleanup_rg
+          echo "attempt $attempt failed; cleaning up and retrying in 120s" >&2
+          sleep 120
+        done
     displayName: Run kperf runner group at 200 CREATEs/sec
-  - bash: |
-      set -euo pipefail
-      sleep 0
-      attempt=0
-      max_attempts=5
-      until kperf rg result --wait; do
-        attempt=$((attempt + 1))
-        if [ "$attempt" -ge "$max_attempts" ]; then
-          exit 1
-        fi
-        echo "attempt $attempt failed; retry in 10s" >&2
-        sleep 10
-      done
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        set -euo pipefail
+        sleep 0
+        attempt=0
+        max_attempts=5
+        until kperf rg result --wait; do
+          attempt=$((attempt + 1))
+          if [ "$attempt" -ge "$max_attempts" ]; then
+            exit 1
+          fi
+          echo "attempt $attempt failed; retry in 10s" >&2
+          sleep 10
+        done
     continueOnError: true
     displayName: Wait for 200/sec runner group result
     timeoutInMinutes: 15
-  - bash: |
-      set -euo pipefail
-      kubectl delete namespace "$(RUN_ID)-r200" \
-        --ignore-not-found=true \
-        --wait=true
-      echo "Namespace cleanup completed for 200/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        set -euo pipefail
+        kubectl delete namespace "$(RUN_ID)-r200" \
+          --ignore-not-found=true \
+          --wait=true
+        echo "Namespace cleanup completed for 200/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
     continueOnError: true
     displayName: Delete namespace from 200/sec run
     timeoutInMinutes: 15
@@ -423,16 +510,22 @@ jobs:
       echo "Finished pause after 200/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
     displayName: Pause 5 minutes after kperf run
     timeoutInMinutes: 6
-  - bash: |
-      set -euo pipefail
-      namespace="$(RUN_ID)-r250"
-      kubectl create namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
-      kubectl create serviceaccount pod-benchmark --namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
-      # Use a fake client ID because benchmark Pods do not access Azure resources.
-      kubectl --request-timeout=60s annotate serviceaccount pod-benchmark \
-        --namespace "$namespace" \
-        "azure.workload.identity/client-id=00000000-0000-4000-8000-000000000001" \
-        --overwrite
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        set -euo pipefail
+        namespace="$(RUN_ID)-r250"
+        kubectl create namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
+        kubectl create serviceaccount pod-benchmark --namespace "$namespace" --dry-run=client -o yaml | kubectl --request-timeout=60s apply -f -
+        # Use a fake client ID because benchmark Pods do not access Azure resources.
+        kubectl --request-timeout=60s annotate serviceaccount pod-benchmark \
+          --namespace "$namespace" \
+          "azure.workload.identity/client-id=00000000-0000-4000-8000-000000000001" \
+          --overwrite
     displayName: Prepare WI resources for 250/sec
   - bash: |
       set -euo pipefail
@@ -447,71 +540,89 @@ jobs:
         exit 1
       fi
     displayName: Prepare 250/sec runner group
-  - script: |
-      set -euo pipefail
-      set -x
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        set -euo pipefail
+        set -x
 
-      run_rg() {
-        args=(
-          rg run
-          --runner-image="ghcr.io/azure/kperf:0.3.7"
-          --runnergroup="file://$(Agent.TempDirectory)/$(RUN_ID)-r250-runner-group.yaml"
-        )
-        if [ -n "" ]; then
-          args+=(--runner-flowcontrol="")
-        fi
-        if [ -n "agentpool=runner" ]; then
-          args+=(--affinity="agentpool=runner")
-        fi
-        kperf "${args[@]}"
-      }
+        run_rg() {
+          args=(
+            rg run
+            --runner-image="ghcr.io/azure/kperf:0.3.7"
+            --runnergroup="file://$(Agent.TempDirectory)/$(RUN_ID)-r250-runner-group.yaml"
+          )
+          if [ -n "" ]; then
+            args+=(--runner-flowcontrol="")
+          fi
+          if [ -n "agentpool=runner" ]; then
+            args+=(--affinity="agentpool=runner")
+          fi
+          kperf "${args[@]}"
+        }
 
-      cleanup_rg() {
-        kperf rg delete || true
-        kubectl -n runnergroups-kperf-io delete pod runnergroup-server \
-          --force --grace-period=0 --ignore-not-found=true --timeout=120s || true
-      }
+        cleanup_rg() {
+          kperf rg delete || true
+          kubectl -n runnergroups-kperf-io delete pod runnergroup-server \
+            --force --grace-period=0 --ignore-not-found=true --timeout=120s || true
+        }
 
-      cleanup_rg
-
-      attempt=0
-      max_attempts=10
-      until run_rg; do
-        attempt=$((attempt + 1))
-        if [ "$attempt" -ge "$max_attempts" ]; then
-          echo "kperf rg run failed after $attempt attempts" >&2
-          kubectl -n runnergroups-kperf-io get pods -o wide || true
-          kubectl -n runnergroups-kperf-io describe pod runnergroup-server || true
-          kubectl -n runnergroups-kperf-io get events --sort-by=.lastTimestamp | tail -50 || true
-          exit 1
-        fi
         cleanup_rg
-        echo "attempt $attempt failed; cleaning up and retrying in 120s" >&2
-        sleep 120
-      done
+
+        attempt=0
+        max_attempts=10
+        until run_rg; do
+          attempt=$((attempt + 1))
+          if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "kperf rg run failed after $attempt attempts" >&2
+            kubectl -n runnergroups-kperf-io get pods -o wide || true
+            kubectl -n runnergroups-kperf-io describe pod runnergroup-server || true
+            kubectl -n runnergroups-kperf-io get events --sort-by=.lastTimestamp | tail -50 || true
+            exit 1
+          fi
+          cleanup_rg
+          echo "attempt $attempt failed; cleaning up and retrying in 120s" >&2
+          sleep 120
+        done
     displayName: Run kperf runner group at 250 CREATEs/sec
-  - bash: |
-      set -euo pipefail
-      sleep 0
-      attempt=0
-      max_attempts=5
-      until kperf rg result --wait; do
-        attempt=$((attempt + 1))
-        if [ "$attempt" -ge "$max_attempts" ]; then
-          exit 1
-        fi
-        echo "attempt $attempt failed; retry in 10s" >&2
-        sleep 10
-      done
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        set -euo pipefail
+        sleep 0
+        attempt=0
+        max_attempts=5
+        until kperf rg result --wait; do
+          attempt=$((attempt + 1))
+          if [ "$attempt" -ge "$max_attempts" ]; then
+            exit 1
+          fi
+          echo "attempt $attempt failed; retry in 10s" >&2
+          sleep 10
+        done
     continueOnError: true
     displayName: Wait for 250/sec runner group result
     timeoutInMinutes: 15
-  - bash: |
-      set -euo pipefail
-      kubectl delete namespace "$(RUN_ID)-r250" \
-        --ignore-not-found=true \
-        --wait=true
-      echo "Namespace cleanup completed for 250/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        set -euo pipefail
+        kubectl delete namespace "$(RUN_ID)-r250" \
+          --ignore-not-found=true \
+          --wait=true
+        echo "Namespace cleanup completed for 250/sec phase at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
     continueOnError: true
     displayName: Delete namespace from 250/sec run
     timeoutInMinutes: 15
