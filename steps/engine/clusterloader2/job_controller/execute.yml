@@ -36,11 +36,6 @@ steps:
     env:
       ${{ if eq(parameters.cloud, 'azure') }}:
         CLOUD: aks
-        CL2_CLIENT_ID: $(SP_CLIENT_ID)
-        CL2_TENANT_ID: $(TENANT_ID)
-        CL2_SERVICE_CONNECTION_ID: $(AZURE_SERVICE_CONNECTION_ID)
-        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-        SYSTEM_OIDCREQUESTURI: $(System.OidcRequestUri)
       ${{ else }}:
         CLOUD: ${{ parameters.cloud }}
       REGION: ${{ parameters.region }}

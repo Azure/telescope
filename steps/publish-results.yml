@@ -33,3 +33,27 @@ steps:
   parameters:
     credential_type: ${{ parameters.credential_type }}
     cloud: ${{ parameters.cloud }}
+
+- ${{ if and(eq(parameters.cloud, 'azure'), eq(parameters.engine, 'clusterloader2')) }}:
+  - bash: |
+      set -euo pipefail
+      status=0
+      found=false
+      while IFS= read -r -d '' file; do
+        found=true
+        code=$(cat "$file")
+        if [[ ! "$code" =~ ^(0|[1-9][0-9]{0,2})$ ]] || (( code > 255 )); then
+          echo "Invalid CL2 exit status in $file" >&2
+          status=1
+        elif (( code != 0 && status == 0 )); then
+          status=$code
+        fi
+        for suffix in log pod.json; do
+          artifact="${file%.exit-code}.$suffix"
+          if [[ -f "$artifact" ]]; then echo "##vso[task.uploadfile]$artifact"; fi
+        done
+      done < <(find "$(Pipeline.Workspace)/s/modules/python/clusterloader2" -name 'cl2-driver-*.exit-code' -print0)
+      if [[ "$found" == false ]]; then echo "CL2 Job exit status missing" >&2; exit 1; fi
+      exit "$status"
+    displayName: "Return CL2 Job exit status after collection"
+    condition: always()
