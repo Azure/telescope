@@ -1,0 +1,169 @@
+trigger: none
+schedules:
+  # Azure Small Scale(10) Schedule
+  - cron: "0 3 * * *"
+    displayName: "3:00 AM Daily"
+    branches:
+      include:
+        - main
+    always: true
+  # Azure Medium Scale(500) Schedule
+  - cron: "0 6 * * *"
+    displayName: "Every day at 6:00 AM"
+    branches:
+      include:
+        - main
+    always: true
+  # Azure Large Scale(1000) Schedule
+  - cron: "0 0 * * *"
+    displayName: "Every day at 12:00 AM"
+    branches:
+      include:
+        - main
+    always: true
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: security-perf
+
+stages:
+  - stage: azure_eastus2_small_scale
+    condition: |
+        or(
+          eq(variables['Build.CronSchedule.DisplayName'], '3:00 AM Daily'),
+          eq(variables['Build.Reason'], 'Manual')
+        )
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250423"
+          topology: karpenter
+          matrix:
+            small-scale-on-demand:
+              cpu_per_node: 4
+              node_count: 10
+              pod_count: 100
+              scale_up_timeout: "15m"
+              scale_down_timeout: "15m"
+              node_label_selector: "karpenter.sh/nodepool = default"
+              node_selector: "{karpenter.sh/nodepool: default}"
+              loop_count: 5
+              warmup_deployment: true
+              vm_size: Standard_D4_v5
+              capacity_type: on-demand
+            small-scale-spot:
+              cpu_per_node: 4
+              node_count: 10
+              pod_count: 100
+              scale_up_timeout: "15m"
+              scale_down_timeout: "15m"
+              node_label_selector: "karpenter.sh/nodepool = spot"
+              node_selector: "{karpenter.sh/nodepool: spot}"
+              loop_count: 5
+              warmup_deployment: true
+              vm_size: Standard_D4_v5
+              capacity_type: spot
+          max_parallel: 1
+          timeout_in_minutes: 360
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  - stage: azure_australiaeast_medium_scale
+    condition: |
+        or(
+          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 6:00 AM'),
+          eq(variables['Build.Reason'], 'Manual')
+        )
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - australiaeast
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250423"
+          topology: karpenter
+          matrix:
+            medium-scale-on-demand:
+              cpu_per_node: 2
+              node_count: 500
+              pod_count: 500
+              scale_up_timeout: "40m"
+              scale_down_timeout: "40m"
+              node_label_selector: "karpenter.sh/nodepool = default"
+              node_selector: "{karpenter.sh/nodepool: default}"
+              loop_count: 1
+              warmup_deployment: true
+              vm_size: Standard_D2ds_v4
+              capacity_type: on-demand
+            medium-scale--spot:
+              cpu_per_node: 2
+              node_count: 500
+              pod_count: 500
+              scale_up_timeout: "40m"
+              scale_down_timeout: "40m"
+              node_label_selector: "karpenter.sh/nodepool = spot"
+              node_selector: "{karpenter.sh/nodepool: spot}"
+              loop_count: 1
+              warmup_deployment: true
+              vm_size: Standard_D2ds_v4
+              capacity_type: spot
+          max_parallel: 1
+          timeout_in_minutes: 360
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  - stage: azure_australiaeast_large_scale
+    condition: |
+        or(
+          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 12:00 AM'),
+          eq(variables['Build.Reason'], 'Manual')
+        )
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - australiaeast
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250423"
+          topology: karpenter
+          matrix:
+            large-scale-on-demand:
+              cpu_per_node: 2
+              node_count: 1000
+              pod_count: 1000
+              scale_up_timeout: "60m"
+              scale_down_timeout: "60m"
+              node_label_selector: "karpenter.sh/nodepool = default"
+              node_selector: "{karpenter.sh/nodepool: default}"
+              loop_count: 1
+              warmup_deployment: true
+              vm_size: Standard_D2ds_v4
+              capacity_type: on-demand
+            large-scale-spot:
+              cpu_per_node: 2
+              node_count: 1000
+              pod_count: 1000
+              scale_up_timeout: "60m"
+              scale_down_timeout: "60m"
+              node_label_selector: "karpenter.sh/nodepool = spot"
+              node_selector: "{karpenter.sh/nodepool: spot}"
+              loop_count: 1
+              warmup_deployment: true
+              vm_size: Standard_D2ds_v4
+              capacity_type: spot
+          max_parallel: 1
+          timeout_in_minutes: 360
+          credential_type: service_connection
+          ssh_key_enabled: false
