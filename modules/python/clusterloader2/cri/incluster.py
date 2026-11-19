@@ -103,10 +103,10 @@ def run_in_cluster(kubeconfig, image, config_dir, report_dir,
         raise ValueError("CL2 report directory must be empty to avoid stale results")
     reports.mkdir(parents=True, exist_ok=True)
 
-    def kubectl(args, check=True, **kwargs):
+    def kubectl(args, check=True, text=True, **kwargs):
         return subprocess.run(
             ["kubectl", "--kubeconfig", kubeconfig, "--request-timeout=30s",
-             "-n", name] + args, check=check, capture_output=True, text=True,
+             "-n", name] + args, check=check, capture_output=True, text=text,
             timeout=120, **kwargs)
 
     created = []
@@ -143,8 +143,8 @@ def run_in_cluster(kubeconfig, image, config_dir, report_dir,
         # Preserve diagnostics before deleting the driver, including on CL2/copy failure.
         if pod:
             try:
-                logs = kubectl(["logs", pod], check=False)
-                (reports / "cl2-driver.log").write_text(logs.stdout + logs.stderr, encoding="utf-8")
+                logs = kubectl(["logs", pod], check=False, text=False)
+                (reports / "cl2-driver.log").write_bytes(logs.stdout + logs.stderr)
             except (OSError, subprocess.SubprocessError) as error:
                 logger.warning("Could not save CL2 driver logs: %s", error)
         cleanup_failed = []

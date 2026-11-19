@@ -98,6 +98,9 @@ class TestCRIInCluster(unittest.TestCase):
                     '<testsuites><testsuite tests="1" failures="0" errors="0"/></testsuites>')
                 (self.reports / "PodStartupLatency_PodStartupLatency_fixture_2026.json").write_text(
                     json.dumps({"dataItems": [{"data": {"Perc50": 1}}]}))
+            if args[0] == "logs":
+                self.assertFalse(kwargs["text"])
+                return SimpleNamespace(stdout=b"CL2 output: \xf7\n", stderr=b"", returncode=0)
             return SimpleNamespace(stdout=stdout, stderr="", returncode=0)
 
         with patch.object(incluster.subprocess, "run", side_effect=kubectl):
@@ -117,7 +120,7 @@ class TestCRIInCluster(unittest.TestCase):
         self.assertLess(cp, ack)
         self.assertLess(ack, delete)
         self.assert_cleanup()
-        self.assertTrue((self.reports / "cl2-driver.log").is_file())
+        self.assertEqual((self.reports / "cl2-driver.log").read_bytes(), b"CL2 output: \xf7\n")
         result = self.work / "collected.json"
         cri.collect_clusterloader2(10, 30, 1, "memory", self.reports, "{}",
                                    "test", "", str(result), False)
