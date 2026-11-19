@@ -652,7 +652,7 @@ jobs:
           jq -er '.status.podIP'):29998"
       start="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
       status=0
-      kubectl exec -n alx-ns warp-client -c s3 -- env HOST="$host" sh -c '
+      kubectl exec -n alx-ns warp-client -c warp -- env HOST="$host" sh -c '
           set -u
           start_ns="$(date +%s%N)"
           pids=""
@@ -683,12 +683,12 @@ jobs:
       end="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
       jq -n --arg phase cold-start --arg command_start "$start" --arg command_end "$end" \
           '$ARGS.named' > "$(Build.ArtifactStagingDirectory)/alluxio-warp/cold-start-timing.json"
-      kubectl exec -n alx-ns warp-client -c s3 -- sh -c 'cat /results/cold-start-*.err' \
+      kubectl exec -n alx-ns warp-client -c warp -- sh -c 'cat /results/cold-start-*.err' \
           >> "$(Build.ArtifactStagingDirectory)/alluxio-warp/cold-start.log" || true
       (( status == 0 )) || fail "Cold-start S3 GETs failed with status $status; see its log"
-      kubectl exec -n alx-ns warp-client -c s3 -- cat /results/cold-start-client-timing.json \
+      kubectl exec -n alx-ns warp-client -c warp -- cat /results/cold-start-client-timing.json \
           > "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/cold-start-client-timing.json"
-      kubectl exec -n alx-ns warp-client -c s3 -- sh -c 'cat /results/cold-start-object-*.json' \
+      kubectl exec -n alx-ns warp-client -c warp -- sh -c 'cat /results/cold-start-object-*.json' \
           > "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/cold-start-responses.json"
       jq -e -n -L "$(Build.SourcesDirectory)/kcl/alluxio/warp" \
           --slurpfile timing "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/cold-start-client-timing.json" \
