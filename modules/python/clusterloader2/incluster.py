@@ -54,14 +54,7 @@ def run_cl2_job(kubeconfig, image, config_dir, report_dir, arguments):
             "backoffLimit": 0, "activeDeadlineSeconds": timeout + 600,
             "template": {"spec": {
                 "serviceAccountName": name, "restartPolicy": "Never",
-                "nodeSelector": {"kubernetes.azure.com/mode": "system", "kubernetes.io/os": "linux"},
-                "affinity": {"nodeAffinity": {"requiredDuringSchedulingIgnoredDuringExecution": {
-                    "nodeSelectorTerms": [{"matchExpressions": [
-                        {"key": "prometheus", "operator": "NotIn", "values": ["true"]},
-                        {"key": "cri-resource-consume", "operator": "NotIn", "values": ["true"]},
-                    ]}],
-                }}},
-                "tolerations": [{"key": "CriticalAddonsOnly", "operator": "Exists", "effect": "NoSchedule"}],
+                "nodeSelector": {"kubernetes.io/os": "linux"},
                 "containers": [{
                     "name": "cl2", "image": image,
                     "command": ["/bin/sh", "-c"],
