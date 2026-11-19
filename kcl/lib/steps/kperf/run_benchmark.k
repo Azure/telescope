@@ -1,25 +1,26 @@
 import azure_pipelines.ap.steps
+import lib.steps.azure
 
-# RunKperfBenchmark runs runkperf bench with the given subcommand and flow control settings.
+# RunKperfBenchmark uses the service connection's Azure CLI login for Entra authentication.
+# InstallRunkperf and kubelogin must be installed on the agent first.
 # Results are written to resultPath (default /tmp/tmp_results.json) for collection by CollectKperfResult.
-RunKperfBenchmark = lambda benchmarkSubcmd: str, benchmarkSubcmdArgs: str, flowcontrol: str, kubeconfig: str, runnerImage: str, target: str = Undefined, resultPath: str = "/tmp/tmp_results.json" -> steps.Step {
-    steps.Script {
-        script = """
+RunKperfBenchmark = lambda serviceConnection: str, benchmarkSubcmd: str, benchmarkSubcmdArgs: str, flowcontrol: str, kubeconfig: str, runnerImage: str, resultPath: str = "/tmp/tmp_results.json" -> steps.Step {
+    azure.AzCli(
+        serviceConnection,
+        "Run kperf benchmark (${benchmarkSubcmd}, flowcontrol=${flowcontrol})",
+        """
 set -euo pipefail
-set -x
 
-export PATH="/:$PATH"
+export KUBECONFIG="${kubeconfig}"
+kubelogin convert-kubeconfig -l azurecli
 
 runkperf -v 3 bench \\
-  --kubeconfig=${kubeconfig} \\
+  --kubeconfig="${kubeconfig}" \\
   --runner-image="${runnerImage}" \\
   --runner-flowcontrol="${flowcontrol}" \\
-  --result ${resultPath} \\
+  --result "${resultPath}" \\
   ${benchmarkSubcmd} ${benchmarkSubcmdArgs}
-"""
-        displayName = "Run kperf benchmark (${benchmarkSubcmd}, flowcontrol=${flowcontrol})"
-        target = target
-    }
+""")
 }
 
 # Tune initialDelaySeconds based on the known workload duration to minimise exposure

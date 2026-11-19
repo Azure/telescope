@@ -7,12 +7,6 @@ schedules:
     include:
     - v2
   always: true
-resources:
-  containers:
-  - container: kperf
-    image: ghcr.io/azure/kperf:0.3.4
-    volumes:
-    - /usr/bin/kubectl:/usr/local/bin/kubectl
 stages:
 - stage: workload_low
   displayName: 'FlowControl: workload-low:1000'
@@ -30,6 +24,24 @@ stages:
 
         echo "##vso[task.setvariable variable=RUN_ID]$RUN_ID"
       displayName: Set Run ID
+    - task: KubeloginInstaller@0
+      inputs:
+        kubeloginVersion: latest
+      displayName: Install kubelogin
+    - script: |
+        set -euo pipefail
+        set -x
+
+        temp_dir=$(mktemp -p /tmp -d kperfinstall.XXXX)
+        docker rmi ghcr.io/azure/kperf:0.3.4 2>/dev/null || true
+        docker pull ghcr.io/azure/kperf:0.3.4
+        docker run --rm -v $temp_dir:/install-dir \
+          ghcr.io/azure/kperf:0.3.4 bash -c "set -x; install /kperf /runkperf /install-dir"
+
+        sudo install $temp_dir/kperf $temp_dir/runkperf /usr/local/bin
+        rm -rf $temp_dir
+        docker rmi ghcr.io/azure/kperf:0.3.4 2>/dev/null || true
+      displayName: Install runkperf binary
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -71,6 +83,10 @@ stages:
             --node-vm-size "Standard_D2s_v3" \
             --network-plugin azure \
             --network-plugin-mode overlay \
+            --enable-managed-identity \
+            --enable-aad \
+            --enable-azure-rbac \
+            --disable-local-accounts \
             --nodepool-taints "CriticalAddonsOnly=true:NoSchedule" \
             --tier standard \
             --tags SkipAKSCluster=true SkipASMAzSecPackAutoConfig=true SkipLinuxAzSecPack=true
@@ -96,20 +112,25 @@ stages:
         scriptLocation: inlineScript
         inlineScript: "set -exo pipefail\ncreate_node_pool() {\n  local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds\n  deadline=$(($(date +%s) + 600))\n  while :; do\n    attempt=$((attempt + 1))\n    if output=$(az aks nodepool add \"$@\" 2>&1); then\n      rc=0\n    else\n      rc=$?\n    fi\n    echo \"$output\"\n    if [ \"$rc\" -eq 0 ]; then\n      return 0\n    fi\n    if echo \"$output\" | grep -qiE \"OperationNotAllowed\"; then\n      now=$(date +%s)\n      if [ \"$now\" -ge \"$deadline\" ]; then\n        echo \"Retriable error persisted past 600s retry window ($attempt attempts); giving up.\"\n        return \"$rc\"\n      fi\n      remaining_retry_seconds=$((deadline - now))\n      echo \"Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining_retry_seconds seconds remain in retry window).\"\n      sleep \"$sleep_between\"\n    else\n      echo \"Non-retriable error (rc=$rc); giving up after attempt $attempt.\"\n      return \"$rc\"\n    fi\n  done\n}\n\n\ncreate_node_pool \\\n  --cluster-name \"configmaps100\" \\\n  --resource-group \"$(RUN_ID)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"runner\" \\\n  --node-count 3 \\\n  --node-vm-size \"Standard_D16s_v3\" \\\n  --mode User \\\n  \n"
       displayName: Create node pool runner
-    - script: |
-        set -euo pipefail
-        set -x
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
 
-        export PATH="/:$PATH"
+          export KUBECONFIG="$(Pipeline.Workspace)/kubeconfig"
+          kubelogin convert-kubeconfig -l azurecli
 
-        runkperf -v 3 bench \
-          --kubeconfig=$(Pipeline.Workspace)/kubeconfig \
-          --runner-image="ghcr.io/azure/kperf:0.3.4" \
-          --runner-flowcontrol="workload-low:1000" \
-          --result $(Pipeline.Workspace)/tmp_results.json \
-          list_configmaps --total 10000 --size=1024 --group-size=10 --configmap-amount=100
+          runkperf -v 3 bench \
+            --kubeconfig="$(Pipeline.Workspace)/kubeconfig" \
+            --runner-image="ghcr.io/azure/kperf:0.3.4" \
+            --runner-flowcontrol="workload-low:1000" \
+            --result "$(Pipeline.Workspace)/tmp_results.json" \
+            list_configmaps --total 10000 --size=1024 --group-size=10 --configmap-amount=100
       displayName: Run kperf benchmark (list_configmaps, flowcontrol=workload-low:1000)
-      target: kperf
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -216,6 +237,24 @@ stages:
 
         echo "##vso[task.setvariable variable=RUN_ID]$RUN_ID"
       displayName: Set Run ID
+    - task: KubeloginInstaller@0
+      inputs:
+        kubeloginVersion: latest
+      displayName: Install kubelogin
+    - script: |
+        set -euo pipefail
+        set -x
+
+        temp_dir=$(mktemp -p /tmp -d kperfinstall.XXXX)
+        docker rmi ghcr.io/azure/kperf:0.3.4 2>/dev/null || true
+        docker pull ghcr.io/azure/kperf:0.3.4
+        docker run --rm -v $temp_dir:/install-dir \
+          ghcr.io/azure/kperf:0.3.4 bash -c "set -x; install /kperf /runkperf /install-dir"
+
+        sudo install $temp_dir/kperf $temp_dir/runkperf /usr/local/bin
+        rm -rf $temp_dir
+        docker rmi ghcr.io/azure/kperf:0.3.4 2>/dev/null || true
+      displayName: Install runkperf binary
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -257,6 +296,10 @@ stages:
             --node-vm-size "Standard_D2s_v3" \
             --network-plugin azure \
             --network-plugin-mode overlay \
+            --enable-managed-identity \
+            --enable-aad \
+            --enable-azure-rbac \
+            --disable-local-accounts \
             --nodepool-taints "CriticalAddonsOnly=true:NoSchedule" \
             --tier standard \
             --tags SkipAKSCluster=true SkipASMAzSecPackAutoConfig=true SkipLinuxAzSecPack=true
@@ -282,20 +325,25 @@ stages:
         scriptLocation: inlineScript
         inlineScript: "set -exo pipefail\ncreate_node_pool() {\n  local deadline sleep_between=30 attempt=0 output rc now remaining_retry_seconds\n  deadline=$(($(date +%s) + 600))\n  while :; do\n    attempt=$((attempt + 1))\n    if output=$(az aks nodepool add \"$@\" 2>&1); then\n      rc=0\n    else\n      rc=$?\n    fi\n    echo \"$output\"\n    if [ \"$rc\" -eq 0 ]; then\n      return 0\n    fi\n    if echo \"$output\" | grep -qiE \"OperationNotAllowed\"; then\n      now=$(date +%s)\n      if [ \"$now\" -ge \"$deadline\" ]; then\n        echo \"Retriable error persisted past 600s retry window ($attempt attempts); giving up.\"\n        return \"$rc\"\n      fi\n      remaining_retry_seconds=$((deadline - now))\n      echo \"Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining_retry_seconds seconds remain in retry window).\"\n      sleep \"$sleep_between\"\n    else\n      echo \"Non-retriable error (rc=$rc); giving up after attempt $attempt.\"\n      return \"$rc\"\n    fi\n  done\n}\n\n\ncreate_node_pool \\\n  --cluster-name \"configmaps100\" \\\n  --resource-group \"$(RUN_ID)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"runner\" \\\n  --node-count 3 \\\n  --node-vm-size \"Standard_D16s_v3\" \\\n  --mode User \\\n  \n"
       displayName: Create node pool runner
-    - script: |
-        set -euo pipefail
-        set -x
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
 
-        export PATH="/:$PATH"
+          export KUBECONFIG="$(Pipeline.Workspace)/kubeconfig"
+          kubelogin convert-kubeconfig -l azurecli
 
-        runkperf -v 3 bench \
-          --kubeconfig=$(Pipeline.Workspace)/kubeconfig \
-          --runner-image="ghcr.io/azure/kperf:0.3.4" \
-          --runner-flowcontrol="exempt:5" \
-          --result $(Pipeline.Workspace)/tmp_results.json \
-          list_configmaps --total 10000 --size=1024 --group-size=10 --configmap-amount=100
+          runkperf -v 3 bench \
+            --kubeconfig="$(Pipeline.Workspace)/kubeconfig" \
+            --runner-image="ghcr.io/azure/kperf:0.3.4" \
+            --runner-flowcontrol="exempt:5" \
+            --result "$(Pipeline.Workspace)/tmp_results.json" \
+            list_configmaps --total 10000 --size=1024 --group-size=10 --configmap-amount=100
       displayName: Run kperf benchmark (list_configmaps, flowcontrol=exempt:5)
-      target: kperf
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal

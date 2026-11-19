@@ -1,7 +1,6 @@
 import azure_pipelines.ap
 import azure_pipelines.ap.jobs.job
-import azure_pipelines.ap.resources
-import azure_pipelines.ap.resources.container as res_container
+import azure_pipelines.ap.steps
 import lib.const
 import lib.steps.azure
 import lib.steps.common
@@ -27,6 +26,10 @@ az aks create \\
   --node-vm-size "Standard_D2s_v3" \\
   --network-plugin azure \\
   --network-plugin-mode overlay \\
+  --enable-managed-identity \\
+  --enable-aad \\
+  --enable-azure-rbac \\
+  --disable-local-accounts \\
   --nodepool-taints "CriticalAddonsOnly=true:NoSchedule" \\
   --tier standard \\
   --tags SkipAKSCluster=true SkipASMAzSecPackAutoConfig=true SkipLinuxAzSecPack=true
@@ -40,6 +43,12 @@ makeBenchmarkJob = lambda flowcontrol: str, flowcontrolLabel: str -> job.Job {
 
         steps = [
             common.SetRunId(),
+            steps.Task {
+                task = "KubeloginInstaller@0"
+                displayName = "Install kubelogin"
+                inputs.kubeloginVersion = "latest"
+            },
+            kperf.InstallRunkperf(RUNNER_IMAGE),
             azure.Login(
                 const.DEFAULT_SERVICE_CONNECTION,
                 SUBSCRIPTION_ID,
@@ -72,12 +81,12 @@ makeBenchmarkJob = lambda flowcontrol: str, flowcontrolLabel: str -> job.Job {
                     count = 3
                 }),
             kperf.RunKperfBenchmark(
+                const.DEFAULT_SERVICE_CONNECTION,
                 "list_configmaps",
                 BENCHMARK_ARGS,
                 flowcontrol,
                 "$(Pipeline.Workspace)/kubeconfig",
                 RUNNER_IMAGE,
-                "kperf",
                 RESULT_PATH),
             kperf.CollectKperfResult(
                 const.DEFAULT_SERVICE_CONNECTION,
@@ -110,14 +119,6 @@ makeStage = lambda flowcontrol: str, flowcontrolLabel: str -> ap.Stage {
 
 output = ap.Pipeline {
     name = "API Server List Configmaps"
-
-    resources = resources.Resources {
-        containers = [res_container.Container {
-            container = "kperf"
-            image = RUNNER_IMAGE
-            volumes = ["/usr/bin/kubectl:/usr/local/bin/kubectl"]
-        }]
-    }
 
     schedules = [ap.Cron {
         cron = "0 3 * * 0"
