@@ -14,9 +14,11 @@ import glob
 import json
 import os
 import sys
+import tempfile
 import traceback
 from datetime import datetime, timezone
-from crud.azure.node_pool_crud import NodePoolCRUD as AzureNodePoolCRUD
+from pathlib import Path
+from crud.azure.node_pool_crud import LEGACY_WORKLOAD_PROFILE, NodePoolCRUD as AzureNodePoolCRUD
 from crud.azure.machine_crud import MachineCRUD as AzureMachineCRUD
 from crud.aws.node_pool_crud import NodePoolCRUD as AWSNodePoolCRUD
 from crud.operation import OperationContext
@@ -27,6 +29,55 @@ from utils.logger_config import get_logger, setup_logging
 # Configure logging
 setup_logging()
 logger = get_logger(__name__)
+
+LEGACY_OPERATION_NAMES = {
+    "create_node_pool": "create_agent_pool",
+    "scale_up": "scale_agent_pool",
+    "scale_down": "clean_agent_pool",
+    "delete_node_pool": "delete_agent_pool",
+}
+NODE_POOL_OPERATION_NAMES = set(LEGACY_OPERATION_NAMES)
+AKS_DATA_FIELDS = (
+    "vm_size", "node_pool_name", "create_node_count", "scale_node_count",
+    "node_pool_type", "node_pool_number", "batch_size", "workload_test_setting",
+)
+COLLECT_ARGS = ("result_dir", "result_file", "run_id", "run_url", "region", "cloud_info", *AKS_DATA_FIELDS)
+REQUIRED_COLLECT_ARGS = ("result_dir", "run_url", "run_id", "region")
+
+
+def _build_operation_info(content):
+    """Add legacy consumer aliases while retaining the canonical operation schema."""
+    if not isinstance(content, dict) or not isinstance(content.get("operation_info"), dict):
+        raise ValueError("Expected a JSON object containing an operation_info object")
+    operation_info = dict(content["operation_info"])
+    canonical_name = operation_info.get("name")
+    if not isinstance(canonical_name, str) or not canonical_name.strip():
+        raise ValueError("Operation name must be a non-empty string")
+    if not isinstance(operation_info.get("success"), bool):
+        raise ValueError("Operation success must be a boolean")
+    metadata = operation_info.get("metadata", {})
+    if not isinstance(metadata, dict):
+        raise ValueError("Operation metadata must be an object")
+
+    operation_info["canonical_name"] = canonical_name
+    operation_info["name"] = LEGACY_OPERATION_NAMES.get(canonical_name, canonical_name)
+    operation_info["succeeded"] = operation_info.get("success")
+    operation_info["time"] = operation_info.get("duration")
+    if metadata.get("workload_profile") == LEGACY_WORKLOAD_PROFILE:
+        operation_info["time"] = metadata.get(
+            "workload_readiness_time", operation_info["time"]
+        )
+    for field in (
+        "command_execution_time", "node_readiness_time", "warning_message",
+        "batch_command_execution_times", "percentile_node_readiness_times",
+    ):
+        operation_info[field] = metadata.get(field)
+    if canonical_name in NODE_POOL_OPERATION_NAMES:
+        cluster_info = metadata.get("cluster_info")
+        operation_info["data"] = json.dumps(cluster_info) if cluster_info is not None else None
+    else:
+        operation_info["data"] = metadata
+    return operation_info
 
 
 def get_node_pool_crud_class(cloud_provider):
@@ -71,35 +122,150 @@ def get_machine_crud_class(cloud_provider):
     )
 
 
-def collect_benchmark_results():
-    """Main function to process Cluster Crud benchmark results."""
-    result_dir = get_env_vars("RESULT_DIR")
-    run_url = get_env_vars("RUN_URL")
-    run_id = get_env_vars("RUN_ID")
-    region = get_env_vars("REGION")
-    logger.info("environment variable REGION: `%s`", region)
-    logger.info("environment variable RESULT_DIR: `%s`", result_dir)
-    logger.info("environment variable RUN_URL: `%s`", run_url)
+def _validate_output_path(result_file):
+    """Reject destinations containing canonical operation input."""
+    if not os.path.isfile(result_file):
+        return
+    with open(result_file, encoding="utf-8") as output:
+        existing_output = output.read()
+    try:
+        content, _ = json.JSONDecoder().raw_decode(existing_output.lstrip())
+    except json.JSONDecodeError:
+        logger.debug("Existing output `%s` is not canonical operation JSON", result_file)
+        return
+    if isinstance(content, dict) and isinstance(content.get("operation_info"), dict):
+        raise ValueError(f"Output file `{result_file}` contains a canonical operation result")
 
-    for filepath in glob.glob(f"{result_dir}/*.json"):
-        if os.path.basename(filepath) == "results.json":
+
+def collect_benchmark_results(args=None):
+    """Main function to process Cluster Crud benchmark results."""
+    legacy_output = getattr(args, "legacy_output", False)
+    context = {name: os.environ.get(name.upper()) for name in COLLECT_ARGS}
+    if not legacy_output:
+        context["result_file"] = None
+    if args:
+        context.update(
+            (name, value)
+            for name in COLLECT_ARGS
+            if (value := getattr(args, name, None)) is not None
+        )
+    for name in REQUIRED_COLLECT_ARGS:
+        if getattr(args, name, None) is None:
+            context[name] = get_env_vars(name.upper())
+    result_dir = context["result_dir"]
+    run_url = context["run_url"]
+    run_id = context["run_id"]
+    region = context["region"]
+    result_file = context["result_file"]
+    result_file = result_file or os.path.join(result_dir, "results.json")
+    logger.info("REGION: `%s`", region)
+    logger.info("RESULT_DIR: `%s`", result_dir)
+    logger.info("RUN_URL: `%s`", run_url)
+
+    aks_data = {name: context[name] for name in AKS_DATA_FIELDS}
+    aks_data["region"] = region
+    if legacy_output:
+        try:
+            for name in ("create_node_count", "scale_node_count", "batch_size"):
+                value = aks_data[name]
+                aks_data[name] = int(value) if value not in (None, "") else None
+        except ValueError as error:
+            logger.error("Invalid collector argument `%s`: %s", name, error)
+            return 1
+    cloud_info = context["cloud_info"]
+    if legacy_output:
+        cloud_info = cloud_info if cloud_info is not None else json.dumps({})
+        try:
+            cloud_context = json.loads(cloud_info)
+            if not isinstance(cloud_context, dict):
+                raise ValueError("Expected a JSON-encoded object")
+            json.dumps(cloud_context, allow_nan=False)
+        except (TypeError, ValueError) as error:
+            logger.error("Invalid collector argument `cloud_info`: %s", error)
+            return 1
+    rows = []
+
+    check_output_path = legacy_output or getattr(args, "result_file", None) is not None
+    if check_output_path:
+        try:
+            if legacy_output:
+                result_file = str(Path(result_file).resolve())
+            _validate_output_path(result_file)
+        except (OSError, RuntimeError, ValueError) as error:
+            logger.error("Invalid output file `%s`: %s", result_file, error)
+            return 1
+    if legacy_output:
+        try:
+            with os.scandir(result_dir) as entries:
+                filepaths = sorted(
+                    entry.path for entry in entries
+                    if entry.name.endswith(".json") and not entry.name.startswith(".")
+                )
+        except OSError as error:
+            logger.error("Failed to read result directory `%s`: %s", result_dir, error)
+            return 1
+    else:
+        filepaths = glob.glob(f"{result_dir}/*.json")
+    normalize_path = os.path.realpath if check_output_path else os.path.abspath
+    for filepath in filepaths:
+        if os.path.basename(filepath) == "results.json" or normalize_path(filepath) == normalize_path(result_file):
             continue
         logger.info("Processing file: `%s`", filepath)
-        with open(filepath, "r", encoding="utf-8") as file:
-            content = json.load(file)
+        try:
+            with open(filepath, "r", encoding="utf-8") as file:
+                content = json.load(file)
+            operation_info = (
+                _build_operation_info(content) if legacy_output else content.get("operation_info")
+            )
+        except (OSError, ValueError) as error:
+            if not legacy_output:
+                raise
+            logger.error("Failed to process operation result `%s`: %s", filepath, error)
+            return 1
         timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         result = {
             "timestamp": timestamp,
             "region": region,
-            "operation_info": json.dumps(content.get("operation_info")),
+            "operation_info": json.dumps(operation_info),
             "run_id": run_id,
             "run_url": run_url,
         }
+        if legacy_output:
+            result["aks_data"] = json.dumps(aks_data)
+            result["cloud_info"] = cloud_info
         logger.debug("Result: %s", json.dumps(result))
-        result_json = json.dumps(result)
-        with open(f"{result_dir}/results.json", "a", encoding="utf-8") as file:
-            file.write(result_json + "\n")
-        logger.info("Result written to: `%s/results.json`", result_dir)
+        if legacy_output:
+            rows.append(result)
+        else:
+            with open(result_file, "a", encoding="utf-8") as file:
+                file.write(json.dumps(result) + "\n")
+            logger.info("Result written to: `%s`", result_file)
+
+    if not legacy_output:
+        return 0
+    if not rows:
+        logger.error("No operation results found in `%s`; output was not replaced", result_dir)
+        return 1
+    output_dir = os.path.dirname(result_file) or "."
+    temporary_path = None
+    try:
+        os.makedirs(output_dir, exist_ok=True)
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", dir=output_dir, prefix=".results-", suffix=".tmp",
+            delete=False,
+        ) as file:
+            temporary_path = file.name
+            for result in rows:
+                file.write(json.dumps(result) + "\n")
+        os.replace(temporary_path, result_file)
+        temporary_path = None
+    except OSError as error:
+        logger.error("Failed to publish results to `%s`: %s", result_file, error)
+        return 1
+    finally:
+        if temporary_path is not None:
+            os.unlink(temporary_path)
+    logger.info("Wrote %d result row(s) to: `%s`", len(rows), result_file)
     return 0
 
 
@@ -182,6 +348,9 @@ def handle_workload_operations(node_pool_crud, args):
     result = None
 
     try:
+        workload_kwargs = {}
+        if getattr(args, "workload_profile", "default") == LEGACY_WORKLOAD_PROFILE:
+            workload_kwargs["workload_profile"] = args.workload_profile
         if command == "deployment":
             if not hasattr(node_pool_crud, 'create_deployment'):
                 logger.error("Cloud provider does not support deployment workload operations")
@@ -194,6 +363,7 @@ def handle_workload_operations(node_pool_crud, args):
                 "manifest_dir": args.manifest_dir,
                 "number_of_deployments": args.count,
                 "label_selector": args.label_selector,
+                **workload_kwargs,
             }
 
             result = node_pool_crud.create_deployment(**deploy_kwargs)
@@ -209,6 +379,7 @@ def handle_workload_operations(node_pool_crud, args):
                 "manifest_dir": args.manifest_dir,
                 "number_of_statefulsets": args.count,
                 "label_selector": args.label_selector,
+                **workload_kwargs,
             }
 
             result = node_pool_crud.create_statefulset(**statefulset_kwargs)
@@ -224,6 +395,7 @@ def handle_workload_operations(node_pool_crud, args):
                 "manifest_dir": args.manifest_dir,
                 "number_of_jobs": args.count,
                 "label_selector": args.label_selector,
+                **workload_kwargs,
             }
 
             result = node_pool_crud.create_job(**job_kwargs)
@@ -398,6 +570,13 @@ def main():
     collect_parser = subparsers.add_parser(
         "collect",
         help="Collect and process benchmark results from JSON files in the result directory",
+    )
+    for argument_name in COLLECT_ARGS:
+        collect_parser.add_argument(f"--{argument_name.replace('_', '-')}")
+    collect_parser.add_argument(
+        "--legacy-output",
+        action="store_true",
+        help="Publish legacy consumer fields and replace output instead of appending",
     )
     collect_parser.set_defaults(func=collect_benchmark_results)
 
@@ -584,6 +763,11 @@ def main():
         help="Directory containing Kubernetes manifest files"
     )
     workload_common_parser.add_argument(
+        "--workload-profile",
+        choices=("default", LEGACY_WORKLOAD_PROFILE), default="default",
+        help="Opt-in historical Azure workload templates, batch submission and timing",
+    )
+    workload_common_parser.add_argument(
         "--label-selector",
         default="app=nginx-container",
         help="Label selector for created pods (default: app=nginx-container)"
@@ -636,7 +820,7 @@ def main():
 
         # Handle collect command separately since it doesn't need node pool operations
         if args.command == "collect":
-            exit_code = args.func()
+            exit_code = args.func(args)
             if exit_code == 0:
                 logger.info("Collect operation completed successfully")
             else:
@@ -669,11 +853,22 @@ def main():
                 AzureNodePoolTypeConstants.VIRTUAL_MACHINE_SCALE_SETS,
             )
             != AzureNodePoolTypeConstants.VIRTUAL_MACHINE_SCALE_SETS
+            or getattr(args, "workload_profile", "default") != "default"
         ):
             parser.error(
                 "--cluster-name, --exclude-managed-identity, and non-default "
-                "--node-pool-type values are supported only with --cloud azure"
+                "--node-pool-type values, and legacy workload profiles are supported "
+                "only with --cloud azure"
             )
+
+        if getattr(args, "workload_profile", "default") == LEGACY_WORKLOAD_PROFILE:
+            if args.manifest_dir:
+                parser.error("--manifest-dir cannot be combined with a legacy workload profile")
+            size = args.completions if args.command == "job" else args.replicas
+            if size <= 0 or args.count <= 0 or args.step_timeout <= 0:
+                parser.error("Legacy workloads require positive counts and timeout")
+            if args.command != "deployment" and args.count != 1:
+                parser.error("Legacy Jobs and StatefulSets require --count 1")
 
         # Validate required arguments are present for node pool operations
         if args.command in ["create", "scale", "delete", "all"] and not hasattr(
