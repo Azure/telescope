@@ -659,8 +659,9 @@ jobs:
           sync_start="$(date -d "+90 seconds" +%H:%M)"
           pids=()
           for key in object-{00..15}.bin; do
-              # Warp GET samples with replacement. Give each reader one unique key and a common start.
-              # The first GET is immediate; the next token is 100s away, beyond the 10s start window.
+              # Warp GET samples with replacement, thus run an external loop.
+              # Warp GET commands run in parallel.
+              # Limit rps to once every 100s, so that it runs only once before duration timeout.
               "$@" --prefix="$key" --objects=1 --concurrent=1 --rps-limit=0.01 --duration=10s \
                   --syncstart="$sync_start" --benchdata="cold-start/$key" > "cold-start/$key.log" 2>&1 &
               pids+=("$!")
