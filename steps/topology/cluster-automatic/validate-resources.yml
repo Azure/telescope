@@ -7,7 +7,7 @@ parameters:
   type: object
 
 steps:
-- template: /steps/cloud/${{ parameters.cloud }}/setup-kubeconfig.yml
+- template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
   parameters:
     role: automatic
     region: ${{ parameters.regions[0] }}

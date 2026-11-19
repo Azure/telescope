@@ -7,9 +7,9 @@ parameters:
     type: object
 
 steps:
-  - template: /steps/cloud/${{ parameters.cloud }}/setup-kubeconfig.yml
+  - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
     parameters:
-      role: netpol-scale # role value passed here is ignored by setup-kubeconfig.yml
+      role: netpol-scale # role value passed here is ignored by update-kubeconfig.yml
       region: ${{ parameters.regions[0] }}
   - template: /steps/engine/clusterloader2/large-cluster/validate.yml
     parameters:

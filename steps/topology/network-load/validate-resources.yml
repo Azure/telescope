@@ -7,12 +7,11 @@ parameters:
     type: string
 
 steps:
-  - template: /steps/cloud/${{ parameters.cloud }}/setup-kubeconfig.yml
+  - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
     parameters:
       role: network-load
       region: ${{ parameters.regions[0] }}
   # reusing slo validation because it is generic and simple, and it does not save any artifacts. At time of this writing, it only checks node count
-
   - template: /steps/engine/clusterloader2/large-cluster/validate.yml
     parameters:
       desired_nodes: 13
