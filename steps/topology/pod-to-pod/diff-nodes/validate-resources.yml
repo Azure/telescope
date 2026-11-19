@@ -7,18 +7,11 @@ parameters:
     type: string
 
 steps:
-  - ${{ if ne(parameters.cloud, 'azure') }}:
-      - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
-        parameters:
-          role: pod2pod
-          region: ${{ parameters.regions[0] }}
-          alias: pod-diff-node
-  - ${{ if eq(parameters.cloud, 'azure') }}:
-      - template: /steps/cloud/azure/setup-kubeconfig.yml
-        parameters:
-          role: pod2pod
-          region: ${{ parameters.regions[0] }}
-          alias: pod-diff-node
+  - template: /steps/cloud/${{ parameters.cloud }}/setup-kubeconfig.yml
+    parameters:
+      role: pod2pod
+      region: ${{ parameters.regions[0] }}
+      alias: pod-diff-node
   - template: /steps/engine/iperf3/configure-mtu.yml
     parameters:
       cloud: ${{ parameters.cloud }}
