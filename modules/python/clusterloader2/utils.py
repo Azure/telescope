@@ -1,6 +1,9 @@
 from xml.dom import minidom
 import json
 import os
+import shutil
+import subprocess
+import tempfile
 import docker
 from clients.docker_client import DockerClient
 from utils.logger_config import get_logger, setup_logging
@@ -60,11 +63,31 @@ def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provi
         azure_path = os.path.expanduser("~/.azure")
         volumes[azure_path] = {'bind': '/root/.azure', 'mode': 'rw'}
 
-    logger.info(
-        f"Running clusterloader2 with command: {command} and volumes: {volumes}")
+    auth_dir = None
+    container = None
+    environment = None
     try:
+        identity = [os.environ.get(name) for name in ("CL2_CLIENT_ID", "CL2_TENANT_ID", "CL2_SERVICE_CONNECTION_ID")]
+        if provider == "aks" and any(value is not None for value in identity):
+            kubelogin = shutil.which("kubelogin")
+            environment = {name: os.environ[name] for name in ("SYSTEM_ACCESSTOKEN", "SYSTEM_OIDCREQUESTURI")}
+            if not all(identity) or not all(environment.values()) or not kubelogin:
+                raise ValueError("CL2 Azure Pipelines authentication requires client ID, tenant ID, service connection, pipeline credentials and host kubelogin")
+            auth_dir = tempfile.TemporaryDirectory(prefix="cl2-auth-", dir=os.environ["AGENT_TEMPDIRECTORY"])
+            with tempfile.NamedTemporaryFile(dir=auth_dir.name, delete=False) as config:
+                subprocess.run(["kubectl", "config", "view", "--kubeconfig", kubeconfig,
+                                "--raw", "--minify", "--flatten"], stdout=config, check=True)
+            subprocess.run([kubelogin, "convert-kubeconfig", "--login", "azurepipelines",
+                            "--kubeconfig", config.name, "--client-id", identity[0], "--tenant-id", identity[1],
+                            "--azure-pipelines-service-connection-id", identity[2]], check=True)
+            del volumes[kubeconfig]
+            del volumes[azure_path]
+            volumes[config.name] = {'bind': '/root/.kube/config', 'mode': 'ro'}
+            volumes[os.path.realpath(kubelogin)] = {'bind': '/usr/local/bin/kubelogin', 'mode': 'ro'}
+        logger.info(
+            f"Running clusterloader2 with command: {command} and volumes: {volumes}")
         container = docker_client.run_container(
-            cl2_image, command, volumes, detach=True)
+            cl2_image, command, volumes, detach=True, environment=environment)
         for log in container.logs(stream=True):
             log_line = log.decode('utf-8').rstrip('\n')
             if log_line:
@@ -77,6 +100,13 @@ def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provi
     except docker.errors.ContainerError as e:
         logger.error(
             f"Container exited with a non-zero status code: {e.exit_status}\n{e.stderr.decode('utf-8')}")
+    finally:
+        if auth_dir is not None:
+            try:
+                if container is not None:
+                    container.remove(force=True)
+            finally:
+                auth_dir.cleanup()
 
 
 def get_measurement(file_path):

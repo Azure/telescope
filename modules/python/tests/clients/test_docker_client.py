@@ -58,7 +58,14 @@ class TestDockerClient(unittest.TestCase):
 
         # Verify
         mock_client.containers.run.assert_called_once_with(
-            image, command, volumes=volumes, detach=detach
+            image, command, volumes=volumes, detach=detach, environment=None
+        )
+
+    def test_run_container_passes_environment(self):
+        environment = {"SYSTEM_ACCESSTOKEN": "test-token"}
+        self.docker_client.run_container("cl2", "run", {}, True, environment=environment)
+        self.mock_from_env.return_value.containers.run.assert_called_once_with(
+            "cl2", "run", volumes={}, detach=True, environment=environment
         )
 
     def test_run_container_returns_result(self):
