@@ -197,6 +197,24 @@ def delete_probe_pod(api, pod_name, namespace):
         logger.info("Probe pod '%s' not found (already deleted)", pod_name)
 
 
+def wait_for_default_service_account(api, namespace, timeout_seconds=60, poll_interval=1):
+    """Wait until a new namespace has its `default` service account.
+
+    A controller creates it shortly after the namespace; until then the API server
+    rejects pods in the namespace with 403 "serviceaccount default not found".
+    """
+    def exists():
+        try:
+            return api.read_namespaced_service_account(name="default", namespace=namespace)
+        except client.rest.ApiException as e:
+            if e.status != 404:
+                raise
+            return None
+
+    wait_until(f"Namespace '{namespace}' has no default service account", timeout_seconds, exists,
+               interval_seconds=poll_interval)
+
+
 def wait_for_pool_scaled_to_zero(k8s, node_label_key, node_pool_name, timeout_seconds=300, poll_interval=10):
     """Wait until a Karpenter pool is empty, so the next probe gets a fresh node."""
     deadline = time.time() + timeout_seconds

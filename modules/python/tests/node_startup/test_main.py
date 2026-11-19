@@ -8,9 +8,10 @@ import unittest
 from unittest import mock
 
 from clients.kubernetes_client import KubernetesClient
-from node_startup import main
+from node_startup import main, probe
 from tests.node_startup import scenarios
 from tests.node_startup.fake_kubernetes import FakeCoreV1Api, kubernetes_client
+from tests.node_startup.test_probe import FakeTime
 from tests.node_startup.test_result_builder import AKS_CLUSTER
 from tests.node_startup.test_validation import VALID_MEASUREMENT
 
@@ -94,6 +95,30 @@ class RunTest(unittest.TestCase):
         self.assertEqual(measure.call_args_list[0].kwargs["provisioner"], main.Provisioner.CLUSTER_AUTOSCALER)
         self.assertEqual(measure.call_args_list[0].kwargs["supplementary_cni_pods"], {"azure_cns": "k8s-app=azure-cns"})
         self.assertEqual(self.api.created_namespaces, [scenarios.PROBE_NAMESPACE])
+
+    def test_waits_for_the_namespace_service_account_before_the_first_probe(self):
+        # Run 85945 failed with 403 "serviceaccount default not found": the probe pod was
+        # created before the namespace's default service account existed.
+        self.api.service_account_missing_reads = 2
+        events = []
+        wait = probe.wait_for_default_service_account
+
+        def recording_wait(*args, **kwargs):
+            wait(*args, **kwargs)
+            events.append("service account ready")
+
+        def measure(*_args, **kwargs):
+            events.append("iteration")
+            return valid_result(int(kwargs["pod_name"].rsplit("-", 1)[1]))
+
+        with mock.patch("node_startup.probe.wait_for_default_service_account", side_effect=recording_wait), \
+                mock.patch("node_startup.probe.time", FakeTime()), \
+                mock.patch("node_startup.main.measure_iteration", side_effect=measure):
+            exit_code = main.run(self.args("--iterations", "1"), kubernetes_client(KubernetesClient, self.api),
+                                 clock=FakeClock(), sleep=mock.Mock())
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(events, ["service account ready", "iteration"])
+        self.assertEqual(self.api.service_account_missing_reads, 0)
 
     def test_failed_iteration_is_dropped_and_others_uploaded(self):
         outcomes = [valid_result(1), valid_result(2), RuntimeError("probe never ran"), valid_result(4),

@@ -4,7 +4,8 @@ Ported from v1 `collect_autoscale_latency`. The `measurement` dict has every v1
 key (minus the dropped alias latencies). Watch-observed times have microseconds;
 the v2-only keys are `node_registered_observed`, `node_ready_observed`,
 `pod_scheduled_event_time`, `cni_pod_scheduled_event_time`,
-`supplementary_cni_pods`, `ready_condition_history` and `sub_second_latencies`.
+`supplementary_cni_pods`, `ready_condition_history`, `sub_second_latencies`,
+`autoscaler_backoff_observed` and `autoscaler_backoff_message`.
 """
 import threading
 
@@ -86,6 +87,10 @@ def measure_iteration(k8s, node_pool_name, node_label_key, provisioner, namespac
         probe_events = collectors.list_pod_events(k8s.api, pod_name, namespace)
         triggered_scale_up = (collectors.scale_up_trigger_time(probe_events)
                               or collectors.first_failed_scheduling_time(probe_events))
+        backoff_message = collectors.autoscaler_backoff_message(probe_events)
+        if backoff_message:
+            logger.warning("Autoscaler was in backoff for probe pod '%s' (%s); its autoscaler-reaction "
+                           "and end-to-end times include the backoff", pod_name, backoff_message)
 
         cni_info = {}
         deep_cilium_metrics = None
@@ -141,6 +146,10 @@ def measure_iteration(k8s, node_pool_name, node_label_key, provisioner, namespac
             "node_ready_observed": transitions["node_ready_at"],
             "ready_condition_history": transitions["ready_condition_history"],
             "pod_scheduled_event_time": collectors.scheduled_event_time(probe_events),
+            # New in v2: dashboards leave flagged iterations out of the autoscaler-reaction and
+            # end-to-end trends, which include the backoff.
+            "autoscaler_backoff_observed": backoff_message is not None,
+            "autoscaler_backoff_message": backoff_message,
             "cni_pod_scheduled_event_time": cni_info.get("cni_pod_scheduled_event_time"),
             "supplementary_cni_pods": collectors.collect_supplementary_cni_pods(
                 k8s, new_node_name, supplementary_cni_pods or {}),

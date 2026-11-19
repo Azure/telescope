@@ -310,6 +310,19 @@ def infer_gap_durations(init_container_logs):
             entry["inferred_duration_seconds"] = None
 
 
+def autoscaler_backoff_message(events):
+    """Message of the autoscaler's first event saying it skipped the pod because of a backoff, or None.
+
+    Cluster Autoscaler backs off a node group for minutes after a failed scale-up, so an
+    iteration that hit a backoff has inflated autoscaler_reaction_seconds and total_e2e_seconds.
+    Node-side metrics (measured from node registration) are unaffected.
+    """
+    for event in events:
+        if event.reason == "NotTriggerScaleUp" and "backoff" in (event.message or "").lower():
+            return event.message
+    return None
+
+
 def scheduled_event_time(events):
     """Microsecond time of the scheduler's `Scheduled` event, or None if it only has whole seconds."""
     times = [event.event_time for event in events if event.reason == "Scheduled" and event.event_time]

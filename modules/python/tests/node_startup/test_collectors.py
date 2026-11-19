@@ -84,6 +84,21 @@ class TriggerLookupTest(unittest.TestCase):
                 self.assertEqual(collectors.first_failed_scheduling_time(events),
                                  V1_GOLDEN["trigger"][name]["first_scheduling_event"])
 
+    def test_autoscaler_backoff_message(self):
+        def probe_event(reason, message):
+            return scenarios.event(scenarios.PROBE_POD, scenarios.PROBE_NAMESPACE, reason, message=message,
+                                   first_timestamp=scenarios.at(1))
+        backoff = "pod didn't trigger scale-up: 1 in backoff after failed scale-up"
+        self.assertEqual(collectors.autoscaler_backoff_message(events_of([
+            probe_event("FailedScheduling", "0/2 nodes are available"),
+            probe_event("NotTriggerScaleUp", backoff),
+            probe_event("TriggeredScaleUp", "pod triggered scale-up"),
+        ])), backoff)
+        # NotTriggerScaleUp for other reasons (e.g. the pool is at its maximum) isn't a backoff.
+        self.assertIsNone(collectors.autoscaler_backoff_message(events_of([
+            probe_event("NotTriggerScaleUp", "pod didn't trigger scale-up: 1 max node group size reached")])))
+        self.assertIsNone(collectors.autoscaler_backoff_message([]))
+
     def test_listing_errors_return_no_events(self):
         api = FakeCoreV1Api()
         with mock.patch.object(api, "list_namespaced_event", side_effect=RuntimeError("API server unavailable")):

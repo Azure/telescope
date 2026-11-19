@@ -116,6 +116,7 @@ def run(args, k8s, clock=time.time, sleep=time.sleep):
     }
 
     k8s.create_namespace(args.probe_namespace)
+    probe.wait_for_default_service_account(k8s.api, args.probe_namespace)
 
     estimated_seconds = args.iterations * (args.iteration_cooldown_seconds + ESTIMATED_ITERATION_SECONDS)
     if clock() + estimated_seconds > args.deadline_epoch_seconds:

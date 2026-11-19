@@ -22,7 +22,10 @@ V1_MEASUREMENT_KEYS = {
 NEW_MEASUREMENT_KEYS = {
     "node_registered_observed", "node_ready_observed", "pod_scheduled_event_time", "cni_pod_scheduled_event_time",
     "supplementary_cni_pods", "ready_condition_history", "sub_second_latencies",
+    "autoscaler_backoff_observed", "autoscaler_backoff_message",
 }
+# Cluster Autoscaler's event in run 86026, when its scale-up conflicted with the AzSecPack install.
+BACKOFF_MESSAGE = "pod didn't trigger scale-up: 1 in backoff after failed scale-up"
 
 
 def probe_pod(phase="Running"):
@@ -46,9 +49,11 @@ def probe_pod(phase="Running"):
     }
 
 
-def fake_cluster(phase="Running", cni_pod_scenario="cilium_agent"):
+def fake_cluster(phase="Running", cni_pod_scenario="cilium_agent", backoff=False):
     case = scenarios.CNI_POD_SCENARIOS[cni_pod_scenario]
     probe_events = [
+        *([scenarios.event(scenarios.PROBE_POD, scenarios.PROBE_NAMESPACE, "NotTriggerScaleUp",
+                           message=BACKOFF_MESSAGE, first_timestamp=scenarios.at(2))] if backoff else []),
         scenarios.event(scenarios.PROBE_POD, scenarios.PROBE_NAMESPACE, "TriggeredScaleUp",
                         first_timestamp=scenarios.at(5)),
         scenarios.event(scenarios.PROBE_POD, scenarios.PROBE_NAMESPACE, "Scheduled",
@@ -118,6 +123,8 @@ class MeasureIterationTest(unittest.TestCase):
             "container_started": "2026-10-02T10:02:03Z",
             "pod_ready": "2026-10-02T10:02:04Z",
             "supplementary_cni_pods": {"azure_cns": None},
+            "autoscaler_backoff_observed": False,
+            "autoscaler_backoff_message": None,
         }
         self.assertEqual({key: measurement[key] for key in expected}, expected)
         self.assertEqual([(entry["status"], entry["message"]) for entry in measurement["ready_condition_history"]], [
@@ -141,6 +148,13 @@ class MeasureIterationTest(unittest.TestCase):
         affinity = created_pod.spec.affinity.node_affinity.required_during_scheduling_ignored_during_execution
         self.assertEqual(affinity.node_selector_terms[0].match_expressions[0].values, [scenarios.EXISTING_NODE])
         self.assertEqual(api.deleted_pods, [(scenarios.PROBE_NAMESPACE, scenarios.PROBE_POD)])
+
+    def test_autoscaler_backoff_is_flagged(self):
+        measurement = run_iteration(fake_cluster(backoff=True)[0])["measurement"]
+        self.assertTrue(measurement["autoscaler_backoff_observed"])
+        self.assertEqual(measurement["autoscaler_backoff_message"], BACKOFF_MESSAGE)
+        # Only flagged: the measured values are kept.
+        self.assertEqual(measurement["triggered_scale_up"], "2026-10-02T10:00:05Z")
 
     def test_cni_pod_is_looked_up_once(self):
         k8s, _ = fake_cluster()
