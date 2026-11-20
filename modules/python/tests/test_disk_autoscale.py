@@ -85,7 +85,14 @@ def cluster(disks_per_node=8):
     def scale(_name, _namespace, body):
         state["replicas"] = body["spec"]["replicas"]
 
-    def events(_namespace, field_selector):
+    def events(_namespace, field_selector=None):
+        if field_selector is None:
+            return Obj(items=[
+                item for index in range(state["replicas"])
+                for item in events(
+                    _namespace, f"involvedObject.name={disk.WORKLOAD}-{index}"
+                ).items
+            ])
         uid = field_selector.split("=", 1)[1]
         count = (state["replicas"] - 1) // disks_per_node
         message = (
@@ -115,7 +122,7 @@ def test_stage_targets(batch_size, node_count, limit, fixed_batch_size):
         assert overflow == (nodes > previous_nodes)
         previous_replicas, previous_nodes = replicas, nodes
     assert targets[-1][:2] == (node_count, capacity)
-    assert all(call.args == (60, 100) for call in fixed_batch_size.call_args_list)
+    assert all(call.args == (400, 1000) for call in fixed_batch_size.call_args_list)
 
 
 def test_stage_targets_draws_a_new_random_increment_each_batch(fixed_batch_size):
@@ -181,7 +188,7 @@ def test_cli_targets(_client, execute, monkeypatch, target, node_count):
     ])
     disk.main()
     assert execute.call_args.args[1] == node_count
-    assert execute.call_args.kwargs == {}
+    assert execute.call_args.kwargs == {"batch_interval": 0}
 
 
 def test_cli_rejects_pod_target(monkeypatch):
