@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import requests
 
 from clients.kubernetes_client import KubernetesClient
+from utils.common import str2bool
 from utils.retries import execute_with_retries
 
 
@@ -111,7 +112,7 @@ class Node(KWOK):
     node_pods: str = "110"
     node_gpu: str = "0"
     enable_dra: bool = False
-    print_node_yaml: bool = False
+    print_node_yaml: bool = True
 
     def create(self):
         try:
@@ -320,8 +321,8 @@ def main():
     )
     parser.add_argument(
         "--print-node-yaml",
-        action="store_true",
-        help="Print each rendered KWOK Node manifest during creation (default: off).",
+        type=str2bool, default=True,
+        help="Print KWOK Node YAML during creation (default: true).",
     )
     parser.add_argument(
         "--node-count",

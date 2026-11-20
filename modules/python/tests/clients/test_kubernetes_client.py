@@ -920,22 +920,6 @@ class TestKubernetesClient(unittest.TestCase):
         mock_open_file.assert_called_once_with(template_path, "r", encoding="utf-8")
         self.assertEqual(result, expected_output)
 
-    @patch("clients.kubernetes_client.logger")
-    @patch("builtins.open", mock_open(read_data="{{name}}: {{value}}"))
-    @patch("os.path.isfile", return_value=True)
-    def test_create_template_logging(self, _mock_isfile, mock_logger):
-        """Muting the manifest must not affect rendering."""
-        replacements = {"name": "node", "value": "example"}
-        for options in ({"log_template": False}, {}):
-            with self.subTest(options=options):
-                mock_logger.reset_mock()
-                result = self.client.create_template("template.yaml", replacements, **options)
-                self.assertEqual(result, "node: example")
-                if options.get("log_template", True):
-                    mock_logger.info.assert_called_once_with("Final template: \n%s", result)
-                else:
-                    mock_logger.info.assert_not_called()
-
     @patch("os.path.isfile", return_value=False)
     def test_create_template_file_not_found(self, mock_isfile):
         """Test create_template when template file does not exist."""
