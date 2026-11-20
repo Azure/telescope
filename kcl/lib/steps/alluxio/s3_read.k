@@ -54,12 +54,10 @@ S3_READ_SCENARIOS: [S3ReadScenario] = [
 # minutes in all and scenario 7 alone 21 minutes; each of these groups took 33 minutes or less.
 S3_READ_SCENARIO_GROUPS: [[int]] = [[1, 2, 3], [4, 5], [6, 7], [8, 9, 10]]
 
-SeedS3ReadData = lambda serviceConnection: str, subscription: str, resourceGroup: str, localLocation: str, remoteLocation: str, localAccount: str, remoteAccount: str, workDir: str, resultDir: str, checksDir: str -> steps.Step {
-    assert localAccount != remoteAccount, "the local and remote storage accounts must differ"
-    azure.AzCli(
-        serviceConnection
-        "Create local and remote Blob datasets for S3 reads"
-        S3ReadShellSetup(workDir, resultDir) + SecretCommands(workDir) + """
+# Shell shared by every step that creates a storage account and hands its SAS tokens to later steps.
+# make_sas prints a container SAS for the account selected by AZURE_STORAGE_ACCOUNT/KEY, publish_secret
+# exports a value as a secret pipeline variable.
+BLOB_SAS_SHELL = """
 # Prints a container SAS for the account selected by AZURE_STORAGE_ACCOUNT/KEY.
 # $1 container, $2 permissions, $3 lifetime in hours.
 make_sas() {
@@ -78,8 +76,15 @@ publish_secret() {
     value="\${value//$'\\r'/'%0D'}"
     printf '##vso[task.setvariable variable=%s;issecret=true]%s\\n' "$1" "$value"
 }
-seed_account() {
-    local account="$1" location="$2" index
+"""
+
+# Opens the shell function "name" and creates the storage account in it: the function takes the account
+# name and location as $1 and $2 and exports AZURE_STORAGE_ACCOUNT and AZURE_STORAGE_KEY for the account.
+# extraLocals is appended to the function's local declaration. The function body is left open for the
+# caller to continue.
+StorageAccountFunctionStart = lambda name: str, extraLocals: str, resourceGroup: str, subscription: str -> str {
+    """${name}() {
+    local account="$1" location="$2"${extraLocals}
     az storage account create \\
         --name "$account" \\
         --resource-group "${resourceGroup}" \\
@@ -97,7 +102,15 @@ seed_account() {
         --resource-group "${resourceGroup}" \\
         --subscription "${subscription}" | jq -er '.[0].value')"
     export AZURE_STORAGE_KEY
-    az storage container create \\
+"""
+}
+
+SeedS3ReadData = lambda serviceConnection: str, subscription: str, resourceGroup: str, localLocation: str, remoteLocation: str, localAccount: str, remoteAccount: str, workDir: str, resultDir: str, checksDir: str -> steps.Step {
+    assert localAccount != remoteAccount, "the local and remote storage accounts must differ"
+    azure.AzCli(
+        serviceConnection
+        "Create local and remote Blob datasets for S3 reads"
+        S3ReadShellSetup(workDir, resultDir) + SecretCommands(workDir) + BLOB_SAS_SHELL + """${StorageAccountFunctionStart("seed_account", " index", resourceGroup, subscription)}    az storage container create \\
         --name s3-data \\
         --public-access off > /dev/null
     for ((index = 0; index < 16; index++)); do
@@ -162,7 +175,8 @@ jq -n \\
     )
 }
 
-PrepareWorkerNvme = lambda serviceConnection: str, manifest: str, workDir: str, resultDir: str -> steps.Step {
+# workerCount is the number of workerpool nodes, each of which must report its disk ready.
+PrepareWorkerNvme = lambda serviceConnection: str, manifest: str, workDir: str, resultDir: str, workerCount: int = S3_READ_WORKER_COUNT -> steps.Step {
     azure.AzCli(
         serviceConnection
         "Mount the local NVMe disk on every worker node"
@@ -170,8 +184,8 @@ PrepareWorkerNvme = lambda serviceConnection: str, manifest: str, workDir: str, 
 kubectl create -f "${manifest}" > /dev/null
 # One pod per workerpool node.
 kubectl rollout status daemonset/alluxio-nvme -n kube-system --timeout=600s
-[[ "$(kubectl get daemonset alluxio-nvme -n kube-system -o jsonpath='{.status.numberReady}')" == ${S3_READ_WORKER_COUNT} ]] ||
-    fail "expected ${S3_READ_WORKER_COUNT} ready NVMe pods"
+[[ "$(kubectl get daemonset alluxio-nvme -n kube-system -o jsonpath='{.status.numberReady}')" == ${workerCount} ]] ||
+    fail "expected ${workerCount} ready NVMe pods"
 for pod in $(kubectl get pods -n kube-system -l app=alluxio-nvme -o name); do
     kubectl logs -n kube-system "$pod" | grep -q 'NVME READY /mnt/alluxio-nvme' ||
         fail "$pod did not report NVME READY"
