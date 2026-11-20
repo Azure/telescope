@@ -6,7 +6,6 @@ from dataclasses import dataclass
 import requests
 
 from clients.kubernetes_client import KubernetesClient
-from utils.common import str2bool
 from utils.retries import execute_with_retries
 
 
@@ -320,9 +319,10 @@ def main():
         description="KWOK: Kubernetes WithOut Kubelet - Virtual Node/Pod Simulator"
     )
     parser.add_argument(
-        "--print-node-yaml",
-        type=str2bool, default=True,
-        help="Print KWOK Node YAML during creation (default: true).",
+        "--no-print-node-yaml",
+        dest="print_node_yaml",
+        action="store_false",
+        help="Do not print KWOK Node YAML during creation.",
     )
     parser.add_argument(
         "--node-count",
