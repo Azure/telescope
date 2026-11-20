@@ -117,6 +117,20 @@ class TestNodeIntegration(unittest.TestCase):
         except Exception as exc:  # pylint: disable=broad-exception-caught
             self.fail(f"Node creation failed: {exc}")
 
+    @patch("kwok.kwok.Node.apply_kwok_manifests")
+    def test_node_yaml_logging_is_opt_in(self, _mock_apply):
+        """Only node templates use the node YAML switch."""
+        self.node.node_count = 1
+        for expected in (False, True):
+            with self.subTest(print_node_yaml=expected):
+                if expected:
+                    self.node.print_node_yaml = True
+                self.mock_k8s_client.create_template.reset_mock()
+                self.node.create()
+                node_call, slice_call = self.mock_k8s_client.create_template.call_args_list
+                self.assertEqual(node_call.kwargs, {"log_template": expected})
+                self.assertNotIn("log_template", slice_call.kwargs)
+
     def test_tear_down_nodes(self):
         """
         Test the deletion of KWOK nodes from the cluster.

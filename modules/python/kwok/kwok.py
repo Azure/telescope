@@ -111,6 +111,7 @@ class Node(KWOK):
     node_pods: str = "110"
     node_gpu: str = "0"
     enable_dra: bool = False
+    print_node_yaml: bool = False
 
     def create(self):
         try:
@@ -137,7 +138,7 @@ class Node(KWOK):
                     "node_gpu": self.node_gpu
                 }
                 kwok_template = self.k8s_client.create_template(
-                    self.node_manifest_path, replacements
+                    self.node_manifest_path, replacements, log_template=self.print_node_yaml
                 )
                 execute_with_retries(
                     self.k8s_client.create_node,
@@ -318,6 +319,11 @@ def main():
         description="KWOK: Kubernetes WithOut Kubelet - Virtual Node/Pod Simulator"
     )
     parser.add_argument(
+        "--print-node-yaml",
+        action="store_true",
+        help="Print each rendered KWOK Node manifest during creation (default: off).",
+    )
+    parser.add_argument(
         "--node-count",
         type=int,
         default=1,
@@ -388,6 +394,7 @@ def main():
         kwok_release=args.kwok_release,
         enable_metrics=args.enable_metrics,
         enable_dra=args.enable_dra,
+        print_node_yaml=args.print_node_yaml,
     )
     if args.action == "create":
         node.create()
