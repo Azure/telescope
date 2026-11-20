@@ -9,6 +9,11 @@ mock_provider "azurerm" {
   }
 }
 
+# Command assertions use dry_run; do not install CLI extensions during tests.
+override_resource {
+  target = module.aks-cli["client"].terraform_data.enable_aks_cli_preview_extension[0]
+}
+
 variables {
   scenario_type  = "perf-eval"
   scenario_name  = "my_scenario"
@@ -71,6 +76,11 @@ run "valid_aad_enabled" {
   }
 
   assert {
+    condition     = module.aks["test"].aks_cluster.local_account_disabled
+    error_message = "Expected: local accounts disabled with AAD"
+  }
+
+  assert {
     condition     = module.aks["test"].aks_cluster.azure_active_directory_role_based_access_control[0].azure_rbac_enabled == true
     error_message = "Expected: azure_rbac_enabled defaults to true"
   }
@@ -81,8 +91,8 @@ run "valid_aad_enabled" {
   }
 }
 
-# Test case 2: Verify AAD is disabled when aks_aad_enabled is not set
-run "valid_aad_disabled" {
+# Test case 2: Verify AAD is enabled when aks_aad_enabled is not set
+run "valid_aad_default" {
 
   command = plan
 
@@ -95,8 +105,8 @@ run "valid_aad_disabled" {
   }
 
   assert {
-    condition     = length(module.aks["test"].aks_cluster.azure_active_directory_role_based_access_control) == 0
-    error_message = "Expected: AAD block should not exist when not enabled"
+    condition     = length(module.aks["test"].aks_cluster.azure_active_directory_role_based_access_control) == 1 && module.aks["test"].aks_cluster.local_account_disabled
+    error_message = "Expected: AAD enabled and local accounts disabled by default"
   }
 }
 
@@ -115,8 +125,8 @@ run "valid_aad_explicitly_disabled" {
   }
 
   assert {
-    condition     = length(module.aks["test"].aks_cluster.azure_active_directory_role_based_access_control) == 0
-    error_message = "Expected: AAD block should not exist when explicitly disabled"
+    condition     = length(module.aks["test"].aks_cluster.azure_active_directory_role_based_access_control) == 0 && module.aks["test"].aks_cluster.local_account_disabled
+    error_message = "Expected: AAD absent but local accounts always disabled"
   }
 }
 
@@ -221,13 +231,13 @@ run "valid_aks_cli_aad_disabled" {
 
   # Verify the CLI command does NOT include any AAD-related flags
   assert {
-    condition     = !can(regex("--aad-", module.aks-cli["client"].aks_cli_command))
-    error_message = "Expected: CLI command should NOT include any --aad-* flags when disabled\nActual: ${module.aks-cli["client"].aks_cli_command}"
+    condition     = !can(regex("--aad-", module.aks-cli["client"].aks_cli_command)) && can(regex("--disable-local-accounts", module.aks-cli["client"].aks_cli_command))
+    error_message = "Expected: no AAD flags but local accounts always disabled"
   }
 }
 
-# Test case 6: Verify AAD parameters are omitted in aks-cli when not set (default behavior)
-run "valid_aks_cli_aad_not_set" {
+# Test case 6: Verify null also uses the enabled default (omitted inputs are covered by test_aks_cli)
+run "valid_aks_cli_aad_null" {
 
   command = apply
 
@@ -235,7 +245,8 @@ run "valid_aks_cli_aad_not_set" {
     json_input = {
       "run_id" : "123456789",
       "region" : "eastus",
-      "public_key_path" : "public_key_path"
+      "public_key_path" : "public_key_path",
+      "aks_aad_enabled" : null
     }
 
     aks_config_list = []
@@ -257,15 +268,30 @@ run "valid_aks_cli_aad_not_set" {
     ]
   }
 
-  # Verify the CLI command does NOT include --enable-aad flag when not set
   assert {
-    condition     = !can(regex("--enable-aad", module.aks-cli["client"].aks_cli_command))
-    error_message = "Expected: CLI command should NOT include --enable-aad flag when not set\nActual: ${module.aks-cli["client"].aks_cli_command}"
+    condition     = can(regex("--enable-aad", module.aks-cli["client"].aks_cli_command))
+    error_message = "Expected: CLI command should include --enable-aad by default"
   }
 
-  # Verify the CLI command does NOT include any AAD-related flags when not set
   assert {
-    condition     = !can(regex("--aad-", module.aks-cli["client"].aks_cli_command))
-    error_message = "Expected: CLI command should NOT include any --aad-* flags when not set\nActual: ${module.aks-cli["client"].aks_cli_command}"
+    condition     = can(regex("--enable-azure-rbac", module.aks-cli["client"].aks_cli_command)) && can(regex("--disable-local-accounts", module.aks-cli["client"].aks_cli_command))
+    error_message = "Expected: Azure RBAC and disabled local accounts by default"
+  }
+}
+
+run "valid_aad_null" {
+  command = plan
+
+  variables {
+    json_input = {
+      run_id          = "123456789"
+      region          = "eastus"
+      aks_aad_enabled = null
+    }
+  }
+
+  assert {
+    condition     = length(module.aks["test"].aks_cluster.azure_active_directory_role_based_access_control) == 1 && module.aks["test"].aks_cluster.local_account_disabled
+    error_message = "Expected: explicit null uses the enabled AAD default"
   }
 }

@@ -18,11 +18,12 @@ locals {
 
   properties = {
     for k, v in {
-      kubernetesVersion = var.azapi_config.kubernetes_version
-      dnsPrefix         = var.azapi_config.dns_prefix
-      agentPoolProfiles = local.agent_pool_profiles
-      networkProfile    = local.network_profile
-      enableRBAC        = var.azapi_config.aad_enabled ? true : null
+      kubernetesVersion    = var.azapi_config.kubernetes_version
+      dnsPrefix            = var.azapi_config.dns_prefix
+      agentPoolProfiles    = local.agent_pool_profiles
+      networkProfile       = local.network_profile
+      enableRBAC           = var.azapi_config.aad_enabled ? true : null
+      disableLocalAccounts = true
       aadProfile = var.azapi_config.aad_enabled ? {
         managed         = true
         enableAzureRBAC = true
