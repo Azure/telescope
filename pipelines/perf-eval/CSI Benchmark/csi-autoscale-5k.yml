@@ -34,7 +34,7 @@ stages:
       matrix:
         disk_limit_autoscale_1000_nodes:
           node_count: 1000
-          scale_up_timeout_seconds: 10800
+          scale_up_timeout_seconds: 18000
           scale_down_timeout_seconds: 21600
           storage_cleanup_timeout: 360
           storage_class: managed-csi

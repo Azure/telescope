@@ -36,7 +36,7 @@ NODE_TIMING_COLUMNS = (
 
 
 def stage_targets(node_count, disks_per_node):
-    """Add 60-100 pods per batch, capped at the target node disk capacity."""
+    """Add 400-1000 pods per batch, capped at the target node disk capacity."""
     if not 2 <= node_count <= MAX_WORKLOAD_NODES or disks_per_node < 1:
         raise ValueError(
             f"The boundary test requires 2-{MAX_WORKLOAD_NODES} nodes "
@@ -238,6 +238,20 @@ def verify_disks(kube, namespace, pods, node_names, limit, full):
     return dict(distribution)
 
 
+def log_workload_progress(nodes, expected_nodes, pods, replicas, elapsed, previous=None):
+    ready_nodes = sum(is_ready(node) and not node.spec.unschedulable for node in nodes)
+    ready_pods = sum(pod.status.phase == "Running" and is_ready(pod) for pod in pods)
+    counts = (ready_nodes, len(nodes), expected_nodes, ready_pods, len(pods), replicas)
+    if previous is None or counts != previous[0] or elapsed - previous[1] >= 60:
+        logger.info(
+            "Workload nodes: ready=%s, observed=%s, target=%s; "
+            "pods: ready=%s, observed=%s, target=%s; elapsed=%.0fs",
+            *counts, elapsed,
+        )
+        return counts, elapsed
+    return previous
+
+
 def wait_for_stage(kube, namespace, selector, replicas, expected_nodes, limit,
                    old_nodes, overflow, timeout, interval=5, started=None,
                    previous_replicas=0, readiness_samples=None, timings=None):
@@ -246,6 +260,7 @@ def wait_for_stage(kube, namespace, selector, replicas, expected_nodes, limit,
     evidence = None
     node_ready_seconds = None
     running_seconds = None
+    progress = None
     readiness_samples = {} if readiness_samples is None else readiness_samples
     new_pod_names = {
         f"{WORKLOAD}-{index}" for index in range(previous_replicas, replicas)
@@ -274,6 +289,7 @@ def wait_for_stage(kube, namespace, selector, replicas, expected_nodes, limit,
                     evidence["pod_name"] = pod.metadata.name
                     break
         elapsed = time.monotonic() - started
+        progress = log_workload_progress(nodes, expected_nodes, pods, replicas, elapsed, progress)
         for pod in pods:
             name = pod.metadata.name
             if name not in new_pod_names:
@@ -345,6 +361,117 @@ def wait_for_stage(kube, namespace, selector, replicas, expected_nodes, limit,
         time.sleep(interval)
 
 
+def run_ramp(kube, namespace, selector, node_count, limit, old_nodes,
+             timeout, batch_interval, report):
+    targets = iter(stage_targets(node_count, limit))
+    target = next(targets, None)
+    previous_replicas = 1
+    next_request = time.monotonic()
+    deadline = None
+    stages = []
+    evidence = None
+    progress = None
+    while True:
+        now = time.monotonic()
+        if target is not None and now >= next_request:
+            expected_nodes, replicas, _ = target
+            requested_at = datetime.now(timezone.utc).isoformat()
+            stage = {
+                "requested_at": requested_at,
+                "replicas": replicas,
+                "node_count": expected_nodes,
+                "new_pod_count": replicas - previous_replicas,
+                "phase": "ramp",
+                "result": "failure",
+                "pod_readiness_samples": {},
+                "timings": create_stage_timings(requested_at, previous_replicas, replicas),
+            }
+            report["stages"].append(stage)
+            stages.append((stage, now))
+            logger.info("Requesting %s pods during timed ramp", replicas)
+            kube.app.patch_namespaced_stateful_set_scale(
+                WORKLOAD, namespace, {"spec": {"replicas": replicas}}
+            )
+            previous_replicas = replicas
+            next_request = now + batch_interval
+            deadline = now + timeout
+            target = next(targets, None)
+
+        nodes = kube.get_nodes(label_selector=selector)
+        pods = kube.api.list_namespaced_pod(namespace, label_selector=LABEL).items
+        if len(nodes) > node_count:
+            raise ValueError(f"Expected at most {node_count} workload nodes, found {len(nodes)}")
+        observed = time.monotonic()
+        progress = log_workload_progress(
+            nodes, expected_nodes, pods, previous_replicas, observed - stages[0][1], progress
+        )
+        if evidence is None:
+            events_by_uid = {}
+            for event in kube.api.list_namespaced_event(namespace).items:
+                events_by_uid.setdefault(event.involved_object.uid, []).append(event)
+            for pod in pods:
+                if pod.metadata.name == f"{WORKLOAD}-0":
+                    continue
+                evidence = scale_up_evidence(
+                    events_by_uid.get(pod.metadata.uid, []), pod.metadata.uid, len(old_nodes)
+                )
+                if evidence:
+                    evidence["pod_name"] = pod.metadata.name
+                    report["ramp_scale_up_evidence"] = evidence
+                    break
+        for stage, started in stages:
+            samples = stage["pod_readiness_samples"]
+            names = stage["timings"]["pods"]
+            batch_pods = [pod for pod in pods if pod.metadata.name in names]
+            for pod in batch_pods:
+                name = pod.metadata.name
+                if name in samples and samples[name]["pod_uid"] != pod.metadata.uid:
+                    del samples[name]
+                if pod.status.phase == "Running" and is_ready(pod):
+                    samples.setdefault(name, {
+                        "pod_uid": pod.metadata.uid,
+                        "e2e_ready_seconds": observed - started,
+                    })
+            record_timing_rows(
+                stage["timings"], [], batch_pods, old_nodes, observed - started, samples
+            )
+            stage["pod_readiness_e2e_seconds"] = summarize_pod_readiness(
+                samples, stage["new_pod_count"]
+            )
+        # Node timing has one common origin; nodes cannot be attributed to overlapping batches.
+        if stages:
+            first, started = stages[0]
+            record_timing_rows(
+                first["timings"], nodes, [], old_nodes, observed - started, {}
+            )
+        all_ready = (
+            target is None and len(nodes) == node_count
+            and all(is_ready(node) and not node.spec.unschedulable for node in nodes)
+            and len(pods) == node_count * limit
+            and all(pod.status.phase == "Running" and is_ready(pod) for pod in pods)
+        )
+        if all_ready and evidence is not None:
+            node_names = {node.metadata.name for node in nodes}
+            if not old_nodes.issubset(node_names):
+                raise ValueError("An existing workload node disappeared during scale-up")
+            if any(disk_limit(kube, name) != limit for name in node_names):
+                raise ValueError("Workload nodes advertise different disk limits")
+            report["final_pods_per_node"] = verify_disks(
+                kube, namespace, pods, node_names, limit, full=True
+            )
+            report["ramp_all_pods_storage_ready_seconds"] = observed - stages[0][1]
+            for stage, _ in stages:
+                stage["result"] = "success"
+            return
+        if target is None and observed >= deadline:
+            raise TimeoutError(
+                f"Ramp timed out: expected_nodes={node_count}, observed_nodes={len(nodes)}, "
+                f"observed_pods={len(pods)}, disk_limit_scale_up_evidence={evidence}"
+            )
+        delay = 5 if target is None else min(5, max(0, next_request - time.monotonic()))
+        time.sleep(delay)
+
+
 def cleanup(kube, namespace, selector, timeout, storage_timeout, result_file):
     volume_names = {
         volume.metadata.name for volume in kube.api.list_persistent_volume().items
@@ -390,7 +517,7 @@ def cleanup(kube, namespace, selector, timeout, storage_timeout, result_file):
 
 
 def execute(kube, node_count, selector, storage_class, timeout, down_timeout,
-            storage_timeout, report_file):
+            storage_timeout, report_file, batch_interval=0):
     report = {"result": "failure", "stages": [], "node_count": node_count}
     namespace = f"autoscale-disk-{uuid.uuid4().hex[:12]}"
     created = False
@@ -401,6 +528,8 @@ def execute(kube, node_count, selector, storage_class, timeout, down_timeout,
             )
         if min(timeout, down_timeout, storage_timeout) <= 0:
             raise ValueError("All timeouts must be positive")
+        if batch_interval < 0:
+            raise ValueError("Batch interval must be nonnegative")
         if kube.get_nodes(label_selector=selector):
             raise ValueError("Start with zero workload nodes to verify scale-from-zero")
         report["namespace"] = namespace
@@ -458,12 +587,19 @@ def execute(kube, node_count, selector, storage_class, timeout, down_timeout,
             node_count=node_count, disks_per_node=limit,
             pod_count=node_count * limit,
         )
-        previous_replicas = 1
-        for expected_nodes, replicas, overflow in stage_targets(node_count, limit):
-            _, old_nodes = run_stage(
-                expected_nodes, replicas, overflow, limit, old_nodes, previous_replicas
+        if batch_interval:
+            report["batch_interval_seconds"] = batch_interval
+            run_ramp(
+                kube, namespace, selector, node_count, limit, old_nodes,
+                timeout, batch_interval, report,
             )
-            previous_replicas = replicas
+        else:
+            previous_replicas = 1
+            for expected_nodes, replicas, overflow in stage_targets(node_count, limit):
+                _, old_nodes = run_stage(
+                    expected_nodes, replicas, overflow, limit, old_nodes, previous_replicas
+                )
+                previous_replicas = replicas
         report["result"] = "success"
     except Exception as error:
         report["error"] = str(error)
@@ -525,6 +661,8 @@ def main():
     run.add_argument("--selector", default="cas=dedicated")
     run.add_argument("--storage-class", default="managed-csi")
     run.add_argument("--timeout-seconds", type=int, default=1800)
+    run.add_argument("--batch-interval-seconds", type=int, default=0,
+                     help="Submit overlapping batches at this interval; zero waits for each batch")
     run.add_argument("--scale-down-timeout-seconds", type=int, default=1800)
     run.add_argument("--storage-cleanup-timeout-minutes", type=int, default=30)
     run.add_argument("--report-file", required=True)
@@ -537,7 +675,7 @@ def main():
             KubernetesClient(os.path.expanduser("~/.kube/config")),
             args.node_count, args.selector, args.storage_class, args.timeout_seconds,
             args.scale_down_timeout_seconds, args.storage_cleanup_timeout_minutes,
-            args.report_file,
+            args.report_file, batch_interval=args.batch_interval_seconds,
         )
     else:
         collect(args.report_file, args.result_file)

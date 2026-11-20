@@ -17,6 +17,7 @@ steps:
       --selector "$NODE_LABEL_SELECTOR" \
       --storage-class "$STORAGE_CLASS" \
       --timeout-seconds "$SCALE_UP_TIMEOUT_SECONDS" \
+      --batch-interval-seconds 900 \
       --scale-down-timeout-seconds "$SCALE_DOWN_TIMEOUT_SECONDS" \
       --storage-cleanup-timeout-minutes "$STORAGE_CLEANUP_TIMEOUT" \
       --report-file "$TEST_RESULTS_DIR/disk-autoscale.json"

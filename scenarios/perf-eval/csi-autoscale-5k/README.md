@@ -20,7 +20,7 @@ cluster limit. Reserve additional VM quota and subnet addresses for upgrade surg
 ## Infrastructure and workload
 
 - Five `Standard_D2ds_v5` workload pools (2 vCPUs, 8 GiB, four data disks per VM),
-  initially zero nodes, autoscaling min=0, each capped at 200 nodes.
+  initially zero nodes, autoscaling min=0, each capped at 1,000 nodes.
   All share `cas=dedicated`.
 - Five fixed `Standard_D8ds_v5` system nodes are excluded from test node counts.
 - Pools do not pin availability zones. Check subscription-specific SKU
@@ -40,21 +40,27 @@ For the expected limit of four disks per workload node:
    node becomes Ready and hosts the pod with a mounted, working disk. Unlike
    later overflows, this bootstrap cannot be caused by disk-slot exhaustion:
    there is no eligible workload node yet.
-2. Read the live CSI disk limit. For each subsequent batch, draw a fresh random
-   integer from 60 through 100 (inclusive) and add that many pods to the current
+2. Read the live CSI disk limit. Submit the first ramp batch immediately after
+   bootstrap. For each batch, draw a fresh random
+   integer from 400 through 1,000 (inclusive) and add that many pods to the current
    replica count. Cap the final batch at `1000 * live disk limit` total pods
-   (4,000 for a limit of four); it may add fewer than 60.
+   (4,000 for a limit of four); it may add fewer than 400.
 3. Compute expected workload nodes as `ceil(total pods / live disk limit)`.
    A batch may fit existing nodes or require several new nodes.
-4. For a growing batch, require a newly requested pod's `FailedScheduling` event
+4. During the ramp, require a newly requested pod's `FailedScheduling` event
    to identify a positive volume-count limit and its `TriggeredScaleUp` event.
    The count in the scheduling message can change as nodes join during a batch.
-5. Verify all expected nodes become Ready and every new node hosts a new batch
-   pod with its disk. Wait for the batch to complete before requesting the next.
-6. Repeat until 1,000 workload nodes host the final 4,000 pods/disks.
+   This evidence is required once for the ramp, not separately for each batch.
+5. Submit another batch every **15 minutes**, measured from the preceding
+   replica-change request, regardless of earlier pod readiness. Early readiness
+   does not shorten the interval. Keep observing all batches while waiting.
+6. Stop submitting at the final replica target. Require exactly 1,000 Ready
+   workload nodes and 4,000 Running, Ready pods, with full disk density and
+   valid storage attachments. Intermediate batch node counts are targets, not
+   isolated topology checks, because batches overlap.
 
-For example, random increments 60, 80, 100 produce pod totals
-`1 -> 61 -> 141 -> 241` and workload node totals `1 -> 16 -> 36 -> 61`.
+For example, random increments 400, 800, 1,000 produce pod totals
+`1 -> 401 -> 1201 -> 2201` and workload node targets `1 -> 101 -> 301 -> 551`.
 The number of stages varies per run.
 The final cluster has 1,005 nodes including the five
 system nodes. No HPA is needed: the runner changes workload replicas, while
@@ -63,25 +69,41 @@ the real AKS Cluster Autoscaler changes node counts.
 The test changes only StatefulSet replicas, never node-pool node counts. It
 checks exact node and pod counts, pod readiness, per-node density, distinct
 Azure Disk PV handles, and successful VolumeAttachments to the correct nodes.
+During bootstrap, sequential stages, and the timed ramp, the logs show workload
+nodes Ready and not cordoned, total observed nodes, and the current node target.
+The same line includes currently Running and Ready pods, total observed pods,
+and requested replicas. Pod readiness decreases are reflected in these counts;
+they are not the cumulative first-observed readiness samples in the report.
+Progress is logged whenever these counts change and at least once per minute
+while polling succeeds. The ramp target reflects the pods requested so far,
+reaching the final node target with the last batch. System nodes are excluded;
+elapsed time is measured from the stage request or the first ramp request.
 Extra nodes, unrelated scheduling constraints preventing disk-limit evidence,
 missing autoscaler evidence, and timeouts fail the test.
 
 ## Schedule and execution budgets
 
 The benchmark runs on `main` every Friday at 18:00 IST (12:30 UTC), even without
-code changes. Each scale-up stage allows three hours. Storage cleanup and subsequent
+code changes. Bootstrap allows five hours. After the last ramp request, final
+readiness and validation allow five hours; earlier Pending batches do not stop
+subsequent submissions. Storage cleanup and subsequent
 scale-down each allow six hours, within a 48-hour job budget. Resources have a
 60-hour deletion lifetime. These budgets do not guarantee that the run will
-finish: provisioning, serial batches, validation, and cleanup all consume time.
+finish: provisioning, timed batches, validation, and cleanup all consume time.
 
 Before enabling the schedule, verify regional VM/vCPU and disk quotas, capacity,
 networking, agent job-duration limits, and cost approval for 4,000 workload
 disks and 1,005 cluster nodes. The disk limit is discovered at runtime; the
 workload-node target stays at 1,000, while the final pod/disk target is
-`1000 * live disk limit`. The configured workload pools support at most 1,000
-nodes in total.
+`1000 * live disk limit`. Each workload pool may scale up to 1,000 nodes, allowing
+uneven pool sizes without changing the benchmark target. These per-pool caps do
+not enforce a cluster-wide workload-node maximum or guarantee even distribution.
+Do not fill all five pools: 5,000 workload nodes plus the system nodes would
+exceed the AKS 5,000-total-node limit. Reserve quota and IP headroom for temporary
+extra nodes; final validation still requires exactly the workload-node target.
 Storage verification lists PVs
-once per completed stage rather than issuing one read request per pod.
+once for bootstrap and once for final ramp validation rather than issuing one
+read request per pod.
 
 ### Capacity prerequisites
 
@@ -105,10 +127,14 @@ once per completed stage rather than issuing one read request per pod.
 
 ## Results and cleanup
 
-`disk-autoscale.json` records the live disk limit and each bootstrap/fill/overflow stage:
-requested replicas, workload node count, request timestamp, elapsed time to
-node readiness, all pods Running, all pods storage-ready, per-node pod counts,
-and scheduler/autoscaler event messages. `new_pod_count` records the actual
+`disk-autoscale.json` records the live disk limit and each bootstrap/ramp batch:
+requested replicas, workload node target, request timestamp, pod readiness
+samples, and result. Bootstrap retains its isolated node/storage timings and
+event messages. Overlapping batches do not report isolated topology timings.
+The report records `batch_interval_seconds`, `ramp_scale_up_evidence`,
+`final_pods_per_node`, and `ramp_all_pods_storage_ready_seconds` (elapsed from
+the first ramp request until final readiness). Ramp batches are marked successful
+only after final validation passes. `new_pod_count` records the actual
 increment, including the bootstrap and capped final batch. Timings use polling
 and have roughly five-second resolution. These are random-batch timings, **not** bulk
 scale-up P50/P70/P90/P99/P100; a separate common-start bulk phase is needed
@@ -134,7 +160,8 @@ the beginning of the entire multi-stage run.
 These are first-observed readiness latencies, with approximately five-second
 polling resolution plus API overhead, not exact Kubernetes transition times.
 Readiness changes between polls can be missed. A replacement pod's UID resets
-that ordinal's sample if detected during the same stage.
+that ordinal's sample if detected while observing its batch, including after
+later batches have been submitted.
 
 If a stage fails or times out, its observed samples are still saved. Incomplete
 batch/run summaries have `complete: false` and null percentiles, avoiding a
@@ -166,8 +193,11 @@ The node table lists every new workload node observed during the test, once,
 excluding the fixed system nodes and previously measured nodes in later fill
 stages. It includes `node_name`, `node_uid`, `requested_at`,
 `node_registered_at`, `ready_transition_at`, `ready_observed_at`, and
-`e2e_ready_seconds`. Node E2E starts at the workload request that triggered it
-and ends when first observed Ready and not cordoned. `node_registered_at` is
+`e2e_ready_seconds`. Bootstrap node E2E starts at the bootstrap request.
+All ramp nodes use the **first ramp request** as their common origin and are
+stored once under that batch's timing table: overlapping requests cannot
+reliably be attributed to individual nodes. Node E2E ends when first observed
+Ready and not cordoned. `node_registered_at` is
 the Kubernetes Node object's creation time, **not** Azure VM creation time.
 Nodes that never registered cannot be named in the table.
 
@@ -201,8 +231,11 @@ Both request `node_count: 1000`, passed to the runner as `--node-count 1000`.
 The runner accepts only node-based targets; omitting `--node-count` retains
 the default ten-node test. The final pod count is the node target multiplied
 by the live CSI disk limit.
-The scale-up timeout is per
-stage; storage cleanup and node scale-down have separate timeouts.
+Both pipelines pass `--batch-interval-seconds 900`. Direct CLI callers default
+to sequential execution (`--batch-interval-seconds 0`), which retains per-stage
+validation and timeouts. In timed mode, the scale-up timeout applies to bootstrap
+and then to the final wait starting at the last replica request; storage cleanup
+and node scale-down have separate timeouts.
 
 Qualify changes at smaller scales before launching the full workload. The runner
 rejects targets requiring more than 5,000 workload nodes; system nodes are never
