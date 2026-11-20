@@ -1,5 +1,6 @@
 import azure_pipelines.ap
 import azure_pipelines.ap.jobs.job
+import azure_pipelines.ap.steps
 import lib.const
 import lib.steps.azure
 import lib.steps.common
@@ -45,6 +46,8 @@ makeRequestBody = lambda scalingSize: str, cluster: str -> str {
     },
     "properties": {
       "controlPlaneScalingProfile": {"scalingSize": "${scalingSize}"},
+      "aadProfile": {"managed": true, "enableAzureRBAC": true},
+      "disableLocalAccounts": true,
       "kubernetesVersion": "1.36",
       "dnsPrefix": "${cluster}-dns",
       "agentPoolProfiles": [
@@ -93,6 +96,10 @@ az rest \\
         steps = [
             common.SetRunId(),
             common.InstallPythonDependencies(),
+            steps.Task {
+                task = "KubeloginInstaller@0"
+                displayName = "Install kubelogin"
+            },
             azure.Login(
                 const.DEFAULT_SERVICE_CONNECTION,
                 SUBSCRIPTION_ID,
@@ -124,6 +131,10 @@ az rest \\
                 cluster,
                 RESOURCE_GROUP,
                 SUBSCRIPTION_ID),
+            azure.AzCli(
+                const.DEFAULT_SERVICE_CONNECTION,
+                "Convert kubeconfig to Entra ID login",
+                "kubelogin convert-kubeconfig -l azurecli"),
             azure.CreateNodePool(
                 const.DEFAULT_SERVICE_CONNECTION,
                 cluster,
