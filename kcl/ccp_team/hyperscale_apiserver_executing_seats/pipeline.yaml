@@ -916,7 +916,7 @@ stages:
           cd modules/python
 
           export PYTHONPATH=$PYTHONPATH:$(pwd)
-          python3 kwok/kwok.py   --action create   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8 --node-create-qps 20 --node-pods 250
+          python3 kwok/kwok.py   --action create   --node-count 18000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8 --node-create-qps 20 --node-pods 250
       continueOnError: true
       displayName: Create KWOK Nodes
     - task: AzureCLI@2
@@ -929,7 +929,7 @@ stages:
           cd modules/python
 
           export PYTHONPATH=$PYTHONPATH:$(pwd)
-          python3 kwok/kwok.py   --action validate   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8 --node-create-qps 20 --node-pods 250
+          python3 kwok/kwok.py   --action validate   --node-count 18000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING --node-create-workers 8 --node-create-qps 20 --node-pods 250
       displayName: Validate KWOK Nodes
     - bash: |2
 
@@ -940,7 +940,7 @@ stages:
             -e 's/__CL2_MEMORY_REQUEST__/32Gi/g' \
             -e 's/__CL2_QPS__/350/g' \
             -e 's/__CL2_BURST__/100/g' \
-            -e 's/__CL2_PODS_PER_NODE__/30/g' \
+            -e 's/__CL2_PODS_PER_NODE__/25/g' \
             -e 's/__CL2_BIG_GROUP_SIZE__/1/g' \
             -e 's/__CL2_MEDIUM_GROUP_SIZE__/1/g' \
             -e 's/__CL2_SMALL_GROUP_SIZE__/1/g' \
