@@ -44,14 +44,14 @@ def cold_warp_summary:
                 (.duration_ns | tonumber) <= 0)
     then error("Cold Warp run must record exactly one successful 64 MiB GET per dataset key") else . end
   # Use the observed transfer interval, not the configured window or the sum of overlapping GET times.
-  | (min_by(.start | seconds).start) as $start | (max_by(.end | seconds).end) as $end
-  | (($end | seconds) - ($start | seconds)) as $elapsed
+  | (min_by(.start | seconds).start) as $start | (max_by(.end | seconds).end) as $finish
+  | (($finish | seconds) - ($start | seconds)) as $elapsed
   | if ($elapsed | positive_metric) then . else error("Invalid cold Warp measurement interval") end
   | (map(.duration_ns | tonumber / 1000000) | sort) as $latencies
   | {
       phase: "cold-start", concurrency: length, objects_read: length, errors: 0,
       dataset_bytes: (map(.bytes | tonumber) | add),
-      elapsed_seconds: $elapsed, measurement_start: $start, measurement_end: $end,
+      elapsed_seconds: $elapsed, measurement_start: $start, measurement_end: $finish,
       operations_per_second: (length / $elapsed),
       latency_avg_ms: ($latencies | add / length),
       latency_p50_ms: (($latencies[7] + $latencies[8]) / 2), latency_p99_ms: $latencies[-1]
