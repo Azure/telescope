@@ -1,6 +1,6 @@
 import azure_pipelines.ap.steps
 
-AzCli = lambda serviceConnection: str, displayName: str, script: str, condition: str = Undefined, continueOnError: bool = Undefined, stepName: str = Undefined, timeoutInMinutes: int = Undefined -> steps.Step {
+AzCli = lambda serviceConnection: str, displayName: str, script: str, condition: str = Undefined, continueOnError: bool = Undefined, stepName: str = Undefined, timeoutInMinutes: int = Undefined, env: {str: str} = Undefined -> steps.Step {
     steps.Task {
         task = "AzureCLI@2"
         inputs = {
@@ -14,5 +14,6 @@ AzCli = lambda serviceConnection: str, displayName: str, script: str, condition:
         continueOnError = continueOnError
         name = stepName
         timeoutInMinutes = timeoutInMinutes
+        env = env
     }
 }

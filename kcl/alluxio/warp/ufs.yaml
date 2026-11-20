@@ -1,0 +1,11 @@
+apiVersion: k8s-operator.alluxio.com/v1
+kind: UnderFileSystem
+metadata:
+  name: alluxio-blob
+  namespace: alx-ns
+spec:
+  alluxioCluster: alluxio
+  mountPath: /blob
+  path: ""
+  mountOptions:
+    alluxio.underfs.abfs.sas.token: ""
