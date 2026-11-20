@@ -36,11 +36,11 @@ done
     )
 }
 
-CreateAlluxioCluster = lambda alluxioImage: str, manifest: str, licenseManifest: str, workDir: str, resultDir: str -> steps.Bash {
-    steps.Bash {
-        name = "alluxio_cluster"
-        displayName = "Create Alluxio and apply the deployment license"
-        bash = ShellSetup(workDir, resultDir) + ResourceCommands(workDir) + REDACT_OUTPUT + """
+CreateAlluxioCluster = lambda serviceConnection: str, alluxioImage: str, manifest: str, licenseManifest: str, workDir: str, resultDir: str -> steps.Step {
+    azure.AzCli(
+        serviceConnection
+        "Create Alluxio and apply the deployment license"
+        ShellSetup(workDir, resultDir) + ResourceCommands(workDir) + REDACT_OUTPUT + """
 require_secret ALLUXIO_LICENSE_STRING
 patch="$(jq -n --arg image "${alluxioImage}" --arg tag "${ALLUXIO_TAG}" \\
     '{spec: {image: $image, imageTag: $tag}}')"
@@ -60,17 +60,16 @@ for pod in alluxio-coordinator-0 alluxio-worker-0; do
     kubectl wait -n alx-ns --for=condition=Ready "pod/$pod" --timeout=600s
 done
 """
-        env = {
-            ALLUXIO_LICENSE_STRING = "$(ALLUXIO_LICENSE_STRING)"
-        }
-    }
+        stepName = "alluxio_cluster"
+        env = {ALLUXIO_LICENSE_STRING = "$(ALLUXIO_LICENSE_STRING)"}
+    )
 }
 
-MountBlobStorage = lambda storageAccount: str, manifest: str, workDir: str, resultDir: str -> steps.Bash {
-    steps.Bash {
-        name = "alluxio_mount"
-        displayName = "Mount Azure Blob in Alluxio"
-        bash = ShellSetup(workDir, resultDir) + ResourceCommands(workDir) + REDACT_OUTPUT + """
+MountBlobStorage = lambda serviceConnection: str, storageAccount: str, manifest: str, workDir: str, resultDir: str -> steps.Step {
+    azure.AzCli(
+        serviceConnection
+        "Mount Azure Blob in Alluxio"
+        ShellSetup(workDir, resultDir) + ResourceCommands(workDir) + REDACT_OUTPUT + """
 require_secret BLOB_SAS
 ufs="$(jq -n --arg account "${storageAccount}" '{
     spec: {path: ("abfs://" + $account + ".blob.core.windows.net/warp-data/"),
@@ -85,8 +84,7 @@ wait_phase ufs alluxio-blob phase Ready
 kubectl exec -n alx-ns alluxio-coordinator-0 \\
     -c alluxio-coordinator -- alluxio fs ls /blob | redact
 """
-        env = {
-            BLOB_SAS = "$(BLOB_SAS)"
-        }
-    }
+        stepName = "alluxio_mount"
+        env = {BLOB_SAS = "$(BLOB_SAS)"}
+    )
 }

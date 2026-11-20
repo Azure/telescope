@@ -24,6 +24,8 @@ jobs:
       fi
       helm version --short
     displayName: Install Helm
+  - task: KubeloginInstaller@0
+    displayName: Install kubelogin
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
@@ -37,7 +39,7 @@ jobs:
         mkdir -p -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)" "$(Build.ArtifactStagingDirectory)/alluxio-warp"
         chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
         export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
-        export KUBECONFIG="$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/kubeconfig"
+        export KUBECONFIG="$HOME/.kube/config"
         # Avoid WebSocket stream closures during long-running AKS exec commands.
         export KUBECTL_REMOTE_COMMAND_WEBSOCKETS=false
         fail() {
@@ -119,6 +121,9 @@ jobs:
           --network-plugin azure \
           --network-plugin-mode overlay \
           --enable-managed-identity \
+          --enable-aad \
+          --enable-azure-rbac \
+          --disable-local-accounts \
           --no-ssh-key \
           --tier standard \
           --yes
@@ -230,9 +235,17 @@ jobs:
           --name "alluxio-warp" \
           --resource-group "alluxio-$(RUN_ID)-$(System.JobAttempt)" \
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-          --overwrite-existing \
-          -f $(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/kubeconfig
+          --overwrite-existing
     displayName: Get credentials for alluxio-warp
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |-
+        set -exo pipefail
+        kubelogin convert-kubeconfig -l azurecli
+    displayName: Convert kubeconfig to Entra ID login
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
@@ -246,7 +259,7 @@ jobs:
         mkdir -p -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)" "$(Build.ArtifactStagingDirectory)/alluxio-warp"
         chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
         export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
-        export KUBECONFIG="$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/kubeconfig"
+        export KUBECONFIG="$HOME/.kube/config"
         # Avoid WebSocket stream closures during long-running AKS exec commands.
         export KUBECTL_REMOTE_COMMAND_WEBSOCKETS=false
         fail() {
@@ -307,7 +320,7 @@ jobs:
         mkdir -p -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)" "$(Build.ArtifactStagingDirectory)/alluxio-warp"
         chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
         export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
-        export KUBECONFIG="$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/kubeconfig"
+        export KUBECONFIG="$HOME/.kube/config"
         # Avoid WebSocket stream closures during long-running AKS exec commands.
         export KUBECTL_REMOTE_COMMAND_WEBSOCKETS=false
         fail() {
@@ -397,7 +410,7 @@ jobs:
         mkdir -p -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)" "$(Build.ArtifactStagingDirectory)/alluxio-warp"
         chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
         export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
-        export KUBECONFIG="$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/kubeconfig"
+        export KUBECONFIG="$HOME/.kube/config"
         # Avoid WebSocket stream closures during long-running AKS exec commands.
         export KUBECTL_REMOTE_COMMAND_WEBSOCKETS=false
         fail() {
@@ -443,162 +456,180 @@ jobs:
         done
     displayName: Install the Alluxio operator
     name: alluxio_operator
-  - bash: |
-      set +x
-      set -Eeuo pipefail
-      umask 077
-      mkdir -p -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)" "$(Build.ArtifactStagingDirectory)/alluxio-warp"
-      chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
-      export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
-      export KUBECONFIG="$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/kubeconfig"
-      # Avoid WebSocket stream closures during long-running AKS exec commands.
-      export KUBECTL_REMOTE_COMMAND_WEBSOCKETS=false
-      fail() {
-          echo "ALLUXIO WARP FAILED: $*" >&2
-          exit 1
-      }
-      trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
-      trap 'rm -f -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/blob.bin" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/helm-registry.json"' EXIT
-      private_command() {
-          if "$@" > "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" 2> "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err"; then
-              cat "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out"
-          else
-              fail "$1 failed; secret-bearing output withheld"
-          fi
-      }
-      require_secret() {
-          [[ -n "${!1:-}" && "${!1}" != '$('* ]] || fail "Required secret pipeline variable $1 is missing"
-      }
-      wait_phase() {
-          local kind="$1" name="$2" field="$3" expected="$4" phase deadline=$((SECONDS + 900))
-          while :; do
-              phase="$(kubectl get \
-                  "$kind" "$name" -n alx-ns -o "jsonpath={.status.$field}")"
-              [[ "$phase" != "$expected" ]] || return 0
-              case "$phase" in
-                  Failed|Error|Terminated) fail "$kind/$name failed; inspect securely in cluster" ;;
-              esac
-              (( SECONDS < deadline )) || fail "$kind/$name did not reach $expected before timeout"
-              sleep 10
-          done
-      }
-      redact() {
-          local line secret
-          while IFS= read -r line || [[ -n "$line" ]]; do
-              for secret in "${ALLUXIO_LICENSE_STRING:-}" "${BLOB_SAS:-}"; do
-                  if [[ -n "$secret" ]]; then line="${line//"$secret"/<redacted>}"; fi
-              done
-              printf '%s\n' "$line"
-          done
-      }
-      require_secret ALLUXIO_LICENSE_STRING
-      patch="$(jq -n --arg image "telescope.azurecr.io/alluxio-enterprise" --arg tag "AI-3.8-15.1.28" \
-          '{spec: {image: $image, imageTag: $tag}}')"
-      cluster="$(kubectl patch --local --type=merge -f "$(Build.SourcesDirectory)/kcl/alluxio/warp/cluster.yaml" -p "$patch" -o yaml)"
-      printf '%s\n' "$cluster" | kubectl create --dry-run=server --validate=strict -f - > /dev/null
-      printf '%s\n' "$cluster" | kubectl create -f - > /dev/null
-      license="$(jq -n '{spec: {licenseString: env.ALLUXIO_LICENSE_STRING}}' |
-          kubectl patch --local --type=merge -f "$(Build.SourcesDirectory)/kcl/alluxio/warp/license.yaml" \
-              --patch-file /dev/stdin -o yaml 2> >(redact >&2))"
-      printf '%s\n' "$license" |
-          kubectl create --dry-run=server --validate=strict -f - > /dev/null 2> >(redact >&2)
-      printf '%s\n' "$license" | kubectl create -f - > /dev/null 2> >(redact >&2)
-      unset license
-      wait_phase license alluxio-license phase Completed
-      wait_phase alluxiocluster alluxio phase Ready
-      for pod in alluxio-coordinator-0 alluxio-worker-0; do
-          kubectl wait -n alx-ns --for=condition=Ready "pod/$pod" --timeout=600s
-      done
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        set +x
+        set -Eeuo pipefail
+        umask 077
+        mkdir -p -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)" "$(Build.ArtifactStagingDirectory)/alluxio-warp"
+        chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
+        export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
+        export KUBECONFIG="$HOME/.kube/config"
+        # Avoid WebSocket stream closures during long-running AKS exec commands.
+        export KUBECTL_REMOTE_COMMAND_WEBSOCKETS=false
+        fail() {
+            echo "ALLUXIO WARP FAILED: $*" >&2
+            exit 1
+        }
+        trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
+        trap 'rm -f -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/blob.bin" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/helm-registry.json"' EXIT
+        private_command() {
+            if "$@" > "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" 2> "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err"; then
+                cat "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out"
+            else
+                fail "$1 failed; secret-bearing output withheld"
+            fi
+        }
+        require_secret() {
+            [[ -n "${!1:-}" && "${!1}" != '$('* ]] || fail "Required secret pipeline variable $1 is missing"
+        }
+        wait_phase() {
+            local kind="$1" name="$2" field="$3" expected="$4" phase deadline=$((SECONDS + 900))
+            while :; do
+                phase="$(kubectl get \
+                    "$kind" "$name" -n alx-ns -o "jsonpath={.status.$field}")"
+                [[ "$phase" != "$expected" ]] || return 0
+                case "$phase" in
+                    Failed|Error|Terminated) fail "$kind/$name failed; inspect securely in cluster" ;;
+                esac
+                (( SECONDS < deadline )) || fail "$kind/$name did not reach $expected before timeout"
+                sleep 10
+            done
+        }
+        redact() {
+            local line secret
+            while IFS= read -r line || [[ -n "$line" ]]; do
+                for secret in "${ALLUXIO_LICENSE_STRING:-}" "${BLOB_SAS:-}"; do
+                    if [[ -n "$secret" ]]; then line="${line//"$secret"/<redacted>}"; fi
+                done
+                printf '%s\n' "$line"
+            done
+        }
+        require_secret ALLUXIO_LICENSE_STRING
+        patch="$(jq -n --arg image "telescope.azurecr.io/alluxio-enterprise" --arg tag "AI-3.8-15.1.28" \
+            '{spec: {image: $image, imageTag: $tag}}')"
+        cluster="$(kubectl patch --local --type=merge -f "$(Build.SourcesDirectory)/kcl/alluxio/warp/cluster.yaml" -p "$patch" -o yaml)"
+        printf '%s\n' "$cluster" | kubectl create --dry-run=server --validate=strict -f - > /dev/null
+        printf '%s\n' "$cluster" | kubectl create -f - > /dev/null
+        license="$(jq -n '{spec: {licenseString: env.ALLUXIO_LICENSE_STRING}}' |
+            kubectl patch --local --type=merge -f "$(Build.SourcesDirectory)/kcl/alluxio/warp/license.yaml" \
+                --patch-file /dev/stdin -o yaml 2> >(redact >&2))"
+        printf '%s\n' "$license" |
+            kubectl create --dry-run=server --validate=strict -f - > /dev/null 2> >(redact >&2)
+        printf '%s\n' "$license" | kubectl create -f - > /dev/null 2> >(redact >&2)
+        unset license
+        wait_phase license alluxio-license phase Completed
+        wait_phase alluxiocluster alluxio phase Ready
+        for pod in alluxio-coordinator-0 alluxio-worker-0; do
+            kubectl wait -n alx-ns --for=condition=Ready "pod/$pod" --timeout=600s
+        done
     displayName: Create Alluxio and apply the deployment license
     env:
       ALLUXIO_LICENSE_STRING: $(ALLUXIO_LICENSE_STRING)
     name: alluxio_cluster
-  - bash: |
-      set +x
-      set -Eeuo pipefail
-      umask 077
-      mkdir -p -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)" "$(Build.ArtifactStagingDirectory)/alluxio-warp"
-      chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
-      export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
-      export KUBECONFIG="$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/kubeconfig"
-      # Avoid WebSocket stream closures during long-running AKS exec commands.
-      export KUBECTL_REMOTE_COMMAND_WEBSOCKETS=false
-      fail() {
-          echo "ALLUXIO WARP FAILED: $*" >&2
-          exit 1
-      }
-      trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
-      trap 'rm -f -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/blob.bin" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/helm-registry.json"' EXIT
-      private_command() {
-          if "$@" > "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" 2> "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err"; then
-              cat "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out"
-          else
-              fail "$1 failed; secret-bearing output withheld"
-          fi
-      }
-      require_secret() {
-          [[ -n "${!1:-}" && "${!1}" != '$('* ]] || fail "Required secret pipeline variable $1 is missing"
-      }
-      wait_phase() {
-          local kind="$1" name="$2" field="$3" expected="$4" phase deadline=$((SECONDS + 900))
-          while :; do
-              phase="$(kubectl get \
-                  "$kind" "$name" -n alx-ns -o "jsonpath={.status.$field}")"
-              [[ "$phase" != "$expected" ]] || return 0
-              case "$phase" in
-                  Failed|Error|Terminated) fail "$kind/$name failed; inspect securely in cluster" ;;
-              esac
-              (( SECONDS < deadline )) || fail "$kind/$name did not reach $expected before timeout"
-              sleep 10
-          done
-      }
-      redact() {
-          local line secret
-          while IFS= read -r line || [[ -n "$line" ]]; do
-              for secret in "${ALLUXIO_LICENSE_STRING:-}" "${BLOB_SAS:-}"; do
-                  if [[ -n "$secret" ]]; then line="${line//"$secret"/<redacted>}"; fi
-              done
-              printf '%s\n' "$line"
-          done
-      }
-      require_secret BLOB_SAS
-      ufs="$(jq -n --arg account "alx$(Build.BuildId)a$(System.JobAttempt)" '{
-          spec: {path: ("abfs://" + $account + ".blob.core.windows.net/warp-data/"),
-                 mountOptions: {"alluxio.underfs.abfs.sas.token": env.BLOB_SAS}}
-      }' | kubectl patch --local --type=merge -f "$(Build.SourcesDirectory)/kcl/alluxio/warp/ufs.yaml" \
-          --patch-file /dev/stdin -o yaml 2> >(redact >&2))"
-      printf '%s\n' "$ufs" |
-          kubectl create --dry-run=server --validate=strict -f - > /dev/null 2> >(redact >&2)
-      printf '%s\n' "$ufs" | kubectl create -f - > /dev/null 2> >(redact >&2)
-      unset ufs
-      wait_phase ufs alluxio-blob phase Ready
-      kubectl exec -n alx-ns alluxio-coordinator-0 \
-          -c alluxio-coordinator -- alluxio fs ls /blob | redact
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        set +x
+        set -Eeuo pipefail
+        umask 077
+        mkdir -p -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)" "$(Build.ArtifactStagingDirectory)/alluxio-warp"
+        chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
+        export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
+        export KUBECONFIG="$HOME/.kube/config"
+        # Avoid WebSocket stream closures during long-running AKS exec commands.
+        export KUBECTL_REMOTE_COMMAND_WEBSOCKETS=false
+        fail() {
+            echo "ALLUXIO WARP FAILED: $*" >&2
+            exit 1
+        }
+        trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
+        trap 'rm -f -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/blob.bin" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/helm-registry.json"' EXIT
+        private_command() {
+            if "$@" > "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" 2> "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err"; then
+                cat "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out"
+            else
+                fail "$1 failed; secret-bearing output withheld"
+            fi
+        }
+        require_secret() {
+            [[ -n "${!1:-}" && "${!1}" != '$('* ]] || fail "Required secret pipeline variable $1 is missing"
+        }
+        wait_phase() {
+            local kind="$1" name="$2" field="$3" expected="$4" phase deadline=$((SECONDS + 900))
+            while :; do
+                phase="$(kubectl get \
+                    "$kind" "$name" -n alx-ns -o "jsonpath={.status.$field}")"
+                [[ "$phase" != "$expected" ]] || return 0
+                case "$phase" in
+                    Failed|Error|Terminated) fail "$kind/$name failed; inspect securely in cluster" ;;
+                esac
+                (( SECONDS < deadline )) || fail "$kind/$name did not reach $expected before timeout"
+                sleep 10
+            done
+        }
+        redact() {
+            local line secret
+            while IFS= read -r line || [[ -n "$line" ]]; do
+                for secret in "${ALLUXIO_LICENSE_STRING:-}" "${BLOB_SAS:-}"; do
+                    if [[ -n "$secret" ]]; then line="${line//"$secret"/<redacted>}"; fi
+                done
+                printf '%s\n' "$line"
+            done
+        }
+        require_secret BLOB_SAS
+        ufs="$(jq -n --arg account "alx$(Build.BuildId)a$(System.JobAttempt)" '{
+            spec: {path: ("abfs://" + $account + ".blob.core.windows.net/warp-data/"),
+                   mountOptions: {"alluxio.underfs.abfs.sas.token": env.BLOB_SAS}}
+        }' | kubectl patch --local --type=merge -f "$(Build.SourcesDirectory)/kcl/alluxio/warp/ufs.yaml" \
+            --patch-file /dev/stdin -o yaml 2> >(redact >&2))"
+        printf '%s\n' "$ufs" |
+            kubectl create --dry-run=server --validate=strict -f - > /dev/null 2> >(redact >&2)
+        printf '%s\n' "$ufs" | kubectl create -f - > /dev/null 2> >(redact >&2)
+        unset ufs
+        wait_phase ufs alluxio-blob phase Ready
+        kubectl exec -n alx-ns alluxio-coordinator-0 \
+            -c alluxio-coordinator -- alluxio fs ls /blob | redact
     displayName: Mount Azure Blob in Alluxio
     env:
       BLOB_SAS: $(BLOB_SAS)
     name: alluxio_mount
-  - bash: |
-      set +x
-      set -Eeuo pipefail
-      umask 077
-      mkdir -p -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)" "$(Build.ArtifactStagingDirectory)/alluxio-warp"
-      chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
-      export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
-      export KUBECONFIG="$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/kubeconfig"
-      # Avoid WebSocket stream closures during long-running AKS exec commands.
-      export KUBECTL_REMOTE_COMMAND_WEBSOCKETS=false
-      fail() {
-          echo "ALLUXIO WARP FAILED: $*" >&2
-          exit 1
-      }
-      trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
-      trap 'rm -f -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/blob.bin" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/helm-registry.json"' EXIT
-      kubectl create --dry-run=server --validate=strict -f "$(Build.SourcesDirectory)/kcl/alluxio/warp/client.yaml" > /dev/null
-      kubectl create -f "$(Build.SourcesDirectory)/kcl/alluxio/warp/client.yaml" > /dev/null
-      kubectl wait -n alx-ns --for=condition=Ready pod/warp-client --timeout=600s
-      kubectl exec -n alx-ns warp-client -c warp \
-          -- /tools/warp --version > "$(Build.ArtifactStagingDirectory)/alluxio-warp/warp-version.txt"
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        set +x
+        set -Eeuo pipefail
+        umask 077
+        mkdir -p -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)" "$(Build.ArtifactStagingDirectory)/alluxio-warp"
+        chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
+        export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
+        export KUBECONFIG="$HOME/.kube/config"
+        # Avoid WebSocket stream closures during long-running AKS exec commands.
+        export KUBECTL_REMOTE_COMMAND_WEBSOCKETS=false
+        fail() {
+            echo "ALLUXIO WARP FAILED: $*" >&2
+            exit 1
+        }
+        trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
+        trap 'rm -f -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/blob.bin" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/helm-registry.json"' EXIT
+        kubectl create --dry-run=server --validate=strict -f "$(Build.SourcesDirectory)/kcl/alluxio/warp/client.yaml" > /dev/null
+        kubectl create -f "$(Build.SourcesDirectory)/kcl/alluxio/warp/client.yaml" > /dev/null
+        kubectl wait -n alx-ns --for=condition=Ready pod/warp-client --timeout=600s
+        kubectl exec -n alx-ns warp-client -c warp \
+            -- /tools/warp --version > "$(Build.ArtifactStagingDirectory)/alluxio-warp/warp-version.txt"
     displayName: Create the dedicated Warp client
     name: alluxio_warp_client
   - bash: |
@@ -607,207 +638,225 @@ jobs:
       echo "BENCHMARK_START_TIME: $TIMESTAMP"
       echo "##vso[task.setvariable variable=BENCHMARK_START_TIME]$TIMESTAMP"
     displayName: Record current time as BENCHMARK_START_TIME
-  - bash: |
-      set +x
-      set -Eeuo pipefail
-      umask 077
-      mkdir -p -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)" "$(Build.ArtifactStagingDirectory)/alluxio-warp"
-      chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
-      export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
-      export KUBECONFIG="$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/kubeconfig"
-      # Avoid WebSocket stream closures during long-running AKS exec commands.
-      export KUBECTL_REMOTE_COMMAND_WEBSOCKETS=false
-      fail() {
-          echo "ALLUXIO WARP FAILED: $*" >&2
-          exit 1
-      }
-      trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
-      trap 'rm -f -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/blob.bin" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/helm-registry.json"' EXIT
-      redact() {
-          local line secret
-          while IFS= read -r line || [[ -n "$line" ]]; do
-              for secret in "${ALLUXIO_LICENSE_STRING:-}" "${BLOB_SAS:-}"; do
-                  if [[ -n "$secret" ]]; then line="${line//"$secret"/<redacted>}"; fi
-              done
-              printf '%s\n' "$line"
-          done
-      }
-      alluxio() {
-          kubectl exec -n alx-ns alluxio-coordinator-0 \
-              -c alluxio-coordinator -- alluxio "$@"
-      }
-      client_exec() {
-          kubectl exec -n alx-ns warp-client -c warp -- "$@"
-      }
-      cache_report() {
-          alluxio fs check-cached --path /blob --recursive --limit 17 |
-              redact > "$(Build.ArtifactStagingDirectory)/alluxio-warp/cache-$1.txt"
-          jq -Rse -L "$(Build.SourcesDirectory)/kcl/alluxio/warp" 'include "checks"; cache_counts' "$(Build.ArtifactStagingDirectory)/alluxio-warp/cache-$1.txt"
-      }
-      phase="cold-start"
-      counts="$(cache_report "before-cold")"
-      [[ "$(jq -r --arg field "uncached" '.[$field]' <<< "$counts")" == 16 ]] ||
-          fail "$phase requires the expected cache state for all 16 objects"
-      hosts="$(kubectl get pods -n alx-ns -o json |
-          jq -r '[.items[] | select(.metadata.name | test("^alluxio-worker-[0-9]+$"))
-              | .status.podIP // empty | select(length > 0)
-              | (if contains(":") then "[" + . + "]" else . end) + ":29998"] | join(",")')"
-      [[ -n "$hosts" ]] || fail "No Alluxio worker pod IPs found in alx-ns"
-      warp_get=(/tools/warp get "--host=$hosts" --bucket=blob --access-key=warp --secret-key=benchmark
-          --region=us-east-1 --lookup=path --list-existing --noclear --full --json)
-      command -v zstd >/dev/null || fail "zstd is required to read the raw Warp operations"
-      client_exec bash -eu -c '
-          cd /results
-          mkdir cold-start
-          export TZ=UTC
-          sync_start="$(date -d "+90 seconds" +%H:%M)"
-          pids=()
-          for key in object-{00..15}.bin; do
-              # Warp GET samples with replacement, thus run an external loop.
-              # Warp GET commands run in parallel.
-              # Limit rps to once every 100s, so that it runs only once before duration timeout.
-              "$@" --prefix="$key" --objects=1 --concurrent=1 --rps-limit=0.01 --duration=10s \
-                  --syncstart="$sync_start" --benchdata="cold-start/$key" > "cold-start/$key.log" 2>&1 &
-              pids+=("$!")
-          done
-          status=0
-          for pid in "${pids[@]}"; do wait "$pid" || status=1; done
-          if (( status )); then cat cold-start/*.log >&2; exit 1; fi
-          /tools/warp merge --benchdata=cold-start cold-start/object-{00..15}.bin.csv.zst
-      ' _ "${warp_get[@]}" > "$(Build.ArtifactStagingDirectory)/alluxio-warp/cold-start.log" 2>&1 ||
-          fail "Cold Warp readers or merge failed; see cold-start.log"
-      client_exec cat /results/cold-start.csv.zst > "$(Build.ArtifactStagingDirectory)/alluxio-warp/cold-start.csv.zst"
-      zstd -dc "$(Build.ArtifactStagingDirectory)/alluxio-warp/cold-start.csv.zst" |
-          jq -Rse -L "$(Build.SourcesDirectory)/kcl/alluxio/warp" 'include "checks"; cold_warp_summary' > "$(Build.ArtifactStagingDirectory)/alluxio-warp/cold-start-summary.json"
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        set +x
+        set -Eeuo pipefail
+        umask 077
+        mkdir -p -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)" "$(Build.ArtifactStagingDirectory)/alluxio-warp"
+        chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
+        export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
+        export KUBECONFIG="$HOME/.kube/config"
+        # Avoid WebSocket stream closures during long-running AKS exec commands.
+        export KUBECTL_REMOTE_COMMAND_WEBSOCKETS=false
+        fail() {
+            echo "ALLUXIO WARP FAILED: $*" >&2
+            exit 1
+        }
+        trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
+        trap 'rm -f -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/blob.bin" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/helm-registry.json"' EXIT
+        redact() {
+            local line secret
+            while IFS= read -r line || [[ -n "$line" ]]; do
+                for secret in "${ALLUXIO_LICENSE_STRING:-}" "${BLOB_SAS:-}"; do
+                    if [[ -n "$secret" ]]; then line="${line//"$secret"/<redacted>}"; fi
+                done
+                printf '%s\n' "$line"
+            done
+        }
+        alluxio() {
+            kubectl exec -n alx-ns alluxio-coordinator-0 \
+                -c alluxio-coordinator -- alluxio "$@"
+        }
+        client_exec() {
+            kubectl exec -n alx-ns warp-client -c warp -- "$@"
+        }
+        cache_report() {
+            alluxio fs check-cached --path /blob --recursive --limit 17 |
+                redact > "$(Build.ArtifactStagingDirectory)/alluxio-warp/cache-$1.txt"
+            jq -Rse -L "$(Build.SourcesDirectory)/kcl/alluxio/warp" 'include "checks"; cache_counts' "$(Build.ArtifactStagingDirectory)/alluxio-warp/cache-$1.txt"
+        }
+        phase="cold-start"
+        counts="$(cache_report "before-cold")"
+        [[ "$(jq -r --arg field "uncached" '.[$field]' <<< "$counts")" == 16 ]] ||
+            fail "$phase requires the expected cache state for all 16 objects"
+        hosts="$(kubectl get pods -n alx-ns -o json |
+            jq -r '[.items[] | select(.metadata.name | test("^alluxio-worker-[0-9]+$"))
+                | .status.podIP // empty | select(length > 0)
+                | (if contains(":") then "[" + . + "]" else . end) + ":29998"] | join(",")')"
+        [[ -n "$hosts" ]] || fail "No Alluxio worker pod IPs found in alx-ns"
+        warp_get=(/tools/warp get "--host=$hosts" --bucket=blob --access-key=warp --secret-key=benchmark
+            --region=us-east-1 --lookup=path --list-existing --noclear --full --json)
+        command -v zstd >/dev/null || fail "zstd is required to read the raw Warp operations"
+        client_exec bash -eu -c '
+            cd /results
+            mkdir cold-start
+            export TZ=UTC
+            sync_start="$(date -d "+90 seconds" +%H:%M)"
+            pids=()
+            for key in object-{00..15}.bin; do
+                # Warp GET samples with replacement, thus run an external loop.
+                # Warp GET commands run in parallel.
+                # Limit rps to once every 100s, so that it runs only once before duration timeout.
+                "$@" --prefix="$key" --objects=1 --concurrent=1 --rps-limit=0.01 --duration=10s \
+                    --syncstart="$sync_start" --benchdata="cold-start/$key" > "cold-start/$key.log" 2>&1 &
+                pids+=("$!")
+            done
+            status=0
+            for pid in "${pids[@]}"; do wait "$pid" || status=1; done
+            if (( status )); then cat cold-start/*.log >&2; exit 1; fi
+            /tools/warp merge --benchdata=cold-start cold-start/object-{00..15}.bin.csv.zst
+        ' _ "${warp_get[@]}" > "$(Build.ArtifactStagingDirectory)/alluxio-warp/cold-start.log" 2>&1 ||
+            fail "Cold Warp readers or merge failed; see cold-start.log"
+        client_exec cat /results/cold-start.csv.zst > "$(Build.ArtifactStagingDirectory)/alluxio-warp/cold-start.csv.zst"
+        zstd -dc "$(Build.ArtifactStagingDirectory)/alluxio-warp/cold-start.csv.zst" |
+            jq -Rse -L "$(Build.SourcesDirectory)/kcl/alluxio/warp" 'include "checks"; cold_warp_summary' > "$(Build.ArtifactStagingDirectory)/alluxio-warp/cold-start-summary.json"
     displayName: Run single-pass cold-start Warp GET
     env:
       BLOB_SAS: $(BLOB_SAS)
-  - bash: |
-      set +x
-      set -Eeuo pipefail
-      umask 077
-      mkdir -p -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)" "$(Build.ArtifactStagingDirectory)/alluxio-warp"
-      chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
-      export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
-      export KUBECONFIG="$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/kubeconfig"
-      # Avoid WebSocket stream closures during long-running AKS exec commands.
-      export KUBECTL_REMOTE_COMMAND_WEBSOCKETS=false
-      fail() {
-          echo "ALLUXIO WARP FAILED: $*" >&2
-          exit 1
-      }
-      trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
-      trap 'rm -f -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/blob.bin" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/helm-registry.json"' EXIT
-      redact() {
-          local line secret
-          while IFS= read -r line || [[ -n "$line" ]]; do
-              for secret in "${ALLUXIO_LICENSE_STRING:-}" "${BLOB_SAS:-}"; do
-                  if [[ -n "$secret" ]]; then line="${line//"$secret"/<redacted>}"; fi
-              done
-              printf '%s\n' "$line"
-          done
-      }
-      alluxio() {
-          kubectl exec -n alx-ns alluxio-coordinator-0 \
-              -c alluxio-coordinator -- alluxio "$@"
-      }
-      client_exec() {
-          kubectl exec -n alx-ns warp-client -c warp -- "$@"
-      }
-      cache_report() {
-          alluxio fs check-cached --path /blob --recursive --limit 17 |
-              redact > "$(Build.ArtifactStagingDirectory)/alluxio-warp/cache-$1.txt"
-          jq -Rse -L "$(Build.SourcesDirectory)/kcl/alluxio/warp" 'include "checks"; cache_counts' "$(Build.ArtifactStagingDirectory)/alluxio-warp/cache-$1.txt"
-      }
-      alluxio job load --path /blob --submit | redact > "$(Build.ArtifactStagingDirectory)/alluxio-warp/preload-submit.txt"
-      deadline=$((SECONDS + 600))
-      while :; do
-          alluxio job load --path /blob --progress | redact > "$(Build.ArtifactStagingDirectory)/alluxio-warp/preload.txt"
-          state="$(sed -nE 's/^[[:space:]]*Job State:[[:space:]]*([A-Z_]+)[[:space:]]*$/\1/p' "$(Build.ArtifactStagingDirectory)/alluxio-warp/preload.txt")"
-          case "$state" in
-              CREATED|RUNNING|SUCCEEDED) ;;
-              *) fail "Preload failed or returned an unrecognized job state" ;;
-          esac
-          failed="$(sed -nE 's/^[[:space:]]*Files Failed:[[:space:]]*([0-9]+)[[:space:]]*$/\1/p' "$(Build.ArtifactStagingDirectory)/alluxio-warp/preload.txt")"
-          [[ "$failed" == 0 ]] || fail "Preload must report zero failed files"
-          counts="$(cache_report before-warm)"
-          if [[ "$state" == SUCCEEDED && "$(jq -r '.all' <<< "$counts")" == 16 ]]; then break; fi
-          (( SECONDS < deadline )) || fail "All 16 files were not fully cached before timeout"
-          sleep 10
-      done
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        set +x
+        set -Eeuo pipefail
+        umask 077
+        mkdir -p -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)" "$(Build.ArtifactStagingDirectory)/alluxio-warp"
+        chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
+        export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
+        export KUBECONFIG="$HOME/.kube/config"
+        # Avoid WebSocket stream closures during long-running AKS exec commands.
+        export KUBECTL_REMOTE_COMMAND_WEBSOCKETS=false
+        fail() {
+            echo "ALLUXIO WARP FAILED: $*" >&2
+            exit 1
+        }
+        trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
+        trap 'rm -f -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/blob.bin" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/helm-registry.json"' EXIT
+        redact() {
+            local line secret
+            while IFS= read -r line || [[ -n "$line" ]]; do
+                for secret in "${ALLUXIO_LICENSE_STRING:-}" "${BLOB_SAS:-}"; do
+                    if [[ -n "$secret" ]]; then line="${line//"$secret"/<redacted>}"; fi
+                done
+                printf '%s\n' "$line"
+            done
+        }
+        alluxio() {
+            kubectl exec -n alx-ns alluxio-coordinator-0 \
+                -c alluxio-coordinator -- alluxio "$@"
+        }
+        client_exec() {
+            kubectl exec -n alx-ns warp-client -c warp -- "$@"
+        }
+        cache_report() {
+            alluxio fs check-cached --path /blob --recursive --limit 17 |
+                redact > "$(Build.ArtifactStagingDirectory)/alluxio-warp/cache-$1.txt"
+            jq -Rse -L "$(Build.SourcesDirectory)/kcl/alluxio/warp" 'include "checks"; cache_counts' "$(Build.ArtifactStagingDirectory)/alluxio-warp/cache-$1.txt"
+        }
+        alluxio job load --path /blob --submit | redact > "$(Build.ArtifactStagingDirectory)/alluxio-warp/preload-submit.txt"
+        deadline=$((SECONDS + 600))
+        while :; do
+            alluxio job load --path /blob --progress | redact > "$(Build.ArtifactStagingDirectory)/alluxio-warp/preload.txt"
+            state="$(sed -nE 's/^[[:space:]]*Job State:[[:space:]]*([A-Z_]+)[[:space:]]*$/\1/p' "$(Build.ArtifactStagingDirectory)/alluxio-warp/preload.txt")"
+            case "$state" in
+                CREATED|RUNNING|SUCCEEDED) ;;
+                *) fail "Preload failed or returned an unrecognized job state" ;;
+            esac
+            failed="$(sed -nE 's/^[[:space:]]*Files Failed:[[:space:]]*([0-9]+)[[:space:]]*$/\1/p' "$(Build.ArtifactStagingDirectory)/alluxio-warp/preload.txt")"
+            [[ "$failed" == 0 ]] || fail "Preload must report zero failed files"
+            counts="$(cache_report before-warm)"
+            if [[ "$state" == SUCCEEDED && "$(jq -r '.all' <<< "$counts")" == 16 ]]; then break; fi
+            (( SECONDS < deadline )) || fail "All 16 files were not fully cached before timeout"
+            sleep 10
+        done
     displayName: Preload all 16 objects into the Alluxio cache
     env:
       BLOB_SAS: $(BLOB_SAS)
     name: alluxio_preload
-  - bash: |
-      set +x
-      set -Eeuo pipefail
-      umask 077
-      mkdir -p -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)" "$(Build.ArtifactStagingDirectory)/alluxio-warp"
-      chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
-      export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
-      export KUBECONFIG="$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/kubeconfig"
-      # Avoid WebSocket stream closures during long-running AKS exec commands.
-      export KUBECTL_REMOTE_COMMAND_WEBSOCKETS=false
-      fail() {
-          echo "ALLUXIO WARP FAILED: $*" >&2
-          exit 1
-      }
-      trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
-      trap 'rm -f -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/blob.bin" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/helm-registry.json"' EXIT
-      redact() {
-          local line secret
-          while IFS= read -r line || [[ -n "$line" ]]; do
-              for secret in "${ALLUXIO_LICENSE_STRING:-}" "${BLOB_SAS:-}"; do
-                  if [[ -n "$secret" ]]; then line="${line//"$secret"/<redacted>}"; fi
-              done
-              printf '%s\n' "$line"
-          done
-      }
-      alluxio() {
-          kubectl exec -n alx-ns alluxio-coordinator-0 \
-              -c alluxio-coordinator -- alluxio "$@"
-      }
-      client_exec() {
-          kubectl exec -n alx-ns warp-client -c warp -- "$@"
-      }
-      cache_report() {
-          alluxio fs check-cached --path /blob --recursive --limit 17 |
-              redact > "$(Build.ArtifactStagingDirectory)/alluxio-warp/cache-$1.txt"
-          jq -Rse -L "$(Build.SourcesDirectory)/kcl/alluxio/warp" 'include "checks"; cache_counts' "$(Build.ArtifactStagingDirectory)/alluxio-warp/cache-$1.txt"
-      }
-      phase="warm-cache"
-      counts="$(cache_report "before-warm")"
-      [[ "$(jq -r --arg field "all" '.[$field]' <<< "$counts")" == 16 ]] ||
-          fail "$phase requires the expected cache state for all 16 objects"
-      hosts="$(kubectl get pods -n alx-ns -o json |
-          jq -r '[.items[] | select(.metadata.name | test("^alluxio-worker-[0-9]+$"))
-              | .status.podIP // empty | select(length > 0)
-              | (if contains(":") then "[" + . + "]" else . end) + ":29998"] | join(",")')"
-      [[ -n "$hosts" ]] || fail "No Alluxio worker pod IPs found in alx-ns"
-      warp_get=(/tools/warp get "--host=$hosts" --bucket=blob --access-key=warp --secret-key=benchmark
-          --region=us-east-1 --lookup=path --list-existing --noclear --full --json)
-      start="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-      status=0
-      client_exec "${warp_get[@]}" \
-          --concurrent=16 \
-          --duration=60s \
-          --obj.size=67108864 \
-          "--benchdata=/results/$phase" > "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase.log" 2>&1 || status=$?
-      end="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-      jq -n --arg phase "$phase" --arg command_start "$start" --arg command_end "$end" \
-          '$ARGS.named' > "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-timing.json"
-      (( status == 0 )) || fail "Warp $phase command failed with status $status; see its log"
-      client_exec cat "/results/$phase.csv.zst" > "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase.csv.zst"
-      [[ -s "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase.csv.zst" ]] || fail "Warp raw data is empty for $phase"
-      client_exec /tools/warp analyze --full --json "/results/$phase.csv.zst" > "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-analysis.json"
-      jq -e -L "$(Build.SourcesDirectory)/kcl/alluxio/warp" \
-          --slurpfile timing "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-timing.json" \
-          'include "checks"; warp_summary + $timing[0] +
-           {concurrency: 16, requested_duration_seconds: 60, dataset_bytes: 1073741824}' \
-          "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-analysis.json" > "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-summary.json"
-      counts="$(cache_report after-warm)"
-      [[ "$(jq -r '.all' <<< "$counts")" == 16 ]] || fail "Dataset was not fully cached after the warm phase"
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        set +x
+        set -Eeuo pipefail
+        umask 077
+        mkdir -p -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)" "$(Build.ArtifactStagingDirectory)/alluxio-warp"
+        chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
+        export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
+        export KUBECONFIG="$HOME/.kube/config"
+        # Avoid WebSocket stream closures during long-running AKS exec commands.
+        export KUBECTL_REMOTE_COMMAND_WEBSOCKETS=false
+        fail() {
+            echo "ALLUXIO WARP FAILED: $*" >&2
+            exit 1
+        }
+        trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
+        trap 'rm -f -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/blob.bin" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/helm-registry.json"' EXIT
+        redact() {
+            local line secret
+            while IFS= read -r line || [[ -n "$line" ]]; do
+                for secret in "${ALLUXIO_LICENSE_STRING:-}" "${BLOB_SAS:-}"; do
+                    if [[ -n "$secret" ]]; then line="${line//"$secret"/<redacted>}"; fi
+                done
+                printf '%s\n' "$line"
+            done
+        }
+        alluxio() {
+            kubectl exec -n alx-ns alluxio-coordinator-0 \
+                -c alluxio-coordinator -- alluxio "$@"
+        }
+        client_exec() {
+            kubectl exec -n alx-ns warp-client -c warp -- "$@"
+        }
+        cache_report() {
+            alluxio fs check-cached --path /blob --recursive --limit 17 |
+                redact > "$(Build.ArtifactStagingDirectory)/alluxio-warp/cache-$1.txt"
+            jq -Rse -L "$(Build.SourcesDirectory)/kcl/alluxio/warp" 'include "checks"; cache_counts' "$(Build.ArtifactStagingDirectory)/alluxio-warp/cache-$1.txt"
+        }
+        phase="warm-cache"
+        counts="$(cache_report "before-warm")"
+        [[ "$(jq -r --arg field "all" '.[$field]' <<< "$counts")" == 16 ]] ||
+            fail "$phase requires the expected cache state for all 16 objects"
+        hosts="$(kubectl get pods -n alx-ns -o json |
+            jq -r '[.items[] | select(.metadata.name | test("^alluxio-worker-[0-9]+$"))
+                | .status.podIP // empty | select(length > 0)
+                | (if contains(":") then "[" + . + "]" else . end) + ":29998"] | join(",")')"
+        [[ -n "$hosts" ]] || fail "No Alluxio worker pod IPs found in alx-ns"
+        warp_get=(/tools/warp get "--host=$hosts" --bucket=blob --access-key=warp --secret-key=benchmark
+            --region=us-east-1 --lookup=path --list-existing --noclear --full --json)
+        start="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        status=0
+        client_exec "${warp_get[@]}" \
+            --concurrent=16 \
+            --duration=60s \
+            --obj.size=67108864 \
+            "--benchdata=/results/$phase" > "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase.log" 2>&1 || status=$?
+        end="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        jq -n --arg phase "$phase" --arg command_start "$start" --arg command_end "$end" \
+            '$ARGS.named' > "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-timing.json"
+        (( status == 0 )) || fail "Warp $phase command failed with status $status; see its log"
+        client_exec cat "/results/$phase.csv.zst" > "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase.csv.zst"
+        [[ -s "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase.csv.zst" ]] || fail "Warp raw data is empty for $phase"
+        client_exec /tools/warp analyze --full --json "/results/$phase.csv.zst" > "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-analysis.json"
+        jq -e -L "$(Build.SourcesDirectory)/kcl/alluxio/warp" \
+            --slurpfile timing "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-timing.json" \
+            'include "checks"; warp_summary + $timing[0] +
+             {concurrency: 16, requested_duration_seconds: 60, dataset_bytes: 1073741824}' \
+            "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-analysis.json" > "$(Build.ArtifactStagingDirectory)/alluxio-warp/$phase-summary.json"
+        counts="$(cache_report after-warm)"
+        [[ "$(jq -r '.all' <<< "$counts")" == 16 ]] || fail "Dataset was not fully cached after the warm phase"
     displayName: Run warm-cache Warp GET
     env:
       BLOB_SAS: $(BLOB_SAS)
@@ -817,39 +866,45 @@ jobs:
       echo "BENCHMARK_END_TIME: $TIMESTAMP"
       echo "##vso[task.setvariable variable=BENCHMARK_END_TIME]$TIMESTAMP"
     displayName: Record current time as BENCHMARK_END_TIME
-  - bash: |
-      set +x
-      set -Eeuo pipefail
-      umask 077
-      mkdir -p -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)" "$(Build.ArtifactStagingDirectory)/alluxio-warp"
-      chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
-      export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
-      export KUBECONFIG="$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/kubeconfig"
-      # Avoid WebSocket stream closures during long-running AKS exec commands.
-      export KUBECTL_REMOTE_COMMAND_WEBSOCKETS=false
-      fail() {
-          echo "ALLUXIO WARP FAILED: $*" >&2
-          exit 1
-      }
-      trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
-      trap 'rm -f -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/blob.bin" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/helm-registry.json"' EXIT
-      if [[ ! -s "$KUBECONFIG" ]]; then
-          echo '{"cluster_access":"not established"}' > "$(Build.ArtifactStagingDirectory)/alluxio-warp/diagnostics.json"
-          exit 0
-      fi
-      for namespace in alx-ns alluxio-operator; do
-          kubectl get pods -n "$namespace" -o json |
-              jq --arg namespace "$namespace" '{
-                  ($namespace): [.items[] | {
-                      name: .metadata.name, node: .spec.nodeName, phase: .status.phase,
-                      containers: [(.status.containerStatuses // []) + (.status.initContainerStatuses // []) | .[] |
-                          {name, ready, restarts: .restartCount,
-                           state: (.state | with_entries(.value |= {reason, exitCode}))}]
-                  }]
-              }' > "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/diagnostics-$namespace.json"
-      done
-      jq -s 'add' "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/diagnostics-alx-ns.json" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/diagnostics-alluxio-operator.json" \
-          > "$(Build.ArtifactStagingDirectory)/alluxio-warp/diagnostics.json"
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        set +x
+        set -Eeuo pipefail
+        umask 077
+        mkdir -p -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)" "$(Build.ArtifactStagingDirectory)/alluxio-warp"
+        chmod 700 "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
+        export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
+        export KUBECONFIG="$HOME/.kube/config"
+        # Avoid WebSocket stream closures during long-running AKS exec commands.
+        export KUBECTL_REMOTE_COMMAND_WEBSOCKETS=false
+        fail() {
+            echo "ALLUXIO WARP FAILED: $*" >&2
+            exit 1
+        }
+        trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
+        trap 'rm -f -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/blob.bin" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/helm-registry.json"' EXIT
+        if [[ ! -s "$KUBECONFIG" ]]; then
+            echo '{"cluster_access":"not established"}' > "$(Build.ArtifactStagingDirectory)/alluxio-warp/diagnostics.json"
+            exit 0
+        fi
+        for namespace in alx-ns alluxio-operator; do
+            kubectl get pods -n "$namespace" -o json |
+                jq --arg namespace "$namespace" '{
+                    ($namespace): [.items[] | {
+                        name: .metadata.name, node: .spec.nodeName, phase: .status.phase,
+                        containers: [(.status.containerStatuses // []) + (.status.initContainerStatuses // []) | .[] |
+                            {name, ready, restarts: .restartCount,
+                             state: (.state | with_entries(.value |= {reason, exitCode}))}]
+                    }]
+                }' > "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/diagnostics-$namespace.json"
+        done
+        jq -s 'add' "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/diagnostics-alx-ns.json" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/diagnostics-alluxio-operator.json" \
+            > "$(Build.ArtifactStagingDirectory)/alluxio-warp/diagnostics.json"
     condition: always()
     displayName: Collect safe deployment diagnostics
     name: alluxio_diagnostics

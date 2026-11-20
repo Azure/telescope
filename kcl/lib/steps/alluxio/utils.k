@@ -10,7 +10,7 @@ umask 077
 mkdir -p -- "${workDir}" "${resultDir}"
 chmod 700 "${workDir}"
 export AZURE_CORE_ONLY_SHOW_ERRORS=true AZURE_CORE_OUTPUT=json
-export KUBECONFIG="${workDir}/kubeconfig"
+export KUBECONFIG="$HOME/.kube/config"
 # Avoid WebSocket stream closures during long-running AKS exec commands.
 export KUBECTL_REMOTE_COMMAND_WEBSOCKETS=false
 fail() {

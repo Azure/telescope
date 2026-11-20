@@ -1,17 +1,19 @@
 import azure_pipelines.ap.steps
+import lib.steps.azure
 
-CreateWarpClient = lambda manifest: str, workDir: str, resultDir: str -> steps.Bash {
-    steps.Bash {
-        name = "alluxio_warp_client"
-        displayName = "Create the dedicated Warp client"
-        bash = ShellSetup(workDir, resultDir) + """
+CreateWarpClient = lambda serviceConnection: str, manifest: str, workDir: str, resultDir: str -> steps.Step {
+    azure.AzCli(
+        serviceConnection
+        "Create the dedicated Warp client"
+        ShellSetup(workDir, resultDir) + """
 kubectl create --dry-run=server --validate=strict -f "${manifest}" > /dev/null
 kubectl create -f "${manifest}" > /dev/null
 kubectl wait -n alx-ns --for=condition=Ready pod/warp-client --timeout=600s
 kubectl exec -n alx-ns warp-client -c warp \\
     -- /tools/warp --version > "${resultDir}/warp-version.txt"
 """
-    }
+        stepName = "alluxio_warp_client"
+    )
 }
 
 WarpGetSetup = lambda phase: "cold-start" | "warm-cache", workDir: str, resultDir: str, checksDir: str -> str {
@@ -30,10 +32,11 @@ warp_get=(/tools/warp get "--host=$hosts" --bucket=blob --access-key=warp --secr
 """
 }
 
-RunColdWarpGet = lambda workDir: str, resultDir: str, checksDir: str -> steps.Bash {
-    steps.Bash {
-        displayName = "Run single-pass cold-start Warp GET"
-        bash = WarpGetSetup("cold-start", workDir, resultDir, checksDir) + """
+RunColdWarpGet = lambda serviceConnection: str, workDir: str, resultDir: str, checksDir: str -> steps.Step {
+    azure.AzCli(
+        serviceConnection
+        "Run single-pass cold-start Warp GET"
+        WarpGetSetup("cold-start", workDir, resultDir, checksDir) + """
 command -v zstd >/dev/null || fail "zstd is required to read the raw Warp operations"
 client_exec bash -eu -c '
     cd /results
@@ -59,16 +62,15 @@ client_exec cat /results/cold-start.csv.zst > "${resultDir}/cold-start.csv.zst"
 zstd -dc "${resultDir}/cold-start.csv.zst" |
     jq -Rse -L "${checksDir}" 'include "checks"; cold_warp_summary' > "${resultDir}/cold-start-summary.json"
 """
-        env = {
-            BLOB_SAS = "$(BLOB_SAS)"
-        }
-    }
+        env = {BLOB_SAS = "$(BLOB_SAS)"}
+    )
 }
 
-RunWarmWarpGet = lambda workDir: str, resultDir: str, checksDir: str -> steps.Bash {
-    steps.Bash {
-        displayName = "Run warm-cache Warp GET"
-        bash = WarpGetSetup("warm-cache", workDir, resultDir, checksDir) + """
+RunWarmWarpGet = lambda serviceConnection: str, workDir: str, resultDir: str, checksDir: str -> steps.Step {
+    azure.AzCli(
+        serviceConnection
+        "Run warm-cache Warp GET"
+        WarpGetSetup("warm-cache", workDir, resultDir, checksDir) + """
 start="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 status=0
 client_exec "\${warp_get[@]}" \\
@@ -91,17 +93,15 @@ jq -e -L "${checksDir}" \\
 counts="$(cache_report after-warm)"
 [[ "$(jq -r '.all' <<< "$counts")" == 16 ]] || fail "Dataset was not fully cached after the warm phase"
 """
-        env = {
-            BLOB_SAS = "$(BLOB_SAS)"
-        }
-    }
+        env = {BLOB_SAS = "$(BLOB_SAS)"}
+    )
 }
 
-PreloadAlluxioDataset = lambda workDir: str, resultDir: str, checksDir: str -> steps.Bash {
-    steps.Bash {
-        name = "alluxio_preload"
-        displayName = "Preload all 16 objects into the Alluxio cache"
-        bash = ShellSetup(workDir, resultDir) + AlluxioCommands(checksDir, resultDir) + """
+PreloadAlluxioDataset = lambda serviceConnection: str, workDir: str, resultDir: str, checksDir: str -> steps.Step {
+    azure.AzCli(
+        serviceConnection
+        "Preload all 16 objects into the Alluxio cache"
+        ShellSetup(workDir, resultDir) + AlluxioCommands(checksDir, resultDir) + """
 alluxio job load --path /blob --submit | redact > "${resultDir}/preload-submit.txt"
 deadline=$((SECONDS + 600))
 while :; do
@@ -119,8 +119,7 @@ while :; do
     sleep 10
 done
 """
-        env = {
-            BLOB_SAS = "$(BLOB_SAS)"
-        }
-    }
+        stepName = "alluxio_preload"
+        env = {BLOB_SAS = "$(BLOB_SAS)"}
+    )
 }

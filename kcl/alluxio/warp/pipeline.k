@@ -34,6 +34,10 @@ output = ap.Pipeline {
         steps = [
             common.SetRunId()
             k8s.InstallHelm()
+            steps.Task {
+                task = "KubeloginInstaller@0"
+                displayName = "Install kubelogin"
+            }
             alluxio.RecordRunConfiguration(
                 const.DEFAULT_SERVICE_CONNECTION
                 ACR_RESOURCE_ID
@@ -71,6 +75,9 @@ az aks create \\
   --network-plugin azure \\
   --network-plugin-mode overlay \\
   --enable-managed-identity \\
+  --enable-aad \\
+  --enable-azure-rbac \\
+  --disable-local-accounts \\
   --no-ssh-key \\
   --tier standard \\
   --yes
@@ -106,7 +113,11 @@ az aks create \\
                 CLUSTER
                 RESOURCE_GROUP
                 const.DEFAULT_SUBSCRIPTION_ID
-                file = "${WORK_DIR}/kubeconfig"
+            )
+            azure.AzCli(
+                const.DEFAULT_SERVICE_CONNECTION
+                "Convert kubeconfig to Entra ID login"
+                'kubelogin convert-kubeconfig -l azurecli'
             )
             alluxio.ConfigureImagePullAccess(
                 const.DEFAULT_SERVICE_CONNECTION
@@ -136,6 +147,7 @@ az aks create \\
                 RESULT_DIR
             )
             alluxio.CreateAlluxioCluster(
+                const.DEFAULT_SERVICE_CONNECTION
                 ALLUXIO_IMAGE_REPOSITORY
                 "${CHECKS_DIR}/cluster.yaml"
                 "${CHECKS_DIR}/license.yaml"
@@ -143,38 +155,42 @@ az aks create \\
                 RESULT_DIR
             )
             alluxio.MountBlobStorage(
+                const.DEFAULT_SERVICE_CONNECTION
                 STORAGE_ACCOUNT
                 "${CHECKS_DIR}/ufs.yaml"
                 WORK_DIR
                 RESULT_DIR
             )
             alluxio.CreateWarpClient(
+                const.DEFAULT_SERVICE_CONNECTION
                 "${CHECKS_DIR}/client.yaml"
                 WORK_DIR
                 RESULT_DIR
             )
             common.RecordCurrentTime("BENCHMARK_START_TIME")
             alluxio.RunColdWarpGet(
+                const.DEFAULT_SERVICE_CONNECTION
                 WORK_DIR
                 RESULT_DIR
                 CHECKS_DIR
             )
             alluxio.PreloadAlluxioDataset(
+                const.DEFAULT_SERVICE_CONNECTION
                 WORK_DIR
                 RESULT_DIR
                 CHECKS_DIR
             )
             alluxio.RunWarmWarpGet(
+                const.DEFAULT_SERVICE_CONNECTION
                 WORK_DIR
                 RESULT_DIR
                 CHECKS_DIR
             )
             common.RecordCurrentTime("BENCHMARK_END_TIME")
-            steps.Bash {
-                name = "alluxio_diagnostics"
-                displayName = "Collect safe deployment diagnostics"
-                condition = "always()"
-                bash = alluxio.ShellSetup(WORK_DIR, RESULT_DIR) + """
+            azure.AzCli(
+                const.DEFAULT_SERVICE_CONNECTION
+                "Collect safe deployment diagnostics"
+                alluxio.ShellSetup(WORK_DIR, RESULT_DIR) + """
 if [[ ! -s "$KUBECONFIG" ]]; then
     echo '{"cluster_access":"not established"}' > "${RESULT_DIR}/diagnostics.json"
     exit 0
@@ -193,7 +209,9 @@ done
 jq -s 'add' "${WORK_DIR}/diagnostics-alx-ns.json" "${WORK_DIR}/diagnostics-alluxio-operator.json" \\
     > "${RESULT_DIR}/diagnostics.json"
 """
-            }
+                condition = "always()"
+                stepName = "alluxio_diagnostics"
+            )
             steps.Task {
                 task = "PublishPipelineArtifact@1"
                 displayName = "Publish Warp results and diagnostics"
