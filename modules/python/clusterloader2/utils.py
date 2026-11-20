@@ -2,9 +2,7 @@ from xml.dom import minidom
 import json
 import os
 import shlex
-import docker
-from clients.docker_client import DockerClient
-from clusterloader2.incluster import run_cl2_job
+from clusterloader2.in_cluster import run_cl2_job
 from utils.logger_config import get_logger, setup_logging
 
 setup_logging()
@@ -44,41 +42,8 @@ def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provi
     if overrides:
         command += " --testoverrides=/root/perf-tests/clusterloader2/config/overrides.yaml"
 
-    if provider == "aks":
-        return run_cl2_job(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir,
-                           shlex.split(command) + ["--run-from-cluster=true"])
-
-    command += " --kubeconfig /root/.kube/config"
-    docker_client = DockerClient()
-    volumes = {
-        kubeconfig: {'bind': '/root/.kube/config', 'mode': 'rw'},
-        cl2_config_dir: {'bind': '/root/perf-tests/clusterloader2/config', 'mode': 'rw'},
-        cl2_report_dir: {
-            'bind': '/root/perf-tests/clusterloader2/results', 'mode': 'rw'}
-    }
-
-    if provider == "aws":
-        aws_path = os.path.expanduser("~/.aws/credentials")
-        volumes[aws_path] = {'bind': '/root/.aws/credentials', 'mode': 'rw'}
-
-    logger.info(
-        f"Running clusterloader2 with command: {command} and volumes: {volumes}")
-    try:
-        container = docker_client.run_container(
-            cl2_image, command, volumes, detach=True)
-        for log in container.logs(stream=True):
-            log_line = log.decode('utf-8').rstrip('\n')
-            if log_line:
-                logger.info(log_line)
-        result = container.wait()
-        exit_code = result['StatusCode']
-        if exit_code != 0:
-            logger.error(
-                f"clusterloader2 exited with a non-zero status code {exit_code}. Make sure to check the logs to confirm whether the error is expected!")
-    except docker.errors.ContainerError as e:
-        logger.error(
-            f"Container exited with a non-zero status code: {e.exit_status}\n{e.stderr.decode('utf-8')}")
-    return None
+    return run_cl2_job(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir,
+                       shlex.split(command) + ["--run-from-cluster=true"])
 
 
 def get_measurement(file_path):

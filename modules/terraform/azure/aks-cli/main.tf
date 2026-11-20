@@ -149,11 +149,11 @@ locals {
   aad_parameter = (
     var.aks_aad_enabled == true ?
     format(
-      "--enable-aad --enable-azure-rbac --aad-admin-group-object-ids %s --aad-tenant-id %s",
+      "--enable-aad --enable-azure-rbac --aad-admin-group-object-ids %s --aad-tenant-id %s --disable-local-accounts",
       data.azurerm_client_config.current.object_id,
       data.azurerm_client_config.current.tenant_id
     )
-    : ""
+    : "--disable-local-accounts"
   )
 
   custom_configurations = (
@@ -197,7 +197,6 @@ locals {
     local.kubelet_identity_parameter,
     local.api_server_vnet_integration_parameter,
     local.aad_parameter,
-    "--disable-local-accounts",
   ], local.default_node_pool_parameters))
 
   aks_cli_destroy_command = join(" ", [

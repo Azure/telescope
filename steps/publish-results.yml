@@ -34,7 +34,7 @@ steps:
     credential_type: ${{ parameters.credential_type }}
     cloud: ${{ parameters.cloud }}
 
-- ${{ if and(eq(parameters.cloud, 'azure'), eq(parameters.engine, 'clusterloader2')) }}:
+- ${{ if eq(parameters.engine, 'clusterloader2') }}:
   - bash: |
       set -euo pipefail
       status=0
@@ -54,4 +54,3 @@ steps:
       if [[ "$found" == false ]]; then echo "CL2 Job exit status missing" >&2; exit 1; fi
       exit "$status"
     displayName: "Return CL2 Job exit status after collection"
-    condition: always()

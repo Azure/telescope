@@ -1,9 +1,21 @@
 import base64
+from functools import partial
 import json
 from pathlib import Path
 import subprocess
 import time
 import uuid
+
+
+def _kubectl(kubeconfig, namespace, *args, check=True, stdout=subprocess.PIPE, stdin=None):
+    # A command can span multiple 30s API requests (e.g. wait for 90s or copy reports).
+    result = subprocess.run(
+        ["kubectl", "--kubeconfig", kubeconfig, "--request-timeout=30s", "-n", namespace, *args],
+        input=stdin, stdout=stdout, stderr=subprocess.PIPE, timeout=120, check=False,
+    )
+    if check and result.returncode:
+        raise RuntimeError(f"kubectl {' '.join(args)}: {result.stderr.decode(errors='replace')}")
+    return result
 
 
 def run_cl2_job(kubeconfig, image, config_dir, report_dir, arguments):
@@ -15,25 +27,23 @@ def run_cl2_job(kubeconfig, image, config_dir, report_dir, arguments):
     status_file.write_text("1", encoding="ascii")
     exit_code, pod, created = 1, None, False
 
-    def kubectl(*args, check=True, stdout=subprocess.PIPE, stdin=None):
-        result = subprocess.run(
-            ["kubectl", "--kubeconfig", kubeconfig, "--request-timeout=30s", "-n", name, *args],
-            input=stdin, stdout=stdout, stderr=subprocess.PIPE, timeout=120, check=False,
-        )
-        if check and result.returncode:
-            raise RuntimeError(f"kubectl {' '.join(args)}: {result.stderr.decode(errors='replace')}")
-        return result
-
-    files, items, size = {}, [], 0
+    kubectl = partial(_kubectl, kubeconfig, name)
+    config_maps, sources = [], []
     for path in sorted(Path(config_dir).rglob("*")):
         if path.is_file():
             content = path.read_bytes()
-            size += len(content)
-            key = f"file-{len(files)}"
-            files[key] = base64.b64encode(content).decode("ascii")
-            items.append({"key": key, "path": path.relative_to(config_dir).as_posix()})
-    if not files or size > 1048576:
-        raise ValueError("CL2 configuration must be nonempty and fit in a 1 MiB ConfigMap")
+            if len(content) > 1048576:
+                raise ValueError(f"CL2 config file exceeds the ConfigMap 1 MiB limit: {path}")
+            config_name = f"{name}-config-{len(config_maps)}"
+            config_maps.append({
+                "apiVersion": "v1", "kind": "ConfigMap", "metadata": {"name": config_name},
+                "binaryData": {"config": base64.b64encode(content).decode("ascii")},
+            })
+            sources.append({"configMap": {"name": config_name, "items": [
+                {"key": "config", "path": path.relative_to(config_dir).as_posix()},
+            ]}})
+    if not config_maps:
+        raise ValueError("CL2 configuration must be nonempty")
 
     timeout = 86400
     root = "/root/perf-tests/clusterloader2"
@@ -49,7 +59,7 @@ def run_cl2_job(kubeconfig, image, config_dir, report_dir, arguments):
          "metadata": {"name": name},
          "roleRef": {"apiGroup": "rbac.authorization.k8s.io", "kind": "ClusterRole", "name": name},
          "subjects": [{"kind": "ServiceAccount", "name": name, "namespace": name}]},
-        {"apiVersion": "v1", "kind": "ConfigMap", "metadata": {"name": name}, "binaryData": files},
+        *config_maps,
         {"apiVersion": "batch/v1", "kind": "Job", "metadata": {"name": name}, "spec": {
             "backoffLimit": 0, "activeDeadlineSeconds": timeout + 600,
             "template": {"spec": {
@@ -80,7 +90,7 @@ exit 124
                     ],
                 }],
                 "volumes": [
-                    {"name": "config", "configMap": {"name": name, "items": items}},
+                    {"name": "config", "projected": {"sources": sources}},
                     {"name": "reports", "emptyDir": {}}, {"name": "control", "emptyDir": {}},
                 ],
             }},
