@@ -55,7 +55,7 @@ def run_cl2_job(kubeconfig, image, config_dir, report_dir, arguments):
 
     timeout = 86400
     root = "/root/perf-tests/clusterloader2"
-    script = '''./clusterloader2 "$@"
+    run_and_collect_script = '''./clusterloader2 "$@"
 rc=$?
 printf '%s\\n' "$rc" > /cl2-control/exit-code.tmp
 mv /cl2-control/exit-code.tmp /cl2-control/exit-code || exit 1
@@ -121,7 +121,7 @@ exit 124
                             "name": "cl2",
                             "image": image,
                             "command": ["/bin/sh", "-c"],
-                            "args": [script, "cl2", *arguments],
+                            "args": [run_and_collect_script, "cl2", *arguments],
                             "resources": {
                                 "requests": {
                                     "cpu": "1",
