@@ -29,6 +29,9 @@ az aks create \\
     --dns-name-prefix "${RESOLVED_CLUSTER}-dns" \\
     --tier standard \\
     --enable-managed-identity \\
+    --enable-aad \\
+    --enable-azure-rbac \\
+    --disable-local-accounts \\
     --generate-ssh-keys \\
     --nodepool-name systempool \\
     --node-count 3 \\
@@ -47,6 +50,11 @@ az aks create \\
 """
 
 makeIngestionJob = lambda jobName: str, displayName: str, dataType: str, namespace: str, totalGiB: str -> job.Job {
+    ingestStep = kperf.RunKperfDataIngest(
+        dataType=dataType,
+        namespace=namespace,
+        name="$(System.JobId)",
+        totalGiB=totalGiB)
     job.Job {
         job = jobName
         displayName = displayName
@@ -58,17 +66,25 @@ makeIngestionJob = lambda jobName: str, displayName: str, dataType: str, namespa
             RESOURCE_GROUP = "$[ dependencies.setup.outputs['resolve.RESOURCE_GROUP'] ]"
         }
         steps = [
+            steps.Task {
+                task = "KubeloginInstaller@0"
+                displayName = "Install kubelogin"
+            },
             azure.GetCredentials(
                 const.DEFAULT_SERVICE_CONNECTION,
                 "$(CLUSTER)",
                 "$(RESOURCE_GROUP)",
                 SUBSCRIPTION_ID),
+            azure.AzCli(
+                const.DEFAULT_SERVICE_CONNECTION,
+                "Convert kubeconfig to Entra ID login",
+                "kubelogin convert-kubeconfig -l azurecli"),
             kperf.InstallRunkperf(RUNNER_IMAGE),
-            kperf.RunKperfDataIngest(
-                dataType=dataType,
-                namespace=namespace,
-                name="$(System.JobId)",
-                totalGiB=totalGiB),
+            azure.AzCli(
+                const.DEFAULT_SERVICE_CONNECTION,
+                ingestStep.displayName,
+                ingestStep.script,
+                condition=ingestStep.condition),
         ]
     }
 }
