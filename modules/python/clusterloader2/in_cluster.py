@@ -36,39 +36,26 @@ def run_cl2_job(kubeconfig, image, config_dir, report_dir, arguments):
                 raise ValueError(f"CL2 config file exceeds the ConfigMap 1 MiB limit: {path}")
             config_name = f"{name}-config-{len(config_maps)}"
             config_maps.append({
-                "apiVersion": "v1", "kind": "ConfigMap", "metadata": {"name": config_name},
+                "apiVersion": "v1",
+                "kind": "ConfigMap",
+                "metadata": {"name": config_name},
                 "binaryData": {"config": base64.b64encode(content).decode("ascii")},
             })
-            sources.append({"configMap": {"name": config_name, "items": [
-                {"key": "config", "path": path.relative_to(config_dir).as_posix()},
-            ]}})
+            sources.append({
+                "configMap": {
+                    "name": config_name,
+                    "items": [{
+                        "key": "config",
+                        "path": path.relative_to(config_dir).as_posix(),
+                    }],
+                },
+            })
     if not config_maps:
         raise ValueError("CL2 configuration must be nonempty")
 
     timeout = 86400
     root = "/root/perf-tests/clusterloader2"
-    resources = [
-        {"apiVersion": "v1", "kind": "ServiceAccount", "metadata": {"name": name}},
-        # CL2 installs CRDs and Prometheus RBAC across this disposable test cluster.
-        {"apiVersion": "rbac.authorization.k8s.io/v1", "kind": "ClusterRole",
-         "metadata": {"name": name}, "rules": [
-             {"apiGroups": ["*"], "resources": ["*"], "verbs": ["*"]},
-             {"nonResourceURLs": ["/metrics"], "verbs": ["get"]},
-         ]},
-        {"apiVersion": "rbac.authorization.k8s.io/v1", "kind": "ClusterRoleBinding",
-         "metadata": {"name": name},
-         "roleRef": {"apiGroup": "rbac.authorization.k8s.io", "kind": "ClusterRole", "name": name},
-         "subjects": [{"kind": "ServiceAccount", "name": name, "namespace": name}]},
-        *config_maps,
-        {"apiVersion": "batch/v1", "kind": "Job", "metadata": {"name": name}, "spec": {
-            "backoffLimit": 0, "activeDeadlineSeconds": timeout + 600,
-            "template": {"spec": {
-                "serviceAccountName": name, "restartPolicy": "Never",
-                "nodeSelector": {"kubernetes.io/os": "linux"},
-                "containers": [{
-                    "name": "cl2", "image": image,
-                    "command": ["/bin/sh", "-c"],
-                    "args": ['''./clusterloader2 "$@"
+    script = '''./clusterloader2 "$@"
 rc=$?
 printf '%s\\n' "$rc" > /cl2-control/exit-code.tmp
 mv /cl2-control/exit-code.tmp /cl2-control/exit-code || exit 1
@@ -78,29 +65,113 @@ for i in $(seq 1 300); do
 done
 echo "Report collection timed out" >&2
 exit 124
-''', "cl2", *arguments],
-                    "resources": {"requests": {
-                        "cpu": "1",
-                        "memory": "2Gi",
-                    }},
-                    "volumeMounts": [
-                        {"name": "config", "mountPath": f"{root}/config", "readOnly": True},
-                        {"name": "reports", "mountPath": f"{root}/results"},
-                        {"name": "control", "mountPath": "/cl2-control"},
-                    ],
-                }],
-                "volumes": [
-                    {"name": "config", "projected": {"sources": sources}},
-                    {"name": "reports", "emptyDir": {}}, {"name": "control", "emptyDir": {}},
-                ],
-            }},
-        }},
+'''
+    resources = [
+        {
+            "apiVersion": "v1",
+            "kind": "ServiceAccount",
+            "metadata": {"name": name},
+        },
+        # CL2 installs CRDs and Prometheus RBAC across this disposable test cluster.
+        {
+            "apiVersion": "rbac.authorization.k8s.io/v1",
+            "kind": "ClusterRole",
+            "metadata": {"name": name},
+            "rules": [
+                {
+                    "apiGroups": ["*"],
+                    "resources": ["*"],
+                    "verbs": ["*"],
+                },
+                {
+                    "nonResourceURLs": ["/metrics"],
+                    "verbs": ["get"],
+                },
+            ],
+        },
+        {
+            "apiVersion": "rbac.authorization.k8s.io/v1",
+            "kind": "ClusterRoleBinding",
+            "metadata": {"name": name},
+            "roleRef": {
+                "apiGroup": "rbac.authorization.k8s.io",
+                "kind": "ClusterRole",
+                "name": name,
+            },
+            "subjects": [{
+                "kind": "ServiceAccount",
+                "name": name,
+                "namespace": name,
+            }],
+        },
+        *config_maps,
+        {
+            "apiVersion": "batch/v1",
+            "kind": "Job",
+            "metadata": {"name": name},
+            "spec": {
+                "backoffLimit": 0,
+                "activeDeadlineSeconds": timeout + 600,
+                "template": {
+                    "spec": {
+                        "serviceAccountName": name,
+                        "restartPolicy": "Never",
+                        "nodeSelector": {"kubernetes.io/os": "linux"},
+                        "containers": [{
+                            "name": "cl2",
+                            "image": image,
+                            "command": ["/bin/sh", "-c"],
+                            "args": [script, "cl2", *arguments],
+                            "resources": {
+                                "requests": {
+                                    "cpu": "1",
+                                    "memory": "2Gi",
+                                },
+                            },
+                            "volumeMounts": [
+                                {
+                                    "name": "config",
+                                    "mountPath": f"{root}/config",
+                                    "readOnly": True,
+                                },
+                                {
+                                    "name": "reports",
+                                    "mountPath": f"{root}/results",
+                                },
+                                {
+                                    "name": "control",
+                                    "mountPath": "/cl2-control",
+                                },
+                            ],
+                        }],
+                        "volumes": [
+                            {
+                                "name": "config",
+                                "projected": {"sources": sources},
+                            },
+                            {
+                                "name": "reports",
+                                "emptyDir": {},
+                            },
+                            {
+                                "name": "control",
+                                "emptyDir": {},
+                            },
+                        ],
+                    },
+                },
+            },
+        },
     ]
     try:
         kubectl("create", "namespace", name)
         created = True
         kubectl("create", "-f", "-", stdin=json.dumps(
-            {"apiVersion": "v1", "kind": "List", "items": resources}).encode())
+            {
+                "apiVersion": "v1",
+                "kind": "List",
+                "items": resources,
+            }).encode())
         deadline = time.monotonic() + timeout
         startup_deadline = time.monotonic() + 300
         started = False
