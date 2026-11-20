@@ -32,9 +32,9 @@ stages:
         image: ghcr.io/azure/clusterloader2:v20250423
       topology: csi-autoscale
       matrix:
-        disk_limit_autoscale_1000_nodes:
-          node_count: 1000
-          scale_up_timeout_seconds: 10800
+        disk_limit_autoscale_3000_nodes:
+          node_count: 3000
+          scale_up_timeout_seconds: 14400
           scale_down_timeout_seconds: 21600
           storage_cleanup_timeout: 360
           storage_class: managed-csi
