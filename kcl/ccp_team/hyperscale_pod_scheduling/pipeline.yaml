@@ -27,6 +27,8 @@ stages:
         pip3 install --upgrade "pip<24"
         pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
       displayName: Install Python dependencies
+    - task: KubeloginInstaller@0
+      displayName: Install kubelogin
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -75,6 +77,8 @@ stages:
               },
               \"properties\": {
                 \"controlPlaneScalingProfile\": {\"scalingSize\": \"H2\"},
+                \"aadProfile\": {\"managed\": true, \"enableAzureRBAC\": true},
+                \"disableLocalAccounts\": true,
                 \"kubernetesVersion\": \"1.36\",
                 \"dnsPrefix\": \"stg-H2-hyperscale-pod-scheduling-rate-dns\",
                 \"agentPoolProfiles\": [
@@ -191,6 +195,15 @@ stages:
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --overwrite-existing
       displayName: Get credentials for stg-H2-hyperscale-pod-scheduling-rate
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |-
+          set -exo pipefail
+          kubelogin convert-kubeconfig -l azurecli
+      displayName: Convert kubeconfig to Entra ID login
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -381,6 +394,8 @@ stages:
         pip3 install --upgrade "pip<24"
         pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
       displayName: Install Python dependencies
+    - task: KubeloginInstaller@0
+      displayName: Install kubelogin
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -429,6 +444,8 @@ stages:
               },
               \"properties\": {
                 \"controlPlaneScalingProfile\": {\"scalingSize\": \"H4\"},
+                \"aadProfile\": {\"managed\": true, \"enableAzureRBAC\": true},
+                \"disableLocalAccounts\": true,
                 \"kubernetesVersion\": \"1.36\",
                 \"dnsPrefix\": \"stg-H4-hyperscale-pod-scheduling-rate-dns\",
                 \"agentPoolProfiles\": [
@@ -545,6 +562,15 @@ stages:
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --overwrite-existing
       displayName: Get credentials for stg-H4-hyperscale-pod-scheduling-rate
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |-
+          set -exo pipefail
+          kubelogin convert-kubeconfig -l azurecli
+      displayName: Convert kubeconfig to Entra ID login
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -735,6 +761,8 @@ stages:
         pip3 install --upgrade "pip<24"
         pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
       displayName: Install Python dependencies
+    - task: KubeloginInstaller@0
+      displayName: Install kubelogin
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -783,6 +811,8 @@ stages:
               },
               \"properties\": {
                 \"controlPlaneScalingProfile\": {\"scalingSize\": \"H8\"},
+                \"aadProfile\": {\"managed\": true, \"enableAzureRBAC\": true},
+                \"disableLocalAccounts\": true,
                 \"kubernetesVersion\": \"1.36\",
                 \"dnsPrefix\": \"stg-H8-hyperscale-pod-scheduling-rate-dns\",
                 \"agentPoolProfiles\": [
@@ -899,6 +929,15 @@ stages:
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --overwrite-existing
       displayName: Get credentials for stg-H8-hyperscale-pod-scheduling-rate
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |-
+          set -exo pipefail
+          kubelogin convert-kubeconfig -l azurecli
+      displayName: Convert kubeconfig to Entra ID login
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
