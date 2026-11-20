@@ -8,9 +8,9 @@ distinct dynamically provisioned Azure Disk, requests 4 GiB, and becomes Ready
 only after reading back its own data from the mounted disk. Small CPU/memory
 requests keep the intended constraint on disk attachments, not CPU packing.
 
-The benchmark and manual qualification pipeline target **exactly 1,000 workload
-nodes**, plus five fixed system nodes, for **1,005 total nodes** in `westus2`.
-At four disks per workload node this requires **4,000 workload pods and disks**.
+The benchmark and manual qualification pipeline target **exactly 3,000 workload
+nodes**, plus five fixed system nodes, for **3,005 total nodes** in `westus2`.
+At four disks per workload node this requires **12,000 workload pods and disks**.
 Smaller manual tests can specify
 a lower node-count target.
 
@@ -43,8 +43,8 @@ For the expected limit of four disks per workload node:
 2. Read the live CSI disk limit. Submit the first ramp batch immediately after
    bootstrap. For each batch, draw a fresh random
    integer from 400 through 1,000 (inclusive) and add that many pods to the current
-   replica count. Cap the final batch at `1000 * live disk limit` total pods
-   (4,000 for a limit of four); it may add fewer than 400.
+   replica count. Cap the final batch at `3000 * live disk limit` total pods
+   (12,000 for a limit of four); it may add fewer than 400.
 3. Compute expected workload nodes as `ceil(total pods / live disk limit)`.
    A batch may fit existing nodes or require several new nodes.
 4. During the ramp, require a newly requested pod's `FailedScheduling` event
@@ -54,15 +54,15 @@ For the expected limit of four disks per workload node:
 5. Submit another batch every **15 minutes**, measured from the preceding
    replica-change request, regardless of earlier pod readiness. Early readiness
    does not shorten the interval. Keep observing all batches while waiting.
-6. Stop submitting at the final replica target. Require exactly 1,000 Ready
-   workload nodes and 4,000 Running, Ready pods, with full disk density and
+6. Stop submitting at the final replica target. Require exactly 3,000 Ready
+   workload nodes and 12,000 Running, Ready pods, with full disk density and
    valid storage attachments. Intermediate batch node counts are targets, not
    isolated topology checks, because batches overlap.
 
 For example, random increments 400, 800, 1,000 produce pod totals
 `1 -> 401 -> 1201 -> 2201` and workload node targets `1 -> 101 -> 301 -> 551`.
 The number of stages varies per run.
-The final cluster has 1,005 nodes including the five
+The final cluster has 3,005 nodes including the five
 system nodes. No HPA is needed: the runner changes workload replicas, while
 the real AKS Cluster Autoscaler changes node counts.
 
@@ -92,10 +92,10 @@ scale-down each allow six hours, within a 48-hour job budget. Resources have a
 finish: provisioning, timed batches, validation, and cleanup all consume time.
 
 Before enabling the schedule, verify regional VM/vCPU and disk quotas, capacity,
-networking, agent job-duration limits, and cost approval for 4,000 workload
-disks and 1,005 cluster nodes. The disk limit is discovered at runtime; the
-workload-node target stays at 1,000, while the final pod/disk target is
-`1000 * live disk limit`. Each workload pool may scale up to 1,000 nodes, allowing
+networking, agent job-duration limits, and cost approval for 12,000 workload
+disks and 3,005 cluster nodes. The disk limit is discovered at runtime; the
+workload-node target stays at 3,000, while the final pod/disk target is
+`3000 * live disk limit`. Each workload pool may scale up to 1,000 nodes, allowing
 uneven pool sizes without changing the benchmark target. These per-pool caps do
 not enforce a cluster-wide workload-node maximum or guarantee even distribution.
 Do not fill all five pools: 5,000 workload nodes plus the system nodes would
@@ -107,14 +107,14 @@ read request per pod.
 
 ### Capacity prerequisites
 
-- Workload compute requires 2,000 DDSv5 vCPUs; the five system nodes require
-  another 40, for **2,040 DDSv5/regional vCPUs** before other workloads or surge.
+- Workload compute requires 6,000 DDSv5 vCPUs; the five system nodes require
+  another 40, for **6,040 DDSv5/regional vCPUs** before other workloads or surge.
   Verify West US 2 DDSv5-family and regional quotas before each run:
   quota is not a reservation or a guarantee of physical capacity.
 - The overlay pod CIDR `10.128.0.0/11` contains 8,192 per-node `/24` blocks,
-  enough for 1,005 nodes. The node subnet must separately have at least 1,005
+  enough for 3,005 nodes. The node subnet must separately have at least 3,005
   usable addresses, plus operational headroom.
-- Plan for 4,000 workload data disks and 1,005 managed OS disks. Verify disk
+- Plan for 12,000 workload data disks and 3,005 managed OS disks. Verify disk
   quotas, storage-class disk type, provisioning throughput, and cleanup time.
 - Both pipelines enable Microsoft Entra ID integration with `AAD_ENABLED: 'true'`.
   The scenario opts into a cluster-scoped Azure Kubernetes Service RBAC Cluster
@@ -227,7 +227,7 @@ are also collected. Structured results use the `disk_boundary` autoscale type.
 
 Manually queue [the validation pipeline](../../../pipelines/system/new-pipeline-test.yml)
 or [the CSI pipeline](../../../pipelines/perf-eval/CSI%20Benchmark/csi-autoscale-5k.yml).
-Both request `node_count: 1000`, passed to the runner as `--node-count 1000`.
+Both request `node_count: 3000`, passed to the runner as `--node-count 3000`.
 The runner accepts only node-based targets; omitting `--node-count` retains
 the default ten-node test. The final pod count is the node target multiplied
 by the live CSI disk limit.
