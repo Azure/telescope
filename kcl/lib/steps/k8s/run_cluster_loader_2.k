@@ -43,7 +43,7 @@ while true; do
     done <<< "$phases"
   fi
 
-  if [ "$total" -gt 0 ] && [ "$terminal" -eq "$total" ]; then
+  if [ "$terminal" -eq "$total" ]; then
     echo "All cl2 pods reached terminal state (Succeeded or Failed)"
     kubectl get pods --namespace="${namespace}" -l job-name=cl2 -o wide
 
