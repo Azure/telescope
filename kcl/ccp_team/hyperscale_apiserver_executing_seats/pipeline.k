@@ -38,7 +38,7 @@ CL2_CONFIGS: {str: Cl2Config} = {
         nodeCount = 8
         driverCount = 8
         memoryRequest = "32Gi"
-        qps = 700
+        qps = 350
         burst = 100
         podsPerNode = 30
     }
