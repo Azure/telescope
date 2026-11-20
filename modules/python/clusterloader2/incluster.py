@@ -15,10 +15,10 @@ def run_cl2_job(kubeconfig, image, config_dir, report_dir, arguments):
     status_file.write_text("1", encoding="ascii")
     exit_code, pod, created = 1, None, False
 
-    def kubectl(*args, check=True, stdout=subprocess.PIPE, input=None):
+    def kubectl(*args, check=True, stdout=subprocess.PIPE, stdin=None):
         result = subprocess.run(
             ["kubectl", "--kubeconfig", kubeconfig, "--request-timeout=30s", "-n", name, *args],
-            input=input, stdout=stdout, stderr=subprocess.PIPE, timeout=120, check=False,
+            input=stdin, stdout=stdout, stderr=subprocess.PIPE, timeout=120, check=False,
         )
         if check and result.returncode:
             raise RuntimeError(f"kubectl {' '.join(args)}: {result.stderr.decode(errors='replace')}")
@@ -89,7 +89,7 @@ exit 124
     try:
         kubectl("create", "namespace", name)
         created = True
-        kubectl("create", "-f", "-", input=json.dumps(
+        kubectl("create", "-f", "-", stdin=json.dumps(
             {"apiVersion": "v1", "kind": "List", "items": resources}).encode())
         deadline = time.monotonic() + timeout
         startup_deadline = time.monotonic() + 300
@@ -106,18 +106,20 @@ exit 124
                 if phase == "Running":
                     started = True
                     result = kubectl("exec", pod, "--", "cat", "/cl2-control/exit-code", check=False)
-                    if result.returncode == 0:
-                        code = int(result.stdout)
-                        if not 0 <= code <= 255:
-                            raise ValueError(f"Invalid CL2 exit code: {code}")
-                        kubectl("cp", f"{pod}:{root}/results/.", str(report_dir))
-                        if code == 0:
-                            kubectl("exec", pod, "--", "test", "-s", f"{root}/results/junit.xml")
-                        kubectl("exec", pod, "--", "touch", "/cl2-control/reports-collected")
-                        kubectl("wait", f"--for=jsonpath={{.status.containerStatuses[0].state.terminated.exitCode}}={code}",
-                                f"pod/{pod}", "--timeout=60s")
-                        exit_code = code
-                        break
+                    if result.returncode:
+                        time.sleep(5)
+                        continue
+                    code = int(result.stdout)
+                    if not 0 <= code <= 255:
+                        raise ValueError(f"Invalid CL2 exit code: {code}")
+                    kubectl("cp", f"{pod}:{root}/results/.", str(report_dir))
+                    if code == 0:
+                        kubectl("exec", pod, "--", "test", "-s", f"{root}/results/junit.xml")
+                    kubectl("exec", pod, "--", "touch", "/cl2-control/reports-collected")
+                    kubectl("wait", f"--for=jsonpath={{.status.containerStatuses[0].state.terminated.exitCode}}={code}",
+                            f"pod/{pod}", "--timeout=60s")
+                    exit_code = code
+                    break
             elif pod:
                 raise RuntimeError(f"CL2 Pod {pod} disappeared before report collection")
             if not started and time.monotonic() >= startup_deadline:
