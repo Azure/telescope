@@ -319,10 +319,10 @@ def main():
         description="KWOK: Kubernetes WithOut Kubelet - Virtual Node/Pod Simulator"
     )
     parser.add_argument(
-        "--no-print-node-yaml",
+        "--mute-node-creation",
         dest="print_node_yaml",
         action="store_false",
-        help="Do not print KWOK Node YAML during creation.",
+        help="Mute only the Node YAML during creation; other logs are unchanged.",
     )
     parser.add_argument(
         "--node-count",
