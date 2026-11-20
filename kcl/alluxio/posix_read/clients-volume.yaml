@@ -1,0 +1,38 @@
+# Template for the elbencho service pods. The pipeline creates one copy per client node, renaming it, and
+# replaces the ELBENCHO_IMAGE placeholder; the anti-affinity rule enforces one pod per node.
+# Data comes from the PVC posix-data (Blob CSI volume, mounted by BlobFuse2 on the node).
+apiVersion: v1
+kind: Pod
+metadata:
+  name: posix-client
+  namespace: alx-ns
+  labels: {app: posix-client}
+spec:
+  restartPolicy: Never
+  automountServiceAccountToken: false
+  # The elbencho image is staged in the Telescope registry; ConfigureImagePullAccess creates this Secret.
+  imagePullSecrets: [{name: alluxio-acr}]
+  nodeSelector: {agentpool: clientpool}
+  tolerations:
+    - {key: warp, operator: Equal, value: "true", effect: NoSchedule}
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector: {matchLabels: {app: posix-client}}
+          topologyKey: kubernetes.io/hostname
+  containers:
+    - name: elbencho
+      image: ELBENCHO_IMAGE
+      command: [elbencho, --service, --foreground]
+      # The 24Gi limit covers elbencho's per-thread buffers for the largest sweep and the page cache: the
+      # re-read scenario reads an 8 GiB file twice and the page cache is charged to the pod's memory cgroup,
+      # so with 8Gi the second read could not come from the cache. The limit also keeps a runaway thread
+      # count from starving the BlobFuse2 daemon on the same node.
+      resources:
+        requests: {cpu: "1", memory: 1Gi}
+        limits: {memory: 24Gi}
+      volumeMounts:
+        - {name: data, mountPath: /data, readOnly: true}
+  volumes:
+    - name: data
+      persistentVolumeClaim: {claimName: posix-data, readOnly: true}

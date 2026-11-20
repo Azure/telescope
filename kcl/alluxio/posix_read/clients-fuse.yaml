@@ -1,0 +1,37 @@
+# Same pod as clients-volume.yaml, but the data comes from the Alluxio FUSE mount that the DaemonSet
+# exposes on the host at /mnt/alluxio-fuse. HostToContainer propagation lets the pod see the mount even
+# when the FUSE daemon starts after the pod. A restart of the FUSE pods leaves the pod with a dead mount
+# ("Transport endpoint is not connected"), so the pod is recreated after one (SetAlluxioDirectIo).
+apiVersion: v1
+kind: Pod
+metadata:
+  name: posix-client
+  namespace: alx-ns
+  labels: {app: posix-client}
+spec:
+  restartPolicy: Never
+  automountServiceAccountToken: false
+  # The elbencho image is staged in the Telescope registry; ConfigureImagePullAccess creates this Secret.
+  imagePullSecrets: [{name: alluxio-acr}]
+  nodeSelector: {agentpool: clientpool}
+  tolerations:
+    - {key: warp, operator: Equal, value: "true", effect: NoSchedule}
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector: {matchLabels: {app: posix-client}}
+          topologyKey: kubernetes.io/hostname
+  containers:
+    - name: elbencho
+      image: ELBENCHO_IMAGE
+      command: [elbencho, --service, --foreground]
+      # See clients-volume.yaml for the 24Gi limit.
+      resources:
+        requests: {cpu: "1", memory: 1Gi}
+        limits: {memory: 24Gi}
+      volumeMounts:
+        - {name: data, mountPath: /data, mountPropagation: HostToContainer, readOnly: true}
+  volumes:
+    - name: data
+      # type Directory (not DirectoryOrCreate): a missing FUSE mount fails the pod instead of exposing an empty dir.
+      hostPath: {path: /mnt/alluxio-fuse, type: Directory}

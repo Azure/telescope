@@ -45,14 +45,14 @@ WARP_NODE_POOLS = RecordedNodePools {
 # RecordedBenchmark is the benchmark-specific part of configuration.json: the node pools, the
 # worker page-store sizes and the version of the load-generating client. Callers pass their own;
 # the default is the warp pipeline's record. clientVersionKey names the JSON field that holds
-# clientVersion (warp_version for warp, curl_version for the S3 read pipeline). clientImage, when set,
-# is the client's image in the Telescope registry; its digest is recorded with the Alluxio and operator
-# digests.
+# clientVersion (warp_version for warp, curl_version for the S3 read pipeline, elbencho_version for
+# the POSIX read pipeline). clientImage, when set, is the client's image in the Telescope registry; its
+# digest is recorded with the Alluxio and operator digests.
 schema RecordedBenchmark:
     nodePools: RecordedNodePools
     workerCache: str
     workerCacheReserved: str
-    clientVersionKey: "warp_version" | "curl_version"
+    clientVersionKey: "warp_version" | "curl_version" | "elbencho_version"
     clientVersion: str
     clientImage: str = ""
 
@@ -62,6 +62,55 @@ WARP_BENCHMARK = RecordedBenchmark {
     workerCacheReserved = "1Gi"
     clientVersionKey = "warp_version"
     clientVersion = "1.3.1"
+}
+
+# The POSIX read pipeline's record, whose node pools the pipeline also creates. The worker pool is the cache
+# pool of the Alluxio phase; the DACS phase creates a pool of the same size and SKU named DACS_NODE_POOL, with the
+# DACS label and without the taint, so configuration.json (which records sizes, not names) describes both.
+# The node counts shrink in a smoke run (posix_read.k).
+POSIX_BENCHMARK = RecordedBenchmark {
+    # Published per-VM network limits: D8s_v6 and D16ds_v6 are both 12,500 Mbps.
+    nodePools = RecordedNodePools {
+        # The system nodes run the cluster components, the Alluxio coordinator and etcd; 3 as in the warp
+        # pipeline on the same SKU.
+        support = RecordedNodePool {
+            pool = azure.NodePool {
+                name = "systempool"
+                sku = "Standard_D8s_v6"
+                count = POSIX_SYSTEM_COUNT
+            }
+            maxEgressMbpsPerVm = 12500
+        }
+        # D16ds_v6 has two 440 GiB local NVMe disks; Managed keeps AKS from taking one for an ephemeral OS
+        # disk. The taint keeps other pods off the Alluxio workers' nodes.
+        worker = RecordedNodePool {
+            pool = azure.NodePool {
+                name = "workerpool"
+                sku = "Standard_D16ds_v6"
+                count = POSIX_CACHE_COUNT
+                taintPrefix = "alluxio"
+                osDiskType = "Managed"
+            }
+            maxEgressMbpsPerVm = 12500
+        }
+        # One elbencho service pod per client node; the taint prefix matches the warp pipeline.
+        client = RecordedNodePool {
+            pool = azure.NodePool {
+                name = "clientpool"
+                sku = "Standard_D8s_v6"
+                count = POSIX_CLIENT_COUNT
+                taintPrefix = "warp"
+            }
+            maxEgressMbpsPerVm = 12500
+        }
+    }
+    # Must equal pagestore.size and pagestore.reservedSize in kcl/alluxio/posix_read/cluster.yaml.
+    workerCache = "396Gi"
+    workerCacheReserved = "1Gi"
+    clientVersionKey = "elbencho_version"
+    # The elbencho release and its image in the Telescope registry (the pipeline's ELBENCHO_IMAGE).
+    clientVersion = "3.0-37"
+    clientImage = "telescope.azurecr.io/elbencho:v3.0-37"
 }
 
 RecordRunConfiguration = lambda serviceConnection: str, registryName: str, registrySubscription: str, alluxioImage: str, operatorImage: str, operatorChart: str, subscription: str, resourceGroup: str, cluster: str, location: str, storageAccount: str, workDir: str, resultDir: str, benchmark: RecordedBenchmark = WARP_BENCHMARK -> steps.Step {
