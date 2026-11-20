@@ -9,7 +9,7 @@ only after reading back its own data from the mounted disk. Small CPU/memory
 requests keep the intended constraint on disk attachments, not CPU packing.
 
 The benchmark and manual qualification pipeline target **exactly 4,995 workload
-nodes**, plus five fixed system nodes, for **5,000 total nodes** in `swedencentral`.
+nodes**, plus five fixed system nodes, for **5,000 total nodes** in `eastus`.
 At four disks per workload node this requires **19,980 workload pods and disks**.
 Smaller manual tests can specify
 a lower node-count target.
@@ -20,12 +20,15 @@ the benchmark without first reducing the workload-node count.
 
 ## Infrastructure and workload
 
-- Five `Standard_D2s_v5` workload pools (2 vCPUs, 8 GiB, four data disks per VM),
+- Five `Standard_D2_v3` workload pools (2 vCPUs, 8 GiB, four data disks per VM),
   initially zero nodes, autoscaling min=0. The first four pools have a maximum
   of 1,000 each; the fifth has a maximum of 995. All share `cas=dedicated`.
-- Five fixed `Standard_D8s_v5` system nodes are excluded from test node counts.
+- Five fixed `Standard_D8_v3` system nodes are excluded from test node counts.
+- Dv3 VMs do not support Premium SSD data disks. Use Standard SSD/HDD storage,
+  not `managed-csi-premium`.
 - Pools do not pin availability zones. Check subscription-specific SKU
-  restrictions before adding zones.
+  restrictions before adding zones; East US zone 1 is restricted for the
+  checked subscription.
 - `max_pods=30` is a pod limit, not a disk attachment limit.
 - The node OS disk capacity is not explicitly set by this scenario.
 - `managed-csi` must use `disk.csi.azure.com`, `WaitForFirstConsumer`, and `Delete`.
@@ -85,9 +88,9 @@ once per completed stage rather than issuing one read request per pod.
 
 ### Capacity prerequisites
 
-- Workload compute requires 9,990 DSv5 vCPUs; the five system nodes require
-  another 40, for **10,030 DSv5/regional vCPUs** before other workloads or surge.
-  Verify Sweden Central DSv5-family and regional quotas before each run:
+- Workload compute requires 9,990 Dv3 vCPUs; the five system nodes require
+  another 40, for **10,030 Dv3/regional vCPUs** before other workloads or surge.
+  Verify East US Dv3-family and regional quotas before each run:
   quota is not a reservation or a guarantee of physical capacity.
 - The overlay pod CIDR `10.128.0.0/11` contains 8,192 per-node `/24` blocks,
   enough for 5,000 nodes. The node subnet must separately have at least 5,000

@@ -20,7 +20,7 @@ aks_config_list = [
       name                         = "system"
       node_count                   = 5
       auto_scaling_enabled         = false
-      vm_size                      = "Standard_D8s_v5"
+      vm_size                      = "Standard_D8_v3"
       os_disk_type                 = "Managed"
       only_critical_addons_enabled = true
       temporary_name_for_rotation  = "systemtmp"
@@ -32,7 +32,7 @@ aks_config_list = [
         min_count            = 0
         max_count            = 1000
         auto_scaling_enabled = true
-        vm_size              = "Standard_D2s_v5"
+        vm_size              = "Standard_D2_v3"
         max_pods             = 30
         node_labels          = { "cas" = "dedicated" }
       },
@@ -42,7 +42,7 @@ aks_config_list = [
         min_count            = 0
         max_count            = 1000
         auto_scaling_enabled = true
-        vm_size              = "Standard_D2s_v5"
+        vm_size              = "Standard_D2_v3"
         max_pods             = 30
         node_labels          = { "cas" = "dedicated" }
       },
@@ -52,7 +52,7 @@ aks_config_list = [
         min_count            = 0
         max_count            = 1000
         auto_scaling_enabled = true
-        vm_size              = "Standard_D2s_v5"
+        vm_size              = "Standard_D2_v3"
         max_pods             = 30
         node_labels          = { "cas" = "dedicated" }
       },
@@ -62,7 +62,7 @@ aks_config_list = [
         min_count            = 0
         max_count            = 1000
         auto_scaling_enabled = true
-        vm_size              = "Standard_D2s_v5"
+        vm_size              = "Standard_D2_v3"
         max_pods             = 30
         node_labels          = { "cas" = "dedicated" }
       },
@@ -72,7 +72,7 @@ aks_config_list = [
         min_count            = 0
         max_count            = 995
         auto_scaling_enabled = true
-        vm_size              = "Standard_D2s_v5"
+        vm_size              = "Standard_D2_v3"
         max_pods             = 30
         node_labels          = { "cas" = "dedicated" }
       }
