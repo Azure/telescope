@@ -1,13 +1,13 @@
 import azure_pipelines.ap.steps
+import lib.steps.azure
 
 # Wait for a named Kubernetes Job to reach a terminal condition, stream its
 # container logs, and emit diagnostics before returning.
 # Check terminal conditions once more when the waiting budget expires.
-WaitForK8sJobFinished = lambda namespace: str, jobName: str, timeoutSeconds: int = 7200, continueOnError: bool = False -> steps.Bash {
-    steps.Bash {
-        displayName = "Wait for k8s job to finish: ${jobName}"
-        continueOnError = continueOnError
-        bash = """
+# Set serviceConnection for Entra ID clusters, where kubelogin needs the Azure CLI login.
+WaitForK8sJobFinished = lambda namespace: str, jobName: str, timeoutSeconds: int = 7200, continueOnError: bool = False, serviceConnection: str = "" -> steps.Step {
+    displayName = "Wait for k8s job to finish: ${jobName}"
+    script = """
 set -euo pipefail
 
 if ! kubectl -n "${namespace}" get job "${jobName}" >/dev/null; then
@@ -61,5 +61,9 @@ if [ "$final" != "complete" ]; then
     exit 1
 fi
 """
+    azure.AzCli(serviceConnection, displayName, script, continueOnError=continueOnError) if serviceConnection else steps.Bash {
+        displayName = displayName
+        continueOnError = continueOnError
+        bash = script
     }
 }
