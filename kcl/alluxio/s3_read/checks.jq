@@ -76,11 +76,6 @@ def validate_all_cached:
     else error("All 1040 dataset files must be fully cached on all replicas")
     end;
 
-# az may print timeStamp as ...Z, ...+00:00 or with fractional seconds; fromdateiso8601 only takes the plain Z form.
-def azure_epoch: sub("\\+00:00$"; "Z") | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601;
-
-def minute_start: (. / 60 | floor) * 60;
-
 def median:
   sort as $sorted
   | ($sorted | length) as $count
@@ -100,7 +95,13 @@ def median:
 # is counted twice. The last group owns the buckets up to minute_start(latest end) + 60 s plus 3 trailing
 # minutes, because the final egress has nothing after it to bound it. A window with no data point carrying
 # a "total" is an error, never 0. Output: [{side, rep, blob_bytes}] sorted by side, rep.
+# The POSIX read checks import this module and call attribute_egress from their own functions. The jq of the
+# Azure CLI image (Azure Linux jq 1.7.1) aborts when a function reached that way calls another top-level
+# function of this module, so attribute_egress defines its helpers locally and calls only builtins.
 def attribute_egress:
+  # az may print timeStamp as ...Z, ...+00:00 or with fractional seconds; fromdateiso8601 only takes the plain Z form.
+  def azure_epoch: sub("\\+00:00$"; "Z") | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601;
+  def minute_start: (. / 60 | floor) * 60;
   [.metrics.value[0].timeseries[]?.data[]?
     | select(.total != null)
     | {at: (.timeStamp | azure_epoch), total: .total}] as $points
