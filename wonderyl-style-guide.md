@@ -33,14 +33,6 @@ Check whether an already-wrapped tool covers the need before adding a bespoke cl
 script. *(PR [#1316](https://github.com/Azure/telescope/pull/1316): "you can use kperf, right?"; PR [#1127](https://github.com/Azure/telescope/pull/1127): "You can use run id instead,
 there's a step for it.")*
 
-## Avoid conspiracies between functions
-
-Functions must not depend on hidden agreements. For example, if function A writes a file
-and function B reads it, hardcoding the same path inside both functions creates an invisible
-contract: readers must inspect both implementations to understand the data flow. Pass the
-path explicitly through their interfaces, or return an output that the caller passes to the
-consumer, so the dependency is visible at the call site.
-
 ---
 
 # Naming & Structure
@@ -160,6 +152,12 @@ Mutual exclusion, required-one-of, and contradictory pairs must be encoded as a 
 Constrain enumerated parameters with `kind: "deployment" | "job" | …`, and model structured
 data with a `schema` rather than a `{str:str}` map whose keys are undiscoverable.
 *(PR [#1234](https://github.com/Azure/telescope/pull/1234), [#1228](https://github.com/Azure/telescope/pull/1228))*
+
+## Don't conspire between two functions
+
+When one step writes a file and a later step reads it, a hardcoded path is an invisible
+contract. Take it as a parameter with a default. *(PR [#1184](https://github.com/Azure/telescope/pull/1184); kperf steps now take
+`resultPath` and `kubeconfig`)*
 
 ## Keep related manifests in one multi-document YAML file
 
