@@ -1,0 +1,40 @@
+# Blob CSI static volume used by the BlobFuse2 and DACS phases. The pipeline fills in containerName and
+# mountOptions (they differ per system and block size) and creates the Secret posix-sas beforehand with
+# `kubectl create secret generic`, so the SAS token never appears in an apply annotation.
+# The Secret must hold the keys azurestorageaccountname and azurestorageaccountsastoken; the driver takes
+# the storage account from the Secret, so volumeAttributes carries no storageAccount.
+# Secret keys and volume attributes follow the Blob CSI driver parameters:
+# https://github.com/kubernetes-sigs/blob-csi-driver/blob/master/docs/driver-parameters.md
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: posix-data
+spec:
+  # Capacity is required by the API but not enforced for Blob volumes.
+  capacity: {storage: 1Ti}
+  accessModes: [ReadOnlyMany]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  mountOptions: []
+  csi:
+    driver: blob.csi.azure.com
+    readOnly: true
+    # Only has to be unique among the cluster's volumes.
+    volumeHandle: posix-data
+    volumeAttributes:
+      protocol: fuse2
+      containerName: CONTAINER_NAME
+    nodeStageSecretRef:
+      name: posix-sas
+      namespace: alx-ns
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: posix-data
+  namespace: alx-ns
+spec:
+  accessModes: [ReadOnlyMany]
+  storageClassName: ""
+  volumeName: posix-data
+  resources: {requests: {storage: 1Ti}}

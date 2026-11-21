@@ -1,0 +1,72 @@
+# Formats the local NVMe temp disk of every workerpool node and mounts it at
+# /mnt/alluxio-nvme on the host, where the Alluxio worker keeps its page store.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: alluxio-nvme
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels: {app: alluxio-nvme}
+  template:
+    metadata:
+      labels: {app: alluxio-nvme}
+    spec:
+      nodeSelector: {agentpool: workerpool}
+      tolerations:
+        - {key: alluxio, operator: Equal, value: "true", effect: NoSchedule}
+      containers:
+        - name: prepare
+          image: debian:12.9-slim
+          securityContext:
+            privileged: true
+          command: [bash, -c]
+          args:
+            - |
+              set -Eeuo pipefail
+              target=/host-mnt/alluxio-nvme
+              fail() {
+                  echo "ALLUXIO S3 READ FAILED: $*" >&2
+                  exit 1
+              }
+              if ! mountpoint -q "$target"; then
+                  mkdir -p "$target"
+                  device=""
+                  # Select by model, never by device name: NVMe numbering is not stable across nodes.
+                  for model_file in /sys/block/nvme*/device/model; do
+                      [[ -e "$model_file" ]] || continue
+                      model="$(tr -d '\n' < "$model_file")"
+                      if [[ "$model" == "Microsoft NVMe Direct Disk"* ]]; then
+                          device="/dev/$(basename "$(dirname "$(dirname "$model_file")")")"
+                          break
+                      fi
+                  done
+                  [[ -n "$device" ]] || fail "no local NVMe disk"
+                  # A restarted pod must not wipe the ext4 it made earlier. Anything else on the disk is wiped first:
+                  # a node in a recreated pool can come up with a signature left by an earlier user of the
+                  # disk (for example a RAID member), which cannot be mounted.
+                  fstype="$(blkid -o value -s TYPE "$device" || true)"
+                  if [[ "$fstype" != ext4 ]]; then
+                      # An array that still holds the disk (a RAID member assembled on it) keeps it busy, so stop it first.
+                      for md in /sys/block/md*; do
+                          [[ -e "$md/slaves/${device##*/}" ]] || continue
+                          echo clear > "$md/md/array_state" || fail "cannot stop ${md##*/}, which holds $device"
+                      done
+                      wipefs -a "$device" > /dev/null
+                      mkfs.ext4 -F -q "$device"
+                  fi
+                  mount "$device" "$target"
+                  echo "Mounted $device"
+              fi
+              echo "NVME READY /mnt/alluxio-nvme"
+              exec sleep infinity
+          readinessProbe:
+            exec:
+              command: [mountpoint, -q, /host-mnt/alluxio-nvme]
+            periodSeconds: 5
+          volumeMounts:
+            # Bidirectional makes the mount below appear on the host, not just in this container.
+            - {name: host-mnt, mountPath: /host-mnt, mountPropagation: Bidirectional}
+      volumes:
+        - name: host-mnt
+          hostPath: {path: /mnt}

@@ -1,6 +1,12 @@
 ALLUXIO_TAG = "AI-3.8-15.1.28"
 OPERATOR_TAG = "3.7.6"
 
+# The command of ShellSetup's EXIT trap: it removes the scratch files that can hold secret-bearing output. A
+# step that sets its own EXIT trap runs this command in it too.
+ShellCleanup = lambda workDir: str -> str {
+    'rm -f -- "${workDir}/command.out" "${workDir}/command.err" "${workDir}/blob.bin" "${workDir}/helm-registry.json"'
+}
+
 # Expand the same secret-safe shell setup into each independent pipeline step.
 ShellSetup = lambda workDir: str, resultDir: str -> str {
     """
@@ -18,7 +24,7 @@ fail() {
     exit 1
 }
 trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
-trap 'rm -f -- "${workDir}/command.out" "${workDir}/command.err" "${workDir}/blob.bin" "${workDir}/helm-registry.json"' EXIT
+trap '${ShellCleanup(workDir)}' EXIT
 """
 }
 

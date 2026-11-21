@@ -1,0 +1,45 @@
+apiVersion: k8s-operator.alluxio.com/v1
+kind: AlluxioCluster
+metadata:
+  name: alluxio
+  namespace: alx-ns
+spec:
+  image: REPLACE_ME.azurecr.io/alluxio-enterprise
+  imageTag: AI-3.8-15.1.28
+  imagePullSecrets: [alluxio-acr]
+  properties:
+    alluxio.worker.s3.api.enabled: "true"
+    alluxio.worker.s3.redirect.enabled: "false"
+    # NOSASL: with several workers and redirect disabled, a worker relays reads to the worker that owns
+    # the file; under SIMPLE that internal connection is rejected ("request doesn't have a security token")
+    # and reads fall back, so caching and throughput are wrong.
+    alluxio.security.authentication.type: NOSASL
+    alluxio.underfs.abfs.sdk.version: "2"
+    # Off by default; on, the client reuses connections instead of opening one per request.
+    alluxio.worker.s3.connection.keep.alive.enabled: "true"
+  coordinator:
+    nodeSelector: {agentpool: systempool}
+    resources:
+      requests: {cpu: "4", memory: 12Gi}
+      limits: {cpu: "4", memory: 12Gi}
+    jvmOptions: ["-Xmx4g", "-Xms4g", "-XX:MaxDirectMemorySize=4g"]
+  worker:
+    # Must equal S3_READ_WORKER_COUNT in kcl/lib/steps/alluxio/s3_read.k.
+    count: 5
+    nodeSelector: {agentpool: workerpool}
+    tolerations:
+      - {key: alluxio, operator: Equal, value: "true", effect: NoSchedule}
+    resources:
+      requests: {cpu: "8", memory: 24Gi}
+      limits: {cpu: "8", memory: 24Gi}
+    jvmOptions: ["-Xmx8g", "-Xms8g", "-XX:MaxDirectMemorySize=12g"]
+    # Standard_D16ds_v6 has two local NVMe disks of 440 GiB each (Microsoft Learn, "Ddsv6 series",
+    # temp storage table); the page store uses one, and 396Gi leaves about 10% for ext4 overhead.
+    pagestore: {type: hostPath, hostPath: /mnt/alluxio-nvme/pagestore, size: 396Gi, reservedSize: 1Gi}
+  # A single etcd replica is sufficient for this disposable, non-HA PoC.
+  etcd:
+    replicaCount: 1
+    nodeSelector: {agentpool: systempool}
+    persistence: {storageClass: managed-csi, size: 10Gi}
+  prometheus: {enabled: false}
+  grafana: {enabled: false}
