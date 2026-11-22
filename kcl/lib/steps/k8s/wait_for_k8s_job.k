@@ -1,13 +1,12 @@
 import azure_pipelines.ap.steps
+import lib.const
+import lib.steps.azure
 
 # Wait for a named Kubernetes Job to reach a terminal condition, stream its
 # container logs, and emit diagnostics before returning.
 # Check terminal conditions once more when the waiting budget expires.
-WaitForK8sJobFinished = lambda namespace: str, jobName: str, timeoutSeconds: int = 7200, continueOnError: bool = False -> steps.Bash {
-    steps.Bash {
-        displayName = "Wait for k8s job to finish: ${jobName}"
-        continueOnError = continueOnError
-        bash = """
+WaitForK8sJobFinished = lambda namespace: str, jobName: str, timeoutSeconds: int = 7200, continueOnError: bool = False, serviceConnection: str = const.DEFAULT_SERVICE_CONNECTION -> steps.Step {
+    script = """
 set -euo pipefail
 
 if ! kubectl -n "${namespace}" get job "${jobName}" >/dev/null; then
@@ -61,5 +60,5 @@ if [ "$final" != "complete" ]; then
     exit 1
 fi
 """
-    }
+    azure.AzCli(serviceConnection, "Wait for k8s job to finish: ${jobName}", script, continueOnError=continueOnError)
 }
