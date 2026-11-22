@@ -43,7 +43,7 @@ steps:
         found=true
         code=$(cat "$file")
         if [[ ! "$code" =~ ^(0|[1-9][0-9]{0,2})$ ]] || (( code > 255 )); then
-          echo "Invalid CL2 exit status in $file" >&2
+          echo "##vso[task.logissue type=error]Invalid CL2 exit status in $file"
           status=1
         elif (( code != 0 && status == 0 )); then
           echo "##vso[task.logissue type=error]The preceding clusterloader2 benchmark Job exited with a non-zero status code $code. Make sure to check the logs to confirm whether the error is expected!"
