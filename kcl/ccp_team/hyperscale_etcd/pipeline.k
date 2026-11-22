@@ -50,11 +50,6 @@ az aks create \\
 """
 
 makeIngestionJob = lambda jobName: str, displayName: str, dataType: str, namespace: str, totalGiB: str -> job.Job {
-    ingestStep = kperf.RunKperfDataIngest(
-        dataType=dataType,
-        namespace=namespace,
-        name="$(System.JobId)",
-        totalGiB=totalGiB)
     job.Job {
         job = jobName
         displayName = displayName
@@ -80,11 +75,12 @@ makeIngestionJob = lambda jobName: str, displayName: str, dataType: str, namespa
                 "Convert kubeconfig to Entra ID login",
                 "kubelogin convert-kubeconfig -l azurecli"),
             kperf.InstallRunkperf(RUNNER_IMAGE),
-            azure.AzCli(
+            kperf.RunKperfDataIngest(
                 const.DEFAULT_SERVICE_CONNECTION,
-                ingestStep.displayName,
-                ingestStep.script,
-                condition=ingestStep.condition),
+                dataType=dataType,
+                namespace=namespace,
+                name="$(System.JobId)",
+                totalGiB=totalGiB),
         ]
     }
 }

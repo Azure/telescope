@@ -1,4 +1,5 @@
 import azure_pipelines.ap.steps
+import lib.steps.azure
 
 # Default constants for kperf data ingestion
 DEFAULT_QPS = 80
@@ -19,10 +20,9 @@ BYTES_PER_GIB = 1073741824
 # the pipeline agent by fetching full object bodies.
 # Each batch uses the set name "<name>-b<batch>", so object names are predictable and
 # kperf load profiles can target a batch by its prefix.
-RunKperfDataIngest = lambda dataType: str, namespace: str, name: str, totalGiB: str = "0", total: int = 0, qps: int = DEFAULT_QPS, burst: int = DEFAULT_BURST, size: int = DEFAULT_SIZE_BYTES, groupSize: int = DEFAULT_GROUP_SIZE, batchSize: int = 2000 -> steps.Step {
+RunKperfDataIngest = lambda serviceConnection: str, dataType: str, namespace: str, name: str, totalGiB: str = "0", total: int = 0, qps: int = DEFAULT_QPS, burst: int = DEFAULT_BURST, size: int = DEFAULT_SIZE_BYTES, groupSize: int = DEFAULT_GROUP_SIZE, batchSize: int = 2000 -> steps.Step {
   assert total == 0 or totalGiB == "0", "total and totalGiB cannot both be set"
-    steps.Script {
-        script = """
+    script = """
 set -euo pipefail
 set -x
 
@@ -75,7 +75,9 @@ done
 
 echo "Ingest complete: $completed ${dataType}s created."
 """
-        displayName = "Ingest ${dataType} data"
-        condition = "and(succeeded(), or(ne('${total}', '0'), ne('${totalGiB}', '0')))"
-    }
+    azure.AzCli(
+        serviceConnection,
+        "Ingest ${dataType} data",
+        script,
+        condition = "and(succeeded(), or(ne('${total}', '0'), ne('${totalGiB}', '0')))")
 }
