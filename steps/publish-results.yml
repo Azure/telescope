@@ -46,7 +46,7 @@ steps:
           echo "##vso[task.logissue type=error]Invalid CL2 exit status in $file"
           status=1
         elif (( code != 0 && status == 0 )); then
-          echo "##vso[task.logissue type=error]The preceding clusterloader2 benchmark Job exited with a non-zero status code $code. Make sure to check the logs to confirm whether the error is expected!"
+          echo "##vso[task.logissue type=error]The CL2 runner reported a non-zero status code $code. Make sure to check the Run Benchmark logs and any attached CL2 log to confirm the cause and whether the error is expected!"
           status=$code
         fi
         artifact="${file%.exit-code}.log"
