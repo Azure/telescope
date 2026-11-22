@@ -50,6 +50,9 @@ steps:
         fi
         artifact="${file%.exit-code}.log"
         if [[ -f "$artifact" ]]; then echo "##vso[task.uploadfile]$artifact"; fi
+        if [[ "$code" =~ ^[1-9][0-9]{0,2}$ ]] && (( code <= 255 )); then
+          echo "##vso[task.logissue type=error]The preceding clusterloader2 benchmark Job exited with a non-zero status code $code. Make sure to check the logs to confirm whether the error is expected!"
+        fi
       done < <(find "$(Pipeline.Workspace)/s/modules/python/clusterloader2" -name 'cl2-driver-*.exit-code' -print0)
       if [[ "$found" == false ]]; then echo "CL2 Job exit status missing" >&2; exit 1; fi
       exit "$status"
