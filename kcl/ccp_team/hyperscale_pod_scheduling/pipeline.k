@@ -5,7 +5,6 @@ import lib.const
 import lib.steps.azure
 import lib.steps.common
 import lib.steps.k8s
-import lib.util
 
 SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
 RESOURCE_GROUP = "$(RUN_ID)"
@@ -30,63 +29,40 @@ CL2_POOL = azure.NodePool {
     taintPrefix = "cl2pool"
 }
 
-makeRequestBody = lambda scalingSize: str, cluster: str -> str {
-    util.escapeStr("""
-{
-    "location": "${LOCATION}",
-    "identity": { "type": "SystemAssigned" },
-    "sku": {
-      "name": "Base",
-      "tier": "Standard"
-    },
-    "tags": {
-      "SkipAKSCluster": "true",
-      "SkipASMAzSecPackAutoConfig": "true",
-      "SkipLinuxAzSecPack": "true"
-    },
-    "properties": {
-      "controlPlaneScalingProfile": {"scalingSize": "${scalingSize}"},
-      "aadProfile": {"managed": true, "enableAzureRBAC": true},
-      "disableLocalAccounts": true,
-      "kubernetesVersion": "1.36",
-      "dnsPrefix": "${cluster}-dns",
-      "agentPoolProfiles": [
-        {
-          "name": "systempool",
-          "mode": "System",
-          "count": 3,
-          "vmSize": "Standard_D8S_v4",
-          "osType": "Linux",
-          "maxPods": 250
-        }
-      ],
-    "networkProfile": {
-       "networkPlugin": "azure",
-       "networkPluginMode": "overlay",
-       "podCidr": "10.64.0.0/10",
-       "serviceCidr": "10.0.0.0/16",
-       "dnsServiceIP": "10.0.0.10",
-       "outboundType": "managedNATGateway",
-       "natGatewayProfile": {
-          "managedOutboundIPProfile": {
-            "count": 10
-          }
-        }
-      }
-    }
-  }""")
-}
-
 makeBenchmarkingJob = lambda scalingSize: str, cl2Manifest: str -> job.Job {
     nodeCount = NODE_COUNTS[scalingSize]
     kwokPool = makeKwokPool(nodeCount)
     cluster = "stg-${scalingSize}-hyperscale-pod-scheduling-rate"
-    requestBody = makeRequestBody(scalingSize, cluster)
     createClusterScript = """
-az rest \\
-  --method put \\
-  --uri "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.ContainerService/managedClusters/${cluster}?api-version=2026-01-02-preview" \\
-  --body "${requestBody}"
+az extension add --name aks-preview --version 20.0.0b6 --allow-preview true --yes
+
+az aks create \\
+  --subscription "${SUBSCRIPTION_ID}" \\
+  --resource-group "${RESOURCE_GROUP}" \\
+  --name "${cluster}" \\
+  --location "${LOCATION}" \\
+  --kubernetes-version "1.36" \\
+  --dns-name-prefix "${cluster}-dns" \\
+  --tier standard \\
+  --enable-managed-identity \\
+  --enable-aad \\
+  --enable-azure-rbac \\
+  --disable-local-accounts \\
+  --generate-ssh-keys \\
+  --nodepool-name systempool \\
+  --node-count 3 \\
+  --node-vm-size Standard_D8S_v4 \\
+  --max-pods 250 \\
+  --network-plugin azure \\
+  --network-plugin-mode overlay \\
+  --pod-cidr 10.64.0.0/10 \\
+  --service-cidr 10.0.0.0/16 \\
+  --dns-service-ip 10.0.0.10 \\
+  --outbound-type managedNATGateway \\
+  --nat-gateway-managed-outbound-ip-count 10 \\
+  --tags SkipAKSCluster=true SkipASMAzSecPackAutoConfig=true SkipLinuxAzSecPack=true \\
+  --control-plane-scaling-size ${scalingSize} \\
+  --yes
 """
     job.Job {
         job = "benchmarking"
