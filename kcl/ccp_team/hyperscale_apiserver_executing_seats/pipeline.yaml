@@ -253,6 +253,7 @@ stages:
             -e 's/__CL2_QPS__/4000/g' \
             -e 's/__CL2_BURST__/8000/g' \
             -e 's/__CL2_PODS_PER_NODE__/4/g' \
+            -e 's/__CL2_CONFIGMAP_SECRET_BUNDLE_PERCENT__/100/g' \
             -e 's/__CL2_BIG_GROUP_SIZE__/1/g' \
             -e 's/__CL2_MEDIUM_GROUP_SIZE__/1/g' \
             -e 's/__CL2_SMALL_GROUP_SIZE__/1/g' \
@@ -597,6 +598,7 @@ stages:
             -e 's/__CL2_QPS__/4000/g' \
             -e 's/__CL2_BURST__/8000/g' \
             -e 's/__CL2_PODS_PER_NODE__/4/g' \
+            -e 's/__CL2_CONFIGMAP_SECRET_BUNDLE_PERCENT__/100/g' \
             -e 's/__CL2_BIG_GROUP_SIZE__/1/g' \
             -e 's/__CL2_MEDIUM_GROUP_SIZE__/1/g' \
             -e 's/__CL2_SMALL_GROUP_SIZE__/1/g' \
@@ -941,6 +943,7 @@ stages:
             -e 's/__CL2_QPS__/350/g' \
             -e 's/__CL2_BURST__/100/g' \
             -e 's/__CL2_PODS_PER_NODE__/25/g' \
+            -e 's/__CL2_CONFIGMAP_SECRET_BUNDLE_PERCENT__/125/g' \
             -e 's/__CL2_BIG_GROUP_SIZE__/1/g' \
             -e 's/__CL2_MEDIUM_GROUP_SIZE__/1/g' \
             -e 's/__CL2_SMALL_GROUP_SIZE__/1/g' \

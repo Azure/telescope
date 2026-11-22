@@ -262,15 +262,17 @@ data:
 
     # Moved from reconcile-objects.yaml to mitigate https://github.com/kubernetes/kubernetes/issues/96635.
     # TODO(https://github.com/kubernetes/perf-tests/issues/1823): Merge back to reconcile-objects.yaml once the k/k bug is fixed.
+    # Size the initial ConfigMap/Secret write phase independently of Deployments.
+    {{$bundlePercent := __CL2_CONFIGMAP_SECRET_BUNDLE_PERCENT__}}
     - module:
         path: /modules/configmaps-secrets.yaml
         params:
           actionName: create
           tuningSet: default
           namespaces: {{$namespaces}}
-          bigDeploymentsPerNamespace: {{$bigDeploymentsPerNamespace}}
-          mediumDeploymentsPerNamespace: {{$mediumDeploymentsPerNamespace}}
-          smallDeploymentsPerNamespace: {{$smallDeploymentsPerNamespace}}
+          bigDeploymentsPerNamespace: {{DivideInt (MultiplyInt $bigDeploymentsPerNamespace $bundlePercent) 100}}
+          mediumDeploymentsPerNamespace: {{DivideInt (MultiplyInt $mediumDeploymentsPerNamespace $bundlePercent) 100}}
+          smallDeploymentsPerNamespace: {{DivideInt (MultiplyInt $smallDeploymentsPerNamespace $bundlePercent) 100}}
 
     - module:
         path: /modules/reconcile-objects.yaml

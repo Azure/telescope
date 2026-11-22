@@ -17,6 +17,7 @@ schema Cl2Config:
     qps: int = 4000
     burst: int = 8000
     podsPerNode: int = 4
+    configMapSecretBundlePercent: int = 100
     bigGroupSize: int = 1
     mediumGroupSize: int = 1
     smallGroupSize: int = 1
@@ -41,6 +42,7 @@ CL2_CONFIGS: {str: Cl2Config} = {
         qps = 350
         burst = 100
         podsPerNode = 25
+        configMapSecretBundlePercent = 125
     }
 }
 
@@ -180,6 +182,7 @@ sed \\
     -e 's/__CL2_QPS__/${cl2Config.qps}/g' \\
     -e 's/__CL2_BURST__/${cl2Config.burst}/g' \\
     -e 's/__CL2_PODS_PER_NODE__/${cl2Config.podsPerNode}/g' \\
+    -e 's/__CL2_CONFIGMAP_SECRET_BUNDLE_PERCENT__/${cl2Config.configMapSecretBundlePercent}/g' \\
     -e 's/__CL2_BIG_GROUP_SIZE__/${cl2Config.bigGroupSize}/g' \\
     -e 's/__CL2_MEDIUM_GROUP_SIZE__/${cl2Config.mediumGroupSize}/g' \\
     -e 's/__CL2_SMALL_GROUP_SIZE__/${cl2Config.smallGroupSize}/g' \\
