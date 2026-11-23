@@ -76,11 +76,11 @@ makeIngestionJob = lambda jobName: str, displayName: str, dataType: str, namespa
                 "kubelogin convert-kubeconfig -l azurecli"),
             kperf.InstallRunkperf(RUNNER_IMAGE),
             kperf.RunKperfDataIngest(
-                const.DEFAULT_SERVICE_CONNECTION,
                 dataType=dataType,
                 namespace=namespace,
                 name="$(System.JobId)",
-                totalGiB=totalGiB),
+                totalGiB=totalGiB,
+                serviceConnection=const.DEFAULT_SERVICE_CONNECTION),
         ]
     }
 }
