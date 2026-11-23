@@ -160,11 +160,17 @@ az aks create \\
                 WORK_DIR
                 RESULT_DIR
             )
-            alluxio.CreateWarpClient(
+            azure.AzCli(
                 const.DEFAULT_SERVICE_CONNECTION
-                "${CHECKS_DIR}/client.yaml"
-                WORK_DIR
-                RESULT_DIR
+                "Create the dedicated Warp client"
+                alluxio.ShellSetup(WORK_DIR, RESULT_DIR) + """
+kubectl create --dry-run=server --validate=strict -f "${CHECKS_DIR}/client.yaml" > /dev/null
+kubectl create -f "${CHECKS_DIR}/client.yaml" > /dev/null
+kubectl wait -n alx-ns --for=condition=Ready pod/warp-client --timeout=600s
+kubectl exec -n alx-ns warp-client -c warp \\
+    -- /tools/warp --version > "${RESULT_DIR}/warp-version.txt"
+"""
+                stepName = "alluxio_warp_client"
             )
             common.RecordCurrentTime("BENCHMARK_START_TIME")
             alluxio.RunColdWarpGet(
@@ -224,7 +230,7 @@ jq -s 'add' "${WORK_DIR}/diagnostics-alx-ns.json" "${WORK_DIR}/diagnostics-allux
                 const.DEFAULT_SERVICE_CONNECTION
                 RESOURCE_GROUP
                 const.DEFAULT_SUBSCRIPTION_ID
-                condition = "and(always(), eq(variables['ALLUXIO_READY_FOR_PROVISIONING'], 'true'))"
+                condition = "and(always(), eq(variables['SHOULD_CLEAN_UP_RESOURCE_GROUP'], 'true'))"
             )
         ]
     }]

@@ -70,7 +70,7 @@ jobs:
             --name "$resource_group" \
             --subscription "$subscription")"
         [[ "$exists" == false ]] || fail "Resource group already exists or could not be verified; refusing to provision into it"
-        echo '##vso[task.setvariable variable=ALLUXIO_READY_FOR_PROVISIONING]true'
+        echo '##vso[task.setvariable variable=SHOULD_CLEAN_UP_RESOURCE_GROUP]true'
 
         jq -n \
             --arg acr_resource_id "$acr_resource_id" --arg acr_subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" \
@@ -767,12 +767,12 @@ jobs:
             alluxio job load --path /blob --progress | redact > "$(Build.ArtifactStagingDirectory)/alluxio-warp/preload.txt"
             state="$(sed -nE 's/^[[:space:]]*Job State:[[:space:]]*([A-Z_]+)[[:space:]]*$/\1/p' "$(Build.ArtifactStagingDirectory)/alluxio-warp/preload.txt")"
             case "$state" in
-                CREATED|RUNNING|SUCCEEDED) ;;
+                CREATED|WAITING|RUNNING|VERIFYING|SUCCEEDED) ;;
                 *) fail "Preload failed or returned an unrecognized job state" ;;
             esac
-            failed="$(sed -nE 's/^[[:space:]]*Files Failed:[[:space:]]*([0-9]+)[[:space:]]*$/\1/p' "$(Build.ArtifactStagingDirectory)/alluxio-warp/preload.txt")"
-            [[ "$failed" == 0 ]] || fail "Preload must report zero failed files"
-            counts="$(cache_report before-warm)"
+                failed="$(sed -nE 's/^[[:space:]]*Files Failed:[[:space:]]*([0-9]+)[[:space:]]*$/\1/p' "$(Build.ArtifactStagingDirectory)/alluxio-warp/preload.txt")"
+                [[ "$failed" == 0 ]] || fail "Preload must report zero failed files"
+                counts="$(cache_report before-warm)"
             if [[ "$state" == SUCCEEDED && "$(jq -r '.all' <<< "$counts")" == 16 ]]; then break; fi
             (( SECONDS < deadline )) || fail "All 16 files were not fully cached before timeout"
             sleep 10
@@ -942,5 +942,5 @@ jobs:
         done
 
         az group delete --name "alluxio-$(RUN_ID)-$(System.JobAttempt)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
-    condition: and(always(), eq(variables['ALLUXIO_READY_FOR_PROVISIONING'], 'true'))
+    condition: and(always(), eq(variables['SHOULD_CLEAN_UP_RESOURCE_GROUP'], 'true'))
     displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)

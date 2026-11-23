@@ -1,21 +1,6 @@
 import azure_pipelines.ap.steps
 import lib.steps.azure
 
-CreateWarpClient = lambda serviceConnection: str, manifest: str, workDir: str, resultDir: str -> steps.Step {
-    azure.AzCli(
-        serviceConnection
-        "Create the dedicated Warp client"
-        ShellSetup(workDir, resultDir) + """
-kubectl create --dry-run=server --validate=strict -f "${manifest}" > /dev/null
-kubectl create -f "${manifest}" > /dev/null
-kubectl wait -n alx-ns --for=condition=Ready pod/warp-client --timeout=600s
-kubectl exec -n alx-ns warp-client -c warp \\
-    -- /tools/warp --version > "${resultDir}/warp-version.txt"
-"""
-        stepName = "alluxio_warp_client"
-    )
-}
-
 WarpGetSetup = lambda phase: "cold-start" | "warm-cache", workDir: str, resultDir: str, checksDir: str -> str {
     ShellSetup(workDir, resultDir) + AlluxioCommands(checksDir, resultDir) + """
 phase="${phase}"
@@ -109,12 +94,12 @@ while :; do
     alluxio job load --path /blob --progress | redact > "${resultDir}/preload.txt"
     state="$(sed -nE 's/^[[:space:]]*Job State:[[:space:]]*([A-Z_]+)[[:space:]]*$/\\1/p' "${resultDir}/preload.txt")"
     case "$state" in
-        CREATED|RUNNING|SUCCEEDED) ;;
+        CREATED|WAITING|RUNNING|VERIFYING|SUCCEEDED) ;;
         *) fail "Preload failed or returned an unrecognized job state" ;;
     esac
-    failed="$(sed -nE 's/^[[:space:]]*Files Failed:[[:space:]]*([0-9]+)[[:space:]]*$/\\1/p' "${resultDir}/preload.txt")"
-    [[ "$failed" == 0 ]] || fail "Preload must report zero failed files"
-    counts="$(cache_report before-warm)"
+        failed="$(sed -nE 's/^[[:space:]]*Files Failed:[[:space:]]*([0-9]+)[[:space:]]*$/\\1/p' "${resultDir}/preload.txt")"
+        [[ "$failed" == 0 ]] || fail "Preload must report zero failed files"
+        counts="$(cache_report before-warm)"
     if [[ "$state" == SUCCEEDED && "$(jq -r '.all' <<< "$counts")" == ${OBJECT_COUNT} ]]; then break; fi
     (( SECONDS < deadline )) || fail "All ${OBJECT_COUNT} files were not fully cached before timeout"
     sleep 10

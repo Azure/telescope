@@ -29,7 +29,7 @@ exists="$(az group exists \\
     --name "$resource_group" \\
     --subscription "$subscription")"
 [[ "$exists" == false ]] || fail "Resource group already exists or could not be verified; refusing to provision into it"
-echo '##vso[task.setvariable variable=ALLUXIO_READY_FOR_PROVISIONING]true'
+echo '##vso[task.setvariable variable=SHOULD_CLEAN_UP_RESOURCE_GROUP]true'
 
 jq -n \\
     --arg acr_resource_id "$acr_resource_id" --arg acr_subscription "${registrySubscription}" \\
