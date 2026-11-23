@@ -13,6 +13,7 @@ BYTES_PER_GIB = 1073741824
 # RunKperfDataIngest creates either `total` objects or enough objects to fill
 # `totalGiB`, in fixed-size batches (`batchSize`). At most one of `total` and
 # `totalGiB` may be set.
+# Runs in an authenticated Azure CLI task for kubelogin -l azurecli.
 #
 # Batching is used to be
 # resilient to failures — if a batch fails, only that batch needs to be retried, and the
@@ -23,8 +24,11 @@ BYTES_PER_GIB = 1073741824
 # kperf load profiles can target a batch by its prefix.
 # serviceConnection defaults to the standard Telescope Azure service connection.
 RunKperfDataIngest = lambda dataType: str, namespace: str, name: str, totalGiB: str = "0", total: int = 0, qps: int = DEFAULT_QPS, burst: int = DEFAULT_BURST, size: int = DEFAULT_SIZE_BYTES, groupSize: int = DEFAULT_GROUP_SIZE, batchSize: int = 2000, serviceConnection: str = const.DEFAULT_SERVICE_CONNECTION -> steps.Step {
-  assert total == 0 or totalGiB == "0", "total and totalGiB cannot both be set"
-    script = """
+    assert total == 0 or totalGiB == "0", "total and totalGiB cannot both be set"
+    azure.AzCli(
+        serviceConnection,
+        "Ingest ${dataType} data",
+        """
 set -euo pipefail
 set -x
 
@@ -76,10 +80,6 @@ for batch in $(seq 1 $TOTAL_BATCHES); do
 done
 
 echo "Ingest complete: $completed ${dataType}s created."
-"""
-    azure.AzCli(
-        serviceConnection,
-        "Ingest ${dataType} data",
-        script,
-        condition = "and(succeeded(), or(ne('${total}', '0'), ne('${totalGiB}', '0')))")
+""",
+        condition="and(succeeded(), or(ne('${total}', '0'), ne('${totalGiB}', '0')))")
 }

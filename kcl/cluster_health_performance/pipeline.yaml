@@ -43,6 +43,8 @@ stages:
 
         echo "##vso[task.setvariable variable=RUN_ID]$RUN_ID"
       displayName: Set Run ID
+    - task: KubeloginInstaller@0
+      displayName: Install kubelogin
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -98,6 +100,9 @@ stages:
               --max-pods 250 \
               --control-plane-scaling-size H8 \
               --enable-managed-identity \
+              --enable-aad \
+              --enable-azure-rbac \
+              --disable-local-accounts \
               --generate-ssh-keys \
               $EXTRA_ARGS
       displayName: Create AKS cluster
@@ -128,6 +133,15 @@ stages:
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --overwrite-existing
       displayName: Get credentials for underlay-validation
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |-
+          set -exo pipefail
+          kubelogin convert-kubeconfig -l azurecli
+      displayName: Convert kubeconfig to Entra ID login
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -652,13 +666,19 @@ stages:
         rm -rf $temp_dir
         docker rmi ghcr.io/azure/kperf:0.3.7 2>/dev/null || true
       displayName: Install runkperf binary
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario1_get_configmap_c1)
     - task: AzureCLI@2
       inputs:
@@ -791,20 +811,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario1_get_configmap_c1)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario1_get_configmap_c1)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario2_get_list_configmap_c1)
     - task: AzureCLI@2
       inputs:
@@ -937,20 +969,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario2_get_list_configmap_c1)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario2_get_list_configmap_c1)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario2_get_list_configmap_c5)
     - task: AzureCLI@2
       inputs:
@@ -1083,20 +1127,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario2_get_list_configmap_c5)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario2_get_list_configmap_c5)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario2_get_list_configmap_c10)
     - task: AzureCLI@2
       inputs:
@@ -1229,20 +1285,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario2_get_list_configmap_c10)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario2_get_list_configmap_c10)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario2_get_list_configmap_c50)
     - task: AzureCLI@2
       inputs:
@@ -1375,20 +1443,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario2_get_list_configmap_c50)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario2_get_list_configmap_c50)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario3_post_put_c1_p1k)
     - task: AzureCLI@2
       inputs:
@@ -1521,20 +1601,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c1_p1k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario3_post_put_c1_p1k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario3_post_put_c1_p10k)
     - task: AzureCLI@2
       inputs:
@@ -1667,20 +1759,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c1_p10k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario3_post_put_c1_p10k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario3_post_put_c1_p100k)
     - task: AzureCLI@2
       inputs:
@@ -1813,20 +1917,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c1_p100k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario3_post_put_c1_p100k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario3_post_put_c10_p1k)
     - task: AzureCLI@2
       inputs:
@@ -1959,20 +2075,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c10_p1k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario3_post_put_c10_p1k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario3_post_put_c10_p10k)
     - task: AzureCLI@2
       inputs:
@@ -2105,20 +2233,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c10_p10k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario3_post_put_c10_p10k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario3_post_put_c10_p100k)
     - task: AzureCLI@2
       inputs:
@@ -2251,20 +2391,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c10_p100k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario3_post_put_c10_p100k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario3_post_put_c50_p1k)
     - task: AzureCLI@2
       inputs:
@@ -2397,20 +2549,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c50_p1k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario3_post_put_c50_p1k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario3_post_put_c50_p10k)
     - task: AzureCLI@2
       inputs:
@@ -2543,20 +2707,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c50_p10k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario3_post_put_c50_p10k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario3_post_put_c50_p100k)
     - task: AzureCLI@2
       inputs:
@@ -2689,20 +2865,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c50_p100k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario3_post_put_c50_p100k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario4_list_configmap_n100_p1k)
     - task: AzureCLI@2
       inputs:
@@ -2835,20 +3023,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n100_p1k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario4_list_configmap_n100_p1k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario4_list_configmap_n100_p10k)
     - task: AzureCLI@2
       inputs:
@@ -2981,20 +3181,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n100_p10k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario4_list_configmap_n100_p10k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario4_list_configmap_n100_p100k)
     - task: AzureCLI@2
       inputs:
@@ -3127,20 +3339,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n100_p100k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario4_list_configmap_n100_p100k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario4_list_configmap_n1000_p1k)
     - task: AzureCLI@2
       inputs:
@@ -3273,20 +3497,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n1000_p1k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario4_list_configmap_n1000_p1k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario4_list_configmap_n1000_p10k)
     - task: AzureCLI@2
       inputs:
@@ -3419,20 +3655,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n1000_p10k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario4_list_configmap_n1000_p10k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario4_list_configmap_n1000_p100k)
     - task: AzureCLI@2
       inputs:
@@ -3565,20 +3813,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n1000_p100k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario4_list_configmap_n1000_p100k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario4_list_configmap_n10000_p1k)
     - task: AzureCLI@2
       inputs:
@@ -3711,20 +3971,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n10000_p1k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario4_list_configmap_n10000_p1k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario4_list_configmap_n10000_p10k)
     - task: AzureCLI@2
       inputs:
@@ -3857,20 +4129,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n10000_p10k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario4_list_configmap_n10000_p10k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario4_list_configmap_n10000_p100k)
     - task: AzureCLI@2
       inputs:
@@ -4003,20 +4287,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n10000_p100k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario4_list_configmap_n10000_p100k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario5_mixed_c10_p1k)
     - task: AzureCLI@2
       inputs:
@@ -4149,20 +4445,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario5_mixed_c10_p1k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario5_mixed_c10_p1k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario5_mixed_c10_p10k)
     - task: AzureCLI@2
       inputs:
@@ -4295,20 +4603,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario5_mixed_c10_p10k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario5_mixed_c10_p10k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "kcl/cluster_health_performance/workloads/pod_loggers.yaml" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/kcl/cluster_health_performance/workloads/pod_loggers.yaml"
-          kubectl -n "kperf" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "kcl/cluster_health_performance/workloads/pod_loggers.yaml" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/kcl/cluster_health_performance/workloads/pod_loggers.yaml"
+            kubectl -n "kperf" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario6_getpodlog_c20)
     - task: AzureCLI@2
       inputs:
@@ -4441,20 +4761,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario6_getpodlog_c20)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario6_getpodlog_c20)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "kcl/cluster_health_performance/workloads/pod_loggers.yaml" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/kcl/cluster_health_performance/workloads/pod_loggers.yaml"
-          kubectl -n "kperf" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "kcl/cluster_health_performance/workloads/pod_loggers.yaml" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/kcl/cluster_health_performance/workloads/pod_loggers.yaml"
+            kubectl -n "kperf" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario6_getpodlog_c25)
     - task: AzureCLI@2
       inputs:
@@ -4587,10 +4919,16 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario6_getpodlog_c25)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario6_getpodlog_c25)
@@ -5151,6 +5489,8 @@ stages:
 
         echo "##vso[task.setvariable variable=RUN_ID]$RUN_ID"
       displayName: Set Run ID
+    - task: KubeloginInstaller@0
+      displayName: Install kubelogin
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -5206,6 +5546,9 @@ stages:
               --max-pods 250 \
               --control-plane-scaling-size H8 \
               --enable-managed-identity \
+              --enable-aad \
+              --enable-azure-rbac \
+              --disable-local-accounts \
               --generate-ssh-keys \
               $EXTRA_ARGS
       displayName: Create AKS cluster
@@ -5236,6 +5579,15 @@ stages:
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --overwrite-existing
       displayName: Get credentials for underlay-validation
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |-
+          set -exo pipefail
+          kubelogin convert-kubeconfig -l azurecli
+      displayName: Convert kubeconfig to Entra ID login
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -5760,13 +6112,19 @@ stages:
         rm -rf $temp_dir
         docker rmi ghcr.io/azure/kperf:0.3.7 2>/dev/null || true
       displayName: Install runkperf binary
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario1_get_configmap_c1)
     - task: AzureCLI@2
       inputs:
@@ -5899,20 +6257,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario1_get_configmap_c1)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario1_get_configmap_c1)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario2_get_list_configmap_c1)
     - task: AzureCLI@2
       inputs:
@@ -6045,20 +6415,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario2_get_list_configmap_c1)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario2_get_list_configmap_c1)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario2_get_list_configmap_c5)
     - task: AzureCLI@2
       inputs:
@@ -6191,20 +6573,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario2_get_list_configmap_c5)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario2_get_list_configmap_c5)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario2_get_list_configmap_c10)
     - task: AzureCLI@2
       inputs:
@@ -6337,20 +6731,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario2_get_list_configmap_c10)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario2_get_list_configmap_c10)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario2_get_list_configmap_c50)
     - task: AzureCLI@2
       inputs:
@@ -6483,20 +6889,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario2_get_list_configmap_c50)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario2_get_list_configmap_c50)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario3_post_put_c1_p1k)
     - task: AzureCLI@2
       inputs:
@@ -6629,20 +7047,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c1_p1k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario3_post_put_c1_p1k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario3_post_put_c1_p10k)
     - task: AzureCLI@2
       inputs:
@@ -6775,20 +7205,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c1_p10k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario3_post_put_c1_p10k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario3_post_put_c1_p100k)
     - task: AzureCLI@2
       inputs:
@@ -6921,20 +7363,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c1_p100k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario3_post_put_c1_p100k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario3_post_put_c10_p1k)
     - task: AzureCLI@2
       inputs:
@@ -7067,20 +7521,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c10_p1k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario3_post_put_c10_p1k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario3_post_put_c10_p10k)
     - task: AzureCLI@2
       inputs:
@@ -7213,20 +7679,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c10_p10k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario3_post_put_c10_p10k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario3_post_put_c10_p100k)
     - task: AzureCLI@2
       inputs:
@@ -7359,20 +7837,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c10_p100k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario3_post_put_c10_p100k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario3_post_put_c50_p1k)
     - task: AzureCLI@2
       inputs:
@@ -7505,20 +7995,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c50_p1k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario3_post_put_c50_p1k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario3_post_put_c50_p10k)
     - task: AzureCLI@2
       inputs:
@@ -7651,20 +8153,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c50_p10k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario3_post_put_c50_p10k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario3_post_put_c50_p100k)
     - task: AzureCLI@2
       inputs:
@@ -7797,20 +8311,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c50_p100k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario3_post_put_c50_p100k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario4_list_configmap_n100_p1k)
     - task: AzureCLI@2
       inputs:
@@ -7943,20 +8469,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n100_p1k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario4_list_configmap_n100_p1k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario4_list_configmap_n100_p10k)
     - task: AzureCLI@2
       inputs:
@@ -8089,20 +8627,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n100_p10k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario4_list_configmap_n100_p10k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario4_list_configmap_n100_p100k)
     - task: AzureCLI@2
       inputs:
@@ -8235,20 +8785,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n100_p100k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario4_list_configmap_n100_p100k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario4_list_configmap_n1000_p1k)
     - task: AzureCLI@2
       inputs:
@@ -8381,20 +8943,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n1000_p1k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario4_list_configmap_n1000_p1k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario4_list_configmap_n1000_p10k)
     - task: AzureCLI@2
       inputs:
@@ -8527,20 +9101,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n1000_p10k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario4_list_configmap_n1000_p10k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario4_list_configmap_n1000_p100k)
     - task: AzureCLI@2
       inputs:
@@ -8673,20 +9259,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n1000_p100k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario4_list_configmap_n1000_p100k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario4_list_configmap_n10000_p1k)
     - task: AzureCLI@2
       inputs:
@@ -8819,20 +9417,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n10000_p1k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario4_list_configmap_n10000_p1k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario4_list_configmap_n10000_p10k)
     - task: AzureCLI@2
       inputs:
@@ -8965,20 +9575,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n10000_p10k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario4_list_configmap_n10000_p10k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario4_list_configmap_n10000_p100k)
     - task: AzureCLI@2
       inputs:
@@ -9111,20 +9733,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n10000_p100k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario4_list_configmap_n10000_p100k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario5_mixed_c10_p1k)
     - task: AzureCLI@2
       inputs:
@@ -9257,20 +9891,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario5_mixed_c10_p1k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario5_mixed_c10_p1k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario5_mixed_c10_p10k)
     - task: AzureCLI@2
       inputs:
@@ -9403,20 +10049,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario5_mixed_c10_p10k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario5_mixed_c10_p10k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "kcl/cluster_health_performance/workloads/pod_loggers.yaml" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/kcl/cluster_health_performance/workloads/pod_loggers.yaml"
-          kubectl -n "kperf" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "kcl/cluster_health_performance/workloads/pod_loggers.yaml" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/kcl/cluster_health_performance/workloads/pod_loggers.yaml"
+            kubectl -n "kperf" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario6_getpodlog_c20)
     - task: AzureCLI@2
       inputs:
@@ -9549,20 +10207,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario6_getpodlog_c20)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario6_getpodlog_c20)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "kcl/cluster_health_performance/workloads/pod_loggers.yaml" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/kcl/cluster_health_performance/workloads/pod_loggers.yaml"
-          kubectl -n "kperf" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "kcl/cluster_health_performance/workloads/pod_loggers.yaml" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/kcl/cluster_health_performance/workloads/pod_loggers.yaml"
+            kubectl -n "kperf" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario6_getpodlog_c25)
     - task: AzureCLI@2
       inputs:
@@ -9695,10 +10365,16 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario6_getpodlog_c25)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario6_getpodlog_c25)
@@ -10259,6 +10935,8 @@ stages:
 
         echo "##vso[task.setvariable variable=RUN_ID]$RUN_ID"
       displayName: Set Run ID
+    - task: KubeloginInstaller@0
+      displayName: Install kubelogin
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -10314,6 +10992,9 @@ stages:
               --max-pods 250 \
               --control-plane-scaling-size H8 \
               --enable-managed-identity \
+              --enable-aad \
+              --enable-azure-rbac \
+              --disable-local-accounts \
               --generate-ssh-keys \
               $EXTRA_ARGS
       displayName: Create AKS cluster
@@ -10344,6 +11025,15 @@ stages:
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --overwrite-existing
       displayName: Get credentials for underlay-validation
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |-
+          set -exo pipefail
+          kubelogin convert-kubeconfig -l azurecli
+      displayName: Convert kubeconfig to Entra ID login
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -10868,13 +11558,19 @@ stages:
         rm -rf $temp_dir
         docker rmi ghcr.io/azure/kperf:0.3.7 2>/dev/null || true
       displayName: Install runkperf binary
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario1_get_configmap_c1)
     - task: AzureCLI@2
       inputs:
@@ -11007,20 +11703,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario1_get_configmap_c1)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario1_get_configmap_c1)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario2_get_list_configmap_c1)
     - task: AzureCLI@2
       inputs:
@@ -11153,20 +11861,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario2_get_list_configmap_c1)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario2_get_list_configmap_c1)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario2_get_list_configmap_c5)
     - task: AzureCLI@2
       inputs:
@@ -11299,20 +12019,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario2_get_list_configmap_c5)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario2_get_list_configmap_c5)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario2_get_list_configmap_c10)
     - task: AzureCLI@2
       inputs:
@@ -11445,20 +12177,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario2_get_list_configmap_c10)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario2_get_list_configmap_c10)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario2_get_list_configmap_c50)
     - task: AzureCLI@2
       inputs:
@@ -11591,20 +12335,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario2_get_list_configmap_c50)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario2_get_list_configmap_c50)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario3_post_put_c1_p1k)
     - task: AzureCLI@2
       inputs:
@@ -11737,20 +12493,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c1_p1k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario3_post_put_c1_p1k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario3_post_put_c1_p10k)
     - task: AzureCLI@2
       inputs:
@@ -11883,20 +12651,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c1_p10k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario3_post_put_c1_p10k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario3_post_put_c1_p100k)
     - task: AzureCLI@2
       inputs:
@@ -12029,20 +12809,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c1_p100k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario3_post_put_c1_p100k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario3_post_put_c10_p1k)
     - task: AzureCLI@2
       inputs:
@@ -12175,20 +12967,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c10_p1k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario3_post_put_c10_p1k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario3_post_put_c10_p10k)
     - task: AzureCLI@2
       inputs:
@@ -12321,20 +13125,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c10_p10k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario3_post_put_c10_p10k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario3_post_put_c10_p100k)
     - task: AzureCLI@2
       inputs:
@@ -12467,20 +13283,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c10_p100k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario3_post_put_c10_p100k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario3_post_put_c50_p1k)
     - task: AzureCLI@2
       inputs:
@@ -12613,20 +13441,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c50_p1k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario3_post_put_c50_p1k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario3_post_put_c50_p10k)
     - task: AzureCLI@2
       inputs:
@@ -12759,20 +13599,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c50_p10k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario3_post_put_c50_p10k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario3_post_put_c50_p100k)
     - task: AzureCLI@2
       inputs:
@@ -12905,20 +13757,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario3_post_put_c50_p100k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario3_post_put_c50_p100k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario4_list_configmap_n100_p1k)
     - task: AzureCLI@2
       inputs:
@@ -13051,20 +13915,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n100_p1k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario4_list_configmap_n100_p1k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario4_list_configmap_n100_p10k)
     - task: AzureCLI@2
       inputs:
@@ -13197,20 +14073,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n100_p10k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario4_list_configmap_n100_p10k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario4_list_configmap_n100_p100k)
     - task: AzureCLI@2
       inputs:
@@ -13343,20 +14231,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n100_p100k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario4_list_configmap_n100_p100k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario4_list_configmap_n1000_p1k)
     - task: AzureCLI@2
       inputs:
@@ -13489,20 +14389,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n1000_p1k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario4_list_configmap_n1000_p1k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario4_list_configmap_n1000_p10k)
     - task: AzureCLI@2
       inputs:
@@ -13635,20 +14547,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n1000_p10k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario4_list_configmap_n1000_p10k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario4_list_configmap_n1000_p100k)
     - task: AzureCLI@2
       inputs:
@@ -13781,20 +14705,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n1000_p100k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario4_list_configmap_n1000_p100k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario4_list_configmap_n10000_p1k)
     - task: AzureCLI@2
       inputs:
@@ -13927,20 +14863,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n10000_p1k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario4_list_configmap_n10000_p1k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario4_list_configmap_n10000_p10k)
     - task: AzureCLI@2
       inputs:
@@ -14073,20 +15021,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n10000_p10k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario4_list_configmap_n10000_p10k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario4_list_configmap_n10000_p100k)
     - task: AzureCLI@2
       inputs:
@@ -14219,20 +15179,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario4_list_configmap_n10000_p100k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario4_list_configmap_n10000_p100k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario5_mixed_c10_p1k)
     - task: AzureCLI@2
       inputs:
@@ -14365,20 +15337,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario5_mixed_c10_p1k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario5_mixed_c10_p1k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/"
-          kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/"
+            kubectl -n "" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario5_mixed_c10_p10k)
     - task: AzureCLI@2
       inputs:
@@ -14511,20 +15495,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario5_mixed_c10_p10k)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario5_mixed_c10_p10k)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "kcl/cluster_health_performance/workloads/pod_loggers.yaml" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/kcl/cluster_health_performance/workloads/pod_loggers.yaml"
-          kubectl -n "kperf" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "kcl/cluster_health_performance/workloads/pod_loggers.yaml" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/kcl/cluster_health_performance/workloads/pod_loggers.yaml"
+            kubectl -n "kperf" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario6_getpodlog_c20)
     - task: AzureCLI@2
       inputs:
@@ -14657,20 +15653,32 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario6_getpodlog_c20)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario6_getpodlog_c20)
-    - script: |
-        set -euo pipefail
-        set -x
-        if [ -n "kcl/cluster_health_performance/workloads/pod_loggers.yaml" ]; then
-          kubectl apply -f "$(Pipeline.Workspace)/s/kcl/cluster_health_performance/workloads/pod_loggers.yaml"
-          kubectl -n "kperf" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
-        fi
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          if [ -n "kcl/cluster_health_performance/workloads/pod_loggers.yaml" ]; then
+            kubectl apply -f "$(Pipeline.Workspace)/s/kcl/cluster_health_performance/workloads/pod_loggers.yaml"
+            kubectl -n "kperf" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
+          fi
       displayName: Setup scenario state (scenario6_getpodlog_c25)
     - task: AzureCLI@2
       inputs:
@@ -14803,10 +15811,16 @@ stages:
       continueOnError: true
       displayName: Fetch kperf runner group result (scenario6_getpodlog_c25)
       timeoutInMinutes: 15
-    - script: |
-        set -euo pipefail
-        set -x
-        kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          set -euo pipefail
+          set -x
+          kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
       condition: always()
       continueOnError: true
       displayName: Cleanup scenario state (scenario6_getpodlog_c25)
