@@ -1,0 +1,237 @@
+import azure_pipelines.ap
+import azure_pipelines.ap.jobs.job
+import azure_pipelines.ap.steps
+import lib.const
+import lib.steps.alluxio
+import lib.steps.azure
+import lib.steps.common
+import lib.steps.k8s
+
+# Images and the OCI Helm chart are staged in the existing Telescope registry.
+ACR_NAME = "telescope"
+ACR_SUBSCRIPTION_ID = "137f0351-8235-42a6-ac7a-6b46be2d21c7"
+ALLUXIO_IMAGE_REPOSITORY = "${ACR_NAME}.azurecr.io/alluxio-enterprise"
+OPERATOR_IMAGE_REPOSITORY = "${ACR_NAME}.azurecr.io/alluxio-operator"
+OPERATOR_CHART_REPOSITORY = "oci://${ACR_NAME}.azurecr.io/helm/alluxio-operator"
+LOCATION = "westeurope"
+RESOURCE_GROUP = "alluxio-$(RUN_ID)-$(System.JobAttempt)"
+CLUSTER = "alluxio-warp"
+STORAGE_ACCOUNT = "alx$(Build.BuildId)a$(System.JobAttempt)"
+WORK_DIR = "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)"
+RESULT_DIR = "$(Build.ArtifactStagingDirectory)/alluxio-warp"
+CHECKS_DIR = "$(Build.SourcesDirectory)/kcl/alluxio/warp"
+
+output = ap.Pipeline {
+    name = "Alluxio Warp Azure Blob"
+    trigger = "none"
+    pr = "none"
+    pool = const.DEFAULT_POOL
+    jobs = [job.Job {
+        job = "alluxio_warp"
+        displayName = "Alluxio Warp GET over Azure Blob"
+        timeoutInMinutes = 180
+        steps = [
+            common.SetRunId()
+            k8s.InstallHelm()
+            steps.Task {
+                task = "KubeloginInstaller@0"
+                displayName = "Install kubelogin"
+            }
+            alluxio.RecordRunConfiguration(
+                const.DEFAULT_SERVICE_CONNECTION
+                ACR_NAME
+                ACR_SUBSCRIPTION_ID
+                ALLUXIO_IMAGE_REPOSITORY
+                OPERATOR_IMAGE_REPOSITORY
+                OPERATOR_CHART_REPOSITORY
+                const.DEFAULT_SUBSCRIPTION_ID
+                RESOURCE_GROUP
+                CLUSTER
+                LOCATION
+                STORAGE_ACCOUNT
+                WORK_DIR
+                RESULT_DIR
+            )
+            azure.CreateResourceGroup(
+                const.DEFAULT_SERVICE_CONNECTION
+                RESOURCE_GROUP
+                LOCATION
+                const.DEFAULT_SUBSCRIPTION_ID
+            )
+            azure.AzCli(
+                const.DEFAULT_SERVICE_CONNECTION
+                "Create cluster"
+                """
+az aks create \\
+  --subscription "${const.DEFAULT_SUBSCRIPTION_ID}" \\
+  --resource-group "${RESOURCE_GROUP}" \\
+  --name "${CLUSTER}" \\
+  --location "${LOCATION}" \\
+  --kubernetes-version "1.36" \\
+  --nodepool-name systempool \\
+  --node-count 3 \\
+  --node-vm-size Standard_D8s_v6 \\
+  --network-plugin azure \\
+  --network-plugin-mode overlay \\
+  --enable-managed-identity \\
+  --enable-aad \\
+  --enable-azure-rbac \\
+  --disable-local-accounts \\
+  --no-ssh-key \\
+  --tier standard \\
+  --yes
+"""
+            )
+            # Separate worker/client nodes prevent the load generator competing with Alluxio.
+            azure.CreateNodePool(
+                const.DEFAULT_SERVICE_CONNECTION
+                CLUSTER
+                RESOURCE_GROUP
+                const.DEFAULT_SUBSCRIPTION_ID
+                azure.NodePool {
+                    name = "workerpool"
+                    sku = "Standard_D16s_v6"
+                    count = 1
+                    taintPrefix = "alluxio"
+                }
+            )
+            azure.CreateNodePool(
+                const.DEFAULT_SERVICE_CONNECTION
+                CLUSTER
+                RESOURCE_GROUP
+                const.DEFAULT_SUBSCRIPTION_ID
+                azure.NodePool {
+                    name = "clientpool"
+                    sku = "Standard_D8s_v6"
+                    count = 1
+                    taintPrefix = "warp"
+                }
+            )
+            azure.GetCredentials(
+                const.DEFAULT_SERVICE_CONNECTION
+                CLUSTER
+                RESOURCE_GROUP
+                const.DEFAULT_SUBSCRIPTION_ID
+            )
+            azure.AzCli(
+                const.DEFAULT_SERVICE_CONNECTION
+                "Convert kubeconfig to Entra ID login"
+                'kubelogin convert-kubeconfig -l azurecli'
+            )
+            alluxio.ConfigureImagePullAccess(
+                const.DEFAULT_SERVICE_CONNECTION
+                ACR_NAME
+                ACR_SUBSCRIPTION_ID
+                WORK_DIR
+                RESULT_DIR
+            )
+            alluxio.SeedWarpDataset(
+                const.DEFAULT_SERVICE_CONNECTION
+                const.DEFAULT_SUBSCRIPTION_ID
+                RESOURCE_GROUP
+                CLUSTER
+                LOCATION
+                STORAGE_ACCOUNT
+                WORK_DIR
+                RESULT_DIR
+                CHECKS_DIR
+            )
+            alluxio.InstallOperator(
+                const.DEFAULT_SERVICE_CONNECTION
+                ACR_NAME
+                ACR_SUBSCRIPTION_ID
+                OPERATOR_IMAGE_REPOSITORY
+                OPERATOR_CHART_REPOSITORY
+                WORK_DIR
+                RESULT_DIR
+            )
+            alluxio.CreateAlluxioCluster(
+                const.DEFAULT_SERVICE_CONNECTION
+                ALLUXIO_IMAGE_REPOSITORY
+                "${CHECKS_DIR}/cluster.yaml"
+                "${CHECKS_DIR}/license.yaml"
+                WORK_DIR
+                RESULT_DIR
+            )
+            alluxio.MountBlobStorage(
+                const.DEFAULT_SERVICE_CONNECTION
+                STORAGE_ACCOUNT
+                "${CHECKS_DIR}/ufs.yaml"
+                WORK_DIR
+                RESULT_DIR
+            )
+            azure.AzCli(
+                const.DEFAULT_SERVICE_CONNECTION
+                "Create the dedicated Warp client"
+                alluxio.ShellSetup(WORK_DIR, RESULT_DIR) + """
+kubectl create --dry-run=server --validate=strict -f "${CHECKS_DIR}/client.yaml" > /dev/null
+kubectl create -f "${CHECKS_DIR}/client.yaml" > /dev/null
+kubectl wait -n alx-ns --for=condition=Ready pod/warp-client --timeout=600s
+kubectl exec -n alx-ns warp-client -c warp \\
+    -- /tools/warp --version > "${RESULT_DIR}/warp-version.txt"
+"""
+                stepName = "alluxio_warp_client"
+            )
+            common.RecordCurrentTime("BENCHMARK_START_TIME")
+            alluxio.RunColdWarpGet(
+                const.DEFAULT_SERVICE_CONNECTION
+                WORK_DIR
+                RESULT_DIR
+                CHECKS_DIR
+            )
+            alluxio.PreloadAlluxioDataset(
+                const.DEFAULT_SERVICE_CONNECTION
+                WORK_DIR
+                RESULT_DIR
+                CHECKS_DIR
+            )
+            alluxio.RunWarmWarpGet(
+                const.DEFAULT_SERVICE_CONNECTION
+                WORK_DIR
+                RESULT_DIR
+                CHECKS_DIR
+            )
+            common.RecordCurrentTime("BENCHMARK_END_TIME")
+            azure.AzCli(
+                const.DEFAULT_SERVICE_CONNECTION
+                "Collect safe deployment diagnostics"
+                alluxio.ShellSetup(WORK_DIR, RESULT_DIR) + """
+if [[ ! -s "$KUBECONFIG" ]]; then
+    echo '{"cluster_access":"not established"}' > "${RESULT_DIR}/diagnostics.json"
+    exit 0
+fi
+for namespace in alx-ns alluxio-operator; do
+    kubectl get pods -n "$namespace" -o json |
+        jq --arg namespace "$namespace" '{
+            ($namespace): [.items[] | {
+                name: .metadata.name, node: .spec.nodeName, phase: .status.phase,
+                containers: [(.status.containerStatuses // []) + (.status.initContainerStatuses // []) | .[] |
+                    {name, ready, restarts: .restartCount,
+                     state: (.state | with_entries(.value |= {reason, exitCode}))}]
+            }]
+        }' > "${WORK_DIR}/diagnostics-$namespace.json"
+done
+jq -s 'add' "${WORK_DIR}/diagnostics-alx-ns.json" "${WORK_DIR}/diagnostics-alluxio-operator.json" \\
+    > "${RESULT_DIR}/diagnostics.json"
+"""
+                condition = "always()"
+                stepName = "alluxio_diagnostics"
+            )
+            steps.Task {
+                task = "PublishPipelineArtifact@1"
+                displayName = "Publish Warp results and diagnostics"
+                condition = "always()"
+                inputs = {
+                    targetPath = RESULT_DIR
+                    artifact = "alluxio-warp-$(System.JobAttempt)"
+                }
+            }
+            azure.DeleteResourceGroup(
+                const.DEFAULT_SERVICE_CONNECTION
+                RESOURCE_GROUP
+                const.DEFAULT_SUBSCRIPTION_ID
+                condition = "and(always(), eq(variables['SHOULD_CLEAN_UP_RESOURCE_GROUP'], 'true'))"
+            )
+        ]
+    }]
+}
