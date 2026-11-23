@@ -29,8 +29,7 @@ for namespace in alx-ns alluxio-operator; do
         } | tojson)}
     }')"
     printf '%s\\n' "$pull_secret" |
-        private_command kubectl create --dry-run=server --validate=strict -f - > /dev/null
-    printf '%s\\n' "$pull_secret" | private_command kubectl create -f - > /dev/null
+        private_command kubectl create --validate=strict -f - > /dev/null
 done
 unset REGISTRY_TOKEN pull_secret
 """

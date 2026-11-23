@@ -30,7 +30,6 @@ output = ap.Pipeline {
         job = "alluxio_warp"
         displayName = "Alluxio Warp GET over Azure Blob"
         timeoutInMinutes = 180
-        cancelTimeoutInMinutes = 30
         steps = [
             common.SetRunId()
             k8s.InstallHelm()
