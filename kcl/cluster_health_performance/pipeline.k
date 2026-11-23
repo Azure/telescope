@@ -176,6 +176,7 @@ if [ -n "${s.preApply}" ]; then
 fi
 """)
                 kperf.RunKperfDataIngest(
+                    const.DEFAULT_SERVICE_CONNECTION,
                     "cm",
                     "kperf",
                     s.name,
@@ -184,8 +185,7 @@ fi
                     burst=50,
                     size=s.size,
                     groupSize=50,
-                    batchSize=s.count,
-                    serviceConnection=const.DEFAULT_SERVICE_CONNECTION)
+                    batchSize=s.count)
                 kperf.RunKperfRunnerGroup(
                     const.DEFAULT_SERVICE_CONNECTION,
                     "ghcr.io/xinweiwei24/kperf:20260709-pause",
