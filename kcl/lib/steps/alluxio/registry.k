@@ -1,16 +1,15 @@
 import azure_pipelines.ap.steps
 import lib.steps.azure
 
-ConfigureImagePullAccess = lambda serviceConnection: str, registryId: str, registrySubscription: str, workDir: str, resultDir: str -> steps.Step {
+ConfigureImagePullAccess = lambda serviceConnection: str, registryName: str, registrySubscription: str, workDir: str, resultDir: str -> steps.Step {
     azure.AzCli(
         serviceConnection
         "Configure short-lived ACR image pull credentials"
         ShellSetup(workDir, resultDir) + SecretCommands(workDir) + """
 # The shared registry has a delete lock; keep credentials inside the disposable cluster instead of creating RBAC grants.
-registry="$(az acr show --name "${registryId.split("/")[-1]}" --subscription "${registrySubscription}")"
-login_server="$(jq -er '.loginServer' <<< "$registry")"
+login_server="$(az acr show --name "${registryName}" --subscription "${registrySubscription}" | jq -er '.loginServer')"
 REGISTRY_TOKEN="$(private_command az acr login \\
-    --name "${registryId.split("/")[-1]}" \\
+    --name "${registryName}" \\
     --subscription "${registrySubscription}" \\
     --expose-token --query accessToken --output tsv)"
 export REGISTRY_TOKEN

@@ -1,16 +1,14 @@
 import azure_pipelines.ap.steps
 import lib.steps.azure
 
-InstallOperator = lambda serviceConnection: str, registryId: str, registrySubscription: str, operatorImage: str, operatorChart: str, workDir: str, resultDir: str -> steps.Step {
+InstallOperator = lambda serviceConnection: str, registryName: str, registrySubscription: str, operatorImage: str, operatorChart: str, workDir: str, resultDir: str -> steps.Step {
     azure.AzCli(
         serviceConnection
         "Install the Alluxio operator"
         ShellSetup(workDir, resultDir) + SecretCommands(workDir) + """
-registry="$(az acr show --name "${registryId.split("/")[-1]}" --subscription "${registrySubscription}")"
-registry_name="$(jq -er '.name' <<< "$registry")"
-login_server="$(jq -er '.loginServer' <<< "$registry")"
+login_server="$(az acr show --name "${registryName}" --subscription "${registrySubscription}" | jq -er '.loginServer')"
 registry_token="$(private_command az acr login \\
-    --name "$registry_name" \\
+    --name "${registryName}" \\
     --subscription "${registrySubscription}" \\
     --expose-token --query accessToken --output tsv)"
 printf '%s' "$registry_token" |

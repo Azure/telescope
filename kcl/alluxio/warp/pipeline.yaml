@@ -47,21 +47,18 @@ jobs:
         }
         trap 'echo "ALLUXIO WARP FAILED: command at line $LINENO exited with status $?" >&2' ERR
         trap 'rm -f -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.out" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/command.err" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/blob.bin" "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/helm-registry.json"' EXIT
-        acr_resource_id="/subscriptions/137f0351-8235-42a6-ac7a-6b46be2d21c7/resourceGroups/telescope/providers/Microsoft.ContainerRegistry/registries/telescope"
         alluxio_image="telescope.azurecr.io/alluxio-enterprise"
         operator_image="telescope.azurecr.io/alluxio-operator"
         subscription="b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
         resource_group="alluxio-$(RUN_ID)-$(System.JobAttempt)"
         cluster="alluxio-warp"
         location="westeurope"
-        registry="$(az acr show --name "telescope" --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7")"
-        registry_name="$(jq -er '.name' <<< "$registry")"
         images='{}'
         for image in "$alluxio_image" "$operator_image"; do
             tag="AI-3.8-15.1.28"
             if [[ "$image" == "$operator_image" ]]; then tag="3.7.6"; fi
             digest="$(az acr repository show \
-                --name "$registry_name" \
+                --name "telescope" \
                 --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" \
                 --image "${image#*/}:$tag" | jq -er '.digest')"
             images="$(jq --arg image "$image:$tag" --arg digest "$digest" '. + {($image): $digest}' <<< "$images")"
@@ -73,7 +70,7 @@ jobs:
         echo '##vso[task.setvariable variable=SHOULD_CLEAN_UP_RESOURCE_GROUP]true'
 
         jq -n \
-            --arg acr_resource_id "$acr_resource_id" --arg acr_subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" \
+            --arg acr_name "telescope" --arg acr_subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" \
             --arg alluxio_image "$alluxio_image" --arg operator_image "$operator_image" \
             --arg resource_group "$resource_group" --arg subscription "$subscription" \
             --arg cluster "$cluster" --arg location "$location" --arg storage_account "alx$(Build.BuildId)a$(System.JobAttempt)" \
@@ -278,8 +275,7 @@ jobs:
             [[ -n "${!1:-}" && "${!1}" != '$('* ]] || fail "Required secret pipeline variable $1 is missing"
         }
         # The shared registry has a delete lock; keep credentials inside the disposable cluster instead of creating RBAC grants.
-        registry="$(az acr show --name "telescope" --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7")"
-        login_server="$(jq -er '.loginServer' <<< "$registry")"
+        login_server="$(az acr show --name "telescope" --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" | jq -er '.loginServer')"
         REGISTRY_TOKEN="$(private_command az acr login \
             --name "telescope" \
             --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" \
@@ -427,11 +423,9 @@ jobs:
         require_secret() {
             [[ -n "${!1:-}" && "${!1}" != '$('* ]] || fail "Required secret pipeline variable $1 is missing"
         }
-        registry="$(az acr show --name "telescope" --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7")"
-        registry_name="$(jq -er '.name' <<< "$registry")"
-        login_server="$(jq -er '.loginServer' <<< "$registry")"
+        login_server="$(az acr show --name "telescope" --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" | jq -er '.loginServer')"
         registry_token="$(private_command az acr login \
-            --name "$registry_name" \
+            --name "telescope" \
             --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" \
             --expose-token --query accessToken --output tsv)"
         printf '%s' "$registry_token" |

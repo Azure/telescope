@@ -8,11 +8,11 @@ import lib.steps.common
 import lib.steps.k8s
 
 # Images and the OCI Helm chart are staged in the existing Telescope registry.
-ACR_RESOURCE_ID = "/subscriptions/137f0351-8235-42a6-ac7a-6b46be2d21c7/resourceGroups/telescope/providers/Microsoft.ContainerRegistry/registries/telescope"
-ACR_SUBSCRIPTION_ID = ACR_RESOURCE_ID.split("/")[2]
-ALLUXIO_IMAGE_REPOSITORY = "telescope.azurecr.io/alluxio-enterprise"
-OPERATOR_IMAGE_REPOSITORY = "telescope.azurecr.io/alluxio-operator"
-OPERATOR_CHART_REPOSITORY = "oci://telescope.azurecr.io/helm/alluxio-operator"
+ACR_NAME = "telescope"
+ACR_SUBSCRIPTION_ID = "137f0351-8235-42a6-ac7a-6b46be2d21c7"
+ALLUXIO_IMAGE_REPOSITORY = "${ACR_NAME}.azurecr.io/alluxio-enterprise"
+OPERATOR_IMAGE_REPOSITORY = "${ACR_NAME}.azurecr.io/alluxio-operator"
+OPERATOR_CHART_REPOSITORY = "oci://${ACR_NAME}.azurecr.io/helm/alluxio-operator"
 LOCATION = "westeurope"
 RESOURCE_GROUP = "alluxio-$(RUN_ID)-$(System.JobAttempt)"
 CLUSTER = "alluxio-warp"
@@ -39,7 +39,7 @@ output = ap.Pipeline {
             }
             alluxio.RecordRunConfiguration(
                 const.DEFAULT_SERVICE_CONNECTION
-                ACR_RESOURCE_ID
+                ACR_NAME
                 ACR_SUBSCRIPTION_ID
                 ALLUXIO_IMAGE_REPOSITORY
                 OPERATOR_IMAGE_REPOSITORY
@@ -120,7 +120,7 @@ az aks create \\
             )
             alluxio.ConfigureImagePullAccess(
                 const.DEFAULT_SERVICE_CONNECTION
-                ACR_RESOURCE_ID
+                ACR_NAME
                 ACR_SUBSCRIPTION_ID
                 WORK_DIR
                 RESULT_DIR
@@ -138,7 +138,7 @@ az aks create \\
             )
             alluxio.InstallOperator(
                 const.DEFAULT_SERVICE_CONNECTION
-                ACR_RESOURCE_ID
+                ACR_NAME
                 ACR_SUBSCRIPTION_ID
                 OPERATOR_IMAGE_REPOSITORY
                 OPERATOR_CHART_REPOSITORY
