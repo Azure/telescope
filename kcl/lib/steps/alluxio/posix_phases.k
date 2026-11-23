@@ -200,6 +200,28 @@ start_fuse_clients() {
         timeout 60 kubectl exec -n "$POSIX_NS" "$pod" -- ls /data > /dev/null || fail "$pod: /data is a FUSE mount that cannot be listed"
     done
 }
+# Succeeds when exactly ${POSIX_CLIENT_COUNT} FUSE pods exist, all Ready, none of them one of the old pods ($1).
+fuse_restarted() {
+    local pods
+    pods="$(kubectl get pods -n "$POSIX_NS" -o json)" || return 1
+    jq -e --argjson old "$1" --argjson want ${POSIX_CLIENT_COUNT} \\
+        '[.items[] | select(.metadata.name | startswith("alluxio-fuse-"))] as $p |
+        ($p | length) == $want and
+        all($p[]; (.metadata.uid as $u | ($old | index($u)) == null) and .status.phase == "Running" and
+            any(.status.conditions[]?; .type == "Ready" and .status == "True"))' <<< "$pods" > /dev/null
+}
+# Deletes the ${POSIX_CLIENT_COUNT} Alluxio FUSE pods and waits until the DaemonSet has replaced each with a Ready pod.
+# Usage: restart_fuse_pods
+restart_fuse_pods() {
+    local fuse_pods old_uids
+    fuse_pods="$(kubectl get pods -n "$POSIX_NS" -o json)" || fail "could not list the pods in $POSIX_NS"
+    old_uids="$(jq -c '[.items[] | select(.metadata.name | startswith("alluxio-fuse-")) | .metadata.uid]' <<< "$fuse_pods")"
+    [[ "$(jq length <<< "$old_uids")" == ${POSIX_CLIENT_COUNT} ]] || fail "expected ${POSIX_CLIENT_COUNT} Alluxio FUSE pods before the restart, found $old_uids"
+    kubectl get pods -n "$POSIX_NS" -o name | grep '^pod/alluxio-fuse-' | xargs kubectl delete --ignore-not-found -n "$POSIX_NS" --wait=true --timeout=300s ||
+        fail "could not delete the Alluxio FUSE pods within 300 s"
+    # A FUSE restart is a pod restart only; 600 s also covers an image pull on a node that lost it.
+    wait_until 600 "${POSIX_CLIENT_COUNT} restarted Alluxio FUSE pods to be Ready" fuse_restarted "$old_uids"
+}
 # Replaces the elbencho service pods. A client pod keeps the FUSE mount of the FUSE process that served the host
 # path when the pod started: once that process is gone (a FUSE pod restart), /data in the pod fails with
 # "Transport endpoint is not connected" until the pod is created again. 300 s bounds the deletion.
@@ -226,20 +248,7 @@ SetAlluxioDirectIo = lambda enabled: bool, clientsManifest: str, elbenchoImage: 
     assert clientsManifest != "" and elbenchoImage != "", "the FUSE restart recreates the elbencho pods and needs their manifest and image"
     value = "true" if enabled else "false"
     PHASES_WAIT_SHELL + FUSE_DIRECT_IO_SHELL + FUSE_CLIENTS_SHELL + """
-# Succeeds when exactly ${POSIX_CLIENT_COUNT} FUSE pods exist, all Ready, none of them one of the old pods ($1).
-fuse_restarted() {
-    local pods
-    pods="$(kubectl get pods -n "$POSIX_NS" -o json)" || return 1
-    jq -e --argjson old "$1" --argjson want ${POSIX_CLIENT_COUNT} \\
-        '[.items[] | select(.metadata.name | startswith("alluxio-fuse-"))] as $p |
-        ($p | length) == $want and
-        all($p[]; (.metadata.uid as $u | ($old | index($u)) == null) and .status.phase == "Running" and
-            any(.status.conditions[]?; .type == "Ready" and .status == "True"))' <<< "$pods" > /dev/null
-}
-
 fuse_pods="$(kubectl get pods -n "$POSIX_NS" -o json)" || fail "could not list the pods in $POSIX_NS"
-old_uids="$(jq -c '[.items[] | select(.metadata.name | startswith("alluxio-fuse-")) | .metadata.uid]' <<< "$fuse_pods")"
-[[ "$(jq length <<< "$old_uids")" == ${POSIX_CLIENT_COUNT} ]] || fail "expected ${POSIX_CLIENT_COUNT} Alluxio FUSE pods before the restart, found $old_uids"
 first_fuse="$(jq -r '[.items[] | select(.metadata.name | startswith("alluxio-fuse-")) | .metadata.name] | sort | .[0]' <<< "$fuse_pods")"
 fuse_configmap="$(fuse_conf_of "$first_fuse" | cut -f1)"
 kubectl patch alluxiocluster alluxio -n "$POSIX_NS" --type merge \\
@@ -248,16 +257,14 @@ kubectl patch alluxiocluster alluxio -n "$POSIX_NS" --type merge \\
     fail "alluxio.fuse.enforce.direct.io.read was not set to ${value}"
 # The operator renders the change within seconds; 300 s bounds a stuck reconciliation.
 wait_until 300 "the ConfigMap $fuse_configmap to hold alluxio.fuse.enforce.direct.io.read=${value}" configmap_has_direct_io "$fuse_configmap" ${value}
-kubectl get pods -n "$POSIX_NS" -o name | grep '^pod/alluxio-fuse-' | xargs kubectl delete --ignore-not-found -n "$POSIX_NS" --wait=true --timeout=300s ||
-    fail "could not delete the Alluxio FUSE pods within 300 s"
-# A FUSE restart is a pod restart only; 600 s also covers an image pull on a node that lost it.
-wait_until 600 "${POSIX_CLIENT_COUNT} restarted Alluxio FUSE pods to be Ready" fuse_restarted "$old_uids"
+restart_fuse_pods
 require_fuse_direct_io ${value}
 recreate_fuse_clients "${clientsManifest}" "${elbenchoImage}"
 """
 }
 
-# Creates the elbencho service pods that read through the Alluxio FUSE mount: one copy of manifest
+# Restarts the Alluxio FUSE pods (restart_fuse_pods), then creates the elbencho service pods that read through
+# the Alluxio FUSE mount: one copy of manifest
 # (clients-fuse.yaml) per client node, named posix-client-<i>, with ELBENCHO_IMAGE replaced by elbenchoImage.
 # Waits for exactly POSIX_CLIENT_COUNT Ready pods and fails unless /data in each is a FUSE mount that can be
 # listed (start_fuse_clients).
@@ -266,6 +273,12 @@ PrepareAlluxioFuseClients = lambda serviceConnection: str, manifest: str, elbenc
         serviceConnection
         "Start the elbencho pods on the Alluxio FUSE mount"
         PosixShellSetup(workDir, resultDir) + POSIX_RUNTIME_SHELL + PHASES_WAIT_SHELL + FUSE_CLIENTS_SHELL + """
+# The FUSE pods started with the cluster, before /posix was mounted, and each learns of the new mount point from
+# etcd a few seconds after it is added. A lookup of the FUSE root (/posix) in that window, such as the kubelet's
+# check of the client pods' host path, can keep failing with "No such file or directory" afterwards (seen for more
+# than 10 minutes; client metadata is cached for alluxio.user.metadata.cache.expiration.time, 1 h). Restarted
+# pods start with /posix in the mount table.
+restart_fuse_pods
 start_fuse_clients "${manifest}" "${elbenchoImage}"
 """
         stepName = "alluxio_fuse_clients"
