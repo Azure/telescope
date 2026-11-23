@@ -1,15 +1,15 @@
-def dataset_keys:
-  [range(0; 16) | "object-" + (if . < 10 then "0" else "" end) + tostring + ".bin"];
+def dataset_keys($count):
+  [range($count) | "object-" + (if . < 10 then "0" else "" end) + tostring + ".bin"] | sort;
 
-def validate_dataset:
-  if type == "array" and length == 16
-       and (map(.name) | sort) == dataset_keys
-       and all(.[]; .properties.contentLength == 67108864)
+def validate_dataset($count; $object_size_bytes):
+  if type == "array" and length == $count
+       and (map(.name) | sort) == dataset_keys($count)
+       and all(.[]; .properties.contentLength == $object_size_bytes)
     then .
-    else error("Blob dataset must contain exactly 16 objects of 64 MiB (1 GiB total)")
+    else error("Blob dataset must contain exactly \($count) objects of \($object_size_bytes) bytes each")
     end;
 
-def cache_counts:
+def cache_counts($count):
   . as $report
   | {
       total: "Total files checked",
@@ -23,26 +23,26 @@ def cache_counts:
       .value as $field_name
       | .value = ($report | capture("(?m)^\\s*" + $field_name + ":\\s*(?<count>[0-9]+)\\s*$").count | tonumber)
     )
-  | if length == 6 and .total == 16 and .failed == 0
+  | if length == 6 and .total == $count and .failed == 0
        and (.all + .one + .partial + .uncached) == .total
     then .
-    else error("Cache report must cover exactly 16 files with consistent counts and no failures")
+    else error("Cache report must cover exactly \($count) files with consistent counts and no failures")
     end;
 
 def positive_metric:
   type == "number" and isfinite and . > 0;
 
-def cold_warp_summary:
+def cold_warp_summary($count; $object_size_bytes):
   # The cold clients use UTC. Warp timestamps can have a variable-length fractional second.
   def seconds:
     (capture("^(?<whole>[^.Z]+)(?<fraction>\\.[0-9]+)?Z$") // error("Expected UTC Warp timestamp"))
     | ((.whole + "Z" | fromdateiso8601) + ("0" + (.fraction // "") | tonumber));
   split("\n") | map(select(length > 0 and (startswith("#") | not)) | split("\t"))
   | .[0] as $header | .[1:] | map([$header, .] | transpose | map({(.[0]): .[1]}) | add)
-  | if (map(.file) | sort) != dataset_keys or
-       any(.[]; .op != "GET" or .error != "" or .bytes != "67108864" or .n_objects != "1" or
+  | if (map(.file) | sort) != dataset_keys($count) or
+       any(.[]; .op != "GET" or .error != "" or .bytes != ($object_size_bytes | tostring) or .n_objects != "1" or
                 (.duration_ns | tonumber) <= 0)
-    then error("Cold Warp run must record exactly one successful 64 MiB GET per dataset key") else . end
+    then error("Cold Warp run must record exactly one successful GET of \($object_size_bytes) bytes per dataset key") else . end
   # Use the observed transfer interval, not the configured window or the sum of overlapping GET times.
   | (min_by(.start | seconds).start) as $start | (max_by(.end | seconds).end) as $finish
   | (($finish | seconds) - ($start | seconds)) as $elapsed
@@ -54,19 +54,20 @@ def cold_warp_summary:
       elapsed_seconds: $elapsed, measurement_start: $start, measurement_end: $finish,
       operations_per_second: (length / $elapsed),
       latency_avg_ms: ($latencies | add / length),
-      latency_p50_ms: (($latencies[7] + $latencies[8]) / 2), latency_p99_ms: $latencies[-1]
+      latency_p50_ms: (($latencies[(($count - 1) / 2 | floor)] + $latencies[($count / 2 | floor)]) / 2),
+      latency_p99_ms: $latencies[(($count * 0.99 | ceil) - 1)]
     } | .bytes_per_second = (.dataset_bytes / $elapsed);
 
-def warp_summary:
+def warp_summary($count; $object_size_bytes):
   if (.operations | type == "array" and length == 1) and .operations[0].type == "GET"
   then .operations[0]
   else error("Expected exactly one GET operation in Warp analysis")
   end
   | if .errors == 0 and .throughput.errors == 0 and .skipped == false
        and (.n | positive_metric) and (.throughput.ops | positive_metric)
-       and .concurrency == 16 and .single_sized_requests.obj_size == 67108864
+       and .concurrency == $count and .single_sized_requests.obj_size == $object_size_bytes
        and (.single_sized_requests.skipped // false) == false
-       # Warp trims incomplete edge requests from its requested 60-second run.
+       # Checks the run is about 60s, trimming incomplete requests.
        and .throughput.measure_duration_millis >= 54000
        and .throughput.measure_duration_millis <= 66000
     then {

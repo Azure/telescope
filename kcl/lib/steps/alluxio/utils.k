@@ -1,5 +1,7 @@
 ALLUXIO_TAG = "AI-3.8-15.1.28"
 OPERATOR_TAG = "3.7.6"
+OBJECT_COUNT = 16
+OBJECT_SIZE_BYTES = 64 * 1024 * 1024
 
 # Expand the same secret-safe shell setup into each independent pipeline step.
 ShellSetup = lambda workDir: str, resultDir: str -> str {
@@ -77,9 +79,9 @@ client_exec() {
     kubectl exec -n alx-ns warp-client -c warp -- "$@"
 }
 cache_report() {
-    alluxio fs check-cached --path /blob --recursive --limit 17 |
+    alluxio fs check-cached --path /blob --recursive --limit ${OBJECT_COUNT + 1} |
         redact > "${resultDir}/cache-$1.txt"
-    jq -Rse -L "${checksDir}" 'include "checks"; cache_counts' "${resultDir}/cache-$1.txt"
+    jq -Rse -L "${checksDir}" 'include "checks"; cache_counts(${OBJECT_COUNT})' "${resultDir}/cache-$1.txt"
 }
 """
 }

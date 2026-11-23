@@ -4,7 +4,7 @@ import lib.steps.azure
 SeedWarpDataset = lambda serviceConnection: str, subscription: str, resourceGroup: str, cluster: str, location: str, storageAccount: str, workDir: str, resultDir: str, checksDir: str -> steps.Step {
     azure.AzCli(
         serviceConnection
-        "Create Blob storage and seed 1 GiB"
+        "Create Blob storage and seed ${OBJECT_COUNT} objects"
         ShellSetup(workDir, resultDir) + SecretCommands(workDir) + """
 cluster_info="$(az aks show \\
     --name "${cluster}" \\
@@ -30,9 +30,9 @@ export AZURE_STORAGE_KEY
 az storage container create \\
     --name warp-data \\
     --public-access off > /dev/null
-for ((index = 0; index < 16; index++)); do
-    # Fixed per-object keys produce deterministic, nonzero 64 MiB payloads.
-    head -c 67108864 /dev/zero |
+for ((index = 0; index < ${OBJECT_COUNT}; index++)); do
+    # Fixed per-object keys produce deterministic, nonzero payloads.
+    head -c ${OBJECT_SIZE_BYTES} /dev/zero |
         openssl enc -aes-256-ctr -K "$(printf '%064x' "$index")" \\
             -iv 00000000000000000000000000000000 > "${workDir}/blob.bin"
     az storage blob upload \\
@@ -43,7 +43,7 @@ for ((index = 0; index < 16; index++)); do
 done
 rm -f -- "${workDir}/blob.bin"
 az storage blob list --container-name warp-data |
-    jq -e -L "${checksDir}" 'include "checks"; validate_dataset' > /dev/null
+    jq -e -L "${checksDir}" 'include "checks"; validate_dataset(${OBJECT_COUNT}; ${OBJECT_SIZE_BYTES})' > /dev/null
 BLOB_SAS="$(az storage container generate-sas \\
     --name warp-data \\
     --permissions rl \\
@@ -60,7 +60,7 @@ unset BLOB_SAS sas_value
 jq -n \\
     --arg storage_account "${storageAccount}" --arg container warp-data \\
     --arg location "${location}" --arg kubernetes_version "$(jq -er '.kubernetesVersion' <<< "$cluster_info")" \\
-    '$ARGS.named + {object_count: 16, object_bytes: 67108864, total_bytes: 1073741824}' \\
+    '$ARGS.named + {object_count: ${OBJECT_COUNT}, object_bytes: ${OBJECT_SIZE_BYTES}, total_bytes: ${OBJECT_COUNT * OBJECT_SIZE_BYTES}}' \\
     > "${resultDir}/dataset.json"
 """
         stepName = "alluxio_dataset"
