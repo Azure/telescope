@@ -116,6 +116,9 @@ jobs:
             --dns-name-prefix "$(resolve.CLUSTER)-dns" \
             --tier standard \
             --enable-managed-identity \
+            --enable-aad \
+            --enable-azure-rbac \
+            --disable-local-accounts \
             --generate-ssh-keys \
             --nodepool-name systempool \
             --node-count 3 \
@@ -176,6 +179,8 @@ jobs:
     CLUSTER: $[ dependencies.setup.outputs['resolve.CLUSTER'] ]
     RESOURCE_GROUP: $[ dependencies.setup.outputs['resolve.RESOURCE_GROUP'] ]
   steps:
+  - task: KubeloginInstaller@0
+    displayName: Install kubelogin
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
@@ -189,6 +194,15 @@ jobs:
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --overwrite-existing
     displayName: Get credentials for $(CLUSTER)
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |-
+        set -exo pipefail
+        kubelogin convert-kubeconfig -l azurecli
+    displayName: Convert kubeconfig to Entra ID login
   - script: |
       set -euo pipefail
       set -x
@@ -272,6 +286,8 @@ jobs:
     CLUSTER: $[ dependencies.setup.outputs['resolve.CLUSTER'] ]
     RESOURCE_GROUP: $[ dependencies.setup.outputs['resolve.RESOURCE_GROUP'] ]
   steps:
+  - task: KubeloginInstaller@0
+    displayName: Install kubelogin
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
@@ -285,6 +301,15 @@ jobs:
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --overwrite-existing
     displayName: Get credentials for $(CLUSTER)
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |-
+        set -exo pipefail
+        kubelogin convert-kubeconfig -l azurecli
+    displayName: Convert kubeconfig to Entra ID login
   - script: |
       set -euo pipefail
       set -x
@@ -368,6 +393,8 @@ jobs:
     CLUSTER: $[ dependencies.setup.outputs['resolve.CLUSTER'] ]
     RESOURCE_GROUP: $[ dependencies.setup.outputs['resolve.RESOURCE_GROUP'] ]
   steps:
+  - task: KubeloginInstaller@0
+    displayName: Install kubelogin
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
@@ -381,6 +408,15 @@ jobs:
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --overwrite-existing
     displayName: Get credentials for $(CLUSTER)
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |-
+        set -exo pipefail
+        kubelogin convert-kubeconfig -l azurecli
+    displayName: Convert kubeconfig to Entra ID login
   - script: |
       set -euo pipefail
       set -x
