@@ -203,58 +203,64 @@ jobs:
       rm -rf $temp_dir
       docker rmi ghcr.io/liyu-ma/kperf:hyperscale-etcd 2>/dev/null || true
     displayName: Install runkperf binary
-  - script: |
-      set -euo pipefail
-      set -x
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        set -euo pipefail
+        set -x
 
-      TOTAL_OBJECTS_COUNT=0
-      if [ "$TOTAL_OBJECTS_COUNT" -eq 0 ]; then
-        TOTAL_OBJECTS_COUNT=$(awk 'BEGIN{printf "%d", ${{ parameters.ingest_configmap_gib }} * 1073741824 / 524288}')
-      fi
-      TOTAL_BATCHES=$(( (TOTAL_OBJECTS_COUNT + 2000 - 1) / 2000 ))
-
-      kubectl create namespace kperf-configmap-data 2>/dev/null || true
-
-      echo "Ingesting $TOTAL_OBJECTS_COUNT configmaps in $TOTAL_BATCHES batches of 2000..."
-
-      completed=0
-      for batch in $(seq 1 $TOTAL_BATCHES); do
-        REMAINING=$((TOTAL_OBJECTS_COUNT - completed))
-        COUNT=2000
-        if [ "$REMAINING" -lt "$COUNT" ]; then
-          COUNT=$REMAINING
+        TOTAL_OBJECTS_COUNT=0
+        if [ "$TOTAL_OBJECTS_COUNT" -eq 0 ]; then
+          TOTAL_OBJECTS_COUNT=$(awk 'BEGIN{printf "%d", ${{ parameters.ingest_configmap_gib }} * 1073741824 / 524288}')
         fi
+        TOTAL_BATCHES=$(( (TOTAL_OBJECTS_COUNT + 2000 - 1) / 2000 ))
 
-        echo "Batch $batch/$TOTAL_BATCHES: creating $COUNT configmaps..."
-        run_batch() {
-          runkperf data configmap \
-            --namespace kperf-configmap-data \
-            add $(System.JobId)-b$batch \
-            --qps 80 \
-            --burst 80 \
-            --total $COUNT \
-            --size 524288 \
-            --group-size 80
-        }
+        kubectl create namespace kperf-configmap-data 2>/dev/null || true
 
-        # add is not idempotent, so clear the partial batch before each retry.
-        for attempt in $(seq 1 2); do
-          run_batch && break
-          if [ "$attempt" -eq "2" ]; then
-            echo "Batch $batch failed after 2 attempts" >&2
-            exit 1
+        echo "Ingesting $TOTAL_OBJECTS_COUNT configmaps in $TOTAL_BATCHES batches of 2000..."
+
+        completed=0
+        for batch in $(seq 1 $TOTAL_BATCHES); do
+          REMAINING=$((TOTAL_OBJECTS_COUNT - completed))
+          COUNT=2000
+          if [ "$REMAINING" -lt "$COUNT" ]; then
+            COUNT=$REMAINING
           fi
-          echo "Batch $batch attempt $attempt failed; cleaning up before retry..."
-          # delete reconstructs names <set>-<0..total-1>, so total must cover the whole batch.
-          runkperf data configmap --namespace kperf-configmap-data delete $(System.JobId)-b$batch --total $COUNT || true
+
+          echo "Batch $batch/$TOTAL_BATCHES: creating $COUNT configmaps..."
+          run_batch() {
+            runkperf data configmap \
+              --namespace kperf-configmap-data \
+              add $(System.JobId)-b$batch \
+              --qps 80 \
+              --burst 80 \
+              --total $COUNT \
+              --size 524288 \
+              --group-size 80
+          }
+
+          # add is not idempotent, so clear the partial batch before each retry.
+          for attempt in $(seq 1 2); do
+            run_batch && break
+            if [ "$attempt" -eq "2" ]; then
+              echo "Batch $batch failed after 2 attempts" >&2
+              exit 1
+            fi
+            echo "Batch $batch attempt $attempt failed; cleaning up before retry..."
+            # delete reconstructs names <set>-<0..total-1>, so total must cover the whole batch.
+            runkperf data configmap --namespace kperf-configmap-data delete $(System.JobId)-b$batch --total $COUNT || true
+          done
+
+          completed=$((completed + COUNT))
+          STORAGE_GIB=$(awk 'BEGIN{printf "%.1f", '$completed' * 524288 / 1073741824}')
+          echo "Progress: $completed / $TOTAL_OBJECTS_COUNT configmaps created (~$STORAGE_GIB GiB)"
         done
 
-        completed=$((completed + COUNT))
-        STORAGE_GIB=$(awk 'BEGIN{printf "%.1f", '$completed' * 524288 / 1073741824}')
-        echo "Progress: $completed / $TOTAL_OBJECTS_COUNT configmaps created (~$STORAGE_GIB GiB)"
-      done
-
-      echo "Ingest complete: $completed configmaps created."
+        echo "Ingest complete: $completed configmaps created."
     condition: and(succeeded(), or(ne('0', '0'), ne('${{ parameters.ingest_configmap_gib }}', '0')))
     displayName: Ingest configmap data
 - job: ingest_events
@@ -293,58 +299,64 @@ jobs:
       rm -rf $temp_dir
       docker rmi ghcr.io/liyu-ma/kperf:hyperscale-etcd 2>/dev/null || true
     displayName: Install runkperf binary
-  - script: |
-      set -euo pipefail
-      set -x
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        set -euo pipefail
+        set -x
 
-      TOTAL_OBJECTS_COUNT=0
-      if [ "$TOTAL_OBJECTS_COUNT" -eq 0 ]; then
-        TOTAL_OBJECTS_COUNT=$(awk 'BEGIN{printf "%d", ${{ parameters.ingest_events_gib }} * 1073741824 / 524288}')
-      fi
-      TOTAL_BATCHES=$(( (TOTAL_OBJECTS_COUNT + 2000 - 1) / 2000 ))
-
-      kubectl create namespace kperf-event-data 2>/dev/null || true
-
-      echo "Ingesting $TOTAL_OBJECTS_COUNT events in $TOTAL_BATCHES batches of 2000..."
-
-      completed=0
-      for batch in $(seq 1 $TOTAL_BATCHES); do
-        REMAINING=$((TOTAL_OBJECTS_COUNT - completed))
-        COUNT=2000
-        if [ "$REMAINING" -lt "$COUNT" ]; then
-          COUNT=$REMAINING
+        TOTAL_OBJECTS_COUNT=0
+        if [ "$TOTAL_OBJECTS_COUNT" -eq 0 ]; then
+          TOTAL_OBJECTS_COUNT=$(awk 'BEGIN{printf "%d", ${{ parameters.ingest_events_gib }} * 1073741824 / 524288}')
         fi
+        TOTAL_BATCHES=$(( (TOTAL_OBJECTS_COUNT + 2000 - 1) / 2000 ))
 
-        echo "Batch $batch/$TOTAL_BATCHES: creating $COUNT events..."
-        run_batch() {
-          runkperf data event \
-            --namespace kperf-event-data \
-            add $(System.JobId)-b$batch \
-            --qps 80 \
-            --burst 80 \
-            --total $COUNT \
-            --size 524288 \
-            --group-size 80
-        }
+        kubectl create namespace kperf-event-data 2>/dev/null || true
 
-        # add is not idempotent, so clear the partial batch before each retry.
-        for attempt in $(seq 1 2); do
-          run_batch && break
-          if [ "$attempt" -eq "2" ]; then
-            echo "Batch $batch failed after 2 attempts" >&2
-            exit 1
+        echo "Ingesting $TOTAL_OBJECTS_COUNT events in $TOTAL_BATCHES batches of 2000..."
+
+        completed=0
+        for batch in $(seq 1 $TOTAL_BATCHES); do
+          REMAINING=$((TOTAL_OBJECTS_COUNT - completed))
+          COUNT=2000
+          if [ "$REMAINING" -lt "$COUNT" ]; then
+            COUNT=$REMAINING
           fi
-          echo "Batch $batch attempt $attempt failed; cleaning up before retry..."
-          # delete reconstructs names <set>-<0..total-1>, so total must cover the whole batch.
-          runkperf data event --namespace kperf-event-data delete $(System.JobId)-b$batch --total $COUNT || true
+
+          echo "Batch $batch/$TOTAL_BATCHES: creating $COUNT events..."
+          run_batch() {
+            runkperf data event \
+              --namespace kperf-event-data \
+              add $(System.JobId)-b$batch \
+              --qps 80 \
+              --burst 80 \
+              --total $COUNT \
+              --size 524288 \
+              --group-size 80
+          }
+
+          # add is not idempotent, so clear the partial batch before each retry.
+          for attempt in $(seq 1 2); do
+            run_batch && break
+            if [ "$attempt" -eq "2" ]; then
+              echo "Batch $batch failed after 2 attempts" >&2
+              exit 1
+            fi
+            echo "Batch $batch attempt $attempt failed; cleaning up before retry..."
+            # delete reconstructs names <set>-<0..total-1>, so total must cover the whole batch.
+            runkperf data event --namespace kperf-event-data delete $(System.JobId)-b$batch --total $COUNT || true
+          done
+
+          completed=$((completed + COUNT))
+          STORAGE_GIB=$(awk 'BEGIN{printf "%.1f", '$completed' * 524288 / 1073741824}')
+          echo "Progress: $completed / $TOTAL_OBJECTS_COUNT events created (~$STORAGE_GIB GiB)"
         done
 
-        completed=$((completed + COUNT))
-        STORAGE_GIB=$(awk 'BEGIN{printf "%.1f", '$completed' * 524288 / 1073741824}')
-        echo "Progress: $completed / $TOTAL_OBJECTS_COUNT events created (~$STORAGE_GIB GiB)"
-      done
-
-      echo "Ingest complete: $completed events created."
+        echo "Ingest complete: $completed events created."
     condition: and(succeeded(), or(ne('0', '0'), ne('${{ parameters.ingest_events_gib }}', '0')))
     displayName: Ingest event data
 - job: ingest_secrets
@@ -383,58 +395,64 @@ jobs:
       rm -rf $temp_dir
       docker rmi ghcr.io/liyu-ma/kperf:hyperscale-etcd 2>/dev/null || true
     displayName: Install runkperf binary
-  - script: |
-      set -euo pipefail
-      set -x
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+        set -euo pipefail
+        set -x
 
-      TOTAL_OBJECTS_COUNT=0
-      if [ "$TOTAL_OBJECTS_COUNT" -eq 0 ]; then
-        TOTAL_OBJECTS_COUNT=$(awk 'BEGIN{printf "%d", ${{ parameters.ingest_secrets_gib }} * 1073741824 / 524288}')
-      fi
-      TOTAL_BATCHES=$(( (TOTAL_OBJECTS_COUNT + 2000 - 1) / 2000 ))
-
-      kubectl create namespace kperf-secret-data 2>/dev/null || true
-
-      echo "Ingesting $TOTAL_OBJECTS_COUNT secrets in $TOTAL_BATCHES batches of 2000..."
-
-      completed=0
-      for batch in $(seq 1 $TOTAL_BATCHES); do
-        REMAINING=$((TOTAL_OBJECTS_COUNT - completed))
-        COUNT=2000
-        if [ "$REMAINING" -lt "$COUNT" ]; then
-          COUNT=$REMAINING
+        TOTAL_OBJECTS_COUNT=0
+        if [ "$TOTAL_OBJECTS_COUNT" -eq 0 ]; then
+          TOTAL_OBJECTS_COUNT=$(awk 'BEGIN{printf "%d", ${{ parameters.ingest_secrets_gib }} * 1073741824 / 524288}')
         fi
+        TOTAL_BATCHES=$(( (TOTAL_OBJECTS_COUNT + 2000 - 1) / 2000 ))
 
-        echo "Batch $batch/$TOTAL_BATCHES: creating $COUNT secrets..."
-        run_batch() {
-          runkperf data secret \
-            --namespace kperf-secret-data \
-            add $(System.JobId)-b$batch \
-            --qps 80 \
-            --burst 80 \
-            --total $COUNT \
-            --size 524288 \
-            --group-size 80
-        }
+        kubectl create namespace kperf-secret-data 2>/dev/null || true
 
-        # add is not idempotent, so clear the partial batch before each retry.
-        for attempt in $(seq 1 2); do
-          run_batch && break
-          if [ "$attempt" -eq "2" ]; then
-            echo "Batch $batch failed after 2 attempts" >&2
-            exit 1
+        echo "Ingesting $TOTAL_OBJECTS_COUNT secrets in $TOTAL_BATCHES batches of 2000..."
+
+        completed=0
+        for batch in $(seq 1 $TOTAL_BATCHES); do
+          REMAINING=$((TOTAL_OBJECTS_COUNT - completed))
+          COUNT=2000
+          if [ "$REMAINING" -lt "$COUNT" ]; then
+            COUNT=$REMAINING
           fi
-          echo "Batch $batch attempt $attempt failed; cleaning up before retry..."
-          # delete reconstructs names <set>-<0..total-1>, so total must cover the whole batch.
-          runkperf data secret --namespace kperf-secret-data delete $(System.JobId)-b$batch --total $COUNT || true
+
+          echo "Batch $batch/$TOTAL_BATCHES: creating $COUNT secrets..."
+          run_batch() {
+            runkperf data secret \
+              --namespace kperf-secret-data \
+              add $(System.JobId)-b$batch \
+              --qps 80 \
+              --burst 80 \
+              --total $COUNT \
+              --size 524288 \
+              --group-size 80
+          }
+
+          # add is not idempotent, so clear the partial batch before each retry.
+          for attempt in $(seq 1 2); do
+            run_batch && break
+            if [ "$attempt" -eq "2" ]; then
+              echo "Batch $batch failed after 2 attempts" >&2
+              exit 1
+            fi
+            echo "Batch $batch attempt $attempt failed; cleaning up before retry..."
+            # delete reconstructs names <set>-<0..total-1>, so total must cover the whole batch.
+            runkperf data secret --namespace kperf-secret-data delete $(System.JobId)-b$batch --total $COUNT || true
+          done
+
+          completed=$((completed + COUNT))
+          STORAGE_GIB=$(awk 'BEGIN{printf "%.1f", '$completed' * 524288 / 1073741824}')
+          echo "Progress: $completed / $TOTAL_OBJECTS_COUNT secrets created (~$STORAGE_GIB GiB)"
         done
 
-        completed=$((completed + COUNT))
-        STORAGE_GIB=$(awk 'BEGIN{printf "%.1f", '$completed' * 524288 / 1073741824}')
-        echo "Progress: $completed / $TOTAL_OBJECTS_COUNT secrets created (~$STORAGE_GIB GiB)"
-      done
-
-      echo "Ingest complete: $completed secrets created."
+        echo "Ingest complete: $completed secrets created."
     condition: and(succeeded(), or(ne('0', '0'), ne('${{ parameters.ingest_secrets_gib }}', '0')))
     displayName: Ingest secret data
 - job: finalize

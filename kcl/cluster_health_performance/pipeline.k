@@ -94,6 +94,10 @@ buildJob = lambda config: ClusterConfig -> job.Job {
         timeoutInMinutes = 600
         steps = [
             common.SetRunId()
+            steps.Task {
+                task = "KubeloginInstaller@0"
+                displayName = "Install kubelogin"
+            }
             azure.Login(const.DEFAULT_SERVICE_CONNECTION, SUBSCRIPTION_ID, config.region)
             azure.CreateResourceGroup(const.DEFAULT_SERVICE_CONNECTION, "$(RUN_ID)", config.region, SUBSCRIPTION_ID)
             # AKS cluster with Azure CNI Overlay.
@@ -122,6 +126,9 @@ az aks create \\
     --max-pods 250 \\
     --control-plane-scaling-size H8 \\
     --enable-managed-identity \\
+    --enable-aad \\
+    --enable-azure-rbac \\
+    --disable-local-accounts \\
     --generate-ssh-keys \\
     $EXTRA_ARGS
 """)
@@ -138,6 +145,11 @@ az aks create \\
                 count = 100
             })
             azure.GetCredentials(const.DEFAULT_SERVICE_CONNECTION, CLUSTER_NAME, "$(RUN_ID)", SUBSCRIPTION_ID)
+            # The service connection needs AKS RBAC Cluster Admin access for the benchmarks.
+            azure.AzCli(
+                const.DEFAULT_SERVICE_CONNECTION,
+                "Convert kubeconfig to Entra ID login",
+                "kubelogin convert-kubeconfig -l azurecli")
             health.ValidateWorkloadHealth(const.DEFAULT_SERVICE_CONNECTION, kind="*", namespace="kube-system")
             health.ValidateCoreDNS(const.DEFAULT_SERVICE_CONNECTION)
             health.ValidateMetricsServer(const.DEFAULT_SERVICE_CONNECTION)
@@ -152,18 +164,28 @@ az aks create \\
             # Expand each scenario into setup, ingest, run, fetch, and cleanup steps.
             *[step for name, s in WORKLOADS for step in [
                 # preApply (scenario6): apply loggers, wait Ready.
-                steps.Script {
-                    displayName = "Setup scenario state (${name})"
-                    script = """
+                azure.AzCli(
+                    const.DEFAULT_SERVICE_CONNECTION,
+                    "Setup scenario state (${name})",
+                    """
 set -euo pipefail
 set -x
 if [ -n "${s.preApply}" ]; then
   kubectl apply -f "$(Pipeline.Workspace)/s/${s.preApply}"
   kubectl -n "${s.preApplyNamespace}" wait --for=condition=Ready pod -l app=kperf-logger --timeout=120s
 fi
-"""
-                }
-                kperf.RunKperfDataIngest("cm", "kperf", s.name, total=s.count, qps=50, burst=50, size=s.size, groupSize=50, batchSize=s.count)
+""")
+                kperf.RunKperfDataIngest(
+                    const.DEFAULT_SERVICE_CONNECTION,
+                    "cm",
+                    "kperf",
+                    s.name,
+                    total=s.count,
+                    qps=50,
+                    burst=50,
+                    size=s.size,
+                    groupSize=50,
+                    batchSize=s.count)
                 kperf.RunKperfRunnerGroup(
                     const.DEFAULT_SERVICE_CONNECTION,
                     "ghcr.io/xinweiwei24/kperf:20260709-pause",
@@ -175,16 +197,16 @@ fi
                     resultPath="/tmp/kperf-result-${name}.json",
                     initialDelaySeconds=300)
                 # Delete the namespace before the next scenario recreates it.
-                steps.Script {
-                    displayName = "Cleanup scenario state (${name})"
-                    continueOnError = True
-                    condition = "always()"
-                    script = """
+                azure.AzCli(
+                    const.DEFAULT_SERVICE_CONNECTION,
+                    "Cleanup scenario state (${name})",
+                    """
 set -euo pipefail
 set -x
 kubectl delete namespace kperf --ignore-not-found --wait=true --timeout=15m
-"""
-                }
+""",
+                    condition="always()",
+                    continueOnError=True)
             ]]
             # Run health checks after all scenarios complete.
             health.ValidateWorkloadHealth(const.DEFAULT_SERVICE_CONNECTION, kind="*", namespace="kube-system")
