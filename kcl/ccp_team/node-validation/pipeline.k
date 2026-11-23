@@ -23,6 +23,10 @@ benchmarkJob = lambda region: str -> job.Job {
         timeoutInMinutes = 240
         cancelTimeoutInMinutes = 60
         steps = [
+            steps.Task {
+                task = "KubeloginInstaller@0"
+                displayName = "Install kubelogin"
+            }
             azure.Login(
                 const.DEFAULT_SERVICE_CONNECTION
                 const.DEFAULT_SUBSCRIPTION_ID
@@ -58,6 +62,9 @@ az aks create \\
   --outbound-type managedNATGateway \\
   --nat-gateway-managed-outbound-ip-count 10 \\
   --enable-managed-identity \\
+  --enable-aad \\
+  --enable-azure-rbac \\
+  --disable-local-accounts \\
   --generate-ssh-keys \\
   --yes
 """
@@ -76,13 +83,15 @@ az aks create \\
                 const.DEFAULT_SUBSCRIPTION_ID
                 file=KUBECONFIG
             )
-            steps.Bash {
-                displayName = "Wait for NoSchedule taint clearance"
-                bash = """
+            azure.AzCli(
+                const.DEFAULT_SERVICE_CONNECTION
+                "Wait for NoSchedule taint clearance"
+                """
+kubelogin convert-kubeconfig -l azurecli --kubeconfig "${KUBECONFIG}"
 bash "$(Build.SourcesDirectory)/kcl/ccp_team/node-validation/wait-for-taint-clearance.sh" \\
   "${KUBECONFIG}" "${workerPool.name}:${workerPool.count}"
 """
-            }
+            )
             azure.DeleteResourceGroup(
                 const.DEFAULT_SERVICE_CONNECTION
                 cluster

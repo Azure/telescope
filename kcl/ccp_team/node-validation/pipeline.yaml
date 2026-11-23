@@ -18,6 +18,8 @@ stages:
     timeoutInMinutes: 240
     cancelTimeoutInMinutes: 60
     steps:
+    - task: KubeloginInstaller@0
+      displayName: Install kubelogin
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -69,6 +71,9 @@ stages:
             --outbound-type managedNATGateway \
             --nat-gateway-managed-outbound-ip-count 10 \
             --enable-managed-identity \
+            --enable-aad \
+            --enable-azure-rbac \
+            --disable-local-accounts \
             --generate-ssh-keys \
             --yes
       displayName: Create Standard-tier cluster
@@ -134,9 +139,16 @@ stages:
             --overwrite-existing \
             -f $(Agent.TempDirectory)/$(System.JobId)-kubeconfig
       displayName: Get credentials for nodevalidation-$(Build.BuildId)-eastasia-nodes1000-$(System.JobAttempt)
-    - bash: |
-        bash "$(Build.SourcesDirectory)/kcl/ccp_team/node-validation/wait-for-taint-clearance.sh" \
-          "$(Agent.TempDirectory)/$(System.JobId)-kubeconfig" "workerpool0:1000"
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          kubelogin convert-kubeconfig -l azurecli --kubeconfig "$(Agent.TempDirectory)/$(System.JobId)-kubeconfig"
+          bash "$(Build.SourcesDirectory)/kcl/ccp_team/node-validation/wait-for-taint-clearance.sh" \
+            "$(Agent.TempDirectory)/$(System.JobId)-kubeconfig" "workerpool0:1000"
       displayName: Wait for NoSchedule taint clearance
     - task: AzureCLI@2
       inputs:
@@ -179,6 +191,8 @@ stages:
     timeoutInMinutes: 240
     cancelTimeoutInMinutes: 60
     steps:
+    - task: KubeloginInstaller@0
+      displayName: Install kubelogin
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -230,6 +244,9 @@ stages:
             --outbound-type managedNATGateway \
             --nat-gateway-managed-outbound-ip-count 10 \
             --enable-managed-identity \
+            --enable-aad \
+            --enable-azure-rbac \
+            --disable-local-accounts \
             --generate-ssh-keys \
             --yes
       displayName: Create Standard-tier cluster
@@ -295,9 +312,16 @@ stages:
             --overwrite-existing \
             -f $(Agent.TempDirectory)/$(System.JobId)-kubeconfig
       displayName: Get credentials for nodevalidation-$(Build.BuildId)-westus2-nodes1000-$(System.JobAttempt)
-    - bash: |
-        bash "$(Build.SourcesDirectory)/kcl/ccp_team/node-validation/wait-for-taint-clearance.sh" \
-          "$(Agent.TempDirectory)/$(System.JobId)-kubeconfig" "workerpool0:1000"
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+          kubelogin convert-kubeconfig -l azurecli --kubeconfig "$(Agent.TempDirectory)/$(System.JobId)-kubeconfig"
+          bash "$(Build.SourcesDirectory)/kcl/ccp_team/node-validation/wait-for-taint-clearance.sh" \
+            "$(Agent.TempDirectory)/$(System.JobId)-kubeconfig" "workerpool0:1000"
       displayName: Wait for NoSchedule taint clearance
     - task: AzureCLI@2
       inputs:
