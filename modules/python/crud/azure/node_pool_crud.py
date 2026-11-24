@@ -591,8 +591,9 @@ class NodePoolCRUD:
             names.append(name)
 
         phase = "Succeeded" if workload_type == "job" else "Running"
-        deadline = time.monotonic() + self.step_timeout
-        while time.monotonic() < deadline:
+        # Historical shell counts two budget units per poll, excluding API latency.
+        poll_budget_used = 0
+        while poll_budget_used < self.step_timeout:
             pods = k8s_client.get_pods_by_namespace(
                 namespace, field_selector=f"status.phase={phase}"
             )
@@ -600,12 +601,13 @@ class NodePoolCRUD:
                 any(pod.metadata.name.startswith(f"{name}-") for name in names)
                 for pod in pods
             )
+            poll_budget_used += 2
+            time.sleep(1)
             if matching == count * number_of_workloads:
                 ended = datetime.now(timezone.utc)
                 break
             logger.info("Legacy %s pods %s: %d/%d", workload_type, phase,
                         matching, count * number_of_workloads)
-            time.sleep(min(1, max(0, deadline - time.monotonic())))
         else:
             raise TimeoutError(f"Legacy {workload_type} pods did not reach {phase}")
 

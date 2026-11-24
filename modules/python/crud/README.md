@@ -203,8 +203,13 @@ Counts and timeouts must be positive.
 targeting remains absent, matching the previous benchmark. It waits for the
 complete batch's pods to reach Running (Deployment/StatefulSet) or Succeeded
 (Job). Timing starts before the last Deployment apply, or the single
-Job/StatefulSet apply, and ends when the pod count is observed. The workload
-timeout is one wall-clock waiting budget, not a per-pod budget.
+Job/StatefulSet apply, and ends after the successful poll's one-second sleep.
+The workload timeout preserves the historical shell counter: each poll consumes
+two budget units and sleeps for one second, including the final successful or
+unsuccessful poll. API-call time does not consume that counter, so this is not a
+wall-clock deadline or a per-pod budget. For example, `--step-timeout 200`
+allows 100 polls; elapsed time includes those polls' API latency and sleeps.
+The default workload profile is unchanged.
 
 There is no additional five-minute pod wait.
 
@@ -213,8 +218,7 @@ records `workload_start_timestamp`, `workload_end_timestamp`, and
 `workload_readiness_time`; `collect --legacy-output` uses that historical metric
 for the legacy `time` alias. Failed submissions/readiness checks remain failed
 operations and stop the batch; previously submitted resources are left for the
-pipeline's cleanup. Exact old polling cadence and shell timeout-counter quirks
-are not reproduced.
+pipeline's cleanup.
 
 ## Collect Benchmark Results
 

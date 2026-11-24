@@ -547,14 +547,87 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
             SimpleNamespace(metadata=SimpleNamespace(name=f"myapp-other-pool-1-pod-{i}"))
             for i in range(5)
         ]
-        with mock.patch("crud.azure.node_pool_crud.time.sleep"):
-            with mock.patch("crud.azure.node_pool_crud.time.monotonic", side_effect=[0, 0, 0.5, 1]):
-                self.assertFalse(self.node_pool_crud.create_deployment(
-                    "test-pool", replicas=5, workload_profile="legacy-shell",
-                ))
+        with mock.patch("crud.azure.node_pool_crud.time.sleep") as sleeper:
+            self.assertFalse(self.node_pool_crud.create_deployment(
+                "test-pool", replicas=5, workload_profile="legacy-shell",
+            ))
+        client.get_pods_by_namespace.assert_called_once()
+        sleeper.assert_called_once_with(1)
         operation = self._read_operation_info()
         self.assertFalse(operation["success"])
         self.assertIn("Running", operation["error_message"])
+
+    def test_legacy_poll_budget_matches_shell_counter_and_final_sleep(self):
+        start = datetime(2026, 11, 6, tzinfo=timezone.utc)
+        for workload_type, prefix in (
+            ("deployment", "myapp-test-pool-1"),
+            ("job", "pi-test-pool"),
+            ("statefulset", "web-test-pool"),
+        ):
+            for timeout in (1, 2, 3, 4, 5):
+                for api_seconds in (0, 10):
+                    for succeeds in (False, True):
+                        with self.subTest(
+                            workload=workload_type, timeout=timeout,
+                            api_seconds=api_seconds, succeeds=succeeds,
+                        ):
+                            self.node_pool_crud.step_timeout = timeout
+                            polls = (timeout + 1) // 2
+                            state = SimpleNamespace(elapsed=0, poll_count=0)
+                            client = mock.Mock()
+                            operation = mock.Mock()
+
+                            def query(
+                                *_args, state=state, api_seconds=api_seconds,
+                                succeeds=succeeds, polls=polls, prefix=prefix, **_kwargs,
+                            ):
+                                state.elapsed += api_seconds
+                                state.poll_count += 1
+                                if succeeds and state.poll_count == polls:
+                                    return [SimpleNamespace(
+                                        metadata=SimpleNamespace(name=f"{prefix}-pod")
+                                    )]
+                                return []
+
+                            def sleep(seconds, state=state):
+                                state.elapsed += seconds
+
+                            client.get_pods_by_namespace.side_effect = query
+                            with (
+                                mock.patch.object(
+                                    self.node_pool_crud, "_submit_workload",
+                                    return_value=(prefix, "", start),
+                                ),
+                                mock.patch("crud.azure.node_pool_crud.time.sleep",
+                                           side_effect=sleep) as sleeper,
+                                mock.patch("crud.azure.node_pool_crud.time.monotonic",
+                                           side_effect=lambda state=state: state.elapsed),
+                                mock.patch("crud.azure.node_pool_crud.datetime") as clock,
+                            ):
+                                clock.now.side_effect = lambda *_args, state=state: (
+                                    start + timedelta(seconds=state.elapsed)
+                                )
+                                arguments = (
+                                    client, workload_type, "test-pool", 1, 1,
+                                    None, "app=nginx", "default", "legacy-shell", operation,
+                                )
+                                if succeeds:
+                                    self.node_pool_crud._create_legacy_workloads(*arguments)  # pylint: disable=protected-access
+                                    operation.add_metadata.assert_any_call(
+                                        "workload_readiness_time", polls * (api_seconds + 1)
+                                    )
+                                else:
+                                    with self.assertRaisesRegex(TimeoutError, "pods"):
+                                        self.node_pool_crud._create_legacy_workloads(*arguments)  # pylint: disable=protected-access
+                                    operation.add_metadata.assert_not_called()
+                            self.assertEqual(state.poll_count, polls)
+                            self.assertEqual(sleeper.call_args_list, [mock.call(1)] * polls)
+                            client.get_pods_by_namespace.assert_called_with(
+                                "default", field_selector=(
+                                    "status.phase=Succeeded" if workload_type == "job"
+                                    else "status.phase=Running"
+                                ),
+                            )
 
     def test_default_templates_and_per_instance_wait_are_unchanged(self):
         for method in (
