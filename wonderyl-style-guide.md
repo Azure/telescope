@@ -7,6 +7,27 @@ corrections are omitted.
 
 ---
 
+# General
+
+## Prioritize reading over writing
+
+Optimize for the person reading the code, not the convenience of the person writing it.
+Prefer descriptive names and straightforward control flow over shortcuts that make the
+reader work harder.
+
+## Keep code succinct and to the point
+
+Use the simplest implementation that makes the intent clear. Remove unnecessary
+indirection and boilerplate, but don't sacrifice readability just to save lines.
+
+## Encapsulate implementation details
+
+Give each function or module a clear responsibility. Keep implementation details behind
+its interface, and make inputs, outputs, and side effects clear so callers don't have to
+read the implementation to use it correctly.
+
+---
+
 # Reuse & Abstraction
 
 ## Only wrap a command in a helper when the helper encapsulates something
@@ -47,6 +68,11 @@ cognitive load for readers who already know the underlying system. Reuse the ups
 
 Use a `use_` / `enable_` / `is_` / `has_` prefix so the type is obvious at the call site.
 *(PR [#1103](https://github.com/Azure/telescope/pull/1103): `use_multiple_controllers`)*
+
+## Function names should be actions
+
+A function represents an action, so name it that. For example, use `CollectResults` rather
+than `Results`, and `CountReadyNodes` rather than `ReadyNodeCount`.
 
 ## Make names reflect exactly what the thing does
 
@@ -273,9 +299,21 @@ A file written but never uploaded is dead code: wire it up or delete it. *(PR [#
 "Retried because transient" must say *which* operations and *why*, so the workaround can be
 re-evaluated later. *(PR [#1213](https://github.com/Azure/telescope/pull/1213))*
 
+## Add timeouts only when necessary
+
+Do not add a timeout by default. If an operation needs a time limit, explain why existing
+limits are insufficient and how you chose the duration.
+
 ---
 
 # Python
+
+## Keep each step self-contained and self-sufficient
+
+Do not build a Python CLI with multiple subcommands that perform unrelated pipeline steps.
+Keep each step's logic together, with explicit inputs and outputs, so it can be understood
+and run independently without relying on another subcommand's hidden setup or side effects.
+Compose the steps in the pipeline rather than hiding unrelated operations behind one CLI.
 
 ## Expose configuration as CLI arguments, not environment variables
 
