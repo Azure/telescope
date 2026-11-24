@@ -175,12 +175,13 @@ class KubernetesClient:
         return self.api.delete_namespace(namespace)
 
     # TODO: Explore https://kustomize.io for templating
-    def create_template(self, template_path: str, replacements: dict) -> str:
+    def create_template(self, template_path: str, replacements: dict, *, log_template: bool = True) -> str:
         """
         Generate a Kubernetes resource template by replacing placeholders with actual values.
 
         :param template_path: Path to the YAML template file.
         :param replacements: Dictionary of placeholders and their corresponding values.
+        :param log_template: Whether to log the template content.
         :return: Processed YAML content as a string.
         """
         if not os.path.isfile(template_path):
@@ -192,7 +193,8 @@ class KubernetesClient:
 
             for key, value in replacements.items():
                 template = template.replace(f"{{{{{key}}}}}", str(value))
-                logger.info(f"Final template: \n{template}")
+                if log_template:
+                    logger.info(f"Final template: \n{template}")
 
             return template
         except Exception as e:
