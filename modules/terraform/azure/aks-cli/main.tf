@@ -118,7 +118,7 @@ locals {
     )
   )
 
-  managed_identity_parameter = (var.aks_cli_config.managed_identity_name == null ?
+  managed_identity_parameter = var.cri_identities != null ? format("--assign-identity '%s'", var.cri_identities.control_plane.id) : (var.aks_cli_config.managed_identity_name == null ?
     "--enable-managed-identity" :
     format(
       "%s %s",
@@ -126,7 +126,7 @@ locals {
     )
   )
 
-  kubelet_identity_parameter = (!var.enable_kubelet_identity || var.aks_cli_config.dry_run) ? "" : format(
+  kubelet_identity_parameter = var.cri_identities != null ? format("--assign-kubelet-identity '%s'", var.cri_identities.kubelet.id) : (!var.enable_kubelet_identity || var.aks_cli_config.dry_run) ? "" : format(
     "%s %s",
     "--assign-kubelet-identity",
     azurerm_user_assigned_identity.kubelet_identity[0].id,
@@ -294,6 +294,12 @@ resource "terraform_data" "enable_aks_cli_preview_extension" {
 }
 
 resource "terraform_data" "aks_cli" {
+  lifecycle {
+    precondition {
+      condition     = var.cri_identities == null || (var.aks_cli_config.managed_identity_name == null && !var.enable_kubelet_identity && local.key_management_service == null)
+      error_message = "CRI identities cannot be combined with module-created managed identities or KMS."
+    }
+  }
   depends_on = [
     terraform_data.enable_aks_cli_preview_extension,
     azurerm_role_assignment.network_contributor,
@@ -400,7 +406,7 @@ resource "azurerm_role_assignment" "des_reader_cluster" {
 
   scope                = local.disk_encryption_set_id
   role_definition_name = "Reader"
-  principal_id = var.aks_cli_config.managed_identity_name != null ? azurerm_user_assigned_identity.userassignedidentity[0].principal_id : (
+  principal_id = var.cri_identities != null ? var.cri_identities.control_plane.principal_id : var.aks_cli_config.managed_identity_name != null ? azurerm_user_assigned_identity.userassignedidentity[0].principal_id : (
     local.aks_system_assigned_principal_id != null ? local.aks_system_assigned_principal_id : error("Unable to determine AKS system-assigned identity principalId via azapi; cannot grant DES Reader role.")
   )
 }

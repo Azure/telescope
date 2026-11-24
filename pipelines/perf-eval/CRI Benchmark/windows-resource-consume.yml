@@ -13,6 +13,7 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: windows-resource-consume
+  USE_CRI_PREAUTHORIZED_IDENTITIES: 'true'
 
 stages:
   - stage: azure_westus3_windows2022

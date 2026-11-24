@@ -37,6 +37,16 @@ steps:
 
       regional_config=$REGIONAL_CONFIG
       PUBLIC_KEY_PATH=${SSH_PUBLIC_KEY_PATH:-}
+      if [[ "${USE_CRI_PREAUTHORIZED_IDENTITIES:-false}" == "true" ]]; then
+        identity_args=(--subscription "${CRI_IDENTITY_SUBSCRIPTION:-AKS Airlock}" --resource-group telescope)
+        control_plane=$(az identity show "${identity_args[@]}" --name telescope-controlplane-MI \
+          --query '{id:id,principal_id:principalId}' -o json)
+        kubelet=$(az identity show "${identity_args[@]}" --name cri-kubelet \
+          --query '{id:id,client_id:clientId,object_id:principalId}' -o json)
+        cri_identities=$(jq -cen --argjson cp "$control_plane" --argjson k "$kubelet" \
+          'if all([$cp.id, $cp.principal_id, $k.id, $k.client_id, $k.object_id][]; type == "string" and length > 0)
+           then {control_plane: $cp, kubelet: $k} else error("Incomplete CRI managed identity metadata") end')
+      fi
       for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
         if [ -z "$INPUT_VARIABLES" ]; then
           echo "Set input variables for region $REGION"
@@ -71,6 +81,9 @@ steps:
                   aks_cli_user_node_pool: $aks_cli_user_node_pool,
                   public_key_path: $public_key_path
                 }' | jq 'with_entries(select(.value != null and .value != ""))')
+        fi
+        if [[ "${USE_CRI_PREAUTHORIZED_IDENTITIES:-false}" == "true" ]]; then
+          INPUT_VARIABLES=$(jq -c --argjson ids "$cri_identities" '. + {cri_identities: $ids}' <<< "$INPUT_VARIABLES")
         fi
         input_variables_str=$(echo $INPUT_VARIABLES | jq -c .)
         echo "Input variables: $input_variables_str"

@@ -250,6 +250,7 @@ module "aks" {
   resource_group_name  = local.run_id
   location             = local.region
   aks_config           = each.value
+  cri_identities       = each.key == "client" ? var.json_input.cri_identities : null
   tags                 = local.tags
   subnet_id            = try(local.all_subnets[each.value.subnet_name], null)
   vnet_id              = try(module.virtual_network[each.value.role].vnet_id, null)
@@ -283,6 +284,7 @@ module "aks-cli" {
   resource_group_name        = local.run_id
   location                   = local.region
   aks_cli_config             = each.value
+  cri_identities             = each.key == "client" ? var.json_input.cri_identities : null
   tags                       = local.tags
   subnets_map                = local.all_subnets
   aks_cli_custom_config_path = local.aks_cli_custom_config_path

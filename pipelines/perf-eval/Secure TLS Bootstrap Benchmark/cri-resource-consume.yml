@@ -21,6 +21,7 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: stls-bootstrap-cri
+  USE_CRI_PREAUTHORIZED_IDENTITIES: 'true'
 
 stages:
   - stage: azure_westus2_linux

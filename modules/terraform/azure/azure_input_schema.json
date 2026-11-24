@@ -1,6 +1,22 @@
 {
   "type": "object",
   "properties": {
+    "cri_identities": {
+      "type": "object",
+      "required": ["control_plane", "kubelet"],
+      "properties": {
+        "control_plane": {
+          "type": "object",
+          "required": ["id", "principal_id"],
+          "properties": {"id": {"type": "string"}, "principal_id": {"type": "string"}}
+        },
+        "kubelet": {
+          "type": "object",
+          "required": ["id", "client_id", "object_id"],
+          "properties": {"id": {"type": "string"}, "client_id": {"type": "string"}, "object_id": {"type": "string"}}
+        }
+      }
+    },
     "run_id": {
       "type": "string"
     },

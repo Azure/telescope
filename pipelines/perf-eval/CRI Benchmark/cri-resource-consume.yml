@@ -13,6 +13,7 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: cri-resource-consume
+  USE_CRI_PREAUTHORIZED_IDENTITIES: 'true'
 
 stages:
   - stage: azure_swedencentral_managed_vs_ephemeral_1_31

@@ -182,3 +182,11 @@ variable "aks_config" {
     error_message = "Windows agent pool name can not be longer than 6 characters"
   }
 }
+variable "cri_identities" {
+  description = "Existing control-plane and kubelet identities for the CRI benchmark."
+  type = object({
+    control_plane = object({ id = string, principal_id = string })
+    kubelet       = object({ id = string, client_id = string, object_id = string })
+  })
+  default = null
+}

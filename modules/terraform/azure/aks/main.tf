@@ -93,8 +93,24 @@ resource "azurerm_kubernetes_cluster" "aks" {
     dns_service_ip      = var.aks_config.network_profile.dns_service_ip
   }
   identity {
-    type         = local.key_management_service != null ? "UserAssigned" : "SystemAssigned"
-    identity_ids = local.key_management_service != null ? [azurerm_user_assigned_identity.aks_identity[0].id] : []
+    type         = var.cri_identities != null || local.key_management_service != null ? "UserAssigned" : "SystemAssigned"
+    identity_ids = var.cri_identities != null ? [var.cri_identities.control_plane.id] : (local.key_management_service != null ? [azurerm_user_assigned_identity.aks_identity[0].id] : [])
+  }
+
+  dynamic "kubelet_identity" {
+    for_each = var.cri_identities == null ? [] : [var.cri_identities.kubelet]
+    content {
+      user_assigned_identity_id = kubelet_identity.value.id
+      client_id                 = kubelet_identity.value.client_id
+      object_id                 = kubelet_identity.value.object_id
+    }
+  }
+
+  lifecycle {
+    precondition {
+      condition     = var.cri_identities == null || local.key_management_service == null
+      error_message = "CRI identities cannot replace a cluster-managed KMS identity."
+    }
   }
 
   dynamic "key_management_service" {
@@ -196,7 +212,7 @@ resource "azurerm_role_assignment" "aks_on_subnet" {
 
   role_definition_name = each.key
   scope                = var.vnet_id
-  principal_id         = local.key_management_service != null ? azurerm_user_assigned_identity.aks_identity[0].principal_id : azurerm_kubernetes_cluster.aks.identity[0].principal_id
+  principal_id         = var.cri_identities != null ? var.cri_identities.control_plane.principal_id : (local.key_management_service != null ? azurerm_user_assigned_identity.aks_identity[0].principal_id : azurerm_kubernetes_cluster.aks.identity[0].principal_id)
 }
 
 resource "local_file" "save_kube_config" {
@@ -227,5 +243,5 @@ resource "azurerm_role_assignment" "des_reader_cluster" {
 
   scope                = local.disk_encryption_set_id
   role_definition_name = "Reader"
-  principal_id         = local.key_management_service != null ? azurerm_user_assigned_identity.aks_identity[0].principal_id : azurerm_kubernetes_cluster.aks.identity[0].principal_id
+  principal_id         = var.cri_identities != null ? var.cri_identities.control_plane.principal_id : (local.key_management_service != null ? azurerm_user_assigned_identity.aks_identity[0].principal_id : azurerm_kubernetes_cluster.aks.identity[0].principal_id)
 }

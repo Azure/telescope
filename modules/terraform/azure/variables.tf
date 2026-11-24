@@ -1,7 +1,11 @@
 variable "json_input" {
   description = "value of the json input"
   type = object({
-    run_id                            = string
+    run_id = string
+    cri_identities = optional(object({
+      control_plane = object({ id = string, principal_id = string })
+      kubelet       = object({ id = string, client_id = string, object_id = string })
+    }))
     region                            = string
     aks_sku_tier                      = optional(string, null)
     aks_kubernetes_version            = optional(string, null)
@@ -587,4 +591,3 @@ variable "disk_encryption_set_config_list" {
     error_message = "Each Disk Encryption Set config must have name 1-80 characters, and key_vault_name and key_name must be specified."
   }
 }
-

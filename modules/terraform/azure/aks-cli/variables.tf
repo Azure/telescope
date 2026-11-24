@@ -118,3 +118,18 @@ variable "aks_cli_config" {
     disk_encryption_set_name = optional(string, null) # Name of the Disk Encryption Set to use for OS disk encryption
   })
 }
+variable "cri_identities" {
+  description = "Existing control-plane and kubelet identities for the CRI benchmark."
+  type = object({
+    control_plane = object({ id = string, principal_id = string })
+    kubelet       = object({ id = string, client_id = string, object_id = string })
+  })
+  default = null
+  validation {
+    condition = var.cri_identities == null ? true : alltrue([
+      for id in [var.cri_identities.control_plane.id, var.cri_identities.kubelet.id] :
+      can(regex("(?i)^/subscriptions/[0-9a-f-]{36}/resourcegroups/[a-z0-9_.()-]+/providers/Microsoft\\.ManagedIdentity/userAssignedIdentities/[a-z0-9_-]+$", id))
+    ])
+    error_message = "Expected full user-assigned managed identity ARM resource IDs."
+  }
+}

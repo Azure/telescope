@@ -13,6 +13,7 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: azurelinux-resource-consume
+  USE_CRI_PREAUTHORIZED_IDENTITIES: 'true'
 
 stages:
   - stage: azurelinux_v3_swedencentral
