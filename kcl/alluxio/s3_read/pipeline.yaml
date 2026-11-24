@@ -380,7 +380,7 @@ jobs:
                 --name s3-data \
                 --public-access off > /dev/null
             for ((index = 0; index < 16; index++)); do
-                # Fixed per-object keys produce deterministic, nonzero 64 MiB payloads.
+                # Fixed per-object keys produce deterministic, nonzero payloads.
                 head -c 67108864 /dev/zero |
                     openssl enc -aes-256-ctr -K "$(printf '%064x' "$index")" \
                         -iv 00000000000000000000000000000000 > "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/blob.bin"
@@ -391,20 +391,20 @@ jobs:
                     --overwrite false > /dev/null
             done
             rm -f -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/blob.bin"
-            mkdir -p -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/small"
+            # Each file's path under upload/ is its key, so the batch upload below names the blobs.
+            mkdir -p -- "$(dirname "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/upload/$(printf 'small/obj-%04d.bin' 0)")"
             for ((index = 0; index < 1024; index++)); do
-                # Offset the key so small objects differ from the big ones; 1 MiB each.
+                # Offset the key so small objects differ from the big ones.
                 head -c 1048576 /dev/zero |
                     openssl enc -aes-256-ctr -K "$(printf '%064x' "$((index + 16))")" \
-                        -iv 00000000000000000000000000000000 > "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/small/$(printf 'obj-%04d.bin' "$index")"
+                        -iv 00000000000000000000000000000000 > "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/upload/$(printf 'small/obj-%04d.bin' "$index")"
             done
             # One batch upload: each single `az storage blob upload` costs about 2 s of fixed overhead.
             az storage blob upload-batch \
                 --destination s3-data \
-                --destination-path small \
-                --source "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/small" \
+                --source "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/upload" \
                 --overwrite false > /dev/null
-            rm -rf -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/small"
+            rm -rf -- "$(Agent.TempDirectory)/alluxio-$(System.JobId)-$(System.JobAttempt)/upload"
             # --include m exposes metadata.hdi_isfolder; --num-results is explicit so a truncated listing cannot pass.
             az storage blob list \
                 --container-name s3-data \
@@ -925,18 +925,6 @@ jobs:
         kubectl get pods -n alx-ns -l app=s3c -o json |
             jq -e '[.items[].spec.nodeName] | unique | length == 5' > /dev/null ||
             fail "the 5 client pods are not on 5 different nodes"
-        key_script="$(cat <<'KEYS'
-        set -eu
-        seq 0 15 | awk '{printf "object-%02d.bin\n", $1}' > /tmp/big.txt
-        seq 0 1023 | awk '{printf "small/obj-%04d.bin\n", $1}' > /tmp/small.txt
-        for set in 1 2 3 4 5 6; do
-            seq 0 7 | awk -v set="$set" '{printf "set-%d/part-%d.bin\n", set, $1}' > "/tmp/checkpoint-$set.txt"
-        done
-        KEYS
-        )"
-        for index in $(seq 1 5); do
-            kubectl exec -n alx-ns "s3c-$index" -c s3c -- sh -c "$key_script"
-        done
     displayName: Create the S3 read client pods
     env:
       LOCAL_DATA_SAS: $(LOCAL_DATA_SAS)
@@ -1245,13 +1233,11 @@ jobs:
                 -c alluxio-coordinator -- alluxio "$@"
         }
         # Runs s3c.sh once in client pod s3c-1; the JSON result goes to stdout, redacted.
-        # $1 side (alluxio|blob), then the scenario parameters of run_scenario after the metadata.
+        # $1 side (alluxio|blob), $2 Alluxio bucket, $3 Blob account, $4 SAS file, then s3c.sh variables (NAME=value).
         run_s3c() {
-            local side="$1" kind="$2" bucket="$3" account="$4" sas="$5" keys="$6" object_bytes="$7"
-            local concurrency="$8" range_bytes="$9" batch="${10}" budget="${11}" duration="${12}" hosts
-            local args=(MODE="$side" KIND="$kind" CONCURRENCY="$concurrency" DURATION_SECONDS="$duration"
-                KEYS_FILE="$keys" OBJECT_BYTES="$object_bytes" RANGE_BYTES="$range_bytes"
-                BATCH_REQUESTS="$batch" MAX_REQUESTS_PER_WORKER="$budget")
+            local side="$1" bucket="$2" account="$3" sas="$4" hosts
+            shift 4
+            local args=(MODE="$side" "$@")
             if [[ "$side" == alluxio ]]; then
                 # Re-read the worker list for every run: a worker that restarted since the last run must fail the step.
                 hosts="$(worker_hosts)"
@@ -1278,7 +1264,7 @@ jobs:
                 ufs_before="$(worker_ufs_bytes)"
             fi
             start="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            out="$(run_s3c "$side" "$@" 60)" || status=$?
+            out="$(run_s3c "$side" "$@" DURATION_SECONDS=60)" || status=$?
             end="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             # s3c.sh prints its JSON result before it fails; keep that result for diagnosis.
             printf '%s\n' "$out" | redact > "$run_file"
@@ -1332,7 +1318,7 @@ jobs:
                 (( SECONDS < deadline )) || fail "preload of the $name dataset did not finish within 10 minutes"
                 sleep 10
             done
-            # --limit 1041 exceeds the 1,040 objects (16 big + 1,024 small), so the report is not truncated.
+            # --limit exceeds the number of objects in both sets, so the report is not truncated.
             # Cache population can lag the end of the load job, so poll: at most 6 checks 10 s apart (about 1 minute),
             # then a real shortfall fails the step.
             for attempt in 1 2 3 4 5 6; do
@@ -1346,9 +1332,9 @@ jobs:
         }
         warm_dataset local /blob
         warm_dataset remote /xregion
-        run_scenario '{"id": 1, "name": "remote small get", "kind": "get", "dataset": "remote", "concurrency": 16, "rangeBytes": 0}' get xregion alx$(Build.BuildId)r$(System.JobAttempt) remote-data /tmp/small.txt 1048576 16 0 50 100000
-        run_scenario '{"id": 2, "name": "remote big get", "kind": "get", "dataset": "remote", "concurrency": 16, "rangeBytes": 0}' get xregion alx$(Build.BuildId)r$(System.JobAttempt) remote-data /tmp/big.txt 67108864 16 0 4 2000
-        run_scenario '{"id": 3, "name": "range 256 KiB", "kind": "range", "dataset": "local", "concurrency": 16, "rangeBytes": 262144}' range blob alx$(Build.BuildId)l$(System.JobAttempt) local-data /tmp/big.txt 67108864 16 262144 50 100000
+        run_scenario '{"id": 1, "name": "remote small get", "kind": "get", "dataset": "remote", "concurrency": 16, "rangeBytes": 0}' xregion alx$(Build.BuildId)r$(System.JobAttempt) remote-data KIND=get KEY_FORMAT='small/obj-%04d.bin' KEY_COUNT=1024 OBJECT_BYTES=1048576 CONCURRENCY=16 RANGE_BYTES=0 BATCH_REQUESTS=50 MAX_REQUESTS_PER_WORKER=100000
+        run_scenario '{"id": 2, "name": "remote big get", "kind": "get", "dataset": "remote", "concurrency": 16, "rangeBytes": 0}' xregion alx$(Build.BuildId)r$(System.JobAttempt) remote-data KIND=get KEY_FORMAT='object-%02d.bin' KEY_COUNT=16 OBJECT_BYTES=67108864 CONCURRENCY=16 RANGE_BYTES=0 BATCH_REQUESTS=4 MAX_REQUESTS_PER_WORKER=2000
+        run_scenario '{"id": 3, "name": "range 256 KiB", "kind": "range", "dataset": "local", "concurrency": 16, "rangeBytes": 262144}' blob alx$(Build.BuildId)l$(System.JobAttempt) local-data KIND=range KEY_FORMAT='object-%02d.bin' KEY_COUNT=16 OBJECT_BYTES=67108864 CONCURRENCY=16 RANGE_BYTES=262144 BATCH_REQUESTS=50 MAX_REQUESTS_PER_WORKER=100000
     displayName: Run S3 read scenarios 1-3 against Alluxio and Blob
     env:
       LOCAL_DATA_SAS: $(LOCAL_DATA_SAS)
@@ -1438,13 +1424,11 @@ jobs:
                 -c alluxio-coordinator -- alluxio "$@"
         }
         # Runs s3c.sh once in client pod s3c-1; the JSON result goes to stdout, redacted.
-        # $1 side (alluxio|blob), then the scenario parameters of run_scenario after the metadata.
+        # $1 side (alluxio|blob), $2 Alluxio bucket, $3 Blob account, $4 SAS file, then s3c.sh variables (NAME=value).
         run_s3c() {
-            local side="$1" kind="$2" bucket="$3" account="$4" sas="$5" keys="$6" object_bytes="$7"
-            local concurrency="$8" range_bytes="$9" batch="${10}" budget="${11}" duration="${12}" hosts
-            local args=(MODE="$side" KIND="$kind" CONCURRENCY="$concurrency" DURATION_SECONDS="$duration"
-                KEYS_FILE="$keys" OBJECT_BYTES="$object_bytes" RANGE_BYTES="$range_bytes"
-                BATCH_REQUESTS="$batch" MAX_REQUESTS_PER_WORKER="$budget")
+            local side="$1" bucket="$2" account="$3" sas="$4" hosts
+            shift 4
+            local args=(MODE="$side" "$@")
             if [[ "$side" == alluxio ]]; then
                 # Re-read the worker list for every run: a worker that restarted since the last run must fail the step.
                 hosts="$(worker_hosts)"
@@ -1471,7 +1455,7 @@ jobs:
                 ufs_before="$(worker_ufs_bytes)"
             fi
             start="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            out="$(run_s3c "$side" "$@" 60)" || status=$?
+            out="$(run_s3c "$side" "$@" DURATION_SECONDS=60)" || status=$?
             end="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             # s3c.sh prints its JSON result before it fails; keep that result for diagnosis.
             printf '%s\n' "$out" | redact > "$run_file"
@@ -1525,7 +1509,7 @@ jobs:
                 (( SECONDS < deadline )) || fail "preload of the $name dataset did not finish within 10 minutes"
                 sleep 10
             done
-            # --limit 1041 exceeds the 1,040 objects (16 big + 1,024 small), so the report is not truncated.
+            # --limit exceeds the number of objects in both sets, so the report is not truncated.
             # Cache population can lag the end of the load job, so poll: at most 6 checks 10 s apart (about 1 minute),
             # then a real shortfall fails the step.
             for attempt in 1 2 3 4 5 6; do
@@ -1537,8 +1521,8 @@ jobs:
             done
             fail "the $name dataset is not fully cached after 6 checks over about a minute"
         }
-        run_scenario '{"id": 4, "name": "range 1 MiB", "kind": "range", "dataset": "local", "concurrency": 16, "rangeBytes": 1048576}' range blob alx$(Build.BuildId)l$(System.JobAttempt) local-data /tmp/big.txt 67108864 16 1048576 50 100000
-        run_scenario '{"id": 5, "name": "local small get", "kind": "get", "dataset": "local", "concurrency": 16, "rangeBytes": 0}' get blob alx$(Build.BuildId)l$(System.JobAttempt) local-data /tmp/small.txt 1048576 16 0 50 100000
+        run_scenario '{"id": 4, "name": "range 1 MiB", "kind": "range", "dataset": "local", "concurrency": 16, "rangeBytes": 1048576}' blob alx$(Build.BuildId)l$(System.JobAttempt) local-data KIND=range KEY_FORMAT='object-%02d.bin' KEY_COUNT=16 OBJECT_BYTES=67108864 CONCURRENCY=16 RANGE_BYTES=1048576 BATCH_REQUESTS=50 MAX_REQUESTS_PER_WORKER=100000
+        run_scenario '{"id": 5, "name": "local small get", "kind": "get", "dataset": "local", "concurrency": 16, "rangeBytes": 0}' blob alx$(Build.BuildId)l$(System.JobAttempt) local-data KIND=get KEY_FORMAT='small/obj-%04d.bin' KEY_COUNT=1024 OBJECT_BYTES=1048576 CONCURRENCY=16 RANGE_BYTES=0 BATCH_REQUESTS=50 MAX_REQUESTS_PER_WORKER=100000
     displayName: Run S3 read scenarios 4-5 against Alluxio and Blob
     env:
       LOCAL_DATA_SAS: $(LOCAL_DATA_SAS)
@@ -1628,13 +1612,11 @@ jobs:
                 -c alluxio-coordinator -- alluxio "$@"
         }
         # Runs s3c.sh once in client pod s3c-1; the JSON result goes to stdout, redacted.
-        # $1 side (alluxio|blob), then the scenario parameters of run_scenario after the metadata.
+        # $1 side (alluxio|blob), $2 Alluxio bucket, $3 Blob account, $4 SAS file, then s3c.sh variables (NAME=value).
         run_s3c() {
-            local side="$1" kind="$2" bucket="$3" account="$4" sas="$5" keys="$6" object_bytes="$7"
-            local concurrency="$8" range_bytes="$9" batch="${10}" budget="${11}" duration="${12}" hosts
-            local args=(MODE="$side" KIND="$kind" CONCURRENCY="$concurrency" DURATION_SECONDS="$duration"
-                KEYS_FILE="$keys" OBJECT_BYTES="$object_bytes" RANGE_BYTES="$range_bytes"
-                BATCH_REQUESTS="$batch" MAX_REQUESTS_PER_WORKER="$budget")
+            local side="$1" bucket="$2" account="$3" sas="$4" hosts
+            shift 4
+            local args=(MODE="$side" "$@")
             if [[ "$side" == alluxio ]]; then
                 # Re-read the worker list for every run: a worker that restarted since the last run must fail the step.
                 hosts="$(worker_hosts)"
@@ -1661,7 +1643,7 @@ jobs:
                 ufs_before="$(worker_ufs_bytes)"
             fi
             start="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            out="$(run_s3c "$side" "$@" 60)" || status=$?
+            out="$(run_s3c "$side" "$@" DURATION_SECONDS=60)" || status=$?
             end="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             # s3c.sh prints its JSON result before it fails; keep that result for diagnosis.
             printf '%s\n' "$out" | redact > "$run_file"
@@ -1715,7 +1697,7 @@ jobs:
                 (( SECONDS < deadline )) || fail "preload of the $name dataset did not finish within 10 minutes"
                 sleep 10
             done
-            # --limit 1041 exceeds the 1,040 objects (16 big + 1,024 small), so the report is not truncated.
+            # --limit exceeds the number of objects in both sets, so the report is not truncated.
             # Cache population can lag the end of the load job, so poll: at most 6 checks 10 s apart (about 1 minute),
             # then a real shortfall fails the step.
             for attempt in 1 2 3 4 5 6; do
@@ -1727,8 +1709,8 @@ jobs:
             done
             fail "the $name dataset is not fully cached after 6 checks over about a minute"
         }
-        run_scenario '{"id": 6, "name": "range 4 MiB", "kind": "range", "dataset": "local", "concurrency": 16, "rangeBytes": 4194304}' range blob alx$(Build.BuildId)l$(System.JobAttempt) local-data /tmp/big.txt 67108864 16 4194304 50 100000
-        run_scenario '{"id": 7, "name": "range 16 MiB", "kind": "range", "dataset": "local", "concurrency": 16, "rangeBytes": 16777216}' range blob alx$(Build.BuildId)l$(System.JobAttempt) local-data /tmp/big.txt 67108864 16 16777216 16 100000
+        run_scenario '{"id": 6, "name": "range 4 MiB", "kind": "range", "dataset": "local", "concurrency": 16, "rangeBytes": 4194304}' blob alx$(Build.BuildId)l$(System.JobAttempt) local-data KIND=range KEY_FORMAT='object-%02d.bin' KEY_COUNT=16 OBJECT_BYTES=67108864 CONCURRENCY=16 RANGE_BYTES=4194304 BATCH_REQUESTS=50 MAX_REQUESTS_PER_WORKER=100000
+        run_scenario '{"id": 7, "name": "range 16 MiB", "kind": "range", "dataset": "local", "concurrency": 16, "rangeBytes": 16777216}' blob alx$(Build.BuildId)l$(System.JobAttempt) local-data KIND=range KEY_FORMAT='object-%02d.bin' KEY_COUNT=16 OBJECT_BYTES=67108864 CONCURRENCY=16 RANGE_BYTES=16777216 BATCH_REQUESTS=16 MAX_REQUESTS_PER_WORKER=100000
     displayName: Run S3 read scenarios 6-7 against Alluxio and Blob
     env:
       LOCAL_DATA_SAS: $(LOCAL_DATA_SAS)
@@ -1818,13 +1800,11 @@ jobs:
                 -c alluxio-coordinator -- alluxio "$@"
         }
         # Runs s3c.sh once in client pod s3c-1; the JSON result goes to stdout, redacted.
-        # $1 side (alluxio|blob), then the scenario parameters of run_scenario after the metadata.
+        # $1 side (alluxio|blob), $2 Alluxio bucket, $3 Blob account, $4 SAS file, then s3c.sh variables (NAME=value).
         run_s3c() {
-            local side="$1" kind="$2" bucket="$3" account="$4" sas="$5" keys="$6" object_bytes="$7"
-            local concurrency="$8" range_bytes="$9" batch="${10}" budget="${11}" duration="${12}" hosts
-            local args=(MODE="$side" KIND="$kind" CONCURRENCY="$concurrency" DURATION_SECONDS="$duration"
-                KEYS_FILE="$keys" OBJECT_BYTES="$object_bytes" RANGE_BYTES="$range_bytes"
-                BATCH_REQUESTS="$batch" MAX_REQUESTS_PER_WORKER="$budget")
+            local side="$1" bucket="$2" account="$3" sas="$4" hosts
+            shift 4
+            local args=(MODE="$side" "$@")
             if [[ "$side" == alluxio ]]; then
                 # Re-read the worker list for every run: a worker that restarted since the last run must fail the step.
                 hosts="$(worker_hosts)"
@@ -1851,7 +1831,7 @@ jobs:
                 ufs_before="$(worker_ufs_bytes)"
             fi
             start="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            out="$(run_s3c "$side" "$@" 60)" || status=$?
+            out="$(run_s3c "$side" "$@" DURATION_SECONDS=60)" || status=$?
             end="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             # s3c.sh prints its JSON result before it fails; keep that result for diagnosis.
             printf '%s\n' "$out" | redact > "$run_file"
@@ -1905,7 +1885,7 @@ jobs:
                 (( SECONDS < deadline )) || fail "preload of the $name dataset did not finish within 10 minutes"
                 sleep 10
             done
-            # --limit 1041 exceeds the 1,040 objects (16 big + 1,024 small), so the report is not truncated.
+            # --limit exceeds the number of objects in both sets, so the report is not truncated.
             # Cache population can lag the end of the load job, so poll: at most 6 checks 10 s apart (about 1 minute),
             # then a real shortfall fails the step.
             for attempt in 1 2 3 4 5 6; do
@@ -1917,9 +1897,9 @@ jobs:
             done
             fail "the $name dataset is not fully cached after 6 checks over about a minute"
         }
-        run_scenario '{"id": 8, "name": "big get concurrency 1", "kind": "get", "dataset": "local", "concurrency": 1, "rangeBytes": 0}' get blob alx$(Build.BuildId)l$(System.JobAttempt) local-data /tmp/big.txt 67108864 1 0 4 2000
-        run_scenario '{"id": 9, "name": "big get concurrency 4", "kind": "get", "dataset": "local", "concurrency": 4, "rangeBytes": 0}' get blob alx$(Build.BuildId)l$(System.JobAttempt) local-data /tmp/big.txt 67108864 4 0 4 2000
-        run_scenario '{"id": 10, "name": "big get concurrency 16", "kind": "get", "dataset": "local", "concurrency": 16, "rangeBytes": 0}' get blob alx$(Build.BuildId)l$(System.JobAttempt) local-data /tmp/big.txt 67108864 16 0 4 2000
+        run_scenario '{"id": 8, "name": "big get concurrency 1", "kind": "get", "dataset": "local", "concurrency": 1, "rangeBytes": 0}' blob alx$(Build.BuildId)l$(System.JobAttempt) local-data KIND=get KEY_FORMAT='object-%02d.bin' KEY_COUNT=16 OBJECT_BYTES=67108864 CONCURRENCY=1 RANGE_BYTES=0 BATCH_REQUESTS=4 MAX_REQUESTS_PER_WORKER=2000
+        run_scenario '{"id": 9, "name": "big get concurrency 4", "kind": "get", "dataset": "local", "concurrency": 4, "rangeBytes": 0}' blob alx$(Build.BuildId)l$(System.JobAttempt) local-data KIND=get KEY_FORMAT='object-%02d.bin' KEY_COUNT=16 OBJECT_BYTES=67108864 CONCURRENCY=4 RANGE_BYTES=0 BATCH_REQUESTS=4 MAX_REQUESTS_PER_WORKER=2000
+        run_scenario '{"id": 10, "name": "big get concurrency 16", "kind": "get", "dataset": "local", "concurrency": 16, "rangeBytes": 0}' blob alx$(Build.BuildId)l$(System.JobAttempt) local-data KIND=get KEY_FORMAT='object-%02d.bin' KEY_COUNT=16 OBJECT_BYTES=67108864 CONCURRENCY=16 RANGE_BYTES=0 BATCH_REQUESTS=4 MAX_REQUESTS_PER_WORKER=2000
     displayName: Run S3 read scenarios 8-10 against Alluxio and Blob
     env:
       LOCAL_DATA_SAS: $(LOCAL_DATA_SAS)
@@ -2007,7 +1987,7 @@ jobs:
         # $1 side (alluxio|blob), $2 rep, $3 checkpoint set. All client pods read the set at the same time.
         read_set() {
             local side="$1" rep="$2" set="$3" index pid status=0 pids=()
-            local args=(KIND=onepass CONCURRENCY=8 KEYS_FILE="/tmp/checkpoint-$set.txt"
+            local args=(KIND=onepass CONCURRENCY=8 KEY_FORMAT="set-$set/part-%d.bin" KEY_COUNT=8
                 OBJECT_BYTES=2147483648 BATCH_REQUESTS=1)
             if [[ "$side" == alluxio ]]; then
                 # Re-read the worker list for every rep: a restarted worker must fail the step.

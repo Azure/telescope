@@ -4,9 +4,10 @@
 #
 #   KIND=get      CONCURRENCY workers GET random keys for DURATION_SECONDS
 #   KIND=range    like get, each request reads RANGE_BYTES at a random 4096-aligned offset inside OBJECT_BYTES
-#   KIND=onepass  every key in KEYS_FILE is read exactly once, split over CONCURRENCY workers
+#   KIND=onepass  every key is read exactly once, split over CONCURRENCY workers
 #
-# Required: MODE KIND CONCURRENCY KEYS_FILE BATCH_REQUESTS OBJECT_BYTES (the size of every object in KEYS_FILE)
+# The keys are printf KEY_FORMAT with 0 .. KEY_COUNT - 1, for example object-%02d.bin and 16.
+# Required: MODE KIND CONCURRENCY KEY_FORMAT KEY_COUNT BATCH_REQUESTS OBJECT_BYTES (the size of every object)
 #   get/range:     DURATION_SECONDS
 #   range:         RANGE_BYTES
 #   MODE=blob:     ACCOUNT CONTAINER SAS_FILE
@@ -54,8 +55,7 @@ require() {
   done
 }
 
-require MODE KIND CONCURRENCY KEYS_FILE BATCH_REQUESTS OBJECT_BYTES
-[ -s "$KEYS_FILE" ] || fail "KEYS_FILE $KEYS_FILE is missing or empty"
+require MODE KIND CONCURRENCY KEY_FORMAT KEY_COUNT BATCH_REQUESTS OBJECT_BYTES
 case $MODE in
   blob)
     require ACCOUNT CONTAINER SAS_FILE
@@ -104,8 +104,10 @@ export SAS_QUERY=""
 
 work_dir=$(mktemp -d)
 trap 'rm -rf "$work_dir"' EXIT   # the per-request configs embed the SAS query
+awk -v format="$KEY_FORMAT" -v count="$KEY_COUNT" 'BEGIN { for (key = 0; key < count; key++) printf format "\n", key }' > "$work_dir/keys"
+[ -s "$work_dir/keys" ] || fail "KEY_COUNT must be a positive number, got $KEY_COUNT"
 
-# One curl config per batch of BATCH_REQUESTS requests (a whole file for onepass). A batch is collected
+# One curl config per batch of BATCH_REQUESTS requests (all of a worker's keys for onepass). A batch is collected
 # first, so that its config can start with the warm-up HEADs for the hosts the batch uses.
 for worker in $(seq 1 "$CONCURRENCY"); do
   awk -v worker="$worker" -v worker_count="$CONCURRENCY" -v mode="$MODE" -v kind="$KIND" \
@@ -117,8 +119,8 @@ for worker in $(seq 1 "$CONCURRENCY"); do
     END {
       key_count = NR
       if (kind == "onepass") {
-        for (index_in_file = 1; index_in_file <= key_count; index_in_file++)
-          if ((index_in_file - 1) % worker_count == worker - 1) add_request(keys[index_in_file], "", index_in_file - 1)
+        for (key_index = 1; key_index <= key_count; key_index++)
+          if ((key_index - 1) % worker_count == worker - 1) add_request(keys[key_index], "", key_index - 1)
         write_batch(work_dir "/config" worker)
       } else {
         for (request = 0; request < max_requests; request++) {
@@ -178,7 +180,7 @@ for worker in $(seq 1 "$CONCURRENCY"); do
       # request without writing its result line.
       if (measured)
         printf "write-out = \"%%output{>>%s/results%d}%%{http_code} %%{time_starttransfer} %%{time_total} %%{size_download} %%{num_retries} %%{num_connects}\\n\"\n", work_dir, worker > config_file
-    }' "$KEYS_FILE"
+    }' "$work_dir/keys"
 done
 
 # Killing curl at the deadline would cut off the requests in flight; instead each worker

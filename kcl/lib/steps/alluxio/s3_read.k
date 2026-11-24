@@ -19,40 +19,76 @@ trap 'echo "ALLUXIO S3 READ FAILED: command at line $LINENO exited with status $
 """
 }
 
+# A set of objects in container s3-data of both storage accounts, all of the same size. The keys are
+# printf keyFormat with 0 .. count - 1. SeedS3ReadData uploads both sets.
+schema S3ReadObjects:
+    keyFormat: str
+    count: int
+    bytes: int
+
+S3_READ_BIG_OBJECTS = S3ReadObjects {keyFormat = "object-%02d.bin", count = 16, bytes = 67108864}
+S3_READ_SMALL_OBJECTS = S3ReadObjects {keyFormat = "small/obj-%04d.bin", count = 1024, bytes = 1048576}
+
 schema S3ReadScenario:
     id: int
     name: str
     kind: "get" | "range"
     dataset: "local" | "remote"
-    objects: "big" | "small"
+    objects: S3ReadObjects
     concurrency: int
     rangeBytes: int = 0
+    # The fields below are derived from the ones above; check rejects any other value.
+    # The bytes each request reads: the range for a range scenario, the whole object for a get.
+    requestBytes: int = rangeBytes if kind == "range" else objects.bytes
+    # Each worker runs its requests in batches, one curl run per batch. Every batch opens its connections
+    # and sends a warm-up HEAD per host (see s3c.sh); that is kept out of the latency percentiles but not
+    # out of the run's wall time, so larger batches spread it over more requests. A worker starts no new
+    # batch after 60 s, so the last batch in flight overruns the window. Size batches by bytes, about
+    # 256 MiB per batch and at most 50 requests: the slowest requests seen in a full run were
+    # cross-region 64 MiB GETs from Blob at 16 concurrent requests (p99 5.7 s), so a batch of four ends
+    # within about 23 s, inside the 30 s checks.jq allows for the rest of a batch.
+    # Examples: 256 KiB, 1 MiB and 4 MiB requests 50, 16 MiB 16, a 64 MiB get 4.
+    batchRequests: int = max(min(268435456 // requestBytes, 50), 1)
+    # s3c.sh fails when the budget runs out before 60 s, so it must exceed the fastest scenario:
+    # 100000 requests per worker over 60 s is about 1,667 requests/s per worker. A 64 MiB request
+    # cannot come close to that (about 10 per second from the cache at one request at a time),
+    # so its budget is small: 2000, a whole number of batches of four.
+    maxRequestsPerWorker: int = 2000 if requestBytes >= 67108864 else 100000
 
     check:
         1 <= id <= 10
         concurrency > 0
         (rangeBytes > 0) == (kind == "range"), "rangeBytes must be set exactly for range scenarios"
+        requestBytes == (rangeBytes if kind == "range" else objects.bytes), "requestBytes is derived, do not set it"
+        batchRequests == max(min(268435456 // requestBytes, 50), 1), "batchRequests is derived, do not set it"
+        maxRequestsPerWorker == (2000 if requestBytes >= 67108864 else 100000), "maxRequestsPerWorker is derived, do not set it"
 
-# Scenarios 11 and 12 are not in this table; they are executed separately
-# because they are measured through Azure Monitor egress rather than client timing.
-S3_READ_SCENARIOS: [S3ReadScenario] = [
-    S3ReadScenario {id = 1, name = "remote small get", kind = "get", dataset = "remote", objects = "small", concurrency = 16}
-    S3ReadScenario {id = 2, name = "remote big get", kind = "get", dataset = "remote", objects = "big", concurrency = 16}
-    S3ReadScenario {id = 3, name = "range 256 KiB", kind = "range", dataset = "local", objects = "big", concurrency = 16, rangeBytes = 262144}
-    S3ReadScenario {id = 4, name = "range 1 MiB", kind = "range", dataset = "local", objects = "big", concurrency = 16, rangeBytes = 1048576}
-    S3ReadScenario {id = 5, name = "local small get", kind = "get", dataset = "local", objects = "small", concurrency = 16}
-    S3ReadScenario {id = 6, name = "range 4 MiB", kind = "range", dataset = "local", objects = "big", concurrency = 16, rangeBytes = 4194304}
-    S3ReadScenario {id = 7, name = "range 16 MiB", kind = "range", dataset = "local", objects = "big", concurrency = 16, rangeBytes = 16777216}
-    S3ReadScenario {id = 8, name = "big get concurrency 1", kind = "get", dataset = "local", objects = "big", concurrency = 1}
-    S3ReadScenario {id = 9, name = "big get concurrency 4", kind = "get", dataset = "local", objects = "big", concurrency = 4}
-    S3ReadScenario {id = 10, name = "big get concurrency 16", kind = "get", dataset = "local", objects = "big", concurrency = 16}
-]
-
-# The scenario ids each RunS3ReadScenarios step runs, in order. Every AzCli step signs in once and
-# kubectl reuses that Entra ID login; a workload identity login in a pipeline task can fail after
-# about an hour, so each step must finish well within that. In a full run scenarios 1-10 took 103
+# Scenarios 1-10, in the groups that each RunS3ReadScenarios step runs, in order. Every AzCli step signs
+# in once and kubectl reuses that Entra ID login; a workload identity login in a pipeline task can fail
+# after about an hour, so each step must finish well within that. In a full run scenarios 1-10 took 103
 # minutes in all and scenario 7 alone 21 minutes; each of these groups took 33 minutes or less.
-S3_READ_SCENARIO_GROUPS: [[int]] = [[1, 2, 3], [4, 5], [6, 7], [8, 9, 10]]
+# Scenarios 11 and 12 are not in this table; they are executed separately (RunCheckpointLoad)
+# because they are measured through Azure Monitor egress rather than client timing.
+S3_READ_SCENARIO_GROUPS: [[S3ReadScenario]] = [
+    [
+        S3ReadScenario {id = 1, name = "remote small get", kind = "get", dataset = "remote", objects = S3_READ_SMALL_OBJECTS, concurrency = 16}
+        S3ReadScenario {id = 2, name = "remote big get", kind = "get", dataset = "remote", objects = S3_READ_BIG_OBJECTS, concurrency = 16}
+        S3ReadScenario {id = 3, name = "range 256 KiB", kind = "range", dataset = "local", objects = S3_READ_BIG_OBJECTS, concurrency = 16, rangeBytes = 262144}
+    ]
+    [
+        S3ReadScenario {id = 4, name = "range 1 MiB", kind = "range", dataset = "local", objects = S3_READ_BIG_OBJECTS, concurrency = 16, rangeBytes = 1048576}
+        S3ReadScenario {id = 5, name = "local small get", kind = "get", dataset = "local", objects = S3_READ_SMALL_OBJECTS, concurrency = 16}
+    ]
+    [
+        S3ReadScenario {id = 6, name = "range 4 MiB", kind = "range", dataset = "local", objects = S3_READ_BIG_OBJECTS, concurrency = 16, rangeBytes = 4194304}
+        S3ReadScenario {id = 7, name = "range 16 MiB", kind = "range", dataset = "local", objects = S3_READ_BIG_OBJECTS, concurrency = 16, rangeBytes = 16777216}
+    ]
+    [
+        S3ReadScenario {id = 8, name = "big get concurrency 1", kind = "get", dataset = "local", objects = S3_READ_BIG_OBJECTS, concurrency = 1}
+        S3ReadScenario {id = 9, name = "big get concurrency 4", kind = "get", dataset = "local", objects = S3_READ_BIG_OBJECTS, concurrency = 4}
+        S3ReadScenario {id = 10, name = "big get concurrency 16", kind = "get", dataset = "local", objects = S3_READ_BIG_OBJECTS, concurrency = 16}
+    ]
+]
 
 SeedS3ReadData = lambda serviceConnection: str, subscription: str, resourceGroup: str, localLocation: str, remoteLocation: str, localAccount: str, remoteAccount: str, workDir: str, resultDir: str, checksDir: str -> steps.Step {
     assert localAccount != remoteAccount, "the local and remote storage accounts must differ"
@@ -100,32 +136,32 @@ seed_account() {
     az storage container create \\
         --name s3-data \\
         --public-access off > /dev/null
-    for ((index = 0; index < 16; index++)); do
-        # Fixed per-object keys produce deterministic, nonzero 64 MiB payloads.
-        head -c 67108864 /dev/zero |
+    for ((index = 0; index < ${S3_READ_BIG_OBJECTS.count}; index++)); do
+        # Fixed per-object keys produce deterministic, nonzero payloads.
+        head -c ${S3_READ_BIG_OBJECTS.bytes} /dev/zero |
             openssl enc -aes-256-ctr -K "$(printf '%064x' "$index")" \\
                 -iv 00000000000000000000000000000000 > "${workDir}/blob.bin"
         az storage blob upload \\
             --container-name s3-data \\
-            --name "$(printf 'object-%02d.bin' "$index")" \\
+            --name "$(printf '${S3_READ_BIG_OBJECTS.keyFormat}' "$index")" \\
             --file "${workDir}/blob.bin" \\
             --overwrite false > /dev/null
     done
     rm -f -- "${workDir}/blob.bin"
-    mkdir -p -- "${workDir}/small"
-    for ((index = 0; index < 1024; index++)); do
-        # Offset the key so small objects differ from the big ones; 1 MiB each.
-        head -c 1048576 /dev/zero |
-            openssl enc -aes-256-ctr -K "$(printf '%064x' "$((index + 16))")" \\
-                -iv 00000000000000000000000000000000 > "${workDir}/small/$(printf 'obj-%04d.bin' "$index")"
+    # Each file's path under upload/ is its key, so the batch upload below names the blobs.
+    mkdir -p -- "$(dirname "${workDir}/upload/$(printf '${S3_READ_SMALL_OBJECTS.keyFormat}' 0)")"
+    for ((index = 0; index < ${S3_READ_SMALL_OBJECTS.count}; index++)); do
+        # Offset the key so small objects differ from the big ones.
+        head -c ${S3_READ_SMALL_OBJECTS.bytes} /dev/zero |
+            openssl enc -aes-256-ctr -K "$(printf '%064x' "$((index + ${S3_READ_BIG_OBJECTS.count}))")" \\
+                -iv 00000000000000000000000000000000 > "${workDir}/upload/$(printf '${S3_READ_SMALL_OBJECTS.keyFormat}' "$index")"
     done
     # One batch upload: each single `az storage blob upload` costs about 2 s of fixed overhead.
     az storage blob upload-batch \\
         --destination s3-data \\
-        --destination-path small \\
-        --source "${workDir}/small" \\
+        --source "${workDir}/upload" \\
         --overwrite false > /dev/null
-    rm -rf -- "${workDir}/small"
+    rm -rf -- "${workDir}/upload"
     # --include m exposes metadata.hdi_isfolder; --num-results is explicit so a truncated listing cannot pass.
     az storage blob list \\
         --container-name s3-data \\
@@ -155,7 +191,7 @@ unset local_data_sas remote_data_sas checkpoint_read_sas checkpoint_write_sas
 jq -n \\
     --arg local_account "${localAccount}" --arg local_location "${localLocation}" \\
     --arg remote_account "${remoteAccount}" --arg remote_location "${remoteLocation}" \\
-    '$ARGS.named + {container: "s3-data", big_object_count: 16, big_object_bytes: 67108864, small_object_count: 1024, small_object_bytes: 1048576}' \\
+    '$ARGS.named + {container: "s3-data", big_object_count: ${S3_READ_BIG_OBJECTS.count}, big_object_bytes: ${S3_READ_BIG_OBJECTS.bytes}, small_object_count: ${S3_READ_SMALL_OBJECTS.count}, small_object_bytes: ${S3_READ_SMALL_OBJECTS.bytes}}' \\
     > "${resultDir}/dataset.json"
 """
         stepName = "s3_read_dataset"
@@ -263,18 +299,6 @@ kubectl wait -n alx-ns --for=condition=Ready pod -l app=s3c --timeout=600s
 kubectl get pods -n alx-ns -l app=s3c -o json |
     jq -e '[.items[].spec.nodeName] | unique | length == ${S3_READ_CLIENT_COUNT}' > /dev/null ||
     fail "the ${S3_READ_CLIENT_COUNT} client pods are not on ${S3_READ_CLIENT_COUNT} different nodes"
-key_script="$(cat <<'KEYS'
-set -eu
-seq 0 15 | awk '{printf "object-%02d.bin\\n", $1}' > /tmp/big.txt
-seq 0 1023 | awk '{printf "small/obj-%04d.bin\\n", $1}' > /tmp/small.txt
-for set in 1 2 3 4 5 6; do
-    seq 0 7 | awk -v set="$set" '{printf "set-%d/part-%d.bin\\n", set, $1}' > "/tmp/checkpoint-$set.txt"
-done
-KEYS
-)"
-for index in $(seq 1 ${S3_READ_CLIENT_COUNT}); do
-    kubectl exec -n alx-ns "s3c-$index" -c s3c -- sh -c "$key_script"
-done
 """
         stepName = "s3_read_clients"
         env = {
@@ -434,16 +458,14 @@ jq -n '{checkpoint_sets: 6, checkpoint_parts_per_set: 8, checkpoint_object_count
     )
 }
 
-# Runs the scenarios with the given ids (one group of S3_READ_SCENARIO_GROUPS) in pod s3c-1,
+# Runs one group of S3_READ_SCENARIO_GROUPS in pod s3c-1,
 # against Alluxio and direct Blob. The first group also starts runs/index.jsonl and warms both
 # datasets; later groups append to that index. Dataset local is Alluxio bucket "blob" (mount
 # /blob) and the local account; remote is bucket "xregion" (mount /xregion) and the remote account.
-RunS3ReadScenarios = lambda serviceConnection: str, localAccount: str, remoteAccount: str, workDir: str, resultDir: str, checksDir: str, ids: [int] -> steps.Step {
+RunS3ReadScenarios = lambda serviceConnection: str, localAccount: str, remoteAccount: str, workDir: str, resultDir: str, checksDir: str, scenarios: [S3ReadScenario] -> steps.Step {
     assert localAccount != remoteAccount, "the local and remote storage accounts must differ"
-    scenarios = [scenario for scenario in S3_READ_SCENARIOS if scenario.id in ids]
-    assert [scenario.id for scenario in scenarios] == ids, "ids must be scenario ids in S3_READ_SCENARIOS order"
-    first = ids[0] == S3_READ_SCENARIOS[0].id
-    label = "${ids[0]}-${ids[-1]}" if len(ids) > 1 else "${ids[0]}"
+    first = scenarios == S3_READ_SCENARIO_GROUPS[0]
+    label = "${scenarios[0].id}-${scenarios[-1].id}" if len(scenarios) > 1 else "${scenarios[0].id}"
     # Per dataset: Alluxio bucket, mount path, Blob account and the SAS file in the client pods (see CreateS3ReadClients).
     datasets = {
         local = {bucket = "blob", mount = "/blob", account = localAccount, sas = "local-data"}
@@ -451,23 +473,6 @@ RunS3ReadScenarios = lambda serviceConnection: str, localAccount: str, remoteAcc
     }
     scenario_call = lambda scenario: S3ReadScenario -> str {
         dataset = datasets[scenario.dataset]
-        big_get = scenario.kind == "get" and scenario.objects == "big"
-        object_bytes = 67108864 if scenario.objects == "big" else 1048576
-        request_bytes = scenario.rangeBytes if scenario.kind == "range" else object_bytes
-        # Each worker runs its requests in batches, one curl run per batch. Every batch opens its connections
-        # and sends a warm-up HEAD per host (see s3c.sh); that is kept out of the latency percentiles but not
-        # out of the run's wall time, so larger batches spread it over more requests. A worker starts no new
-        # batch after 60 s, so the last batch in flight overruns the window. Size batches by bytes, about
-        # 256 MiB per batch and at most 50 requests: the slowest requests seen in a full run were
-        # cross-region 64 MiB GETs from Blob at 16 concurrent requests (p99 5.7 s), so a batch of four ends
-        # within about 23 s, inside the 30 s checks.jq allows for the rest of a batch.
-        # Examples: 256 KiB, 1 MiB and 4 MiB requests 50, 16 MiB 16, a 64 MiB get 4.
-        batch = max(min(268435456 // request_bytes, 50), 1)
-        # s3c.sh fails when the budget runs out before 60 s, so it must exceed the fastest scenario:
-        # 100000 requests per worker over 60 s is about 1,667 requests/s per worker. A 64 MiB get
-        # cannot come close to that (about 10 per second from the cache at one request at a time),
-        # so its budget is small: 2000, a whole number of batches of four.
-        budget = 2000 if big_get else 100000
         # The scenario's fields go into runs/index.jsonl and from there into summary.json.
         metadata = json.encode({
             id = scenario.id
@@ -477,7 +482,7 @@ RunS3ReadScenarios = lambda serviceConnection: str, localAccount: str, remoteAcc
             concurrency = scenario.concurrency
             rangeBytes = scenario.rangeBytes
         })
-        "run_scenario '${metadata}' ${scenario.kind} ${dataset.bucket} ${dataset.account} ${dataset.sas} /tmp/${scenario.objects}.txt ${object_bytes} ${scenario.concurrency} ${scenario.rangeBytes} ${batch} ${budget}"
+        "run_scenario '${metadata}' ${dataset.bucket} ${dataset.account} ${dataset.sas} KIND=${scenario.kind} KEY_FORMAT='${scenario.objects.keyFormat}' KEY_COUNT=${scenario.objects.count} OBJECT_BYTES=${scenario.objects.bytes} CONCURRENCY=${scenario.concurrency} RANGE_BYTES=${scenario.rangeBytes} BATCH_REQUESTS=${scenario.batchRequests} MAX_REQUESTS_PER_WORKER=${scenario.maxRequestsPerWorker}"
     }
     scenario_calls = "\n".join([scenario_call(scenario) for scenario in scenarios])
     azure.AzCli(
@@ -493,13 +498,11 @@ alluxio() {
         -c alluxio-coordinator -- alluxio "$@"
 }
 # Runs s3c.sh once in client pod s3c-1; the JSON result goes to stdout, redacted.
-# $1 side (alluxio|blob), then the scenario parameters of run_scenario after the metadata.
+# $1 side (alluxio|blob), $2 Alluxio bucket, $3 Blob account, $4 SAS file, then s3c.sh variables (NAME=value).
 run_s3c() {
-    local side="$1" kind="$2" bucket="$3" account="$4" sas="$5" keys="$6" object_bytes="$7"
-    local concurrency="$8" range_bytes="$9" batch="\${10}" budget="\${11}" duration="\${12}" hosts
-    local args=(MODE="$side" KIND="$kind" CONCURRENCY="$concurrency" DURATION_SECONDS="$duration"
-        KEYS_FILE="$keys" OBJECT_BYTES="$object_bytes" RANGE_BYTES="$range_bytes"
-        BATCH_REQUESTS="$batch" MAX_REQUESTS_PER_WORKER="$budget")
+    local side="$1" bucket="$2" account="$3" sas="$4" hosts
+    shift 4
+    local args=(MODE="$side" "$@")
     if [[ "$side" == alluxio ]]; then
         # Re-read the worker list for every run: a worker that restarted since the last run must fail the step.
         hosts="$(worker_hosts)"
@@ -526,7 +529,7 @@ run_and_record() {
         ufs_before="$(worker_ufs_bytes)"
     fi
     start="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    out="$(run_s3c "$side" "$@" 60)" || status=$?
+    out="$(run_s3c "$side" "$@" DURATION_SECONDS=60)" || status=$?
     end="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     # s3c.sh prints its JSON result before it fails; keep that result for diagnosis.
     printf '%s\\n' "$out" | redact > "$run_file"
@@ -580,11 +583,11 @@ warm_dataset() {
         (( SECONDS < deadline )) || fail "preload of the $name dataset did not finish within 10 minutes"
         sleep 10
     done
-    # --limit 1041 exceeds the 1,040 objects (16 big + 1,024 small), so the report is not truncated.
+    # --limit exceeds the number of objects in both sets, so the report is not truncated.
     # Cache population can lag the end of the load job, so poll: at most 6 checks 10 s apart (about 1 minute),
     # then a real shortfall fails the step.
     for attempt in 1 2 3 4 5 6; do
-        if alluxio fs check-cached --path "$mount" --recursive --limit 1041 | redact > "${resultDir}/cache-$name.txt" &&
+        if alluxio fs check-cached --path "$mount" --recursive --limit ${S3_READ_BIG_OBJECTS.count + S3_READ_SMALL_OBJECTS.count + 1} | redact > "${resultDir}/cache-$name.txt" &&
             jq -Rse -L "${checksDir}" 'include "checks"; validate_all_cached' "${resultDir}/cache-$name.txt" > /dev/null; then
             return 0
         fi
@@ -638,7 +641,7 @@ read_one() {
 # $1 side (alluxio|blob), $2 rep, $3 checkpoint set. All client pods read the set at the same time.
 read_set() {
     local side="$1" rep="$2" set="$3" index pid status=0 pids=()
-    local args=(KIND=onepass CONCURRENCY=8 KEYS_FILE="/tmp/checkpoint-$set.txt"
+    local args=(KIND=onepass CONCURRENCY=8 KEY_FORMAT="set-$set/part-%d.bin" KEY_COUNT=8
         OBJECT_BYTES=2147483648 BATCH_REQUESTS=1)
     if [[ "$side" == alluxio ]]; then
         # Re-read the worker list for every rep: a restarted worker must fail the step.
