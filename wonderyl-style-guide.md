@@ -26,7 +26,6 @@ Give each function or module a clear responsibility. Keep implementation details
 its interface, and make inputs, outputs, and side effects clear so callers don't have to
 read the implementation to use it correctly.
 
-
 ---
 
 # Reuse & Abstraction
