@@ -7,8 +7,10 @@ both direct and progressive scaling operations and handles GPU-enabled node pool
 """
 
 import logging
+import json
 import os
 import time
+from datetime import datetime, timezone
 import yaml
 
 from clients.aks_client import AKSClient
@@ -56,6 +58,7 @@ WORKLOAD_OPERATION_NAMES = {
     "statefulset": "create_statefulset",
     "job": "create_jobs",
 }
+LEGACY_WORKLOAD_PROFILE = "legacy-shell"
 
 class NodePoolCRUD:
     """Performs AKS node pool operations - metrics collection is handled directly by AKSClient"""
@@ -356,7 +359,8 @@ class NodePoolCRUD:
         manifest_dir=None,
         number_of_deployments=1,
         label_selector="app=nginx-container",
-        namespace="default"
+        namespace="default",
+        workload_profile="default",
     ):
         """
         Create Kubernetes deployments after node pool operations.
@@ -368,6 +372,7 @@ class NodePoolCRUD:
             number_of_deployments: Number of deployments to create (default: 1)
             label_selector: Label selector used to target the deployment workload
             namespace: Kubernetes namespace (default: "default")
+            workload_profile: Default execution or legacy-shell compatibility
 
         Returns:
             True if all deployment creations were successful, False otherwise
@@ -379,7 +384,8 @@ class NodePoolCRUD:
             number_of_workloads=number_of_deployments,
             manifest_dir=manifest_dir,
             label_selector=label_selector,
-            namespace=namespace
+            namespace=namespace,
+            workload_profile=workload_profile,
         )
 
     def create_statefulset(
@@ -389,7 +395,8 @@ class NodePoolCRUD:
         manifest_dir=None,
         number_of_statefulsets=1,
         label_selector="app=nginx-container",
-        namespace="default"
+        namespace="default",
+        workload_profile="default",
     ):
         """
         Create Kubernetes StatefulSets after node pool operations.
@@ -401,6 +408,7 @@ class NodePoolCRUD:
             manifest_dir: Directory containing Kubernetes manifest files
             number_of_statefulsets: Number of StatefulSets to create (default: 1)
             label_selector: Label selector for pods (default: "app=nginx-container")
+            workload_profile: Default execution or legacy-shell compatibility
 
         Returns:
             True if all StatefulSet creations were successful, False otherwise
@@ -412,7 +420,8 @@ class NodePoolCRUD:
             number_of_workloads=number_of_statefulsets,
             manifest_dir=manifest_dir,
             label_selector=label_selector,
-            namespace=namespace
+            namespace=namespace,
+            workload_profile=workload_profile,
         )
 
     def create_job(
@@ -422,7 +431,8 @@ class NodePoolCRUD:
         manifest_dir=None,
         number_of_jobs=1,
         label_selector="app=nginx-container",
-        namespace="default"
+        namespace="default",
+        workload_profile="default",
     ):
         """
         Create Kubernetes Jobs after node pool operations.
@@ -434,6 +444,7 @@ class NodePoolCRUD:
             number_of_jobs: Number of Jobs to create (default: 1)
             label_selector: Label selector for pods (default: "app=nginx-container")
             namespace: Kubernetes namespace (default: "default")
+            workload_profile: Default execution or legacy-shell compatibility
 
         Returns:
             True if all Job creations were successful, False otherwise
@@ -445,7 +456,8 @@ class NodePoolCRUD:
             number_of_workloads=number_of_jobs,
             manifest_dir=manifest_dir,
             label_selector=label_selector,
-            namespace=namespace
+            namespace=namespace,
+            workload_profile=workload_profile,
         )
 
     def _create_workloads(
@@ -456,7 +468,8 @@ class NodePoolCRUD:
         number_of_workloads,
         manifest_dir,
         label_selector,
-        namespace
+        namespace,
+        workload_profile="default",
     ):
         """Unified helper to create multiple workload instances.
 
@@ -495,6 +508,20 @@ class NodePoolCRUD:
             metadata,
             result_dir=self.result_dir,
         ) as operation:
+            if workload_profile != "default":
+                operation.add_metadata("workload_profile", workload_profile)
+                if workload_profile != LEGACY_WORKLOAD_PROFILE:
+                    logger.error("Unknown workload profile: %s", workload_profile)
+                    raise ValueError(f"Unknown workload profile: {workload_profile}")
+                if manifest_dir:
+                    logger.error("Legacy workload profiles require their packaged templates")
+                    raise ValueError("Legacy workload profiles require their packaged templates")
+                if count <= 0 or number_of_workloads <= 0 or self.step_timeout <= 0:
+                    logger.error("Legacy workloads require positive counts and timeout")
+                    raise ValueError("Legacy workloads require positive counts and timeout")
+                if workload_type != "deployment" and number_of_workloads != 1:
+                    logger.error("Legacy %s workloads require one controller", workload_type)
+                    raise ValueError(f"Legacy {workload_type} workloads require one controller")
             k8s_client = self.aks_client.k8s_client
             if not k8s_client:
                 error_message = "Kubernetes client not available"
@@ -503,6 +530,20 @@ class NodePoolCRUD:
                 operation.error_message = error_message
                 operation.add_metadata("successful_workloads", 0)
                 return False
+
+            if workload_profile != "default":
+                try:
+                    self._create_legacy_workloads(
+                        k8s_client, workload_type, node_pool_name, count,
+                        number_of_workloads, manifest_dir, label_selector,
+                        namespace, workload_profile, operation,
+                    )
+                except Exception as error:
+                    logger.error("Legacy %s batch failed: %s", workload_type, error)
+                    operation.set_error(error)
+                    return False
+                operation.add_metadata("successful_workloads", number_of_workloads)
+                return True
 
             successes = 0
             for index in range(1, number_of_workloads + 1):
@@ -535,7 +576,44 @@ class NodePoolCRUD:
             logger.warning(operation.error_message)
             return False
 
-    def _apply_workload(
+    def _create_legacy_workloads(
+        self, k8s_client, workload_type, node_pool_name, count, number_of_workloads,
+        manifest_dir, label_selector, namespace, workload_profile, operation,
+    ):
+        """Submit the complete batch before checking the historical completion criterion."""
+        names = []
+        for index in range(1, number_of_workloads + 1):
+            # The shell benchmark measures deployments from the last apply.
+            name, _, started = self._submit_workload(
+                k8s_client, workload_type, node_pool_name, index, count,
+                manifest_dir, label_selector, namespace, workload_profile,
+            )
+            names.append(name)
+
+        phase = "Succeeded" if workload_type == "job" else "Running"
+        deadline = time.monotonic() + self.step_timeout
+        while time.monotonic() < deadline:
+            pods = k8s_client.get_pods_by_namespace(
+                namespace, field_selector=f"status.phase={phase}"
+            )
+            matching = sum(
+                any(pod.metadata.name.startswith(f"{name}-") for name in names)
+                for pod in pods
+            )
+            if matching == count * number_of_workloads:
+                ended = datetime.now(timezone.utc)
+                break
+            logger.info("Legacy %s pods %s: %d/%d", workload_type, phase,
+                        matching, count * number_of_workloads)
+            time.sleep(min(1, max(0, deadline - time.monotonic())))
+        else:
+            raise TimeoutError(f"Legacy {workload_type} pods did not reach {phase}")
+
+        operation.add_metadata("workload_start_timestamp", started.isoformat())
+        operation.add_metadata("workload_end_timestamp", ended.isoformat())
+        operation.add_metadata("workload_readiness_time", max(0, (ended - started).total_seconds()))
+
+    def _submit_workload(
         self,
         k8s_client,
         workload_type,
@@ -544,9 +622,10 @@ class NodePoolCRUD:
         count,
         manifest_dir,
         label_selector,
-        namespace
+        namespace,
+        workload_profile="default",
     ):
-        """Unified helper to apply and verify a single workload instance.
+        """Render and submit a single workload instance.
 
         Args:
             k8s_client: Kubernetes client instance
@@ -557,10 +636,10 @@ class NodePoolCRUD:
             manifest_dir: Optional custom manifest directory
             label_selector: Base label selector (e.g., "app=nginx-container")
             namespace: Kubernetes namespace
+            workload_profile: Template compatibility profile
 
         Raises:
             ValueError: If workload_type is not in WORKLOAD_CONFIG
-            TimeoutError: If workload fails to reach ready state
         """
         if workload_type not in WORKLOAD_CONFIG:
             raise ValueError(f"Unknown workload type: {workload_type}")
@@ -573,11 +652,16 @@ class NodePoolCRUD:
         else:
             template_path = os.path.join(
                 os.path.dirname(os.path.abspath(__file__)),
-                "..", "workload_templates", config["template_file"]
+                "..", "workload_templates",
+                "legacy" if workload_profile != "default" else "",
+                config["template_file"],
             )
 
         # Generate resource name and label
         resource_name = f"myapp-{node_pool_name}-{index}"
+        if workload_profile != "default" and workload_type != "deployment":
+            prefix = "pi" if workload_type == "job" else "web"
+            resource_name = f"{prefix}-{node_pool_name}"
         workload_label = f"{label_selector.split('=', 1)[-1]}-{workload_type}-{index}"
 
         # Render template
@@ -588,11 +672,14 @@ class NodePoolCRUD:
                 "NODE_POOL_NAME": node_pool_name,
                 "INDEX": index,
                 "LABEL_VALUE": workload_label,
+                "NODE_SELECTOR": json.dumps(
+                    {"agentpool": node_pool_name} if workload_profile == LEGACY_WORKLOAD_PROFILE else {}
+                ),
             }
         )
 
         # For Jobs, delete any existing job first to avoid reusing completed jobs
-        if workload_type == "job":
+        if workload_type == "job" and workload_profile == "default":
             try:
                 k8s_client.batch.delete_namespaced_job(
                     name=resource_name,
@@ -605,12 +692,24 @@ class NodePoolCRUD:
                 pass
 
         # Apply each document in the rendered multi-doc template
+        started = datetime.now(timezone.utc) if workload_profile != "default" else None
         for doc in yaml.safe_load_all(rendered_template):
             if doc:
                 k8s_client.apply_manifest_from_file(manifest_dict=doc, namespace=namespace)
 
         logger.info("Applied manifest for %s %s", workload_type, resource_name)
+        return resource_name, workload_label, started
 
+    def _apply_workload(
+        self, k8s_client, workload_type, node_pool_name, index, count,
+        manifest_dir, label_selector, namespace,
+    ):
+        """Preserve default per-instance submission and readiness checks."""
+        resource_name, workload_label, _ = self._submit_workload(
+            k8s_client, workload_type, node_pool_name, index, count,
+            manifest_dir, label_selector, namespace,
+        )
+        config = WORKLOAD_CONFIG[workload_type]
         # Wait for workload to reach target condition
         logger.info("Waiting for %s %s to become %s...",
                     workload_type, resource_name, config["wait_condition"])
