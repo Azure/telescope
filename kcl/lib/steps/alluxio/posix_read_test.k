@@ -102,15 +102,15 @@ test_run_limits = lambda {
     # Every long step stops before the one-hour Entra ID sign-in can lapse.
     assert POSIX_STEP_TIMEOUT_MINUTES < 60
     assert all part in POSIX_SIDE_PARTS {
-        RunPosixScenarios("c", "bf2", "posix-data", "e", "w", "r", "d", part).timeoutInMinutes == POSIX_STEP_TIMEOUT_MINUTES
+        RunPosixScenarios("bf2", "posix-data", "e", "w", "r", "d", part).timeoutInMinutes == POSIX_STEP_TIMEOUT_MINUTES
     }
-    assert GeneratePosixDatasets("c", "s", "g", "l", "a", "posix-data", "e", "w", "r", "d").timeoutInMinutes == POSIX_STEP_TIMEOUT_MINUTES
+    assert GeneratePosixDatasets("s", "g", "l", "a", "posix-data", "e", "w", "r", "d").timeoutInMinutes == POSIX_STEP_TIMEOUT_MINUTES
 }
 
 test_failure_marker = lambda {
     marked = PosixFailureMarker(RefuseSasInResults("w", "r"))
     assert "ALLUXIO S3 READ FAILED" not in marked.bash
     assert "ALLUXIO POSIX READ FAILED: a SAS signature" in marked.bash
-    nvme = PreparePosixWorkerNvme("c", "m", "w", "r", 5).inputs.inlineScript
+    nvme = PreparePosixWorkerNvme("m", "w", "r", 5).inputs.inlineScript
     assert "ALLUXIO S3 READ FAILED" not in nvme and "ALLUXIO WARP FAILED" not in nvme
 }

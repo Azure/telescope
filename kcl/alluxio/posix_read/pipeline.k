@@ -135,7 +135,6 @@ az aks create \\
                 RESULT_DIR
             )
             alluxio.GeneratePosixDatasets(
-                const.DEFAULT_SERVICE_CONNECTION
                 const.DEFAULT_SUBSCRIPTION_ID
                 RESOURCE_GROUP
                 LOCATION
@@ -148,7 +147,6 @@ az aks create \\
             )
             common.RecordCurrentTime("BENCHMARK_START_TIME")
             *[alluxio.RunPosixSide(
-                const.DEFAULT_SERVICE_CONNECTION
                 "bf2"
                 CONTAINER
                 ELBENCHO_IMAGE
@@ -171,7 +169,6 @@ az aks create \\
                 }
             )
             alluxio.EnableDacs(
-                const.DEFAULT_SERVICE_CONNECTION
                 const.DEFAULT_SUBSCRIPTION_ID
                 RESOURCE_GROUP
                 CLUSTER
@@ -180,7 +177,6 @@ az aks create \\
                 RESULT_DIR
             )
             *[alluxio.RunPosixSide(
-                const.DEFAULT_SERVICE_CONNECTION
                 "dacs"
                 CONTAINER
                 ELBENCHO_IMAGE
@@ -190,12 +186,10 @@ az aks create \\
                 part
             ) for part in alluxio.POSIX_SIDE_PARTS]
             alluxio.EndDacsPhase(
-                const.DEFAULT_SERVICE_CONNECTION
                 WORK_DIR
                 RESULT_DIR
             )
             azure.DeleteNodePool(
-                const.DEFAULT_SERVICE_CONNECTION
                 CLUSTER
                 RESOURCE_GROUP
                 const.DEFAULT_SUBSCRIPTION_ID
@@ -221,7 +215,6 @@ az aks create \\
             )
             # The page-store disk must be mounted before the workers start.
             alluxio.PreparePosixWorkerNvme(
-                const.DEFAULT_SERVICE_CONNECTION
                 "$(Build.SourcesDirectory)/kcl/alluxio/s3_read/nvme.yaml"
                 WORK_DIR
                 RESULT_DIR
@@ -239,7 +232,6 @@ az aks create \\
             # The License and UnderFileSystem manifests are not specific to a workload, so the warp
             # pipeline's copies are reused.
             alluxio.CreatePosixAlluxioCluster(
-                const.DEFAULT_SERVICE_CONNECTION
                 ALLUXIO_IMAGE_REPOSITORY
                 "${CHECKS_DIR}/cluster.yaml"
                 "$(Build.SourcesDirectory)/kcl/alluxio/warp/license.yaml"
@@ -258,14 +250,12 @@ az aks create \\
                 RESULT_DIR
             )
             alluxio.PrepareAlluxioFuseClients(
-                const.DEFAULT_SERVICE_CONNECTION
                 "${CHECKS_DIR}/clients-fuse.yaml"
                 ELBENCHO_IMAGE
                 WORK_DIR
                 RESULT_DIR
             )
             *[alluxio.RunPosixSide(
-                const.DEFAULT_SERVICE_CONNECTION
                 "alluxio"
                 ""
                 ELBENCHO_IMAGE
@@ -276,7 +266,6 @@ az aks create \\
             ) for part in alluxio.POSIX_SIDE_PARTS]
             common.RecordCurrentTime("BENCHMARK_END_TIME")
             alluxio.SummarizePosixRead(
-                const.DEFAULT_SERVICE_CONNECTION
                 const.DEFAULT_SUBSCRIPTION_ID
                 RESOURCE_GROUP
                 CLUSTER

@@ -1,5 +1,6 @@
 import azure_pipelines.ap.steps
 import json
+import lib.const
 import lib.steps.azure
 
 # "smoke" shrinks every size below for a quick end-to-end check; anything else must be unset or "full".
@@ -524,7 +525,7 @@ mount_posix_volume() {
 # The read-only Secret posix-sas, the PV and PVC posix-data and the pods posix-client-<n> are left in place
 # for the following steps, which must delete them before they mount the volume with other options.
 # Needs the cluster, the namespace and the node pools to exist.
-GeneratePosixDatasets = lambda serviceConnection: str, subscription: str, resourceGroup: str, location: str, account: str, container: str, elbenchoImage: str, workDir: str, resultDir: str, checksDir: str -> steps.Step {
+GeneratePosixDatasets = lambda subscription: str, resourceGroup: str, location: str, account: str, container: str, elbenchoImage: str, workDir: str, resultDir: str, checksDir: str, serviceConnection: str = const.DEFAULT_SERVICE_CONNECTION -> steps.Step {
     azure.AzCli(
         serviceConnection
         "Create the Blob data set for the POSIX reads"
@@ -836,7 +837,7 @@ POSIX_SIDE_PARTS: ["hot" | "rest"] = ["hot", "rest"]
 # re-read restarts the FUSE pods and recreates them with elbenchoImage, so only container may be empty there.
 # Nothing reads Blob after the last run, because the last group of a side owns the minutes after it in the
 # egress attribution.
-RunPosixScenarios = lambda serviceConnection: str, side: "bf2" | "dacs" | "alluxio", container: str, elbenchoImage: str, workDir: str, resultDir: str, checksDir: str, part: "hot" | "rest" -> steps.Step {
+RunPosixScenarios = lambda side: "bf2" | "dacs" | "alluxio", container: str, elbenchoImage: str, workDir: str, resultDir: str, checksDir: str, part: "hot" | "rest", serviceConnection: str = const.DEFAULT_SERVICE_CONNECTION -> steps.Step {
     assert side == "alluxio" or container != "", "the ${side} side mounts the Blob volume and needs the container"
     assert elbenchoImage != "", "the ${side} side recreates the elbencho pods and needs the elbencho image"
     # The data set has one cold and one concurrent-read set per rep, three of each.

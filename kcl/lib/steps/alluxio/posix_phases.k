@@ -1,4 +1,5 @@
 import azure_pipelines.ap.steps
+import lib.const
 import lib.steps.azure
 
 # The aks-preview CLI extension carries the Distributed Accelerator Cache Storage (DACS) commands, which
@@ -40,7 +41,7 @@ wait_until() {
 # POSIX_CACHE_COUNT servers are Ready. manifest is dacs-cache.yaml; its POSIX_CACHE_COUNT placeholder is
 # replaced in a copy under workDir, and the Cache is created (never applied). The versions of the aks-preview and
 # k8s-extension CLI extensions, which only this step uses, are written to the result directory.
-EnableDacs = lambda serviceConnection: str, subscription: str, resourceGroup: str, cluster: str, manifest: str, workDir: str, resultDir: str -> steps.Step {
+EnableDacs = lambda subscription: str, resourceGroup: str, cluster: str, manifest: str, workDir: str, resultDir: str, serviceConnection: str = const.DEFAULT_SERVICE_CONNECTION -> steps.Step {
     azure.AzCli(
         serviceConnection
         "Enable DACS and create the cache"
@@ -268,7 +269,7 @@ recreate_fuse_clients "${clientsManifest}" "${elbenchoImage}"
 # (clients-fuse.yaml) per client node, named posix-client-<i>, with ELBENCHO_IMAGE replaced by elbenchoImage.
 # Waits for exactly POSIX_CLIENT_COUNT Ready pods and fails unless /data in each is a FUSE mount that can be
 # listed (start_fuse_clients).
-PrepareAlluxioFuseClients = lambda serviceConnection: str, manifest: str, elbenchoImage: str, workDir: str, resultDir: str -> steps.Step {
+PrepareAlluxioFuseClients = lambda manifest: str, elbenchoImage: str, workDir: str, resultDir: str, serviceConnection: str = const.DEFAULT_SERVICE_CONNECTION -> steps.Step {
     azure.AzCli(
         serviceConnection
         "Start the elbencho pods on the Alluxio FUSE mount"

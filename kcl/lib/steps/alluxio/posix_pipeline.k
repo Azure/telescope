@@ -1,5 +1,6 @@
 import azure_pipelines.ap.steps
 import json
+import lib.const
 import lib.steps.azure
 
 # Steps that join the phases of the POSIX read pipeline (kcl/alluxio/posix_read) and summarize its results.
@@ -35,7 +36,7 @@ PosixFailureMarker = lambda step: any -> steps.Step {
 # The Alluxio side also requires direct I/O for FUSE reads in both parts: its re-read scenario turns it off at the
 # end, and a rerun after that would otherwise measure the hot, cold and concurrent reads through the page cache.
 # Both the AlluxioCluster and the configuration every FUSE pod started with must have it on.
-RunPosixSide = lambda serviceConnection: str, side: "bf2" | "dacs" | "alluxio", container: str, elbenchoImage: str, workDir: str, resultDir: str, checksDir: str, part: "hot" | "rest" -> steps.Step {
+RunPosixSide = lambda side: "bf2" | "dacs" | "alluxio", container: str, elbenchoImage: str, workDir: str, resultDir: str, checksDir: str, part: "hot" | "rest", serviceConnection: str = const.DEFAULT_SERVICE_CONNECTION -> steps.Step {
     directIoCheck = FUSE_DIRECT_IO_SHELL + """
 direct_io="$(kubectl get alluxiocluster alluxio -n "$POSIX_NS" -o jsonpath='{.spec.properties.alluxio\\.fuse\\.enforce\\.direct\\.io\\.read}')"
 [[ "$direct_io" == true ]] ||
@@ -48,14 +49,14 @@ require_fuse_direct_io true
 fi
 """ if part == "hot" else ""
     checks = removeSide + directIoCheck
-    InsertAfterSetup(RunPosixScenarios(serviceConnection, side, container, elbenchoImage, workDir, resultDir, checksDir, part), PosixShellSetup(workDir, resultDir), checks)
+    InsertAfterSetup(RunPosixScenarios(side, container, elbenchoImage, workDir, resultDir, checksDir, part, serviceConnection), PosixShellSetup(workDir, resultDir), checks)
 }
 
 # PrepareWorkerNvme for the POSIX pipeline, which first refuses to go on if the DACS phase left anything on the
 # Alluxio cache pool: a workerpool node that carries the DACS label, or a dacs-prereq pod on one. dacs-prereq builds
 # RAID0 on the NVMe disks, which the page store needs. The guard lives here, not in the shared PrepareWorkerNvme,
 # so the S3 read pipeline's step stays as it is.
-PreparePosixWorkerNvme = lambda serviceConnection: str, manifest: str, workDir: str, resultDir: str, workerCount: int -> steps.Step {
+PreparePosixWorkerNvme = lambda manifest: str, workDir: str, resultDir: str, workerCount: int, serviceConnection: str = const.DEFAULT_SERVICE_CONNECTION -> steps.Step {
     PosixFailureMarker(InsertAfterSetup(PrepareWorkerNvme(serviceConnection, manifest, workDir, resultDir, workerCount), S3ReadShellSetup(workDir, resultDir), """
 worker_nodes="$(kubectl get nodes --selector agentpool=workerpool -o json)" || fail "could not list the workerpool nodes"
 labelled="$(jq -r '[.items[] | select(.metadata.labels["dacs.azure.com/processing-unit"] != null) | .metadata.name] | join(" ")' <<< "$worker_nodes")" ||
@@ -71,7 +72,7 @@ prereq_on_workers="$(jq -r --argjson nodes "$(jq -c '[.items[].metadata.name]' <
 
 # CreateAlluxioCluster with the cache node count put into the POSIX_CACHE_COUNT placeholder of manifest
 # (cluster.yaml), in a copy under workDir.
-CreatePosixAlluxioCluster = lambda serviceConnection: str, alluxioImage: str, manifest: str, licenseManifest: str, workDir: str, resultDir: str -> steps.Step {
+CreatePosixAlluxioCluster = lambda alluxioImage: str, manifest: str, licenseManifest: str, workDir: str, resultDir: str, serviceConnection: str = const.DEFAULT_SERVICE_CONNECTION -> steps.Step {
     InsertAfterSetup(CreateAlluxioCluster(serviceConnection, alluxioImage, "${workDir}/cluster.yaml", licenseManifest, workDir, resultDir), ShellSetup(workDir, resultDir), """
 sed "s|POSIX_CACHE_COUNT|${POSIX_CACHE_COUNT}|" "${manifest}" > "${workDir}/cluster.yaml"
 ! grep -q POSIX_CACHE_COUNT "${workDir}/cluster.yaml" || fail "the POSIX_CACHE_COUNT placeholder is still in the cluster manifest"
@@ -82,7 +83,7 @@ sed "s|POSIX_CACHE_COUNT|${POSIX_CACHE_COUNT}|" "${manifest}" > "${workDir}/clus
 # reads through DACS and its read-only SAS Secret, then the Cache bench-cache. Waits until no DACS server pod
 # is left, because the Alluxio phase reads the counters of 0 or exactly POSIX_CACHE_COUNT of them. The
 # PrepareAlluxioFuseClients step that follows creates the elbencho pods again under the same names.
-EndDacsPhase = lambda serviceConnection: str, workDir: str, resultDir: str -> steps.Step {
+EndDacsPhase = lambda workDir: str, resultDir: str, serviceConnection: str = const.DEFAULT_SERVICE_CONNECTION -> steps.Step {
     azure.AzCli(
         serviceConnection
         "Remove the DACS clients, volume and cache"
@@ -118,7 +119,7 @@ done
 # each side (blob_egress_by_rep). Every index line counts except the single hot runs, which the one hot entry
 # of the side spans. egress.json and versions.json stay in the results even when a later check fails, because the
 # storage account is deleted with the resource group. This is an AzCli step because it queries Azure.
-SummarizePosixRead = lambda serviceConnection: str, subscription: str, resourceGroup: str, cluster: str, account: str, workDir: str, resultDir: str, checksDir: str -> steps.Step {
+SummarizePosixRead = lambda subscription: str, resourceGroup: str, cluster: str, account: str, workDir: str, resultDir: str, checksDir: str, serviceConnection: str = const.DEFAULT_SERVICE_CONNECTION -> steps.Step {
     reread = [scenario for scenario in POSIX_SCENARIOS if scenario.group == "reread"]
     assert len(reread) == 1, "the summary expects exactly one re-read scenario"
     # The hot and cold scenarios with their sides, which scenario_summary must cover exactly. A string
