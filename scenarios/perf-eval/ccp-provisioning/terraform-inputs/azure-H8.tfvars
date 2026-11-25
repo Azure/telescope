@@ -5,16 +5,12 @@ owner          = "aks"
 
 azapi_config_list = [
   {
-    role                   = "client"
-    aks_name               = "ccp-provisioning-H8"
-    dns_prefix             = "ccp-provisioning-H8"
-    kubernetes_version     = "1.36.0"
-    api_version            = "2026-01-02-preview"
-    # Enable Entra ID and Azure RBAC so the pipeline identity can use the metrics reader role.
-    # Use Telescope AKS Metrics Reader preassigned to the pipeline SP at a scope covering this cluster.
-    # Skip Terraform's role lookup/assignment; retain /metrics validation via GOMAXPROCS.
-    aad_enabled            = true
-    metrics_reader_enabled = false
+    role               = "client"
+    aks_name           = "ccp-provisioning-H8"
+    dns_prefix         = "ccp-provisioning-H8"
+    kubernetes_version = "1.36.0"
+    api_version        = "2026-01-02-preview"
+    aad_enabled        = true
 
     default_node_pool = {
       name    = "systempool1"
