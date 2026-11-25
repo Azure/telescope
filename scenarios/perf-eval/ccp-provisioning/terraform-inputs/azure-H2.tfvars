@@ -5,15 +5,12 @@ owner          = "aks"
 
 azapi_config_list = [
   {
-    role                   = "client"
-    aks_name               = "ccp-provisioning-H2"
-    dns_prefix             = "ccp-provisioning-H2"
-    kubernetes_version     = "1.36.0"
-    api_version            = "2026-01-02-preview"
-    # Enable Entra ID and Azure RBAC so the pipeline identity can use the metrics reader role.
-    # Assign Telescope AKS Metrics Reader to read API server /metrics and validate H2 CPU cores via GOMAXPROCS.
-    aad_enabled            = true
-    metrics_reader_enabled = true
+    role               = "client"
+    aks_name           = "ccp-provisioning-H2"
+    dns_prefix         = "ccp-provisioning-H2"
+    kubernetes_version = "1.36.0"
+    api_version        = "2026-01-02-preview"
+    aad_enabled        = true
 
     default_node_pool = {
       name    = "systempool1"
