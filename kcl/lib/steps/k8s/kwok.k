@@ -1,4 +1,5 @@
 import azure_pipelines.ap.steps
+import lib.const
 import lib.steps.azure
 
 KWOK_SCRIPT = "kwok/kwok.py"
@@ -39,4 +40,14 @@ CreateKwokNodes = lambda serviceConnection: str, nodeCount: int, continueOnError
             nodeCount,
             extraArgs),
     ]
+}
+
+DeleteKwokNodes = lambda nodeCount: int, serviceConnection: str = const.DEFAULT_SERVICE_CONNECTION -> steps.Step {
+    _runKwok(
+        serviceConnection,
+        "tear_down",
+        "Delete KWOK Nodes and controllers",
+        nodeCount,
+        ""
+    )
 }
