@@ -12,6 +12,7 @@ import os
 import time
 from datetime import datetime, timezone
 import yaml
+from kubernetes.client.rest import ApiException
 
 from clients.aks_client import AKSClient
 from crud.operation import OperationContext
@@ -615,6 +616,34 @@ class NodePoolCRUD:
         operation.add_metadata("workload_end_timestamp", ended.isoformat())
         operation.add_metadata("workload_readiness_time", max(0, (ended - started).total_seconds()))
 
+    def _delete_legacy_job(self, k8s_client, resource_name, namespace):
+        deadline = time.monotonic() + self.step_timeout
+        logger.info("Cleaning up previous legacy Job %s before submission", resource_name)
+        try:
+            k8s_client.batch.delete_namespaced_job(
+                name=resource_name, namespace=namespace, propagation_policy="Foreground",
+            )
+        except ApiException as error:
+            if error.status != 404:
+                raise
+
+        while time.monotonic() < deadline:
+            try:
+                k8s_client.batch.read_namespaced_job(name=resource_name, namespace=namespace)
+            except ApiException as error:
+                if error.status != 404:
+                    raise
+                if not k8s_client.get_pods_by_namespace(
+                    namespace, label_selector=f"job-name={resource_name}",
+                ):
+                    logger.info("Previous legacy Job %s and its pods are gone", resource_name)
+                    return
+            time.sleep(1)
+
+        raise TimeoutError(
+            f"Legacy Job {resource_name} cleanup did not finish within {self.step_timeout} seconds"
+        )
+
     def _submit_workload(
         self,
         k8s_client,
@@ -679,6 +708,9 @@ class NodePoolCRUD:
                 ),
             }
         )
+
+        if workload_type == "job" and workload_profile == LEGACY_WORKLOAD_PROFILE:
+            self._delete_legacy_job(k8s_client, resource_name, namespace)
 
         # For Jobs, delete any existing job first to avoid reusing completed jobs
         if workload_type == "job" and workload_profile == "default":

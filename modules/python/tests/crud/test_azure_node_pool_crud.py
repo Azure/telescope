@@ -11,6 +11,7 @@ import unittest
 from unittest import mock
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
+from kubernetes.client.rest import ApiException
 from crud.azure.node_pool_crud import NodePoolCRUD
 
 
@@ -424,6 +425,14 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
             return text
 
         client.create_template.side_effect = render
+        client.batch.read_namespaced_job.side_effect = ApiException(status=404)
+        client.get_pods_by_namespace.side_effect = lambda *args, **kwargs: (
+            client.api.list_namespaced_pod(
+                namespace=args[0], label_selector=kwargs["label_selector"],
+            ).items if "label_selector" in kwargs
+            else client.get_pods_by_namespace.return_value
+        )
+        client.api.list_namespaced_pod.return_value.items = []
         client.get_pods_by_namespace.return_value = [
             SimpleNamespace(metadata=SimpleNamespace(name=f"myapp-test-pool-{index}-pod-{pod}"))
             for index in (1, 2, 3) for pod in range(5)
@@ -474,11 +483,15 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
                 self.assertEqual(manifest["kind"], kind)
                 pod_spec = manifest["spec"]["template"]["spec"]
                 self.assertEqual(pod_spec["nodeSelector"], {"agentpool": "test-pool"})
-                client.get_pods_by_namespace.assert_called_once_with(
+                client.get_pods_by_namespace.assert_called_with(
                     "default",
                     field_selector="status.phase=Succeeded" if kind == "Job" else "status.phase=Running",
                 )
                 if kind == "Job":
+                    client.batch.delete_namespaced_job.assert_called_once_with(
+                        name="pi-test-pool", namespace="default",
+                        propagation_policy="Foreground",
+                    )
                     self.assertEqual(manifest["spec"]["completions"], 5)
                     self.assertEqual(manifest["spec"]["parallelism"], 5)
                     self.assertEqual(manifest["spec"]["backoffLimit"], 4)
@@ -646,6 +659,13 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
                 self.assertNotIn("volumeClaimTemplates", manifest["spec"])
                 self.assertNotIn("parallelism", manifest["spec"])
                 client.wait_for_condition.assert_called_once()
+                client.batch.read_namespaced_job.assert_not_called()
+                client.api.list_namespaced_pod.assert_not_called()
+                if method == self.node_pool_crud.create_job:
+                    client.batch.delete_namespaced_job.assert_called_once_with(
+                        name="myapp-test-pool-1", namespace="default",
+                        propagation_policy="Background",
+                    )
                 self.assertNotIn("workload_profile", self._read_operation_info()["metadata"])
                 for filename in os.listdir(self.test_result_dir):
                     os.unlink(os.path.join(self.test_result_dir, filename))

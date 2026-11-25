@@ -48,6 +48,11 @@ allowance, or uses `--step-timeout` when it is longer. Thus the default
 these limits to each scale step. The low-level provisioning helpers retain their
 30-minute default when called without a timeout override.
 
+Fully managed GPU creation (`--enable-managed-gpu`) uses a separate
+`aks-preview` CLI helper, not the shared provisioning instrumentation. Its
+existing subprocess calls do not enforce this ARM timeout. This change does
+not alter that helper; Kubernetes node-readiness waits still use `--step-timeout`.
+
 ### Azure Variables
 
 ```bash
@@ -198,6 +203,15 @@ StatefulSets use one controller with `--count 1`, `--replicas N`, Parallel pod
 management, and 5-GiB `managed-csi` PVCs mounted at `/usr/share/nginx/html`.
 Deployment images remain nginx 1.21.6; StatefulSets retain nginx 1.15.5-alpine.
 Counts and timeouts must be positive.
+
+Before a legacy Job is submitted, any previous Job with the same name is
+deleted with foreground propagation. Submission waits for both the old
+controller and its pods to disappear, polling for up to `--step-timeout`
+seconds separately from the historical readiness budget. Only a missing
+resource (HTTP 404) is ignored; cleanup errors or timeout fail the operation
+without submitting a new Job. This prevents reruns from reusing completed work.
+Cleanup is included in canonical `duration`, but precedes the historical
+readiness start timestamp.
 
 `legacy-shell` preserves Job/StatefulSet `agentpool` node selectors. Deployment
 targeting remains absent, matching the previous benchmark. It waits for the
