@@ -33,8 +33,8 @@ stages:
               scrape_kubelets: False
               scrape_registry: False
               containerd_scrape_interval: 30s
-              registry_endpoint: williamjcuseuap2.azurecr.io
-              test_image: "test20gb:latest"
+              registry_endpoint: williamjcuseuap7.azurecr.io
+              test_image: "test10gb:latest"
               kubernetes_version: "1.34"
               aad_enabled: "true"
               pod_startup_latency_threshold: 60m
