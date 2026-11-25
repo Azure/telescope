@@ -68,6 +68,8 @@ az aks create \\
   --dns-service-ip 10.0.0.10 \\
   --outbound-type managedNATGateway \\
   --enable-managed-identity \\
+  --enable-aad \\
+  --enable-azure-rbac \\
   --generate-ssh-keys
 
 az aks nodepool add \\
