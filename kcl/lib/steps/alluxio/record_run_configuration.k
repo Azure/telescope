@@ -1,7 +1,67 @@
 import azure_pipelines.ap.steps
 import lib.steps.azure
 
-RecordRunConfiguration = lambda serviceConnection: str, registryName: str, registrySubscription: str, alluxioImage: str, operatorImage: str, operatorChart: str, subscription: str, resourceGroup: str, cluster: str, location: str, storageAccount: str, workDir: str, resultDir: str -> steps.Step {
+# RecordedNodePool is a pool written to configuration.json with its VM size's published network
+# limit, the maximum bandwidth per VM across all NICs (the "Max Network Bandwidth" column in the
+# size series' Network tab, e.g.
+# https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/general-purpose/dsv6-series#tab/sizenetwork).
+schema RecordedNodePool:
+    pool: azure.NodePool
+    maxEgressMbpsPerVm: int
+
+# RecordedNodePools are the pools whose sizes are written to configuration.json.
+schema RecordedNodePools:
+    support: RecordedNodePool
+    worker: RecordedNodePool
+    client: RecordedNodePool
+
+WARP_NODE_POOLS = RecordedNodePools {
+    support = RecordedNodePool {
+        pool = azure.NodePool {
+            name = "systempool"
+            sku = "Standard_D8s_v6"
+            count = 3
+        }
+        maxEgressMbpsPerVm = 12500
+    }
+    worker = RecordedNodePool {
+        pool = azure.NodePool {
+            name = "workerpool"
+            sku = "Standard_D16s_v6"
+            count = 1
+        }
+        maxEgressMbpsPerVm = 12500
+    }
+    client = RecordedNodePool {
+        pool = azure.NodePool {
+            name = "clientpool"
+            sku = "Standard_D8s_v6"
+            count = 1
+        }
+        maxEgressMbpsPerVm = 12500
+    }
+}
+
+# RecordedBenchmark is the benchmark-specific part of configuration.json: the node pools, the
+# worker page-store sizes and the version of the load-generating client. Callers pass their own;
+# the default is the warp pipeline's record. clientVersionKey names the JSON field that holds
+# clientVersion (warp_version for warp, curl_version for the S3 read pipeline).
+schema RecordedBenchmark:
+    nodePools: RecordedNodePools
+    workerCache: str
+    workerCacheReserved: str
+    clientVersionKey: "warp_version" | "curl_version"
+    clientVersion: str
+
+WARP_BENCHMARK = RecordedBenchmark {
+    nodePools = WARP_NODE_POOLS
+    workerCache = "8Gi"
+    workerCacheReserved = "1Gi"
+    clientVersionKey = "warp_version"
+    clientVersion = "1.3.1"
+}
+
+RecordRunConfiguration = lambda serviceConnection: str, registryName: str, registrySubscription: str, alluxioImage: str, operatorImage: str, operatorChart: str, subscription: str, resourceGroup: str, cluster: str, location: str, storageAccount: str, workDir: str, resultDir: str, benchmark: RecordedBenchmark = WARP_BENCHMARK -> steps.Step {
     azure.AzCli(
         serviceConnection
         "Record run configuration and image digests"
@@ -35,13 +95,12 @@ jq -n \\
     --arg cluster "$cluster" --arg location "$location" --arg storage_account "${storageAccount}" \\
     --argjson image_digests "$images" \\
     --arg operator_chart "${operatorChart}" \\
-    --arg operator_version "${OPERATOR_TAG}" --arg warp_version "1.3.1" \\
+    --arg operator_version "${OPERATOR_TAG}" --arg ${benchmark.clientVersionKey} "${benchmark.clientVersion}" \\
     '$ARGS.named + {
-        worker_cache: "8Gi", worker_cache_reserved: "1Gi",
-        # Published per-VM limit across all NICs: https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/general-purpose/dsv6-series#tab/sizenetwork
-        support_nodes: {count: 3, sku: "Standard_D8s_v6", max_egress_mbps_per_vm: 12500},
-        worker_nodes: {count: 1, sku: "Standard_D16s_v6", max_egress_mbps_per_vm: 12500},
-        client_nodes: {count: 1, sku: "Standard_D8s_v6", max_egress_mbps_per_vm: 12500}
+        worker_cache: "${benchmark.workerCache}", worker_cache_reserved: "${benchmark.workerCacheReserved}",
+        support_nodes: {count: ${benchmark.nodePools.support.pool.count}, sku: "${benchmark.nodePools.support.pool.sku}", max_egress_mbps_per_vm: ${benchmark.nodePools.support.maxEgressMbpsPerVm}},
+        worker_nodes: {count: ${benchmark.nodePools.worker.pool.count}, sku: "${benchmark.nodePools.worker.pool.sku}", max_egress_mbps_per_vm: ${benchmark.nodePools.worker.maxEgressMbpsPerVm}},
+        client_nodes: {count: ${benchmark.nodePools.client.pool.count}, sku: "${benchmark.nodePools.client.pool.sku}", max_egress_mbps_per_vm: ${benchmark.nodePools.client.maxEgressMbpsPerVm}}
     }' > "${resultDir}/configuration.json"
 """
     )
