@@ -9,7 +9,7 @@ This module creates a configurable Linux virtual machine in Azure with support f
 - **Custom OS Disk**: Configure caching, storage type, and disk size
 - **Flexible Image Selection**: Use any Azure VM image (defaults to Ubuntu 24.04 LTS)
 - **Cloud-init Templates**: Select from multiple cloud-init templates or provide custom variables
-- **AKS Integration**: Optional role assignments for AKS cluster access
+- **AKS Integration**: When `aks_name` is set, the VM's managed identity receives RBAC Cluster Admin on that cluster and Reader on the resource group. RBAC Cluster Admin allows downloading user kubeconfig and provides full Kubernetes access for benchmark setup, execution, and cleanup.
 - **Tagging**: Global and VM-specific tags support
 
 ## Usage
