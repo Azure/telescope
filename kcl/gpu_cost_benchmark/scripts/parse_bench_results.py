@@ -56,7 +56,7 @@ def parse_cases(log_file, default_input_tokens, default_output_tokens):
 
     with open(log_file, encoding="utf-8") as f:
         for raw_line in f:
-            line = raw_line.rstrip("\\n")
+            line = raw_line.rstrip("\r\n")
             if line.startswith("__VLLM_CASE_JSON_BEGIN__"):
                 parts = line.split()
                 if len(parts) >= 6:
