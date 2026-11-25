@@ -85,7 +85,24 @@ steps:
         az aks get-credentials -n "$aks_name" -g "$aks_rg" --overwrite-existing
         kubelogin convert-kubeconfig -l msi
         echo 'Kubeconfig updated on jumpbox. Testing kubectl...'
-        kubectl get ns
+        retry_deadline=$((SECONDS + 900))
+        while true; do
+          remaining=$((retry_deadline - SECONDS))
+          if [ "$remaining" -le 0 ]; then
+            echo 'Error: Kubernetes access is still unavailable after 15 minutes.' >&2
+            exit 1
+          fi
+          request_timeout=$((remaining < 15 ? remaining : 15))
+          if kubectl get ns --request-timeout="${request_timeout}s"; then
+            break
+          fi
+          remaining=$((retry_deadline - SECONDS))
+          if [ "$remaining" -gt 0 ]; then
+            retry_interval=$((remaining < 15 ? remaining : 15))
+            echo "Kubernetes access check failed; retrying in ${retry_interval}s (${remaining}s remaining)."
+            sleep "$retry_interval"
+          fi
+        done
 
   - template: /steps/ssh/run-command.yml
     parameters:
