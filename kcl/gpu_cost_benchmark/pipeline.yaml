@@ -276,118 +276,14 @@ jobs:
         kubectl logs --namespace="vllm-benchmark" "$VLLM_POD" > /tmp/vllm-server.log || true
         kubectl get pod --namespace="vllm-benchmark" "$VLLM_POD" -o json > /tmp/vllm-pod.json
         kubectl get events --namespace="vllm-benchmark" --field-selector involvedObject.name="$VLLM_POD" -o json > /tmp/vllm-pod-events.json || echo '{"items":[]}' > /tmp/vllm-pod-events.json
-        VLLM_READY_EPOCH="$VLLM_READY_EPOCH" python3 - <<'PY'
-        import json
-        import os
-        import re
-        from datetime import datetime, timezone
+        python3 kcl/gpu_cost_benchmark/scripts/startup_metrics.py \
+          --pod-events /tmp/vllm-pod-events.json \
+          --pod-json /tmp/vllm-pod.json \
+          --server-log /tmp/vllm-server.log \
+          --ready-epoch "$VLLM_READY_EPOCH" \
+          --output /tmp/startup-metrics.json
 
-        def parse_ts(value):
-            if not value:
-                return None
-            value = value.replace("Z", "+00:00")
-            try:
-                return datetime.fromisoformat(value)
-            except ValueError:
-                return None
-
-        def seconds_between(start, end):
-            if not start or not end:
-                return None
-            return max(0.0, (end - start).total_seconds())
-
-        def metric_from_events(events, start_reason, end_reason):
-            starts = [event["ts"] for event in events if event["reason"] == start_reason and event["ts"]]
-            ends = [event["ts"] for event in events if event["reason"] == end_reason and event["ts"]]
-            if not starts or not ends:
-                return None
-            end = max(ends)
-            start_candidates = [ts for ts in starts if ts <= end]
-            start = min(start_candidates) if start_candidates else min(starts)
-            return seconds_between(start, end)
-
-        def last_float(patterns, text):
-            for pattern in patterns:
-                matches = re.findall(pattern, text, flags=re.IGNORECASE)
-                if matches:
-                    return float(matches[-1])
-            return None
-
-        with open("/tmp/vllm-pod-events.json", encoding="utf-8") as f:
-            raw_events = json.load(f).get("items", [])
-
-        events = []
-        for event in raw_events:
-            ts = parse_ts(event.get("eventTime")) or parse_ts(event.get("lastTimestamp")) or parse_ts(event.get("firstTimestamp"))
-            events.append({
-                "reason": event.get("reason"),
-                "ts": ts,
-                "message": event.get("message", ""),
-            })
-
-        with open("/tmp/vllm-pod.json", encoding="utf-8") as f:
-            pod = json.load(f)
-
-        container_statuses = pod.get("status", {}).get("containerStatuses", [])
-        container_started_at = None
-        if container_statuses:
-            container_started_at = parse_ts(container_statuses[0].get("state", {}).get("running", {}).get("startedAt"))
-        if not container_started_at:
-            started_events = [event["ts"] for event in events if event["reason"] == "Started" and event["ts"]]
-            container_started_at = max(started_events) if started_events else None
-
-        try:
-            text = open("/tmp/vllm-server.log", encoding="utf-8").read()
-        except FileNotFoundError:
-            text = ""
-
-        vllm_ready_epoch = int(os.environ["VLLM_READY_EPOCH"])
-        vllm_ready_at = datetime.fromtimestamp(vllm_ready_epoch, tz=timezone.utc)
-
-        model_load_to_gpu_seconds = last_float([
-            r"Loading model weights took ([0-9.]+) seconds",
-            r"Model loading took ([0-9.]+) seconds",
-            r"Loaded model .* in ([0-9.]+) seconds",
-        ], text)
-        engine_init_seconds = last_float([
-            r"init engine .* took ([0-9.]+) s",
-        ], text)
-        cuda_graph_seconds = last_float([
-            r"Graph capturing finished in ([0-9.]+) secs",
-            r"Graph capturing finished in ([0-9.]+) seconds",
-        ], text)
-
-        metrics = {
-            "t_image_pull_seconds": metric_from_events(events, "Pulling", "Pulled"),
-            "t_container_start_seconds": metric_from_events(events, "Created", "Started"),
-            "t_model_download_seconds": last_float([
-                r"Downloaded .* in ([0-9.]+) seconds",
-                r"Fetching .* took ([0-9.]+) seconds",
-                r"snapshot_download.* took ([0-9.]+) seconds",
-            ], text),
-            "t_model_load_to_gpu_seconds": model_load_to_gpu_seconds,
-            "t_engine_warmup_seconds": engine_init_seconds if engine_init_seconds is not None else cuda_graph_seconds,
-            "t_readiness_routing_seconds": seconds_between(container_started_at, vllm_ready_at),
-            "engine_init_seconds": engine_init_seconds,
-            "cuda_graph_capture_seconds": cuda_graph_seconds,
-        }
-
-        with open("/tmp/startup-metrics.json", "w", encoding="utf-8") as f:
-            json.dump(metrics, f)
-
-        print(json.dumps(metrics, indent=2))
-        PY
-
-        MODEL_LOAD_SECONDS=$(python3 - <<'PY'
-        import json
-
-        with open("/tmp/startup-metrics.json", encoding="utf-8") as f:
-            metrics = json.load(f)
-        value = metrics.get("t_model_load_to_gpu_seconds") or metrics.get("engine_init_seconds")
-        if value is not None:
-            print(value)
-        PY
-        )
+        MODEL_LOAD_SECONDS=$(python3 kcl/gpu_cost_benchmark/scripts/model_load_seconds.py --startup-metrics /tmp/startup-metrics.json)
         echo "GPU ready seconds: $GPU_READY_SECONDS"
         echo "vLLM ready seconds: $VLLM_READY_SECONDS"
         echo "Model load seconds: $MODEL_LOAD_SECONDS"
@@ -460,129 +356,11 @@ jobs:
 
         BENCH_POD=$(kubectl get pod --namespace="vllm-benchmark" -l job-name=vllm-bench -o jsonpath='{.items[0].metadata.name}')
         kubectl logs --namespace="vllm-benchmark" "$BENCH_POD" > /tmp/vllm-bench.log
-        python3 - <<'PY'
-        import json
-        import re
-
-        results = []
-        current = None
-        buf = []
-
-        RAW_SERIES_FIELDS = [
-            "latencies",
-            "queue_times",
-            "ttfts",
-            "itls",
-            "tpots",
-            "input_lens",
-            "output_lens",
-            "generated_texts",
-        ]
-
-        def percentile(values, p):
-            values = sorted(v for v in values if isinstance(v, (int, float)))
-            if not values:
-                return None
-            k = (len(values) - 1) * p / 100.0
-            lower = int(k)
-            upper = min(lower + 1, len(values) - 1)
-            if lower == upper:
-                return values[lower]
-            return values[lower] * (upper - k) + values[upper] * (k - lower)
-
-        def summarize_seconds(values):
-            values = [v for v in values if isinstance(v, (int, float))]
-            if not values:
-                return None
-            return {
-                "count": len(values),
-                "mean_ms": sum(values) / len(values) * 1000.0,
-                "p50_ms": percentile(values, 50) * 1000.0,
-                "p95_ms": percentile(values, 95) * 1000.0,
-                "p99_ms": percentile(values, 99) * 1000.0,
-            }
-
-        def compact_benchmark(benchmark):
-            for field in ("latencies", "queue_times"):
-                summary = summarize_seconds(benchmark.get(field, []))
-                if summary is not None:
-                    benchmark[f"{field}_summary"] = summary
-            for field in RAW_SERIES_FIELDS:
-                benchmark.pop(field, None)
-            return benchmark
-
-        with open("/tmp/vllm-bench.log", encoding="utf-8") as f:
-            for raw_line in f:
-                line = raw_line.rstrip("\n")
-                if line.startswith("__VLLM_CASE_JSON_BEGIN__"):
-                    parts = line.split()
-                    if len(parts) >= 6:
-                        _, case_name, case_rps, case_input_tokens, case_output_tokens, case_num_prompts = parts[:6]
-                    else:
-                        case_name = None
-                        case_rps = None
-                        case_input_tokens = None
-                        case_output_tokens = None
-                        case_num_prompts = None
-                    current = {
-                        "case": case_name,
-                        "request_rate": float(case_rps) if case_rps is not None else None,
-                        "input_tokens_per_prompt": int(case_input_tokens) if case_input_tokens is not None else None,
-                        "output_tokens_per_prompt": int(case_output_tokens) if case_output_tokens is not None else None,
-                        "num_prompts": int(case_num_prompts) if case_num_prompts is not None else None,
-                    }
-                    buf = []
-                    continue
-                if line == "__VLLM_CASE_JSON_END__":
-                    if current is None:
-                        continue
-                    payload = "\n".join(buf).strip()
-                    json_start = payload.find("{")
-                    json_end = payload.rfind("}")
-                    if json_start >= 0 and json_end > json_start:
-                        payload_json = payload[json_start:json_end + 1]
-                    else:
-                        payload_json = payload
-                    try:
-                        benchmark = compact_benchmark(json.loads(payload_json))
-                    except json.JSONDecodeError as exc:
-                        benchmark = {
-                            "error": "benchmark_result_parse_failed",
-                            "parse_error": str(exc),
-                            "raw_payload_preview": payload[:500],
-                            "completed": 0,
-                            "failed": current["num_prompts"] or 0,
-                            "request_rate": current["request_rate"],
-                            "request_throughput": 0,
-                            "p99_ttft_ms": None,
-                            "duration": 0,
-                        }
-                    current["vllm_benchmark"] = benchmark
-                    if current["request_rate"] is None:
-                        benchmark_request_rate = benchmark.get("request_rate")
-                        current["request_rate"] = float(benchmark_request_rate) if benchmark_request_rate is not None else None
-                    if current["num_prompts"] is None:
-                        current["num_prompts"] = int(benchmark.get("num_prompts", 0) or 0)
-                    if current["input_tokens_per_prompt"] is None:
-                        current["input_tokens_per_prompt"] = 1024
-                    if current["output_tokens_per_prompt"] is None:
-                        current["output_tokens_per_prompt"] = 512
-                    if current["case"] is None:
-                        rps_suffix = int(current["request_rate"]) if current["request_rate"] is not None else "unknown"
-                        current["case"] = f"in{current['input_tokens_per_prompt']}-out{current['output_tokens_per_prompt']}-rps{rps_suffix}"
-                    results.append(current)
-                    current = None
-                    buf = []
-                    continue
-                if current is not None:
-                    buf.append(line)
-
-        with open("/tmp/vllm-bench-results.json", "w", encoding="utf-8") as f:
-            json.dump(results, f)
-
-        if not results:
-            raise RuntimeError("No benchmark case JSON payloads were found in /tmp/vllm-bench.log")
-        PY
+        python3 kcl/gpu_cost_benchmark/scripts/parse_bench_results.py \
+          --log-file /tmp/vllm-bench.log \
+          --default-input-tokens 1024 \
+          --default-output-tokens 512 \
+          --output /tmp/vllm-bench-results.json
         cat /tmp/vllm-bench-results.json
 
         if [ ! -s /tmp/vllm-bench-results.json ]; then
@@ -593,117 +371,25 @@ jobs:
         fi
 
         TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-        python3 - <<PY
-        import json
-
-        with open("/tmp/startup-metrics.json", "r", encoding="utf-8") as f:
-            startup_metrics = json.load(f)
-
-        with open("/tmp/vllm-bench-results.json", "r", encoding="utf-8") as f:
-            benchmark_cases = json.load(f)
-
-        duration_seconds = int("$DURATION_SECONDS")
-        gpu_ready_seconds = int("$GPU_READY_SECONDS")
-        vllm_ready_seconds = int("$VLLM_READY_SECONDS")
-        model_load_seconds_raw = "$MODEL_LOAD_SECONDS".strip()
-        model_load_seconds = float(model_load_seconds_raw) if model_load_seconds_raw else None
-        gpu_node_count = 1
-        hourly_cost = float("6.98")
-        total_cost = gpu_node_count * hourly_cost * duration_seconds / 3600.0
-        total_tokens = 0
-        for case in benchmark_cases:
-            benchmark = case["vllm_benchmark"]
-            case_tokens = int(benchmark.get("total_input_tokens", 0)) + int(benchmark.get("total_output_tokens", 0))
-            case["total_tokens"] = case_tokens
-            case["traffic_cost_usd"] = gpu_node_count * hourly_cost * float(benchmark.get("duration", 0)) / 3600.0
-            case["traffic_cost_per_1m_tokens_usd"] = case["traffic_cost_usd"] * 1_000_000 / case_tokens if case_tokens else None
-            target_rps = float(case["request_rate"]) if case.get("request_rate") is not None else 0.0
-            throughput = float(benchmark.get("request_throughput", 0) or 0)
-            case["throughput_to_target_ratio"] = throughput / target_rps if target_rps else None
-            total_tokens += case_tokens
-
-        baseline_p99_ttft = float(benchmark_cases[0]["vllm_benchmark"].get("p99_ttft_ms", 0) or 0) if benchmark_cases else 0
-        saturation_case = None
-        for case in benchmark_cases:
-            benchmark = case["vllm_benchmark"]
-            failed = int(benchmark.get("failed", 0) or 0)
-            p99_ttft = float(benchmark.get("p99_ttft_ms", 0) or 0)
-            throughput_ratio = case.get("throughput_to_target_ratio")
-            reasons = []
-            if failed > 0:
-                reasons.append("failed_requests")
-            if throughput_ratio is not None and throughput_ratio < 0.95:
-                reasons.append("throughput_below_95pct_of_target")
-            if baseline_p99_ttft and p99_ttft > max(100.0, 2.0 * baseline_p99_ttft):
-                reasons.append("p99_ttft_gt_2x_baseline_or_100ms")
-            if reasons:
-                saturation_case = {
-                    "case": case["case"],
-                    "request_rate": case.get("request_rate"),
-                    "reasons": reasons,
-                    "request_throughput": benchmark.get("request_throughput"),
-                    "throughput_to_target_ratio": throughput_ratio,
-                    "p99_ttft_ms": p99_ttft,
-                    "baseline_p99_ttft_ms": baseline_p99_ttft,
-                    "failed_requests": failed,
-                }
-                break
-
-        saturation_detection = {
-            "detected": saturation_case is not None,
-            "first_saturation_case": saturation_case,
-            "criteria": [
-                "failed_requests > 0",
-                "request_throughput / request_rate < 0.95",
-                "p99_ttft_ms > max(100ms, 2x baseline p99 TTFT)",
-            ],
-        }
-
-        result = {
-            "scenario": "vllm-qwen25-7b-cost-efficiency-rps-sweep",
-            "region": "australiaeast",
-            "cluster": "ai-inference-cost",
-            "model": "Qwen/Qwen2.5-7B-Instruct",
-            "runtime": "vllm",
-            "gpu_vm_size": "Standard_NC40ads_H100_v5",
-            "gpu_node_count": gpu_node_count,
-            "request_rates": [1, 2, 3, 5, 10, 15],
-            "benchmark_case_specs": [
-                "30:512:128",
-                "35:512:128",
-                "40:512:128",
-                "5:1024:512",
-                "10:1024:512",
-                "15:1024:512",
-                "1:2048:2048",
-                "2:2048:2048",
-                "3:2048:2048",
-                "5:2048:2048",
-            ],
-            "target_duration_seconds_per_case": 60,
-            "duration_seconds": duration_seconds,
-            "gpu_ready_seconds": gpu_ready_seconds,
-            "vllm_ready_seconds": vllm_ready_seconds,
-            "model_load_seconds": model_load_seconds,
-            "startup_seconds": gpu_ready_seconds + vllm_ready_seconds,
-            **startup_metrics,
-            "estimated_cost_usd": total_cost,
-            "estimated_cost_per_1m_tokens_usd": total_cost * 1_000_000 / total_tokens if total_tokens else None,
-            "saturation_detection": saturation_detection,
-            "benchmark_cases": benchmark_cases,
-        }
-
-        wrapped_result = {
-            "timestamp": "$TIMESTAMP",
-            "run_id": "$(RUN_ID)",
-            "run_url": "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)",
-            "pipeline": "$(Build.DefinitionName)",
-            "result": result,
-        }
-
-        with open("/tmp/run-result.json", "w", encoding="utf-8") as f:
-            json.dump(wrapped_result, f)
-        PY
+        python3 kcl/gpu_cost_benchmark/scripts/aggregate_run_result.py \
+          --startup-metrics /tmp/startup-metrics.json \
+          --benchmark-results /tmp/vllm-bench-results.json \
+          --duration-seconds "$DURATION_SECONDS" \
+          --gpu-ready-seconds "$GPU_READY_SECONDS" \
+          --vllm-ready-seconds "$VLLM_READY_SECONDS" \
+          --model-load-seconds "$MODEL_LOAD_SECONDS" \
+          --gpu-node-count 1 \
+          --hourly-cost "6.98" \
+          --location "australiaeast" \
+          --cluster "ai-inference-cost" \
+          --model "Qwen/Qwen2.5-7B-Instruct" \
+          --gpu-vm-size "Standard_NC40ads_H100_v5" \
+          --target-duration-seconds 60 \
+          --timestamp "$TIMESTAMP" \
+          --run-id "$(RUN_ID)" \
+          --run-url "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)" \
+          --pipeline-name "$(Build.DefinitionName)" \
+          --output /tmp/run-result.json
 
         cat /tmp/run-result.json
     displayName: Deploy vLLM and run benchmark
