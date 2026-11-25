@@ -3,7 +3,6 @@ scenario_name  = "ccp-provisioning-H2"
 deletion_delay = "2h"
 owner          = "aks"
 
-
 azapi_config_list = [
   {
     role               = "client"
@@ -11,6 +10,7 @@ azapi_config_list = [
     dns_prefix         = "ccp-provisioning-H2"
     kubernetes_version = "1.36.0"
     api_version        = "2026-01-02-preview"
+    aad_enabled        = true
 
     default_node_pool = {
       name    = "systempool1"

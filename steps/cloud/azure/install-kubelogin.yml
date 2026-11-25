@@ -21,7 +21,7 @@ steps:
       install_success=false
 
       for i in $(seq 1 $max_retries); do
-        if az aks install-cli; then
+        if sudo az aks install-cli; then
           echo "Successfully installed via az aks install-cli"
           install_success=true
           break

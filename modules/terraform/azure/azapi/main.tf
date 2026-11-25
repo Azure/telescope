@@ -18,10 +18,17 @@ locals {
 
   properties = {
     for k, v in {
-      kubernetesVersion = var.azapi_config.kubernetes_version
-      dnsPrefix         = var.azapi_config.dns_prefix
-      agentPoolProfiles = local.agent_pool_profiles
-      networkProfile    = local.network_profile
+      kubernetesVersion    = var.azapi_config.kubernetes_version
+      dnsPrefix            = var.azapi_config.dns_prefix
+      agentPoolProfiles    = local.agent_pool_profiles
+      networkProfile       = local.network_profile
+      enableRBAC           = var.azapi_config.aad_enabled ? true : null
+      disableLocalAccounts = true
+      aadProfile = var.azapi_config.aad_enabled ? {
+        managed         = true
+        enableAzureRBAC = true
+        tenantID        = data.azurerm_client_config.current.tenant_id
+      } : null
       controlPlaneScalingProfile = var.azapi_config.control_plane_scaling_profile != null ? {
         scalingSize = var.azapi_config.control_plane_scaling_profile.scaling_size
       } : null

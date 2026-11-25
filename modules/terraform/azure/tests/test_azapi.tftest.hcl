@@ -62,6 +62,17 @@ run "azapi_with_control_plane_scaling" {
     condition     = module.azapi["test-azapi-h2"].resource_body.properties.controlPlaneScalingProfile.scalingSize == "H2"
     error_message = "controlPlaneScalingProfile.scalingSize should be 'H2'"
   }
+
+  assert {
+    condition = (
+      module.azapi["test-azapi-h2"].resource_body.properties.enableRBAC &&
+      module.azapi["test-azapi-h2"].resource_body.properties.aadProfile.managed &&
+      module.azapi["test-azapi-h2"].resource_body.properties.aadProfile.enableAzureRBAC &&
+      module.azapi["test-azapi-h2"].resource_body.properties.aadProfile.tenantID == "00000000-0000-0000-0000-000000000000" &&
+      module.azapi["test-azapi-h2"].resource_body.properties.disableLocalAccounts
+    )
+    error_message = "AzAPI must default to managed Entra ID and Azure RBAC with local accounts disabled."
+  }
 }
 
 # Test case 2: Verify AzAPI resource works without controlPlaneScalingProfile
@@ -80,6 +91,7 @@ run "azapi_without_control_plane_scaling" {
         role               = "client"
         aks_name           = "test-azapi-std"
         dns_prefix         = "test-azapi-std"
+        aad_enabled        = false
         kubernetes_version = "1.33.0"
         default_node_pool = {
           name    = "systempool1"
@@ -111,6 +123,15 @@ run "azapi_without_control_plane_scaling" {
   assert {
     condition     = !contains(keys(module.azapi["test-azapi-std"].resource_body.properties), "controlPlaneScalingProfile")
     error_message = "controlPlaneScalingProfile should not be present when not specified"
+  }
+
+  assert {
+    condition = (
+      !contains(keys(module.azapi["test-azapi-std"].resource_body.properties), "aadProfile") &&
+      !contains(keys(module.azapi["test-azapi-std"].resource_body.properties), "enableRBAC") &&
+      module.azapi["test-azapi-std"].resource_body.properties.disableLocalAccounts
+    )
+    error_message = "Explicit AAD false must omit AAD settings but keep local accounts disabled."
   }
 }
 
