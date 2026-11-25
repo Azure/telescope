@@ -15,7 +15,7 @@ locals {
 
   # Role assignments for AKS integration
   vm_role_assignments = local.aks_cluster_id != null ? {
-    "Azure Kubernetes Service Cluster User Role" = local.aks_cluster_id
+    "Azure Kubernetes Service RBAC Cluster Admin" = local.aks_cluster_id
     "Reader"                                     = local.resource_group_id
   } : {}
 
