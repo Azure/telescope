@@ -113,6 +113,13 @@ fi
 """
 
 deployAndBenchmarkScript = """
+if ! command -v kubelogin >/dev/null 2>&1; then
+  KUBELOGIN_BIN="$HOME/.azure-kubelogin/kubelogin"
+  az aks install-cli --kubelogin-install-location "$KUBELOGIN_BIN"
+  export PATH="$(dirname "$KUBELOGIN_BIN"):$PATH"
+fi
+kubelogin convert-kubeconfig -l azurecli
+
 kubectl create namespace "${NAMESPACE}"
 
 GPU_SCALE_START_SECONDS=$(date +%s)
