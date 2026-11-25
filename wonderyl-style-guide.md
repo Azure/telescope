@@ -152,6 +152,11 @@ Arguments the caller must always specify come first; optional or debug knobs com
 sensible defaults; an open-ended `params` map goes at the very end. Keep semantically
 paired parameters adjacent. *(PR [#1313](https://github.com/Azure/telescope/pull/1313), [#1184](https://github.com/Azure/telescope/pull/1184), [#1155](https://github.com/Azure/telescope/pull/1155), [#1312](https://github.com/Azure/telescope/pull/1312))*
 
+## Put serviceConnection last and default it for new lambdas
+
+When a new KCL lambda needs a `serviceConnection` parameter, put it last and default it to
+`const.DEFAULT_SERVICE_CONNECTION` so callers can omit it.
+
 ## Define each default value in exactly one place
 
 Repeating a default across the KCL signature, the Python signature, and argparse means
