@@ -62,9 +62,6 @@ steps:
       pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
 
       packages=()
-      if [[ "${INSTALL_BC:-false}" == "true" ]] && ! command -v bc >/dev/null; then
-        packages+=(bc)
-      fi
       if [[ "${INSTALL_NETCAT:-false}" == "true" ]] && ! { command -v nc && command -v netcat; } >/dev/null; then
         packages+=(netcat-openbsd)
       fi
