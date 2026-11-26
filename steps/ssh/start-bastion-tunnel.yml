@@ -29,6 +29,11 @@ steps:
         exit 1
       fi
 
+      if ! command -v nc >/dev/null 2>&1; then
+        echo "Netcat (nc) is required on the pipeline agent for Bastion tunneling" >&2
+        exit 1
+      fi
+
       local_port="${BASTION_LOCAL_PORT:-2222}"
 
       if timeout 2 nc -z 127.0.0.1 ${local_port} >/dev/null 2>&1; then
