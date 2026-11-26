@@ -4,7 +4,7 @@ import lib.steps.azure
 
 KWOK_SCRIPT = "kwok/kwok.py"
 
-_runKwok = lambda serviceConnection: str, action: str, displayName: str, nodeCount: int, extraArgs: str, continueOnError: bool = Undefined -> steps.Step {
+_runKwok = lambda serviceConnection: str, action: str, displayName: str, nodeCount: int, extraArgs: str = "", continueOnError: bool = Undefined -> steps.Step {
     script = """
 export PYTHONPATH=$PYTHONPATH:$(pwd)
 python3 ${KWOK_SCRIPT} \
@@ -47,7 +47,6 @@ DeleteKwokNodes = lambda nodeCount: int, serviceConnection: str = const.DEFAULT_
         serviceConnection,
         "tear_down",
         "Delete KWOK Nodes and controllers",
-        nodeCount,
-        ""
+        nodeCount
     )
 }
