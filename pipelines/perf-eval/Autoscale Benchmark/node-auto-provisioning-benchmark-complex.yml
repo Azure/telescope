@@ -18,7 +18,6 @@ schedules:
         - main
     always: true
 variables:
-  INSTALL_NETCAT: "true"
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: nap-complex
 
