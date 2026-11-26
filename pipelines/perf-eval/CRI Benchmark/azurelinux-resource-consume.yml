@@ -13,6 +13,7 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: azurelinux-resource-consume
+  PULL_FROM_ACR: 'true'
 
 stages:
   - stage: azurelinux_v3_swedencentral

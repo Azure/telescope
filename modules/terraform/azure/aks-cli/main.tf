@@ -358,7 +358,7 @@ resource "azurerm_role_assignment" "aks_identity_kms_roles" {
 }
 
 data "azapi_resource" "aks" {
-  count = var.aks_cli_config.disk_encryption_set_name != null && !var.aks_cli_config.dry_run ? 1 : 0
+  count = !var.aks_cli_config.dry_run && (var.read_kubelet_identity || var.aks_cli_config.disk_encryption_set_name != null) ? 1 : 0
 
   depends_on = [terraform_data.aks_cli]
 
@@ -366,7 +366,6 @@ data "azapi_resource" "aks" {
   name      = var.aks_cli_config.aks_name
   parent_id = local.resource_group_id
 
-  # Keep the payload small but sufficient for DES role assignments.
   response_export_values = [
     "identity",
     "properties.identityProfile",
@@ -374,15 +373,15 @@ data "azapi_resource" "aks" {
 }
 
 locals {
-  aks_identity_for_des = (var.aks_cli_config.disk_encryption_set_name != null && !var.aks_cli_config.dry_run) ? data.azapi_resource.aks[0].output : null
+  aks_identity = one(data.azapi_resource.aks[*].output)
 
   aks_kubelet_object_id = try(
-    local.aks_identity_for_des.properties.identityProfile.kubeletidentity.objectId,
-    local.aks_identity_for_des.properties.identityProfile.kubeletIdentity.objectId,
+    local.aks_identity.properties.identityProfile.kubeletidentity.objectId,
+    local.aks_identity.properties.identityProfile.kubeletIdentity.objectId,
     null
   )
 
-  aks_system_assigned_principal_id = try(local.aks_identity_for_des.identity.principalId, null)
+  aks_system_assigned_principal_id = try(local.aks_identity.identity.principalId, null)
 }
 
 # Grant Reader access to Disk Encryption Set for kubelet identity

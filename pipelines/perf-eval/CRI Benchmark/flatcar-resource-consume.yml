@@ -13,6 +13,7 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: flatcar-resource-consume
+  PULL_FROM_ACR: 'true'
 
 stages:
   - stage: azure_westus3_flatcar

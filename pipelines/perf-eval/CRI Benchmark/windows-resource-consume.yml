@@ -13,6 +13,7 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: windows-resource-consume
+  PULL_FROM_ACR: 'true'
 
 stages:
   - stage: azure_westus3_windows2022
