@@ -9,7 +9,7 @@ only after reading back its own data from the mounted disk. Small CPU/memory
 requests keep the intended constraint on disk attachments, not CPU packing.
 
 The benchmark and manual qualification pipeline target **exactly 3,000 workload
-nodes**, plus five fixed system nodes, for **3,005 total nodes** in `westus2`.
+nodes**, plus five fixed system nodes, for **3,005 total nodes** in `australiaeast`.
 At four disks per workload node this requires **12,000 workload pods and disks**.
 Smaller manual tests can specify
 a lower node-count target.
@@ -19,16 +19,18 @@ cluster limit. Reserve additional VM quota and subnet addresses for upgrade surg
 
 ## Infrastructure and workload
 
-- Five `Standard_D2ds_v5` workload pools (2 vCPUs, 8 GiB, four data disks per VM),
+- Workload pools `csipool1` through `csipool3` use `Standard_D2ds_v5`;
+  `csipool4` and `csipool5` use `Standard_D2_v5` (2 vCPUs, 8 GiB per VM),
   initially zero nodes, autoscaling min=0, each capped at 1,000 nodes.
   All share `cas=dedicated`.
 - Five fixed `Standard_D8ds_v5` system nodes are excluded from test node counts.
 - Pools do not pin availability zones. Check subscription-specific SKU
-  restrictions before adding zones. Both configured SKUs had no listed
-  restrictions in West US 2 when checked.
+  restrictions and capacity for both workload SKUs before running or adding zones.
 - `max_pods=30` is a pod limit, not a disk attachment limit.
 - The node OS disk capacity is not explicitly set by this scenario.
 - `managed-csi` must use `disk.csi.azure.com`, `WaitForFirstConsumer`, and `Delete`.
+  Use a non-premium disk SKU such as `StandardSSD_LRS`: `Standard_D2_v5`
+  does not support Premium SSD disks.
 - The runner requires zero workload nodes before creating the first pod. It
   reads the actual attachment limit from the first autoscaled node's `CSINode`;
   all subsequent nodes must advertise the same positive limit.
@@ -107,9 +109,10 @@ read request per pod.
 
 ### Capacity prerequisites
 
-- Workload compute requires 6,000 DDSv5 vCPUs; the five system nodes require
-  another 40, for **6,040 DDSv5/regional vCPUs** before other workloads or surge.
-  Verify West US 2 DDSv5-family and regional quotas before each run:
+- Workload compute requires 6,000 vCPUs split across DDSv5 and Dv5 according
+  to the autoscaled pool sizes; the five system nodes require another 40 DDSv5
+  vCPUs, for **6,040 regional vCPUs** before other workloads or surge.
+  Verify Australia East DDSv5-family, Dv5-family, and regional quotas before each run:
   quota is not a reservation or a guarantee of physical capacity.
 - The overlay pod CIDR `10.128.0.0/11` contains 8,192 per-node `/24` blocks,
   enough for 3,005 nodes. The node subnet must separately have at least 3,005

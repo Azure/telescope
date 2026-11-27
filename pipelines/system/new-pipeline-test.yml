@@ -9,16 +9,16 @@ variables:
   AAD_ENABLED: 'true'
 
 stages:
-- stage: azure_westus2_csi_scale
+- stage: azure_australiaeast_csi_scale
   dependsOn: []
   jobs:
   - template: /jobs/competitive-test.yml
     parameters:
       cloud: azure
       regions:
-      - westus2
+      - australiaeast
       terraform_input_file_mapping:
-      - westus2: scenarios/perf-eval/csi-autoscale-5k/terraform-inputs/azure.tfvars
+      - australiaeast: scenarios/perf-eval/csi-autoscale-5k/terraform-inputs/azure.tfvars
       engine: clusterloader2
       engine_input:
         image: ghcr.io/azure/clusterloader2:v20250423

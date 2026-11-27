@@ -1,5 +1,5 @@
 {
     "run_id": "123456789",
-    "region": "westus2",
+    "region": "australiaeast",
     "aks_aad_enabled": true
 }
