@@ -47,6 +47,8 @@ stages:
         pip3 install --upgrade "pip<24"
         pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
       displayName: Install Python dependencies
+    - task: KubeloginInstaller@0
+      displayName: Install kubelogin
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -85,6 +87,8 @@ stages:
             --location "australiaeast" \
             --kubernetes-version "1.36" \
             --tier standard \
+            --enable-aad \
+            --enable-azure-rbac \
             --network-plugin azure \
             --network-plugin-mode overlay \
             --network-dataplane cilium \
@@ -162,6 +166,15 @@ stages:
             --subscription "$(TELESCOPE_SUBSCRIPTION_ID)" \
             --overwrite-existing
       displayName: Get credentials for nsl-cilium
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |-
+          set -exo pipefail
+          kubelogin convert-kubeconfig -l azurecli
+      displayName: Convert kubeconfig to Entra ID login
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -525,6 +538,8 @@ stages:
         pip3 install --upgrade "pip<24"
         pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
       displayName: Install Python dependencies
+    - task: KubeloginInstaller@0
+      displayName: Install kubelogin
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -563,6 +578,8 @@ stages:
             --location "australiaeast" \
             --kubernetes-version "1.36" \
             --tier standard \
+            --enable-aad \
+            --enable-azure-rbac \
             --network-plugin azure \
             --network-plugin-mode overlay \
             --service-cidr 192.168.0.0/16 \
@@ -639,6 +656,15 @@ stages:
             --subscription "$(TELESCOPE_SUBSCRIPTION_ID)" \
             --overwrite-existing
       displayName: Get credentials for nsl-azure-cni
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |-
+          set -exo pipefail
+          kubelogin convert-kubeconfig -l azurecli
+      displayName: Convert kubeconfig to Entra ID login
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal

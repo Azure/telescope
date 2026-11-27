@@ -78,6 +78,10 @@ clusterAutoscalerStage = lambda {
                 common.RecordCurrentTime("JOB_START_TIME"),
                 common.SetRunId(),
                 common.InstallPythonDependencies(),
+                steps.Task {
+                    task = "KubeloginInstaller@0"
+                    displayName = "Install kubelogin"
+                },
                 azure.Login(
                     SERVICE_CONNECTION,
                     SUBSCRIPTION_ID,
@@ -88,6 +92,9 @@ clusterAutoscalerStage = lambda {
                     LOCATION,
                     SUBSCRIPTION_ID,
                     tags = LIFECYCLE_TAGS),
+                # Entra ID (AAD) is required: Azure Policy CloudGov_KubernAuthN_AAD denies AKS
+                # clusters without it. It only changes API server authentication, not how
+                # nodes join the cluster.
                 azure.AzCli(
                     SERVICE_CONNECTION,
                     "Create AKS cluster",
@@ -99,6 +106,8 @@ az aks create \\
   --location "${LOCATION}" \\
   --kubernetes-version "1.36" \\
   --tier standard \\
+  --enable-aad \\
+  --enable-azure-rbac \\
 ${networkArgLines}  --service-cidr 192.168.0.0/16 \\
   --dns-service-ip 192.168.0.10 \\
   --nodepool-name default \\
@@ -127,6 +136,13 @@ ${networkArgLines}  --service-cidr 192.168.0.0/16 \\
                     cluster,
                     RESOURCE_GROUP,
                     SUBSCRIPTION_ID),
+                # SERVICE_CONNECTION needs Azure Kubernetes Service RBAC Cluster Admin on
+                # SUBSCRIPTION_ID. Later kubectl and measurement steps must run as AzCli tasks
+                # so kubelogin can get tokens from the Azure CLI login.
+                azure.AzCli(
+                    SERVICE_CONNECTION,
+                    "Convert kubeconfig to Entra ID login",
+                    "kubelogin convert-kubeconfig -l azurecli"),
                 health.ValidateWorkloadHealth(
                     SERVICE_CONNECTION,
                     "daemonset",
