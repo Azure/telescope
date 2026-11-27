@@ -1,0 +1,82 @@
+apiVersion: k8s-operator.alluxio.com/v1
+kind: AlluxioCluster
+metadata:
+  name: alluxio
+  namespace: alx-ns
+spec:
+  image: REPLACE_ME.azurecr.io/alluxio-enterprise
+  imageTag: AI-3.8-15.1.28
+  imagePullSecrets: [alluxio-acr]
+  properties:
+    # NOSASL: under SIMPLE the FUSE client's connection to a worker is rejected ("request doesn't have a
+    # security token") and the client silently falls back to reading Blob directly, which would make the
+    # cache numbers meaningless.
+    alluxio.security.authentication.type: NOSASL
+    alluxio.underfs.abfs.sdk.version: "2"
+    # Same base configuration as the S3 read pipeline, so the S3 API stays available alongside FUSE.
+    alluxio.worker.s3.api.enabled: "true"
+    alluxio.worker.s3.redirect.enabled: "false"
+    alluxio.worker.s3.connection.keep.alive.enabled: "true"
+    # Off by default; with it on, one file is split into 128 MB segments served by different workers, so a
+    # single large file is not bound to one worker's network and disk.
+    alluxio.user.file.segment.enabled: "true"
+    alluxio.user.file.segment.size: 128MB
+    # Sequential-read prefetch: up to 32 parts in flight, fetched by a pool of 128 threads.
+    alluxio.user.position.reader.streaming.async.prefetch.max.part.number: "32"
+    alluxio.user.position.reader.streaming.async.prefetch.thread: "128"
+    # Direct I/O bypasses the kernel page cache, as BlobFuse2 --disable-kernel-cache does, so every read
+    # exercises the cache service rather than local memory.
+    alluxio.fuse.enforce.direct.io.read: "true"
+    # Client-side metadata cache: 100000 entries covers the benchmark file set, kept for 1 hour.
+    alluxio.user.metadata.cache.max.size: "100000"
+    alluxio.user.metadata.cache.expiration.time: 1h
+    # Default true makes directory listings go straight to the UFS and bypass the workers.
+    alluxio.client.list.status.from.ufs.enabled: "false"
+    # The pipeline mounts the Blob container at /posix; the FUSE mount exposes that path rather than the
+    # Alluxio root, so the client pods find the files at the top of their mount, as with BlobFuse2.
+    alluxio.fuse.mount.alluxio.path: /posix
+  coordinator:
+    nodeSelector: {agentpool: systempool}
+    resources:
+      requests: {cpu: "4", memory: 12Gi}
+      limits: {cpu: "4", memory: 12Gi}
+    jvmOptions: ["-Xmx4g", "-Xms4g", "-XX:MaxDirectMemorySize=4g"]
+  worker:
+    # POSIX_CACHE_COUNT is a placeholder; the pipeline replaces it with the cache node count (sed on a
+    # work-dir copy) before creating the cluster, so smoke runs can use fewer nodes.
+    count: POSIX_CACHE_COUNT
+    nodeSelector: {agentpool: workerpool}
+    tolerations:
+      - {key: alluxio, operator: Equal, value: "true", effect: NoSchedule}
+    # The cache node (Standard_D16ds_v6) has 16 vCPUs, of which AKS and the system DaemonSets keep part;
+    # the limit of 14 cores leaves about two for them and equals the DACS servers' cpuLimit
+    # (dacs-cache.yaml), so both caches get the same CPU. The request of 8 only has to fit beside the
+    # DaemonSets for scheduling.
+    resources:
+      requests: {cpu: "8", memory: 24Gi}
+      limits: {cpu: "14", memory: 24Gi}
+    jvmOptions: ["-Xmx8g", "-Xms8g", "-XX:MaxDirectMemorySize=12g"]
+    # Standard_D16ds_v6 has two local NVMe disks of 440 GiB each (Microsoft Learn, "Ddsv6 series",
+    # temp storage table); the page store uses one, and 396Gi leaves about 10% for ext4 overhead.
+    pagestore: {type: hostPath, hostPath: /mnt/alluxio-nvme/pagestore, size: 396Gi, reservedSize: 1Gi}
+  # The FUSE client runs as a DaemonSet on the client nodes and exposes the mount on the host at
+  # /mnt/alluxio-fuse, which the client pods mount read-only. No mountOptions are set, so the operator
+  # defaults apply.
+  fuse:
+    type: daemonSet
+    hostPathForMount: /mnt/alluxio-fuse
+    nodeSelector: {agentpool: clientpool}
+    tolerations:
+      - {key: warp, operator: Equal, value: "true", effect: NoSchedule}
+    # Client nodes (Standard_D8s_v6) have 32 GiB; the 8g heap + 8g direct memory fit inside the 20Gi limit.
+    resources:
+      requests: {cpu: "4", memory: 16Gi}
+      limits: {cpu: "7", memory: 20Gi}
+    jvmOptions: ["-Xmx8g", "-Xms8g", "-XX:MaxDirectMemorySize=8g"]
+  # A single etcd replica is sufficient for this disposable, non-HA PoC.
+  etcd:
+    replicaCount: 1
+    nodeSelector: {agentpool: systempool}
+    persistence: {storageClass: managed-csi, size: 10Gi}
+  prometheus: {enabled: false}
+  grafana: {enabled: false}

@@ -42,8 +42,19 @@ spec:
                       fi
                   done
                   [[ -n "$device" ]] || fail "no local NVMe disk"
-                  # A restarted pod must not wipe a disk that already holds a filesystem.
-                  blkid "$device" > /dev/null || mkfs.ext4 -F -q "$device"
+                  # A restarted pod must not wipe the ext4 it made earlier. Anything else on the disk is wiped first:
+                  # a node in a recreated pool can come up with a signature left by an earlier user of the
+                  # disk (for example a RAID member), which cannot be mounted.
+                  fstype="$(blkid -o value -s TYPE "$device" || true)"
+                  if [[ "$fstype" != ext4 ]]; then
+                      # An array that still holds the disk (a RAID member assembled on it) keeps it busy, so stop it first.
+                      for md in /sys/block/md*; do
+                          [[ -e "$md/slaves/${device##*/}" ]] || continue
+                          echo clear > "$md/md/array_state" || fail "cannot stop ${md##*/}, which holds $device"
+                      done
+                      wipefs -a "$device" > /dev/null
+                      mkfs.ext4 -F -q "$device"
+                  fi
                   mount "$device" "$target"
                   echo "Mounted $device"
               fi

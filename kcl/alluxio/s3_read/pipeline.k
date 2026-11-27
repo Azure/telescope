@@ -263,8 +263,8 @@ az aks create \\
                 WORK_DIR
                 RESULT_DIR
                 CHECKS_DIR
-                ids
-            ) for ids in alluxio.S3_READ_SCENARIO_GROUPS]
+                group
+            ) for group in alluxio.S3_READ_SCENARIO_GROUPS]
             alluxio.RunCheckpointLoad(
                 const.DEFAULT_SERVICE_CONNECTION
                 const.DEFAULT_SUBSCRIPTION_ID

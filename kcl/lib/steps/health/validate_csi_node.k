@@ -16,6 +16,7 @@ pvc="aks-validation-csi-pvc-$suffix"
 pod="aks-validation-csi-pod-$suffix"
 trap 'kubectl delete pod "$pod" --ignore-not-found >/dev/null 2>&1; kubectl delete pvc "$pvc" --ignore-not-found >/dev/null 2>&1' EXIT
 
+# Escape the container's command substitution so the agent does not expand it.
 if ! kubectl apply -f - <<EOF
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -41,7 +42,7 @@ spec:
       command:
         - sh
         - -c
-        - 'echo telescope-csi-check > /mnt/test/data && [ "$(cat /mnt/test/data)" = telescope-csi-check ]'
+        - 'echo telescope-csi-check > /mnt/test/data && [ "\\$(cat /mnt/test/data)" = telescope-csi-check ]'
       volumeMounts:
         - name: vol
           mountPath: /mnt/test
