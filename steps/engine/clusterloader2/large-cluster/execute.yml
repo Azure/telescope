@@ -22,6 +22,9 @@ steps:
         --provider $CLOUD \
         --cilium_enabled $CILIUM_ENABLED \
         --scrape_containerd ${SCRAPE_CONTAINERD:-False} \
+        --prometheus_cpu_scale_factor ${PROMETHEUS_CPU_SCALE_FACTOR:-30.0} \
+        --prometheus_memory_limit_factor ${PROMETHEUS_MEMORY_LIMIT_FACTOR:-100.0} \
+        --prometheus_memory_scale_factor ${PROMETHEUS_MEMORY_SCALE_FACTOR:-100.0} \
         --cl2_override_file ${CL2_CONFIG_DIR}/overrides.yaml
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
         --cl2_image ${CL2_IMAGE} \
