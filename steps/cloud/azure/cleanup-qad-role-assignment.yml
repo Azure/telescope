@@ -1,0 +1,31 @@
+parameters:
+- name: region
+  type: string
+
+steps:
+- script: |
+    set -euo pipefail
+
+    if [[ "${SKIP_RESOURCE_DELETION:-false}" == "true" && "$BUILD_REASON" == "Manual" ]]; then
+      echo "SKIP_RESOURCE_DELETION is set; retaining the QAD role assignment."
+      exit 0
+    fi
+
+    if [[ -z "${QAD_PRINCIPAL_ID:-}" && -z "${QAD_NODE_RG_SCOPE:-}" ]]; then
+      echo "QAD identity was not resolved during configuration; no role assignment was attempted."
+      exit 0
+    fi
+
+    if [[ -z "${QAD_PRINCIPAL_ID:-}" || -z "${QAD_NODE_RG_SCOPE:-}" ]]; then
+      echo "##vso[task.logissue type=error;]QAD cleanup requires both the principal ID and node resource group scope."
+      exit 1
+    fi
+
+    az role assignment delete \
+      --assignee-object-id "$QAD_PRINCIPAL_ID" \
+      --scope "$QAD_NODE_RG_SCOPE"
+    echo "Removed QAD identity role assignments at $QAD_NODE_RG_SCOPE; retained role definitions."
+  displayName: "Clean Up QAD Role Assignment"
+  condition: always()
+  env:
+    BUILD_REASON: $(Build.Reason)
