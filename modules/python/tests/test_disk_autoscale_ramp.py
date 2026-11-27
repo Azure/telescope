@@ -24,7 +24,7 @@ def simulated_clock(monkeypatch):
 
 @patch.object(disk, "cleanup", return_value={})
 @pytest.mark.parametrize("mode", ["ready", "pending", "replacement"])
-def test_timed_ramp_submits_every_15_minutes(_cleanup, tmp_path, ramp_clock, mode):
+def test_timed_ramp_submits_every_20_minutes(_cleanup, tmp_path, ramp_clock, mode):
     kube = cluster(disks_per_node=4)
     scale = kube.app.patch_namespaced_stateful_set_scale.side_effect
     requests = []
@@ -38,14 +38,14 @@ def test_timed_ramp_submits_every_15_minutes(_cleanup, tmp_path, ramp_clock, mod
 
     def pods(*args, **kwargs):
         result = list_pods(*args, **kwargs)
-        if mode == "pending" and ramp_clock.now < 905:
+        if mode == "pending" and ramp_clock.now < 1205:
             for item in result.items[1:]:
                 item.status.phase = "Pending"
                 item.status.conditions = []
                 item.spec.node_name = None
-        if mode == "replacement" and ramp_clock.now >= 900:
+        if mode == "replacement" and ramp_clock.now >= 1200:
             result.items[1].metadata.uid = "replacement"
-            if ramp_clock.now < 905:
+            if ramp_clock.now < 1205:
                 result.items[1].status.phase = "Pending"
                 result.items[1].status.conditions = []
         return result
@@ -54,24 +54,24 @@ def test_timed_ramp_submits_every_15_minutes(_cleanup, tmp_path, ramp_clock, mod
     path = tmp_path / "report.json"
     report = disk.execute(
         kube, 20, "cas=dedicated", "managed-csi", 30, 30, 1, path,
-        batch_interval=900,
+        batch_interval=1200,
     )
-    assert requests == [(0, 1), (0, 61), (900, 80)]
+    assert requests == [(0, 1), (0, 61), (1200, 80)]
     assert report["result"] == "success"
-    assert report["batch_interval_seconds"] == 900
+    assert report["batch_interval_seconds"] == 1200
     assert report["pod_readiness_e2e_seconds"]["complete"]
     assert sum(report["final_pods_per_node"].values()) == 80
     assert len(report["node_timings"]) == 20
     assert len(report["pod_timings"]) == 80
     assert report["stages"][1]["pod_readiness_samples"]["disk-workload-1"][
         "e2e_ready_seconds"
-    ] == (0 if mode == "ready" else 905)
+    ] == (0 if mode == "ready" else 1205)
     assert report["stages"][2]["pod_readiness_samples"]["disk-workload-61"][
         "e2e_ready_seconds"
     ] == (5 if mode == "pending" else 0)
     first_pod = next(row for row in report["pod_timings"]
                      if row["pod_name"] == "disk-workload-1")
-    assert first_pod["e2e_ready_seconds"] == (0 if mode == "ready" else 905)
+    assert first_pod["e2e_ready_seconds"] == (0 if mode == "ready" else 1205)
     if mode == "replacement":
         assert first_pod["pod_uid"] == "replacement"
     assert json.loads(path.read_text()) == report

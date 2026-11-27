@@ -53,7 +53,7 @@ For the expected limit of four disks per workload node:
    to identify a positive volume-count limit and its `TriggeredScaleUp` event.
    The count in the scheduling message can change as nodes join during a batch.
    This evidence is required once for the ramp, not separately for each batch.
-5. Submit another batch every **15 minutes**, measured from the preceding
+5. Submit another batch every **20 minutes**, measured from the preceding
    replica-change request, regardless of earlier pod readiness. Early readiness
    does not shorten the interval. Keep observing all batches while waiting.
 6. Stop submitting at the final replica target. Require exactly 3,000 Ready
@@ -234,7 +234,7 @@ Both request `node_count: 3000`, passed to the runner as `--node-count 3000`.
 The runner accepts only node-based targets; omitting `--node-count` retains
 the default ten-node test. The final pod count is the node target multiplied
 by the live CSI disk limit.
-Both pipelines pass `--batch-interval-seconds 900`. Direct CLI callers default
+Both pipelines pass `--batch-interval-seconds 1200`. Direct CLI callers default
 to sequential execution (`--batch-interval-seconds 0`), which retains per-stage
 validation and timeouts. In timed mode, the scale-up timeout applies to bootstrap
 and then to the final wait starting at the last replica request; storage cleanup
