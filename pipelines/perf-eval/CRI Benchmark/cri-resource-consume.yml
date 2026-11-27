@@ -13,7 +13,7 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: cri-resource-consume
-  PULL_FROM_ACR: 'true'
+  ACR_RESOURCE_ID: /subscriptions/137f0351-8235-42a6-ac7a-6b46be2d21c7/resourceGroups/telescope/providers/Microsoft.ContainerRegistry/registries/akscritelescope
 
 stages:
   - stage: azure_swedencentral_managed_vs_ephemeral_1_31

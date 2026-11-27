@@ -72,8 +72,7 @@ steps:
                   public_key_path: $public_key_path
                 }' | jq 'with_entries(select(.value != null and .value != ""))')
         fi
-        if [[ "${PULL_FROM_ACR:-false}" == "true" ]]; then
-          : "${ACR_RESOURCE_ID:?Set the workload registry ARM resource ID before running this benchmark}"
+        if [[ -n "${ACR_RESOURCE_ID:-}" ]]; then
           INPUT_VARIABLES=$(jq -c --arg id "$ACR_RESOURCE_ID" '. + {acr_resource_id: $id}' <<< "$INPUT_VARIABLES")
         fi
         input_variables_str=$(echo $INPUT_VARIABLES | jq -c .)
