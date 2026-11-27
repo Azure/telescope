@@ -13,10 +13,10 @@ variables {
   scenario_type = "perf-eval"
   scenario_name = "workload-acr"
   aks_config_list = [{
-    role        = "client"
-    aks_name    = "test-client"
-    dns_prefix  = "test-client"
-    sku_tier    = "Standard"
+    role       = "client"
+    aks_name   = "test-client"
+    dns_prefix = "test-client"
+    sku_tier   = "Standard"
     default_node_pool = {
       name                         = "default"
       node_count                   = 1
@@ -54,6 +54,7 @@ run "registry_subscription_scoped_pull" {
       region          = "eastus"
       acr_resource_id = "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/test/providers/Microsoft.ContainerRegistry/registries/testregistry"
     }
+
   }
   assert {
     condition = (
@@ -61,5 +62,67 @@ run "registry_subscription_scoped_pull" {
       azurerm_role_assignment.workload_acr_pull["client"].scope == "/subscriptions/00000000-0000-0000-0000-000000000001"
     )
     error_message = "Expected a client kubelet pull grant on the registry's subscription, not the cluster's subscription."
+  }
+}
+
+run "infer_cli_cluster" {
+  command = plan
+  variables {
+    aks_config_list     = []
+    aks_cli_config_list = [{ role = "pod2pod", aks_name = "test-network", sku_tier = "Standard" }]
+    json_input = {
+      run_id          = "123456789"
+      region          = "eastus"
+      acr_resource_id = "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/test/providers/Microsoft.ContainerRegistry/registries/testregistry"
+    }
+  }
+  override_module {
+    target = module.aks-cli["pod2pod"]
+    outputs = {
+      kubelet_object_id = "00000000-0000-0000-0000-000000000005"
+    }
+  }
+  assert {
+    condition = (
+      length(azurerm_role_assignment.workload_acr_pull) == 1 &&
+      azurerm_role_assignment.workload_acr_pull["pod2pod"].principal_id == "00000000-0000-0000-0000-000000000005"
+    )
+    error_message = "The networking cluster's kubelet should receive AcrPull without an explicit selector."
+  }
+}
+
+run "skip_when_no_cluster" {
+  command = plan
+  variables {
+    aks_config_list = []
+    json_input = {
+      run_id          = "123456789"
+      region          = "eastus"
+      acr_resource_id = "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/test/providers/Microsoft.ContainerRegistry/registries/testregistry"
+    }
+  }
+  assert {
+    condition     = length(azurerm_role_assignment.workload_acr_pull) == 0
+    error_message = "A scenario without a cluster must not receive an AcrPull grant."
+  }
+}
+
+run "skip_cli_dry_run" {
+  command = plan
+  variables {
+    aks_config_list     = []
+    aks_cli_config_list = [{ role = "pod2pod", aks_name = "test-network", sku_tier = "Standard", dry_run = true }]
+    json_input = {
+      run_id          = "123456789"
+      region          = "eastus"
+      acr_resource_id = "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/test/providers/Microsoft.ContainerRegistry/registries/testregistry"
+    }
+  }
+  override_module {
+    target = module.aks-cli["pod2pod"]
+  }
+  assert {
+    condition     = length(azurerm_role_assignment.workload_acr_pull) == 0
+    error_message = "A dry-run cluster must not receive an AcrPull grant."
   }
 }

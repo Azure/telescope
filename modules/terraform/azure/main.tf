@@ -71,7 +71,10 @@ locals {
 
   aks_cli_config_map = { for aks in local.updated_aks_cli_config_list : aks.role => aks }
 
-  clusters_needing_acr_pull = toset(var.json_input.acr_resource_id != null && !try(local.aks_cli_config_map["client"].dry_run, false) ? ["client"] : [])
+  cluster_requiring_acr_pull = var.json_input.acr_resource_id == null ? null : one(concat(
+    keys(local.aks_config_map),
+    [for key, cluster in local.aks_cli_config_map : cluster.dry_run ? null : key],
+  ))
 
   azapi_config_map = { for c in var.azapi_config_list : c.aks_name => c }
 
@@ -292,7 +295,7 @@ module "aks-cli" {
   aks_aad_enabled            = local.aks_aad_enabled
 
   enable_kubelet_identity = lookup(module.acr.acr_pull_enabled_by_aks_cli_role, each.key, false)
-  read_kubelet_identity   = contains(local.clusters_needing_acr_pull, each.key)
+  read_kubelet_identity   = local.cluster_requiring_acr_pull != null
 
   acr_pull_scopes_map = lookup(module.acr.acr_pull_scopes_map_by_aks_cli_role, each.key, {})
 
@@ -310,7 +313,7 @@ module "aks-cli" {
 }
 
 resource "azurerm_role_assignment" "workload_acr_pull" {
-  for_each = local.clusters_needing_acr_pull
+  for_each = toset(local.cluster_requiring_acr_pull[*])
 
   # Use subscription scope so the registry's delete lock does not block assignment removal during teardown.
   scope                = "/subscriptions/${split("/", var.json_input.acr_resource_id)[2]}"
