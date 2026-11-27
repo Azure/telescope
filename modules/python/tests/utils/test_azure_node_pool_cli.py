@@ -206,6 +206,40 @@ class TestAzureNodePoolCLI(unittest.TestCase):
 
         self.assertTrue(callable(operation))
 
+    @mock.patch("utils.azure_node_pool_cli.begin_create_or_update_with_retry")
+    def test_prepare_scale_operation_forwards_timeout_seconds(self, mock_begin):
+        operation = prepare_scale_operation(
+            mock.MagicMock(),
+            "VirtualMachineScaleSets",
+            "test-rg",
+            "test-cluster",
+            "test-pool",
+            3,
+            mock.MagicMock(),
+            timeout_seconds=2700,
+        )
+        operation()
+
+        self.assertEqual(mock_begin.call_args.kwargs["timeout_seconds"], 2700)
+
+    @mock.patch("utils.azure_node_pool_cli.begin_create_or_update_with_retry")
+    def test_prepare_create_operation_forwards_timeout_seconds(self, mock_begin):
+        operation = prepare_create_operation(
+            {},
+            "VirtualMachineScaleSets",
+            False,
+            "test-rg",
+            "test-cluster",
+            "test-pool",
+            2,
+            "Standard_D2s_v3",
+            mock.MagicMock(),
+            timeout_seconds=2700,
+        )
+        operation()
+
+        self.assertEqual(mock_begin.call_args.kwargs["timeout_seconds"], 2700)
+
 
 if __name__ == "__main__":
     unittest.main()
