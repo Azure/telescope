@@ -47,6 +47,36 @@ require_secret() {
 
 ResourceCommands = lambda workDir: str -> str {
     SecretCommands(workDir) + """
+resource_failure_details() {
+    local kind="$1" name="$2" pods pod
+    # Project status only: the resource spec and annotations can contain the license or SAS.
+    if ! kubectl get "$kind" "$name" -n alx-ns -o json |
+        jq '{
+            name: .metadata.name,
+            status: (.status | {phase, state, reason, message, error, conditions})
+        } | walk(if type == "string" then
+            reduce ([env.ALLUXIO_LICENSE_STRING, env.BLOB_SAS][] | select(. != null and . != "")) as $secret
+                (.; split($secret) | join("<redacted>"))
+            else . end)' | redact >&2; then
+        echo "Could not collect status for $kind/$name" >&2
+    fi
+    if [[ "$kind" == license ]]; then
+        if ! pods="$(kubectl get pods -n alluxio-operator -o json |
+            jq -r '.items[] | select(.metadata.name | startswith("alluxio-license-controller-")) | .metadata.name')"; then
+            echo "Could not list the license-controller pods" >&2
+            return 0
+        fi
+        [[ -n "$pods" ]] || echo "No license-controller pods found" >&2
+        for pod in $pods; do
+            echo "Recent license-controller logs: $pod" >&2
+            if ! kubectl logs -n alluxio-operator "$pod" --all-containers=true --tail=100 --since=10m |
+                jq -Rs -r 'reduce ([env.ALLUXIO_LICENSE_STRING, env.BLOB_SAS][] | select(. != null and . != "")) as $secret
+                    (.; split($secret) | join("<redacted>"))' | redact >&2; then
+                echo "Could not collect logs for $pod" >&2
+            fi
+        done
+    fi
+}
 wait_phase() {
     local kind="$1" name="$2" field="$3" expected="$4" phase deadline=$((SECONDS + 900))
     while :; do
@@ -54,9 +84,15 @@ wait_phase() {
             "$kind" "$name" -n alx-ns -o "jsonpath={.status.$field}")"
         [[ "$phase" != "$expected" ]] || return 0
         case "$phase" in
-            Failed|Error|Terminated) fail "$kind/$name failed; inspect securely in cluster" ;;
+            Failed|Error|Terminated)
+                resource_failure_details "$kind" "$name"
+                fail "$kind/$name failed; see status and controller diagnostics above"
+                ;;
         esac
-        (( SECONDS < deadline )) || fail "$kind/$name did not reach $expected before timeout"
+        if (( SECONDS >= deadline )); then
+            resource_failure_details "$kind" "$name"
+            fail "$kind/$name did not reach $expected before timeout; see diagnostics above"
+        fi
         sleep 10
     done
 }
