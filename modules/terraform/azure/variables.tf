@@ -4,6 +4,7 @@ variable "json_input" {
     run_id                            = string
     region                            = string
     aks_sku_tier                      = optional(string, null)
+    acr_resource_id                   = optional(string)
     aks_kubernetes_version            = optional(string, null)
     aks_network_policy                = optional(string, null)
     aks_network_dataplane             = optional(string, null)

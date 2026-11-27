@@ -72,6 +72,9 @@ steps:
                   public_key_path: $public_key_path
                 }' | jq 'with_entries(select(.value != null and .value != ""))')
         fi
+        if [[ -n "${ACR_RESOURCE_ID:-}" ]]; then
+          INPUT_VARIABLES=$(jq -c --arg id "$ACR_RESOURCE_ID" '. + {acr_resource_id: $id}' <<< "$INPUT_VARIABLES")
+        fi
         input_variables_str=$(echo $INPUT_VARIABLES | jq -c .)
         echo "Input variables: $input_variables_str"
         regional_config=$(echo "$regional_config" | jq --arg region "$REGION" --arg input_variable "$input_variables_str" \

@@ -1,3 +1,8 @@
+output "kubelet_object_id" {
+  description = "Object ID of the cluster's kubelet managed identity"
+  value       = one(azurerm_kubernetes_cluster.aks.kubelet_identity[*].object_id)
+}
+
 output "aks_cluster_oidc_issuer" {
   description = "OIDC issuer for the AKS cluster"
   value       = azurerm_kubernetes_cluster.aks.oidc_issuer_url

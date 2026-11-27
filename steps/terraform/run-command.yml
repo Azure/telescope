@@ -62,6 +62,14 @@ steps:
         exit_code=${PIPESTATUS[0]}
         if [[ $exit_code -ne 0 ]]; then
           if [[ ${{ parameters.command }} == "apply" && "$CLOUD" == "azure" ]]; then
+            if jq -e '.acr_resource_id != null' <<< "$terraform_input_variables" > /dev/null; then
+              # The subscription-scoped grant is outside the run resource group. Destroy it if tracked in this workspace.
+              if ! terraform destroy -auto-approve -target=azurerm_role_assignment.workload_acr_pull \
+                -var-file="$terraform_input_file" -var "json_input=$terraform_input_variables"; then
+                echo "##vso[task.logissue type=error;] Could not clean up the AcrPull assignment in workspace $region; keeping Terraform state."
+                exit 1
+              fi
+            fi
             echo "Delete resources and remove state file before retrying"
             ids=$(az resource list --location $region --resource-group $RUN_ID --query [*].id -o tsv)
             az resource delete --ids $ids --verbose

@@ -53,6 +53,12 @@ variable "acr_pull_scopes_map" {
   default     = {}
 }
 
+variable "read_kubelet_identity" {
+  description = "Read the provisioned cluster's kubelet identity for role assignments"
+  type        = bool
+  default     = false
+}
+
 variable "enable_kubelet_identity" {
   description = "Whether to create and assign a user-assigned kubelet identity (and grant it ACR pull access when acr_pull_scopes are provided). Set false to disable kubelet identity entirely."
   type        = bool

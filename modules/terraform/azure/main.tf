@@ -71,6 +71,11 @@ locals {
 
   aks_cli_config_map = { for aks in local.updated_aks_cli_config_list : aks.role => aks }
 
+  cluster_requiring_acr_pull = var.json_input.acr_resource_id == null ? null : one(concat(
+    keys(local.aks_config_map),
+    [for key, cluster in local.aks_cli_config_map : key if !cluster.dry_run],
+  ))
+
   azapi_config_map = { for c in var.azapi_config_list : c.aks_name => c }
 
   key_vault_config_map = { for kv in var.key_vault_config_list : kv.name => kv }
@@ -290,6 +295,7 @@ module "aks-cli" {
   aks_aad_enabled            = local.aks_aad_enabled
 
   enable_kubelet_identity = lookup(module.acr.acr_pull_enabled_by_aks_cli_role, each.key, false)
+  read_kubelet_identity   = local.cluster_requiring_acr_pull != null
 
   acr_pull_scopes_map = lookup(module.acr.acr_pull_scopes_map_by_aks_cli_role, each.key, {})
 
@@ -304,6 +310,26 @@ module "aks-cli" {
     module.disk_encryption_set,
     module.acr,
   ]
+}
+
+resource "azurerm_role_assignment" "workload_acr_pull" {
+  for_each = toset(local.cluster_requiring_acr_pull[*])
+
+  # Use subscription scope so the registry's delete lock does not block assignment removal during teardown.
+  scope                = "/subscriptions/${split("/", var.json_input.acr_resource_id)[2]}"
+  role_definition_name = "AcrPull"
+  principal_id = (
+    contains(keys(local.aks_config_map), each.key)
+    ? module.aks[each.key].kubelet_object_id
+    : module.aks-cli[each.key].kubelet_object_id
+  )
+
+  lifecycle {
+    precondition {
+      condition     = can(regex("(?i)^/subscriptions/[0-9a-f-]{36}/resourceGroups/[^/]+/providers/Microsoft\\.ContainerRegistry/registries/[a-z0-9]+$", lookup(var.json_input, "acr_resource_id", "")))
+      error_message = "Set ACR_RESOURCE_ID to the existing workload registry's full ARM resource ID."
+    }
+  }
 }
 
 module "virtual_machine" {

@@ -1,6 +1,9 @@
 {
   "type": "object",
   "properties": {
+    "acr_resource_id": {
+      "type": "string"
+    },
     "run_id": {
       "type": "string"
     },
