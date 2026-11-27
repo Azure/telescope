@@ -50,7 +50,7 @@ cl2ResultJson = """{
   }"""
 
 output = ap.Pipeline {
-    name = "Example Pipeline"
+    name = "Example Pipeline (generation check test)"
 
     trigger =  ["v2"]
     pool = const.DEFAULT_POOL
