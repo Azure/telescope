@@ -73,7 +73,7 @@ locals {
 
   cluster_requiring_acr_pull = var.json_input.acr_resource_id == null ? null : one(concat(
     keys(local.aks_config_map),
-    [for key, cluster in local.aks_cli_config_map : cluster.dry_run ? null : key],
+    [for key, cluster in local.aks_cli_config_map : key if !cluster.dry_run],
   ))
 
   azapi_config_map = { for c in var.azapi_config_list : c.aks_name => c }

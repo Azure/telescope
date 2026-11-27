@@ -49,6 +49,7 @@ run "default_no_grant" {
 run "registry_subscription_scoped_pull" {
   command = plan
   variables {
+    aks_cli_config_list = [{ role = "preview", aks_name = "test-preview", sku_tier = "Standard", dry_run = true }]
     json_input = {
       run_id          = "123456789"
       region          = "eastus"
@@ -56,12 +57,17 @@ run "registry_subscription_scoped_pull" {
     }
 
   }
+  override_module {
+    target = module.aks-cli["preview"]
+  }
   assert {
     condition = (
+      length(azurerm_role_assignment.workload_acr_pull) == 1 &&
+      azurerm_role_assignment.workload_acr_pull["client"].principal_id == "00000000-0000-0000-0000-000000000004" &&
       azurerm_role_assignment.workload_acr_pull["client"].role_definition_name == "AcrPull" &&
       azurerm_role_assignment.workload_acr_pull["client"].scope == "/subscriptions/00000000-0000-0000-0000-000000000001"
     )
-    error_message = "Expected a client kubelet pull grant on the registry's subscription, not the cluster's subscription."
+    error_message = "Only the real client kubelet should receive AcrPull on the registry's subscription; the dry-run cluster must be ignored."
   }
 }
 
