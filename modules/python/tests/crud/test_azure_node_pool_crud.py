@@ -9,6 +9,9 @@ import shutil
 import tempfile
 import unittest
 from unittest import mock
+from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
+from kubernetes.client.rest import ApiException
 from crud.azure.node_pool_crud import NodePoolCRUD
 
 
@@ -410,6 +413,262 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
 
         # Verify time.sleep was called 3 times (between all operations)
         self.assertEqual(mock_time.sleep.call_count, 3)
+
+    def _legacy_client(self):
+        client = self.mock_aks_client.k8s_client
+
+        def render(path, replacements):
+            with open(path, encoding="utf-8") as template:
+                text = template.read()
+            for key, value in replacements.items():
+                text = text.replace("{{" + key + "}}", str(value))
+            return text
+
+        client.create_template.side_effect = render
+        client.batch.read_namespaced_job.side_effect = ApiException(status=404)
+        client.get_pods_by_namespace.side_effect = lambda *args, **kwargs: (
+            client.api.list_namespaced_pod(
+                namespace=args[0], label_selector=kwargs["label_selector"],
+            ).items if "label_selector" in kwargs
+            else client.get_pods_by_namespace.return_value
+        )
+        client.api.list_namespaced_pod.return_value.items = []
+        client.get_pods_by_namespace.return_value = [
+            SimpleNamespace(metadata=SimpleNamespace(name=f"myapp-test-pool-{index}-pod-{pod}"))
+            for index in (1, 2, 3) for pod in range(5)
+        ]
+        return client
+
+    def test_legacy_deployments_submit_batch_before_waiting(self):
+        client = self._legacy_client()
+        self.assertTrue(self.node_pool_crud.create_deployment(
+            "test-pool", replicas=5, number_of_deployments=3,
+            workload_profile="legacy-shell",
+        ))
+        calls = client.mock_calls
+        apply_indices = [
+            index for index, call in enumerate(calls)
+            if call[0] == "apply_manifest_from_file"
+        ]
+        waits = [
+            index for index, call in enumerate(calls)
+            if call[0] == "get_pods_by_namespace"
+        ]
+        self.assertEqual(len(apply_indices), 6)
+        self.assertGreater(min(waits), max(apply_indices))
+        client.wait_for_condition.assert_not_called()
+        client.wait_for_pods_ready.assert_not_called()
+
+    def test_legacy_templates_preserve_workload_shape_and_placement(self):
+        for kind, method in (
+            ("Job", self.node_pool_crud.create_job),
+            ("StatefulSet", self.node_pool_crud.create_statefulset),
+        ):
+            with self.subTest(kind=kind):
+                client = self._legacy_client()
+                client.reset_mock()
+                prefix = "pi" if kind == "Job" else "web"
+                client.get_pods_by_namespace.return_value = [
+                    SimpleNamespace(metadata=SimpleNamespace(name=f"{prefix}-test-pool-{i}"))
+                    for i in range(5)
+                ]
+                arguments = {"completions": 5} if kind == "Job" else {"replicas": 5}
+                self.assertTrue(method("test-pool", workload_profile="legacy-shell", **arguments))
+                manifests = [
+                    call.kwargs["manifest_dict"]
+                    for call in client.apply_manifest_from_file.call_args_list
+                ]
+                self.assertEqual(len(manifests), 1)
+                manifest = manifests[0]
+                self.assertEqual(manifest["kind"], kind)
+                pod_spec = manifest["spec"]["template"]["spec"]
+                self.assertEqual(pod_spec["nodeSelector"], {"agentpool": "test-pool"})
+                client.get_pods_by_namespace.assert_called_with(
+                    "default",
+                    field_selector="status.phase=Succeeded" if kind == "Job" else "status.phase=Running",
+                )
+                if kind == "Job":
+                    client.batch.delete_namespaced_job.assert_called_once_with(
+                        name="pi-test-pool", namespace="default",
+                        propagation_policy="Foreground",
+                    )
+                    self.assertEqual(manifest["spec"]["completions"], 5)
+                    self.assertEqual(manifest["spec"]["parallelism"], 5)
+                    self.assertEqual(manifest["spec"]["backoffLimit"], 4)
+                    self.assertEqual(pod_spec["containers"][0]["image"], "perl:5.34.0")
+                    self.assertEqual(
+                        pod_spec["containers"][0]["command"],
+                        ["perl", "-Mbignum=bpi", "-wle", "print bpi(200)"],
+                    )
+                else:
+                    self.assertEqual(manifest["spec"]["replicas"], 5)
+                    self.assertEqual(manifest["spec"]["podManagementPolicy"], "Parallel")
+                    claim = manifest["spec"]["volumeClaimTemplates"][0]
+                    self.assertEqual(claim["spec"]["storageClassName"], "managed-csi")
+                    self.assertEqual(claim["spec"]["resources"]["requests"]["storage"], "5Gi")
+                    self.assertEqual(
+                        pod_spec["containers"][0]["volumeMounts"],
+                        [{"name": "www", "mountPath": "/usr/share/nginx/html"}],
+                    )
+
+    def test_legacy_submission_failure_stops_batch(self):
+        client = self._legacy_client()
+        client.apply_manifest_from_file.side_effect = RuntimeError("apply failed")
+        self.assertFalse(self.node_pool_crud.create_deployment(
+            "test-pool", number_of_deployments=3, workload_profile="legacy-shell",
+        ))
+        client.apply_manifest_from_file.assert_called_once()
+        client.get_pods_by_namespace.assert_not_called()
+        operation = self._read_operation_info()
+        self.assertFalse(operation["success"])
+        self.assertIn("apply failed", operation["error_message"])
+
+    def test_legacy_profiles_reject_multiple_job_controllers(self):
+        with self.assertRaisesRegex(ValueError, "one"):
+            self.node_pool_crud.create_job(
+                "test-pool", number_of_jobs=3, workload_profile="legacy-shell",
+            )
+
+    @mock.patch.object(NodePoolCRUD, "_create_legacy_workloads")
+    def test_removed_workload_profile_is_rejected(self, mock_create):
+        with self.assertLogs("crud.azure.node_pool_crud", level="ERROR"):
+            with self.assertRaisesRegex(ValueError, "Unknown workload profile"):
+                self.node_pool_crud.create_job(
+                    "test-pool", workload_profile="legacy-python",
+                )
+        mock_create.assert_not_called()
+
+    def test_legacy_shell_timing_starts_at_last_apply_and_uses_running_pods(self):
+        client = self._legacy_client()
+        start = datetime(2026, 11, 6, tzinfo=timezone.utc)
+        with mock.patch("crud.azure.node_pool_crud.datetime") as clock:
+            clock.now.side_effect = [
+                start + timedelta(seconds=seconds) for seconds in (0, 2, 4, 20)
+            ]
+            self.assertTrue(self.node_pool_crud.create_deployment(
+                "test-pool", replicas=5, number_of_deployments=3, workload_profile="legacy-shell",
+            ))
+        self.assertEqual(self._read_operation_info()["metadata"]["workload_readiness_time"], 16)
+        client.get_pods_by_namespace.assert_called_once_with(
+            "default", field_selector="status.phase=Running"
+        )
+
+    def test_legacy_shell_timeout_ignores_other_workloads(self):
+        client = self._legacy_client()
+        self.node_pool_crud.step_timeout = 1
+        client.get_pods_by_namespace.return_value = [
+            SimpleNamespace(metadata=SimpleNamespace(name=f"myapp-other-pool-1-pod-{i}"))
+            for i in range(5)
+        ]
+        with mock.patch("crud.azure.node_pool_crud.time.sleep") as sleeper:
+            self.assertFalse(self.node_pool_crud.create_deployment(
+                "test-pool", replicas=5, workload_profile="legacy-shell",
+            ))
+        client.get_pods_by_namespace.assert_called_once()
+        sleeper.assert_called_once_with(1)
+        operation = self._read_operation_info()
+        self.assertFalse(operation["success"])
+        self.assertIn("Running", operation["error_message"])
+
+    def test_legacy_poll_budget_matches_shell_counter_and_final_sleep(self):
+        start = datetime(2026, 11, 6, tzinfo=timezone.utc)
+        for workload_type, prefix in (
+            ("deployment", "myapp-test-pool-1"),
+            ("job", "pi-test-pool"),
+            ("statefulset", "web-test-pool"),
+        ):
+            for timeout in (1, 2, 3, 4, 5):
+                for api_seconds in (0, 10):
+                    for succeeds in (False, True):
+                        with self.subTest(
+                            workload=workload_type, timeout=timeout,
+                            api_seconds=api_seconds, succeeds=succeeds,
+                        ):
+                            self.node_pool_crud.step_timeout = timeout
+                            polls = (timeout + 1) // 2
+                            state = SimpleNamespace(elapsed=0, poll_count=0)
+                            client = mock.Mock()
+                            operation = mock.Mock()
+
+                            def query(
+                                *_args, state=state, api_seconds=api_seconds,
+                                succeeds=succeeds, polls=polls, prefix=prefix, **_kwargs,
+                            ):
+                                state.elapsed += api_seconds
+                                state.poll_count += 1
+                                if succeeds and state.poll_count == polls:
+                                    return [SimpleNamespace(
+                                        metadata=SimpleNamespace(name=f"{prefix}-pod")
+                                    )]
+                                return []
+
+                            def sleep(seconds, state=state):
+                                state.elapsed += seconds
+
+                            client.get_pods_by_namespace.side_effect = query
+                            with (
+                                mock.patch.object(
+                                    self.node_pool_crud, "_submit_workload",
+                                    return_value=(prefix, "", start),
+                                ),
+                                mock.patch("crud.azure.node_pool_crud.time.sleep",
+                                           side_effect=sleep) as sleeper,
+                                mock.patch("crud.azure.node_pool_crud.time.monotonic",
+                                           side_effect=lambda state=state: state.elapsed),
+                                mock.patch("crud.azure.node_pool_crud.datetime") as clock,
+                            ):
+                                clock.now.side_effect = lambda *_args, state=state: (
+                                    start + timedelta(seconds=state.elapsed)
+                                )
+                                arguments = (
+                                    client, workload_type, "test-pool", 1, 1,
+                                    None, "app=nginx", "default", "legacy-shell", operation,
+                                )
+                                if succeeds:
+                                    self.node_pool_crud._create_legacy_workloads(*arguments)  # pylint: disable=protected-access
+                                    operation.add_metadata.assert_any_call(
+                                        "workload_readiness_time", polls * (api_seconds + 1)
+                                    )
+                                else:
+                                    with self.assertRaisesRegex(TimeoutError, "pods"):
+                                        self.node_pool_crud._create_legacy_workloads(*arguments)  # pylint: disable=protected-access
+                                    operation.add_metadata.assert_not_called()
+                            self.assertEqual(state.poll_count, polls)
+                            self.assertEqual(sleeper.call_args_list, [mock.call(1)] * polls)
+                            client.get_pods_by_namespace.assert_called_with(
+                                "default", field_selector=(
+                                    "status.phase=Succeeded" if workload_type == "job"
+                                    else "status.phase=Running"
+                                ),
+                            )
+
+    def test_default_templates_and_per_instance_wait_are_unchanged(self):
+        for method in (
+            self.node_pool_crud.create_deployment,
+            self.node_pool_crud.create_job,
+            self.node_pool_crud.create_statefulset,
+        ):
+            with self.subTest(method=method.__name__):
+                client = self._legacy_client()
+                client.reset_mock()
+                client.wait_for_condition.return_value = True
+                self.assertTrue(method("test-pool"))
+                manifest = client.apply_manifest_from_file.call_args_list[0].kwargs["manifest_dict"]
+                pod_spec = manifest["spec"]["template"]["spec"]
+                self.assertNotIn("nodeSelector", pod_spec)
+                self.assertNotIn("volumeClaimTemplates", manifest["spec"])
+                self.assertNotIn("parallelism", manifest["spec"])
+                client.wait_for_condition.assert_called_once()
+                client.batch.read_namespaced_job.assert_not_called()
+                client.api.list_namespaced_pod.assert_not_called()
+                if method == self.node_pool_crud.create_job:
+                    client.batch.delete_namespaced_job.assert_called_once_with(
+                        name="myapp-test-pool-1", namespace="default",
+                        propagation_policy="Background",
+                    )
+                self.assertNotIn("workload_profile", self._read_operation_info()["metadata"])
+                for filename in os.listdir(self.test_result_dir):
+                    os.unlink(os.path.join(self.test_result_dir, filename))
 
     def test_create_deployment_success(self):
         """Test successful deployment creation"""
