@@ -1,0 +1,30 @@
+# Distributed cache servers for the DACS phase. POSIX_CACHE_COUNT is a placeholder; the pipeline replaces
+# it with the cache node count (sed on a work-dir copy) before creating the Cache.
+# The name is used elsewhere: the server pods are bench-cache-<n> (the steps read their metrics), and the
+# BlobFuse2 discovery endpoint is the Service bench-cache-discovery.
+apiVersion: storage.azure.com/v1
+kind: Cache
+metadata:
+  name: bench-cache
+  namespace: dacs-cache-system
+spec:
+  scaling: {static: {numServers: POSIX_CACHE_COUNT}}
+  # A Standard_D16ds_v6 node has two local 440 GiB NVMe disks, which the DACS prerequisite DaemonSet
+  # joins into one RAID0 volume of about 880 GiB (2 x 440 GiB) at nodeCacheFolderPath. 400 GB per server
+  # and the 396Gi Alluxio page store (which uses one of the two disks) both exceed the 240 GiB hot set, and
+  # DACS gets the bandwidth of both disks.
+  serverSizeInGB: 400
+  # Worker threads of each server: about five per core of cpuLimit, so threads that wait on the disk
+  # or the network do not leave cores idle.
+  serverThreads: 80
+  # The node has 16 vCPUs, of which AKS and the system DaemonSets keep part; 14 cores leave about two
+  # for them. The Alluxio worker has the same CPU limit (cluster.yaml).
+  cpuLimit: 14
+  # In MiB (the server pod's memory limit is 40000Mi). The node has 64 GiB and nothing else runs on
+  # the cache nodes during the DACS phase; the rest is left for the OS, kubelet and the page cache.
+  memoryLimitMB: 40000
+  port: 9065
+  metricsPort: 9096
+  nodeSelectorKey: dacs.azure.com/processing-unit
+  nodeSelectorValue: cpu
+  storage: {hostPath: {nodeCacheFolderPath: /var/lib/ssd/cacheserver}}
