@@ -1,115 +1,152 @@
-# CSI disk-boundary autoscale
+# CSI disk-boundary autoscale: 5,000 total nodes
 
 ## Overview
 
-Verifies that exhausting Azure Disk CSI attachment slots causes AKS Cluster
-Autoscaler to add workload nodes. Each StatefulSet pod uses one PVC and one
-distinct dynamically provisioned Azure Disk, requests 4 GiB, and becomes Ready
-only after reading back its own data from the mounted disk. Small CPU/memory
-requests keep the intended constraint on disk attachments, not CPU packing.
+This scenario tests whether Azure Disk CSI attachment-slot exhaustion causes
+AKS Cluster Autoscaler to add workload nodes. The runner increases StatefulSet
+replicas; it does not manually scale node pools or set a 4,995-node minimum.
+Each pod uses one unique PVC and dynamically provisioned Azure Disk and becomes
+Ready only after reading back its own data from the mounted disk.
 
-The benchmark and manual qualification pipeline target **exactly 3,000 workload
-nodes**, plus five fixed system nodes, for **3,005 total nodes** in `australiaeast`.
-At four disks per workload node this requires **12,000 workload pods and disks**.
-Smaller manual tests can specify
-a lower node-count target.
+| Setting | Current value |
+|---------|---------------|
+| Region | `australiaeast` |
+| Kubernetes version | `1.36` |
+| AKS tier | `Standard` |
+| Workload-node target | **4,995** |
+| Fixed system nodes | **5**, excluded from the workload target |
+| Total nodes at the target | **5,000** |
+| Expected disk limit | **4 per workload node**, verified from live CSI data |
+| Pods and distinct data disks at limit 4 | **19,980** |
+| PVC request per pod | **4 GiB** |
+| Random batch increment | **400-1,000 pods**; the final batch can be smaller |
+| Configured batch interval | **20 minutes** |
 
-The target includes system nodes and stays below the documented AKS 5,000-node
-cluster limit. Reserve additional VM quota and subnet addresses for upgrade surge.
+The pod target is `4995 * live disk limit`, not a hard-coded 19,980.
+Both the benchmark and manual qualification pipelines use this workload-node
+target; smaller manual runs can request fewer nodes.
+
+### Cluster-limit warning
+
+AKS documents a [5,000-node maximum across all pools](https://learn.microsoft.com/en-us/azure/aks/quotas-skus-regions),
+including system nodes. The target reaches that limit and leaves **no node-count
+headroom for upgrade surge or temporary extra nodes**.
+
+All five workload pools currently retain `max_count=1000`. Their combined
+ceiling is **5,000 workload nodes**, or **5,005 including the system pool**,
+which exceeds the documented cluster limit. These pool settings do not enforce
+a safe cluster-wide maximum or guarantee that autoscaling stops at the target.
+The runner fails if it observes more than 4,995 workload nodes.
+
+To enforce a combined workload ceiling of 4,995, reduce the sum of the pool
+maximums by five, for example by setting `csipool5.max_count=995`. That reduction
+is **not applied in the current configuration**. Do not perform surge upgrades
+at the full target; use a lower target and appropriate pool caps if headroom
+is needed. Additional VM quota or IP addresses do not raise the AKS node limit.
 
 ## Infrastructure and workload
 
-- Workload pools `csipool1` through `csipool3` use `Standard_D2ds_v5`;
-  `csipool4` and `csipool5` use `Standard_D2_v5` (2 vCPUs, 8 GiB per VM),
-  initially zero nodes, autoscaling min=0, each capped at 1,000 nodes.
-  All share `cas=dedicated`.
-- Five fixed `Standard_D8ds_v5` system nodes are excluded from test node counts.
-- Pools do not pin availability zones. Check subscription-specific SKU
-  restrictions and capacity for both workload SKUs before running or adding zones.
-- `max_pods=30` is a pod limit, not a disk attachment limit.
-- The node OS disk capacity is not explicitly set by this scenario.
-- `managed-csi` must use `disk.csi.azure.com`, `WaitForFirstConsumer`, and `Delete`.
-  Use a non-premium disk SKU such as `StandardSSD_LRS`: `Standard_D2_v5`
-  does not support Premium SSD disks.
-- The runner requires zero workload nodes before creating the first pod. It
-  reads the actual attachment limit from the first autoscaled node's `CSINode`;
-  all subsequent nodes must advertise the same positive limit.
+The [Terraform input](terraform-inputs/azure.tfvars) defines:
 
-For the expected limit of four disks per workload node:
+| Pool | SKU | Initial / minimum nodes | Maximum nodes | Autoscaling |
+|------|-----|-------------------------|---------------|-------------|
+| `system` | `Standard_D8ds_v5` | 5 / fixed | 5 / fixed | Disabled |
+| `csipool1` | `Standard_D2ds_v5` | 0 / 0 | 1,000 | Enabled |
+| `csipool2` | `Standard_D2ds_v5` | 0 / 0 | 1,000 | Enabled |
+| `csipool3` | `Standard_D2ds_v5` | 0 / 0 | 1,000 | Enabled |
+| `csipool4` | `Standard_D2_v5` | 0 / 0 | 1,000 | Enabled |
+| `csipool5` | `Standard_D2_v5` | 0 / 0 | 1,000 | Enabled |
 
-1. Request one pod while no workload nodes exist. Require `FailedScheduling`
-   and `TriggeredScaleUp` events for that pod, then verify the first workload
-   node becomes Ready and hosts the pod with a mounted, working disk. Unlike
-   later overflows, this bootstrap cannot be caused by disk-slot exhaustion:
-   there is no eligible workload node yet.
-2. Read the live CSI disk limit. Submit the first ramp batch immediately after
-   bootstrap. For each batch, draw a fresh random
-   integer from 400 through 1,000 (inclusive) and add that many pods to the current
-   replica count. Cap the final batch at `3000 * live disk limit` total pods
-   (12,000 for a limit of four); it may add fewer than 400.
-3. Compute expected workload nodes as `ceil(total pods / live disk limit)`.
-   A batch may fit existing nodes or require several new nodes.
-4. During the ramp, require a newly requested pod's `FailedScheduling` event
-   to identify a positive volume-count limit and its `TriggeredScaleUp` event.
-   The count in the scheduling message can change as nodes join during a batch.
-   This evidence is required once for the ramp, not separately for each batch.
-5. Submit another batch every **20 minutes**, measured from the preceding
-   replica-change request, regardless of earlier pod readiness. Early readiness
-   does not shorten the interval. Keep observing all batches while waiting.
-6. Stop submitting at the final replica target. Require exactly 3,000 Ready
-   workload nodes and 12,000 Running, Ready pods, with full disk density and
-   valid storage attachments. Intermediate batch node counts are targets, not
-   isolated topology checks, because batches overlap.
+Workload VMs have 2 vCPUs and 8 GiB of memory. All workload pools use
+`cas=dedicated`, `max_pods=30`, and no pinned availability zones. The pod-count
+limit is **not** a four-disk scheduling cap. Node OS disk capacity is not
+explicitly set by this scenario.
+
+The [disk workload](../../../modules/python/clusterloader2/autoscale/config/disk_statefulset.yaml)
+uses a parallel StatefulSet with one `ReadWriteOnce` PVC per pod and requests
+only 10m CPU and 32 MiB memory, so CPU/memory packing is not the intended scaling
+constraint. It explicitly retains PVCs when pods are recreated or the
+StatefulSet is scaled down or deleted. Final namespace cleanup removes storage.
+
+The `managed-csi` StorageClass must use `disk.csi.azure.com`,
+`WaitForFirstConsumer`, and reclaim policy `Delete`. Use a non-premium disk SKU
+such as `StandardSSD_LRS`: `Standard_D2_v5` does not support Premium SSD disks.
+Before the first pod, validation requires zero selected workload nodes.
+
+## Execution flow
+
+The [runner](../../../modules/python/clusterloader2/autoscale/disk_autoscale.py)
+uses the following flow:
+
+1. **Bootstrap from zero.** Request one pod and require its `FailedScheduling`
+   and `TriggeredScaleUp` events. Verify that the first workload node becomes
+   Ready and the pod has a mounted, working disk. Bootstrap demonstrates
+   scale-from-zero, not disk exhaustion on an existing node.
+2. **Discover capacity.** Read the first node's positive Azure Disk allocatable
+   count from `CSINode`. Subsequent nodes must advertise the same limit.
+3. **Submit overlapping batches.** Submit the first batch immediately after
+   bootstrap. Draw a new random increment of 400-1,000 pods for every batch and
+   cap total replicas at `4995 * live disk limit`.
+4. **Maintain the configured cadence.** Request the next batch 20 minutes after
+   the preceding request, regardless of earlier pod readiness. Early readiness
+   does not shorten the interval. API work can delay the actual next request.
+5. **Require disk-driven scale-out evidence.** For at least one newly requested
+   ramp pod, require both a `FailedScheduling` event identifying a positive
+   volume-count limit and a `TriggeredScaleUp` event. Evidence is required once
+   for the ramp, not separately for each batch.
+6. **Validate the final state.** Require exactly 4,995 Ready, uncordoned workload
+   nodes and `4995 * live disk limit` Running, Ready pods. Verify full per-node
+   disk density, unique bound Azure Disk PVs, and successful VolumeAttachments
+   to the pods' actual nodes. At limit four, this means 19,980 distinct disks.
 
 For example, random increments 400, 800, 1,000 produce pod totals
 `1 -> 401 -> 1201 -> 2201` and workload node targets `1 -> 101 -> 301 -> 551`.
-The number of stages varies per run.
-The final cluster has 3,005 nodes including the five
-system nodes. No HPA is needed: the runner changes workload replicas, while
-the real AKS Cluster Autoscaler changes node counts.
+Intermediate node targets are `ceil(requested pods / live disk limit)`, not
+isolated topology checks: batches overlap. The number of stages varies per run.
+No HPA is needed. Autoscaler maximums are ceilings, not desired node counts,
+and assigned pods blocked on disk attachment generally do not trigger scale-out.
 
-The test changes StatefulSet replicas and can recreate excess Pending pods,
-never changing node-pool node counts. It
-checks exact node and pod counts, pod readiness, per-node density, distinct
-Azure Disk PV handles, and successful VolumeAttachments to the correct nodes.
-During bootstrap, sequential stages, and the timed ramp, the logs show workload
-nodes Ready and not cordoned, total observed nodes, and the current node target.
-The same line includes currently Running and Ready pods, total observed pods,
-and requested replicas. Pod readiness decreases are reflected in these counts;
-they are not the cumulative first-observed readiness samples in the report.
-Progress is logged whenever these counts change and at least once per minute
-while polling succeeds. The ramp target reflects the pods requested so far,
-reaching the final node target with the last batch. System nodes are excluded;
-elapsed time is measured from the stage request or the first ramp request.
-Extra nodes, unrelated scheduling constraints preventing disk-limit evidence,
-missing autoscaler evidence, and timeouts fail the test.
+Progress logs show the current Ready/observed workload nodes and Running,
+Ready/observed pods alongside their targets. Counts reflect readiness decreases,
+not just cumulative first-observed readiness samples. Logs update when counts
+change and at least once per minute while polling proceeds. System nodes are
+excluded; elapsed time starts at the stage request or first ramp request.
+Extra workload nodes, invalid disk placement, missing disk-limit/autoscaler
+evidence, and timeouts fail the test.
 
-### Bounded overpacking recovery
+## Bounded overpacking recovery
 
-During the timed ramp, including the final readiness wait, the runner checks
-overpacking every **60 seconds**, independently of the 20-minute batch interval.
-A recovery candidate must remain the same Pending pod on the same node for
-**120 seconds** after detection. Regular monitoring resets this grace period
-if the pod identity, node identity, assignment, or qualifying state changes.
-The node must be Ready and not cordoned, advertise the expected live Azure Disk
-CSI limit, and have more assigned benchmark pods than that limit. Exactly
-that many non-terminating benchmark pods must already be Running; only excess,
-non-terminating Pending pods qualify. Pending alone is not a recovery trigger.
+Recovery is active throughout the timed ramp and final readiness wait. It
+recreates excess blocked pod instances so they return to scheduling without
+increasing replicas, deleting their disks, or manually scaling pools.
 
-Before deletion, the runner refreshes node and pod placement, rechecks the CSI
-limit, and reads each candidate pod again. Normal deletion uses both UID and
-resourceVersion preconditions to avoid deleting a replacement or a pod that
-changed after the read. HTTP 404/409 concurrency races are logged and skipped;
-other API errors fail the run. There is no force deletion, PVC deletion, manual
-pool scaling, or extra replica demand. The StatefulSet explicitly retains PVCs
-on deletion and scale-down, so replacement pods reuse their existing claims
-and disks. End-of-run namespace cleanup still removes the benchmark storage.
+| Recovery setting | Value |
+|------------------|-------|
+| Check interval | 60 seconds |
+| Grace after detection | 120 seconds |
+| Maximum accepted deletions | 3 per StatefulSet pod name, across replacement UIDs |
 
-Replacement pods return to scheduling and can trigger scale-out if no compatible
-node has disk capacity. If overpacking recurs, recovery repeats after a new grace
-period, with at most **three accepted deletions per StatefulSet pod name** across
-all replacement UIDs. A fourth required recovery fails explicitly. The existing
-ramp timeout remains in effect and is not extended by recovery.
+A candidate must be assigned, Pending, and not terminating. Its node must be
+Ready, uncordoned, and advertise the expected live CSI limit. Assigned benchmark
+pods must exceed that limit, while exactly that many non-terminating benchmark
+pods are already Running. Pending alone is not sufficient.
+
+At limit four, a node with four Running pods and six excess Pending pods
+qualifies; a node still bringing its first four pods into Running does not.
+The same candidate must survive the grace period. Regular monitoring resets
+tracking when identity, assignment, or qualifying state changes.
+
+Before deletion, the runner refreshes node/pod placement and CSI limits, then
+reads each candidate again. Normal pod deletion includes UID and resourceVersion
+preconditions. Pod read/delete HTTP 404/409 races are logged and skipped without
+consuming an attempt; other API errors fail the run. Running and terminating
+pods are not selected, and there is no force deletion.
+
+The StatefulSet recreates deleted pods with the same names and existing PVCs,
+but new UIDs and initially no node assignments. They can use existing compatible
+capacity or become unschedulable and trigger further scale-out. Persistent
+overpacking on replacements starts a new grace period. A fourth required
+recovery fails explicitly; recovery does not reset the final-wait deadline.
 
 The report's `overpacking_recovery` records the interval, grace period, retry
 limit, accepted-deletion counts by pod name, and deletion records containing
@@ -117,56 +154,73 @@ pod name/UID, node, disk limit, attempt, UTC request timestamp, and outcome.
 Recovery delays remain included in the original batch's readiness latency;
 replacement UIDs reset readiness samples without restarting the batch timer.
 
-This is recovery from persistent overpacking, not prevention of the scheduling
-race or a guarantee of reaching the node target. It does not diagnose other
-Pending causes or recover a node whose Running pods do not fill its disk slots.
-Volume topology and detach delays may still prevent successful placement.
-Sequential CLI execution retains its existing behavior without this recovery.
+### Latency and limitations
+
+Under responsive API conditions, deletion starts approximately **2-3 minutes**
+after overpacking begins: up to one minute for detection, then two minutes of
+grace, plus polling/API overhead. This grace period does not pause the ramp.
+
+Recovery API calls execute sequentially inside the monitoring loop. For a pass
+recovering all candidates across `N` affected nodes and `P` excess pods, the
+additional requests are approximately `2*N + 2*P + 2`: CSI checks, fresh node/pod
+lists, and one pod read and deletion per candidate. Large passes can delay
+readiness observations and actual batch submission. Kubernetes scheduling and
+autoscaling continue independently, although the requests add API load.
+
+There are **no explicit recovery request timeouts or per-iteration work budgets**.
+The retry limit bounds accepted deletions, not wall-clock latency; a stalled
+request can prevent the monitor from reaching its deadline check.
+
+This mitigates persistent overpacking, not the underlying scheduling race.
+It does not guarantee the node target, diagnose every Pending cause, or recover
+nodes whose Running pods do not fill their disk slots. Volume topology and
+detach delays can still block placement. There is no CSI startup taint or hard
+four-pod scheduler cap in the current scenario. Qualify recovery at a smaller
+scale before relying on a full-size run. Sequential execution has no recovery.
 
 ## Schedule and execution budgets
 
-The benchmark runs on `main` every Friday at 18:00 IST (12:30 UTC), even without
-code changes. Bootstrap allows five hours. After the last ramp request, final
-readiness and validation allow five hours; earlier Pending batches do not stop
-subsequent submissions. Storage cleanup and subsequent
-scale-down each allow six hours, within a 48-hour job budget. Resources have a
-60-hour deletion lifetime. These budgets do not guarantee that the run will
-finish: provisioning, timed batches, validation, and cleanup all consume time.
+The benchmark is scheduled on `main` every Friday at **18:00 IST / 12:30 UTC**,
+even without code changes. Manual runs are also supported.
 
-Before enabling the schedule, verify regional VM/vCPU and disk quotas, capacity,
-networking, agent job-duration limits, and cost approval for 12,000 workload
-disks and 3,005 cluster nodes. The disk limit is discovered at runtime; the
-workload-node target stays at 3,000, while the final pod/disk target is
-`3000 * live disk limit`. Each workload pool may scale up to 1,000 nodes, allowing
-uneven pool sizes without changing the benchmark target. These per-pool caps do
-not enforce a cluster-wide workload-node maximum or guarantee even distribution.
-Do not fill all five pools: 5,000 workload nodes plus the system nodes would
-exceed the AKS 5,000-total-node limit. Reserve quota and IP headroom for temporary
-extra nodes; final validation still requires exactly the workload-node target.
-Storage verification lists PVs
-once for bootstrap and once for final ramp validation rather than issuing one
-read request per pod.
+| Budget | Current setting |
+|--------|-----------------|
+| Bootstrap scale-up | 5 hours |
+| Final readiness wait, starting at the last replica request | 5 hours |
+| Storage cleanup | 6 hours |
+| Workload-node scale-down after storage cleanup | 6 hours |
+| Pipeline job | 48 hours |
+| Resource deletion lifetime | 60 hours |
 
-### Capacity prerequisites
+At a disk limit of four, the 19,980-pod target takes 20-50 random ramp batches.
+The configured intervals alone span approximately **6 hours 20 minutes to
+16 hours 20 minutes**, from the first ramp request to the last, before API
+delays. Earlier Pending batches do not stop later submissions. These settings
+are execution budgets, not guarantees of completion or strict request timeouts.
+Provisioning, recovery, validation, and cleanup all consume time.
 
-- Workload compute requires 6,000 vCPUs split across DDSv5 and Dv5 according
-  to the autoscaled pool sizes; the five system nodes require another 40 DDSv5
-  vCPUs, for **6,040 regional vCPUs** before other workloads or surge.
-  Verify Australia East DDSv5-family, Dv5-family, and regional quotas before each run:
-  quota is not a reservation or a guarantee of physical capacity.
-- The overlay pod CIDR `10.128.0.0/11` contains 8,192 per-node `/24` blocks,
-  enough for 3,005 nodes. The node subnet must separately have at least 3,005
-  usable addresses, plus operational headroom.
-- Plan for 12,000 workload data disks and 3,005 managed OS disks. Verify disk
-  quotas, storage-class disk type, provisioning throughput, and cleanup time.
-- Both pipelines enable Microsoft Entra ID integration with `AAD_ENABLED: 'true'`.
-  The scenario opts into a cluster-scoped Azure Kubernetes Service RBAC Cluster
-  Admin assignment for the Terraform identity, which must also be permitted to
-  create and delete role assignments. Validation configures kubelogin for Azure
-  CLI authentication and waits up to five minutes for Kubernetes authorization
-  to propagate before checking storage and workload nodes.
-- Confirm regional Kubernetes-version availability and qualify a small run
-  before attempting the full cluster.
+## Capacity and access prerequisites
+
+- **Compute:** 4,995 two-vCPU workload nodes require 9,990 vCPUs; the five
+  eight-vCPU system nodes add 40, for **10,030 regional vCPUs** at the target.
+  The DDSv5/Dv5 split depends on final pool sizes. Family ceilings are
+  **6,040 DDSv5 vCPUs** including the system pool, and **4,000 Dv5 vCPUs**.
+  Those simultaneous ceilings correspond to the unsupported 5,005-node pool
+  maximum, not the benchmark target. Check current regional/family quotas,
+  SKU restrictions, physical capacity, and cost approval before each run.
+  Quota is not a capacity reservation.
+- **Networking:** `10.128.0.0/11` provides 8,192 overlay `/24` pod blocks.
+  Separately verify at least 5,000 usable node-subnet addresses and operational
+  IP headroom. Extra addresses do not provide node-count headroom.
+- **Storage:** at limit four, plan for 19,980 distinct workload data disks and
+  5,000 managed OS disks. Check storage SKU compatibility, quotas, provisioning
+  throughput, and cleanup time.
+- **Access:** both pipelines set `AAD_ENABLED: 'true'`. The Terraform identity
+  receives a cluster-scoped AKS RBAC Cluster Admin assignment and must be allowed
+  to create/delete role assignments. Validation configures kubelogin for Azure
+  CLI authentication and waits up to five minutes for authorization to propagate.
+- **Qualification:** confirm regional Kubernetes-version availability and
+  validate the scenario at a smaller scale before launching the full target.
 
 ## Results and cleanup
 
@@ -185,7 +239,7 @@ before reporting those metrics.
 
 ### End-to-end pod readiness latency
 
-Each stage now includes `pod_readiness_samples`, keyed by the newly requested
+Each stage includes `pod_readiness_samples`, keyed by the newly requested
 pod's name, with its UID and `e2e_ready_seconds`. Latency starts immediately
 before the StatefulSet replica-change API call and ends when the runner first
 observes that pod Running with `Ready=True`. It includes API processing,
@@ -270,7 +324,7 @@ are also collected. Structured results use the `disk_boundary` autoscale type.
 
 Manually queue [the validation pipeline](../../../pipelines/system/new-pipeline-test.yml)
 or [the CSI pipeline](../../../pipelines/perf-eval/CSI%20Benchmark/csi-autoscale-5k.yml).
-Both request `node_count: 3000`, passed to the runner as `--node-count 3000`.
+Both request `node_count: 4995`, passed to the runner as `--node-count 4995`.
 The runner accepts only node-based targets; omitting `--node-count` retains
 the default ten-node test. The final pod count is the node target multiplied
 by the live CSI disk limit.
@@ -280,6 +334,8 @@ validation and timeouts. In timed mode, the scale-up timeout applies to bootstra
 and then to the final wait starting at the last replica request; storage cleanup
 and node scale-down have separate timeouts.
 
-Qualify changes at smaller scales before launching the full workload. The runner
-rejects targets requiring more than 5,000 workload nodes; system nodes are never
-included in workload-node counts or workload-pod readiness samples.
+The generic runner accepts 2-5,000 workload nodes, but this scenario must account
+for its five fixed system nodes: 5,000 workload nodes would exceed the AKS total
+limit. System nodes are never included in workload-node counts or workload-pod
+readiness samples. The scenario target is 4,995; see the cluster-limit warning
+above before changing either the target or pool caps.
