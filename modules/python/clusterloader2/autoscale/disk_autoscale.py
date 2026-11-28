@@ -14,6 +14,8 @@ from pathlib import Path
 
 import yaml
 import numpy as np
+from kubernetes.client import V1DeleteOptions, V1Preconditions
+from kubernetes.client.exceptions import ApiException
 
 from clients.kubernetes_client import KubernetesClient
 from clusterloader2.autoscale.autoscale import _build_report_template
@@ -24,6 +26,9 @@ DRIVER = "disk.csi.azure.com"
 WORKLOAD = "disk-workload"
 LABEL = f"app={WORKLOAD}"
 MAX_WORKLOAD_NODES = 5000
+RECOVERY_CHECK_SECONDS = 60
+RECOVERY_GRACE_SECONDS = 120
+RECOVERY_MAX_ATTEMPTS = 3
 POD_TIMING_COLUMNS = (
     "pod_name", "pod_uid", "node_name", "requested_at", "pod_created_at",
     "pod_started_at", "ready_transition_at", "ready_observed_at",
@@ -66,6 +71,127 @@ def is_ready(resource):
         condition.type == "Ready" and condition.status == "True"
         for condition in resource.status.conditions or []
     )
+
+
+def overpacked_pending_pods(nodes, pods, limit):
+    by_node = {}
+    for pod in pods:
+        by_node.setdefault(pod.spec.node_name, []).append(pod)
+    candidates = {}
+    for node in nodes:
+        assigned = by_node.get(node.metadata.name, [])
+        running = [
+            pod for pod in assigned
+            if pod.status.phase == "Running"
+            and not getattr(pod.metadata, "deletion_timestamp", None)
+        ]
+        if (not is_ready(node) or node.spec.unschedulable
+                or len(assigned) <= limit or len(running) != limit):
+            continue
+        for pod in assigned:
+            if (pod.status.phase == "Pending"
+                    and not getattr(pod.metadata, "deletion_timestamp", None)):
+                candidates[pod.metadata.name] = (pod, node)
+    return candidates
+
+
+def recovery_identity(pod, node):
+    return pod.metadata.uid, node.metadata.name, node.metadata.uid
+
+
+def recover_overpacked_pods(kube, namespace, selector, nodes, pods, limit, recovery, report):
+    now = time.monotonic()
+    candidates = overpacked_pending_pods(nodes, pods, limit)
+    pending = recovery["pending"]
+    for name in list(pending):
+        if (name not in candidates
+                or pending[name]["identity"] != recovery_identity(*candidates[name])):
+            del pending[name]
+    if now < recovery["next_check"]:
+        return
+    recovery["next_check"] = now + RECOVERY_CHECK_SECONDS
+    limits = {}
+    mature = {}
+    for name, (pod, node) in candidates.items():
+        node_name = node.metadata.name
+        if node_name not in limits:
+            limits[node_name] = disk_limit(kube, node_name)
+        if limits[node_name] != limit:
+            logger.warning(
+                "Skipping overpacking recovery on %s: CSI limit=%s, expected=%s",
+                node_name, limits[node_name], limit,
+            )
+            pending.pop(name, None)
+            continue
+        observation = pending.setdefault(name, {
+            "identity": recovery_identity(pod, node), "since": now,
+        })
+        if now - observation["since"] >= RECOVERY_GRACE_SECONDS:
+            mature[name] = observation["identity"]
+    if not mature:
+        return
+
+    fresh_nodes = kube.get_nodes(label_selector=selector)
+    fresh_pods = kube.api.list_namespaced_pod(namespace, label_selector=LABEL).items
+    fresh = overpacked_pending_pods(fresh_nodes, fresh_pods, limit)
+    limits = {}
+    for name, identity in mature.items():
+        if name not in fresh or recovery_identity(*fresh[name]) != identity:
+            pending.pop(name, None)
+            continue
+        _, node = fresh[name]
+        node_name = node.metadata.name
+        if node_name not in limits:
+            limits[node_name] = disk_limit(kube, node_name)
+        if limits[node_name] != limit:
+            logger.warning("CSI limit changed on %s; skipping overpacking recovery", node_name)
+            pending.pop(name, None)
+            continue
+        entry = None
+        try:
+            pod = kube.api.read_namespaced_pod(name, namespace)
+            if (pod.metadata.uid != identity[0] or pod.spec.node_name != node_name
+                    or pod.status.phase != "Pending" or pod.metadata.deletion_timestamp):
+                pending.pop(name, None)
+                continue
+            if not pod.metadata.uid or not pod.metadata.resource_version:
+                raise ValueError(f"Cannot safely recover {name}: missing pod UID or resourceVersion")
+            attempts = recovery["attempts"].get(name, 0)
+            if attempts >= RECOVERY_MAX_ATTEMPTS:
+                raise ValueError(
+                    f"Overpacking recovery exhausted for {name} on {node_name}: "
+                    f"{attempts} deletions, disk_limit={limit}"
+                )
+            entry = {
+                "pod_name": name, "pod_uid": pod.metadata.uid, "node_name": node_name,
+                "disk_limit": limit, "attempt": attempts + 1,
+                "requested_at": datetime.now(timezone.utc).isoformat(), "result": "failure",
+            }
+            report["overpacking_recovery"]["deletions"].append(entry)
+            kube.api.delete_namespaced_pod(name, namespace, body=V1DeleteOptions(
+                preconditions=V1Preconditions(
+                    uid=pod.metadata.uid, resource_version=pod.metadata.resource_version,
+                ),
+            ))
+        except ApiException as error:
+            if error.status not in (404, 409):
+                if entry is not None:
+                    entry["status"] = error.status
+                raise
+            if entry is not None:
+                entry.update(result="skipped", status=error.status)
+            logger.warning(
+                "Overpacking recovery skipped %s after concurrent pod change (HTTP %s)",
+                name, error.status,
+            )
+        else:
+            recovery["attempts"][name] = attempts + 1
+            entry["result"] = "deleted"
+            logger.info(
+                "Deleted excess Pending pod %s on %s (CSI limit=%s, recovery attempt=%s)",
+                name, node_name, limit, attempts + 1,
+            )
+        pending.pop(name, None)
 
 
 def summarize_pod_readiness(samples, expected_pod_count):
@@ -371,6 +497,14 @@ def run_ramp(kube, namespace, selector, node_count, limit, old_nodes,
     stages = []
     evidence = None
     progress = None
+    recovery = {"next_check": 0, "pending": {}, "attempts": {}}
+    report["overpacking_recovery"] = {
+        "check_interval_seconds": RECOVERY_CHECK_SECONDS,
+        "grace_period_seconds": RECOVERY_GRACE_SECONDS,
+        "max_attempts_per_pod": RECOVERY_MAX_ATTEMPTS,
+        "attempts_by_pod": recovery["attempts"],
+        "deletions": [],
+    }
     while True:
         now = time.monotonic()
         if target is not None and now >= next_request:
@@ -401,6 +535,9 @@ def run_ramp(kube, namespace, selector, node_count, limit, old_nodes,
         pods = kube.api.list_namespaced_pod(namespace, label_selector=LABEL).items
         if len(nodes) > node_count:
             raise ValueError(f"Expected at most {node_count} workload nodes, found {len(nodes)}")
+        recover_overpacked_pods(
+            kube, namespace, selector, nodes, pods, limit, recovery, report,
+        )
         observed = time.monotonic()
         progress = log_workload_progress(
             nodes, expected_nodes, pods, previous_replicas, observed - stages[0][1], progress

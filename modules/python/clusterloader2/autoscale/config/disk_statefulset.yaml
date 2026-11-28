@@ -5,6 +5,9 @@ metadata:
 spec:
   serviceName: disk-workload
   podManagementPolicy: Parallel
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
   replicas: 0
   selector:
     matchLabels:

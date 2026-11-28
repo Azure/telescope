@@ -68,7 +68,8 @@ The final cluster has 3,005 nodes including the five
 system nodes. No HPA is needed: the runner changes workload replicas, while
 the real AKS Cluster Autoscaler changes node counts.
 
-The test changes only StatefulSet replicas, never node-pool node counts. It
+The test changes StatefulSet replicas and can recreate excess Pending pods,
+never changing node-pool node counts. It
 checks exact node and pod counts, pod readiness, per-node density, distinct
 Azure Disk PV handles, and successful VolumeAttachments to the correct nodes.
 During bootstrap, sequential stages, and the timed ramp, the logs show workload
@@ -82,6 +83,45 @@ reaching the final node target with the last batch. System nodes are excluded;
 elapsed time is measured from the stage request or the first ramp request.
 Extra nodes, unrelated scheduling constraints preventing disk-limit evidence,
 missing autoscaler evidence, and timeouts fail the test.
+
+### Bounded overpacking recovery
+
+During the timed ramp, including the final readiness wait, the runner checks
+overpacking every **60 seconds**, independently of the 20-minute batch interval.
+A recovery candidate must remain the same Pending pod on the same node for
+**120 seconds** after detection. Regular monitoring resets this grace period
+if the pod identity, node identity, assignment, or qualifying state changes.
+The node must be Ready and not cordoned, advertise the expected live Azure Disk
+CSI limit, and have more assigned benchmark pods than that limit. Exactly
+that many non-terminating benchmark pods must already be Running; only excess,
+non-terminating Pending pods qualify. Pending alone is not a recovery trigger.
+
+Before deletion, the runner refreshes node and pod placement, rechecks the CSI
+limit, and reads each candidate pod again. Normal deletion uses both UID and
+resourceVersion preconditions to avoid deleting a replacement or a pod that
+changed after the read. HTTP 404/409 concurrency races are logged and skipped;
+other API errors fail the run. There is no force deletion, PVC deletion, manual
+pool scaling, or extra replica demand. The StatefulSet explicitly retains PVCs
+on deletion and scale-down, so replacement pods reuse their existing claims
+and disks. End-of-run namespace cleanup still removes the benchmark storage.
+
+Replacement pods return to scheduling and can trigger scale-out if no compatible
+node has disk capacity. If overpacking recurs, recovery repeats after a new grace
+period, with at most **three accepted deletions per StatefulSet pod name** across
+all replacement UIDs. A fourth required recovery fails explicitly. The existing
+ramp timeout remains in effect and is not extended by recovery.
+
+The report's `overpacking_recovery` records the interval, grace period, retry
+limit, accepted-deletion counts by pod name, and deletion records containing
+pod name/UID, node, disk limit, attempt, UTC request timestamp, and outcome.
+Recovery delays remain included in the original batch's readiness latency;
+replacement UIDs reset readiness samples without restarting the batch timer.
+
+This is recovery from persistent overpacking, not prevention of the scheduling
+race or a guarantee of reaching the node target. It does not diagnose other
+Pending causes or recover a node whose Running pods do not fill its disk slots.
+Volume topology and detach delays may still prevent successful placement.
+Sequential CLI execution retains its existing behavior without this recovery.
 
 ## Schedule and execution budgets
 
